@@ -38,6 +38,8 @@ def run_measure(
     data_dir: Path,
     output_dir: Path,
     manifest: DatasetManifest | None = None,
+    *,
+    expected_orgao: str | None = None,
 ) -> int:
     if not _COMPETENCIA_RE.match(competencia):
         logger.error(f"competência inválida {competencia!r}: esperado YYYY-MM (ex.: 2026-06)")
@@ -48,7 +50,11 @@ def run_measure(
     year, month = competencia.split("-")
     competencia_data_dir = data_dir / year / month
 
-    configs = discover_configs(config_dir)
+    try:
+        configs = discover_configs(config_dir, expected_orgao=expected_orgao)
+    except (OSError, ValueError) as exc:
+        logger.error(f"falha ao carregar configs de {config_dir}: {exc}")
+        return 1
     if not configs:
         logger.error(f"nenhum config encontrado em {config_dir}")
         return 1

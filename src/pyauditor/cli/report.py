@@ -21,7 +21,15 @@ def _load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
     return summaries
 
 
-def run_report(competencia: str, capa_path: Path, roms_dir: Path, output_path: Path, config_dir: Path) -> int:
+def run_report(
+    competencia: str,
+    capa_path: Path,
+    roms_dir: Path,
+    output_path: Path,
+    config_dir: Path,
+    *,
+    expected_orgao: str | None = None,
+) -> int:
     if not capa_path.exists():
         logger.error(f"capa não encontrada em {capa_path} — rode `pyauditor bootstrap` primeiro")
         return 1
@@ -51,7 +59,7 @@ def run_report(competencia: str, capa_path: Path, roms_dir: Path, output_path: P
         )
 
     try:
-        configs = discover_configs(config_dir)
+        configs = discover_configs(config_dir, expected_orgao=expected_orgao)
     except (OSError, ValueError) as exc:
         logger.warning(f"falha ao carregar configs de {config_dir}, CADASTROS será omitido: {exc}")
         configs = []

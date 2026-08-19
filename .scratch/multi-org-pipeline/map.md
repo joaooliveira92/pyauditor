@@ -18,12 +18,14 @@ Pipeline multi-órgão: `measure`/`report` por órgão (`MinC`, `MTur`, `both`),
 
 - [Mapear as abas financeiras da planilha de inspiração](issues/01-inspiration-financial-tabs.md) — núcleo financeiro: `CAPA_E_CONTROLE` (valor mensal) → `GLOSAS` (Valor Glosa = Valor Base × %Ajuste/100; glosa final = MIN(pontos×0.001, 30%)×mensal) → `CALCULO_PAGAMENTO` (rateio MinC/MTur); **pontos de glosa são entrada manual no workbook** (cadeia indicador→pontos→glosa não automatizada).
 - [Fórmula financeira da consolidação (2.1)](issues/02-consolidation-formula.md) — `GLOSAS` por (indicador×órgão) + resumo; pontos derivados (Σ %Ajuste×1000, sem D14 manual); teto único 30% no agregado; `CALCULO_PAGAMENTO` espelha a inspiração (rateio fiscal 0.5/0.5, glosa na coluna consolidada); `INMS_BASE` = pooling atual movido para o consolidate; **sugestão de glosa**: fiscal aceita/não-aceita justificativa (anistia), decisões na planilha, re-rodada preserva células editadas (merge).
+- [Layout de configs por órgão](issues/03-configs-per-orgao.md) — `configs/<órgão>/inms-*.yaml` já criados (14×MinC, 14×MTur); `scope.orgao` validado contra o `--orgao` (mismatch = erro); MTur = cópia literal do MinC; `datasets.yaml` por órgão; INMS 1.2 `%Ajuste` sai da engine e desvio manual entra pela decisão de anistia.
 
 Decisões de fundação aprovadas no grill (Q1–Q11, 2026-08-19):
 - CLI: `--orgao {MinC,MTur,both}` em measure/report (default `MinC`); novo subcomando `pyauditor consolidate <competencia>`.
 - `consolidate` lê só os workbooks por órgão; erro claro se algum faltar; nunca refaz 1.3.
 - Input: `data_dir/<órgão>/<AAAA>/<MM>`. Outputs: `roms/<órgão>/<comp>/`, `reports/relatorio_<comp>_<orgao>.xlsx`, consolidado `reports/relatorio_<comp>_consolidado.xlsx`.
 - `consolidate` substitui `orgao_consolidation.py` (remover o pooling dentro de `report`).
+- **Implementado (19/08/2026)**: `--orgao {MinC,MTur,both}` em measure/report/bootstrap (default `MinC`), configs por órgão com validação de `scope.orgao`, input `data/<órgão>/<AAAA>/<MM>`, ROMs `roms/<órgão>/<comp>/`, relatório `reports/relatorio_<comp>_<orgao>.xlsx`, capa `capa_<orgao>.xlsx`, manifest `configs/<órgão>/datasets.yaml`. Repo com testes verdes (101 passed).
 - Por-ativo (1.4/1.5/1.14) não consolidam — uma linha por órgão por ativo.
 - Escopo da planilha consolidada = núcleo financeiro: `CAPA_E_CONTROLE`, `INMS_BASE`, `GLOSAS`, `CALCULO_PAGAMENTO`, `SERVICOS_POR_ORGAO`.
 - Cada órgão tem capa própria (`capa_<orgao>.xlsx`).

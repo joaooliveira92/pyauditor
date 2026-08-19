@@ -13,4 +13,13 @@ Decidir o **contrato CLI/dados/output por órgão** — a costura exata que exp�
 
 ## Answer
 
-(aberto)
+Parte decidida e **implementada** (subcomando `--orgao`, 19/08/2026), após a movimentação dos configs para `configs/<órgão>/`:
+
+- `--orgao {MinC,MTur,both}` em `measure`/`report`/`bootstrap`, default `MinC`. `both` itera os dois órgãos sequencialmente, sem cruzar (1.3 = 1.1 + 1.2).
+- Config dir derivado: `configs/<órgão>/`; `discover_configs(config_dir, expected_orgao=...)` valida `scope.orgao` (mismatch = erro claro).
+- Input: `data_dir/<órgão>/<AAAA>/<MM>`; ROMs: `roms/<órgão>/<comp>/`; relatório: `reports/relatorio_<comp>_<orgao>.xlsx`; capa: `capa_<orgao>.xlsx` (bootstrap por órgão).
+- Manifest por órgão derivado: `configs/<órgão>/datasets.yaml`.
+
+Ainda **em aberto** (a decidir):
+- O subcomando `consolidate` (2.1) — é o destino do mapa, não implementado aqui.
+- Contrato de merge na retórica da 2.1 sobre planilha já decorada (preservar células de decisão) — parte do ticket 02, contrastar com o contrato de output ao implementar.
