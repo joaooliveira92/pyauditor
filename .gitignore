@@ -16,3 +16,6 @@ input/
 /capa.xlsx
 /roms/
 /reports/
+
+# Per-run CLI log files (bootstrap can land one at the repo root)
+/pyauditor-*.log

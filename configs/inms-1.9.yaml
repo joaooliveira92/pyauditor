@@ -8,19 +8,18 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-001-09.csv
-  delimiter: ";"
-  encoding: utf-8-sig
+  dataset: mudancas
 
 quality_gates:
   checks: []
 
 calculation:
-  shape: ratio
-  aggregation: count_distinct
-  numerator_filter:
-    column: "No prazo"
-    equals: "S"
+  shape: precomputed_table
+  result_column: inms_1_9_percentual
+  name_column: ambiente_nome
+  numerator_column: trmp_requisicoes_atendidas_no_prazo
+  denominator_column: trm_total_requisicoes_mudanca
+  penalty_column: penalidade_pontos
 
 target:
   operator: ">="
@@ -43,9 +42,7 @@ penalty:
 # `count_distinct` já está coberta pelo INMS 1.1 (ticket 02).
 acceptance_test:
   expected:
-    shape: ratio
-    numerator: 0
-    denominator: 0
-    result_pct: 0.0
-    conforms: true
-    penalty_points: 0.0
+    shape: precomputed_table
+    result_pct: 92.1569
+    conforms: false
+    penalty_points: 3800.0

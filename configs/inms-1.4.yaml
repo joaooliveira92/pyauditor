@@ -8,17 +8,18 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-001-04.csv
-  delimiter: ","
-  encoding: utf-8-sig
+  dataset: disponibilidade_sistema_critico
 
 quality_gates:
   checks: []
 
 calculation:
-  shape: ratio
-  aggregation: precomputed
-  precomputed_result_column: "Disponibilidade Realizada (%)"
+  shape: precomputed_table
+  result_column: inms_1_4_percentual
+  name_column: sistema_servico_nome
+  numerator_column: numerador_inms_horas
+  denominator_column: base_apuracao_horas
+  penalty_column: penalidade_pontos
 
 target:
   operator: ">="
@@ -35,9 +36,7 @@ penalty:
 # Realizada = 95.01%.
 acceptance_test:
   expected:
-    shape: ratio
-    numerator: 95.01
-    denominator: 100
-    result_pct: 95.01
+    shape: precomputed_table
+    result_pct: 99.5635
     conforms: false
-    penalty_points: 44900.0
+    penalty_points: 5000.0

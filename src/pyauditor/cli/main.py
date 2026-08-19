@@ -9,12 +9,15 @@ import argparse
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Final, Literal, NoReturn, TypeAlias, TypeGuard, TypeVar, assert_never, cast
 
 from pyauditor.cli.bootstrap import run_bootstrap
 from pyauditor.cli.measure import run_measure
 from pyauditor.cli.report import run_report
+from pyauditor.config.manifest import load_manifest
+from pyauditor.logging import setup_logging
 
 __all__: Final[tuple[str, ...]] = ("MeasureRequest", "ReportRequest", "build_parser", "cli_main")
 
@@ -30,6 +33,7 @@ _DEFAULT_DATA_DIR: Final[Path] = Path("input")
 _DEFAULT_OUTPUT_DIR: Final[Path] = Path("roms")
 _DEFAULT_CAPA_PATH: Final[Path] = Path("capa.xlsx")
 _DEFAULT_REPORT_DIR: Final[Path] = Path("reports")
+_DEFAULT_MANIFEST_PATH: Final[Path] = Path("configs") / "datasets.yaml"
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +44,7 @@ class MeasureRequest:
     config_dir: Path
     data_dir: Path
     output_dir: Path
+    manifest_path: Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +55,7 @@ class ReportRequest:
     capa_path: Path
     roms_dir: Path
     output_path: Path
+    config_dir: Path
 
 
 def _is_command(value: str) -> TypeGuard[Command]:
@@ -86,6 +92,10 @@ def build_parser() -> argparse.ArgumentParser:
     measure_parser.add_argument(
         "--output-dir", type=Path, default=_DEFAULT_OUTPUT_DIR
     )
+    measure_parser.add_argument(
+        "--manifest", type=Path, default=_DEFAULT_MANIFEST_PATH,
+        help="caminho para datasets.yaml (default: configs/datasets.yaml)"
+    )
 
     bootstrap_parser = subparsers.add_parser(
         _CMD_BOOTSTRAP, help="cria a capa Excel do contrato, se ainda não existir"
@@ -99,6 +109,9 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument("--capa-path", type=Path, default=_DEFAULT_CAPA_PATH)
     report_parser.add_argument("--roms-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
     report_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_REPORT_DIR)
+    report_parser.add_argument(
+        "--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR
+    )
 
     return parser
 
@@ -109,11 +122,20 @@ def _extract_measure_request(ns: argparse.Namespace) -> MeasureRequest:
         config_dir=_require(ns, "config_dir", Path),
         data_dir=_require(ns, "data_dir", Path),
         output_dir=_require(ns, "output_dir", Path),
+        manifest_path=_require(ns, "manifest", Path),
     )
 
 
 def _extract_capa_path(ns: argparse.Namespace) -> Path:
     return _require(ns, "capa_path", Path)
+
+
+def _run_log_path(log_dir: Path, command: str, competencia: str | None = None) -> Path:
+    """Timestamped per-run log file next to the command's outputs — every
+    execution leaves a trace the user can consult to rastrear errors."""
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    suffix = f"-{competencia}" if competencia is not None else ""
+    return log_dir / f"pyauditor-{command}{suffix}-{stamp}.log"
 
 
 def _extract_report_request(ns: argparse.Namespace) -> ReportRequest:
@@ -124,6 +146,7 @@ def _extract_report_request(ns: argparse.Namespace) -> ReportRequest:
         capa_path=_require(ns, "capa_path", Path),
         roms_dir=_require(ns, "roms_dir", Path),
         output_path=output_dir / f"relatorio_{competencia}.xlsx",
+        config_dir=_require(ns, "config_dir", Path),
     )
 
 
@@ -145,21 +168,35 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
 
     if command == _CMD_MEASURE:
         request = _extract_measure_request(args)
+        setup_logging(
+            log_path=_run_log_path(
+                request.output_dir / request.competencia, _CMD_MEASURE, request.competencia
+            )
+        )
+        # Load manifest if it exists; None for legacy csv-only configs
+        manifest = None
+        if request.manifest_path.exists():
+            manifest = load_manifest(request.manifest_path)
         return run_measure(
             competencia=request.competencia,
             config_dir=request.config_dir,
             data_dir=request.data_dir,
             output_dir=request.output_dir,
+            manifest=manifest,
         )
     elif command == _CMD_BOOTSTRAP:
-        return run_bootstrap(_extract_capa_path(args))
+        capa_path = _extract_capa_path(args)
+        setup_logging(log_path=_run_log_path(capa_path.parent, _CMD_BOOTSTRAP))
+        return run_bootstrap(capa_path)
     elif command == _CMD_REPORT:
         report_request = _extract_report_request(args)
+        setup_logging(log_path=_run_log_path(report_request.output_path.parent, _CMD_REPORT))
         return run_report(
             competencia=report_request.competencia,
             capa_path=report_request.capa_path,
             roms_dir=report_request.roms_dir,
             output_path=report_request.output_path,
+            config_dir=report_request.config_dir,
         )
     else:
         assert_never(command)

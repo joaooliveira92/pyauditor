@@ -36,7 +36,7 @@ def test_run_report_fails_without_capa(tmp_path: Path) -> None:
     roms_dir = tmp_path / "roms"
     _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
 
-    exit_code = run_report("2026-06", capa_path, roms_dir, tmp_path / "reports" / "out.xlsx")
+    exit_code = run_report("2026-06", capa_path, roms_dir, tmp_path / "reports" / "out.xlsx", config_dir=tmp_path / "configs")
 
     assert exit_code == 1
     assert not (tmp_path / "reports" / "out.xlsx").exists()
@@ -47,7 +47,7 @@ def test_run_report_fails_without_roms(tmp_path: Path) -> None:
     bootstrap_capa(capa_path)
     roms_dir = tmp_path / "roms"  # never populated
 
-    exit_code = run_report("2026-06", capa_path, roms_dir, tmp_path / "reports" / "out.xlsx")
+    exit_code = run_report("2026-06", capa_path, roms_dir, tmp_path / "reports" / "out.xlsx", config_dir=tmp_path / "configs")
 
     assert exit_code == 1
 
@@ -59,7 +59,7 @@ def test_run_report_builds_workbook_from_summaries(tmp_path: Path) -> None:
     _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
-    exit_code = run_report("2026-06", capa_path, roms_dir, output_path)
+    exit_code = run_report("2026-06", capa_path, roms_dir, output_path, config_dir=tmp_path / "configs")
 
     assert exit_code == 0
     assert output_path.exists()
@@ -77,13 +77,13 @@ def test_run_report_is_regenerated_not_cumulative(tmp_path: Path) -> None:
     _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
-    run_report("2026-06", capa_path, roms_dir, output_path)
+    run_report("2026-06", capa_path, roms_dir, output_path, config_dir=tmp_path / "configs")
     first_size = output_path.stat().st_size
 
     # Second indicator appears for the same competência — rerun must reflect
     # exactly the current ROMs, not append to the previous run's workbook.
     _write_summary(roms_dir, "2026-06", "INMS-1.2", "INMS 1.2")
-    run_report("2026-06", capa_path, roms_dir, output_path)
+    run_report("2026-06", capa_path, roms_dir, output_path, config_dir=tmp_path / "configs")
 
     workbook = load_workbook(output_path)
     sheet = workbook[INMS_BASE_SHEET]
@@ -105,7 +105,7 @@ def test_run_report_reads_valor_base_from_capa_for_glosas(tmp_path: Path) -> Non
     _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")  # penalty_points=222.14
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
-    exit_code = run_report("2026-06", capa_path, roms_dir, output_path)
+    exit_code = run_report("2026-06", capa_path, roms_dir, output_path, config_dir=tmp_path / "configs")
 
     assert exit_code == 0
     workbook = load_workbook(output_path)

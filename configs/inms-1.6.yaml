@@ -8,9 +8,7 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-001-06.csv
-  delimiter: ";"
-  encoding: utf-8-sig
+  dataset: chamados_reabertos
 
 quality_gates:
   checks: []

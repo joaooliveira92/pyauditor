@@ -8,17 +8,18 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-001-14.csv
-  delimiter: ","
-  encoding: utf-8-sig
+  dataset: disponibilidade_infra
 
 quality_gates:
   checks: []
 
 calculation:
-  shape: ratio
-  aggregation: precomputed
-  precomputed_result_column: "Disponibilidade Realizada (%)"
+  shape: precomputed_table
+  result_column: inms_1_14_percentual
+  name_column: servico_infraestrutura
+  numerator_column: numerador_inms_horas
+  denominator_column: base_apuracao_horas
+  penalty_column: penalidade_pontos
 
 target:
   operator: ">="
@@ -41,9 +42,7 @@ penalty:
 # dados, 2026-08-19).
 acceptance_test:
   expected:
-    shape: ratio
-    numerator: 98.49
-    denominator: 100
-    result_pct: 98.49
+    shape: precomputed_table
+    result_pct: 99.6501
     conforms: false
-    penalty_points: 2525.0
+    penalty_points: 750.0

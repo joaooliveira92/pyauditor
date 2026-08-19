@@ -8,19 +8,18 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-001-13.csv
-  delimiter: ";"
-  encoding: utf-8-sig
+  dataset: chamados_grupo_executor
 
 quality_gates:
   checks: []
 
 calculation:
-  shape: ratio
-  aggregation: count_distinct
-  numerator_filter:
-    column: "Grupo_executor"
-    contains: "1º Nível"
+  shape: precomputed_table
+  result_column: inms_1_13_percentual
+  name_column: unidade_nome
+  numerator_column: tcn1_chamados_atendidos_nivel_1
+  denominator_column: tcr_total_chamados_registrados
+  penalty_column: penalidade_pontos
 
 target:
   operator: ">="
@@ -40,9 +39,7 @@ penalty:
 # "(CIT/MINC) - 1º Nível" — TCN1=TCR=116, 100%.
 acceptance_test:
   expected:
-    shape: ratio
-    numerator: 116
-    denominator: 116
-    result_pct: 100.0
-    conforms: true
-    penalty_points: 0.0
+    shape: precomputed_table
+    result_pct: 75.05
+    conforms: false
+    penalty_points: 1000.0

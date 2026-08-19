@@ -8,17 +8,20 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-001-04.csv
-  delimiter: ","
+  csv: inms-04.csv
+  delimiter: ";"
   encoding: utf-8-sig
 
 quality_gates:
   checks: []
 
 calculation:
-  shape: ratio
-  aggregation: precomputed
-  precomputed_result_column: "Disponibilidade Realizada (%)"
+  shape: precomputed_table
+  result_column: inms_1_4_percentual
+  name_column: sistema_servico_nome
+  numerator_column: numerador_inms_horas
+  denominator_column: base_apuracao_horas
+  penalty_column: penalidade_pontos
 
 target:
   operator: ">="
@@ -28,16 +31,9 @@ penalty:
   step_points: 1000
   step_size_pct: 0.1
 
-# Anexo D (Tabela 28), INMS 1.4: meta ≥99,5% POR sistema/serviço crítico (não
-# somatório — ticket 13), 1000 pontos a cada 0,1% abaixo da meta. Um único
-# YAML+CSV = um ativo, com 1 linha pré-agregada pela ferramenta de
-# monitoramento (spec §2.1). /input/inms-001-04.csv real: Disponibilidade
-# Realizada = 95.01%.
 acceptance_test:
   expected:
-    shape: ratio
-    numerator: 95.01
-    denominator: 100
-    result_pct: 95.01
+    shape: precomputed_table
+    result_pct: 99.5635
     conforms: false
-    penalty_points: 44900.0
+    penalty_points: 5000.0

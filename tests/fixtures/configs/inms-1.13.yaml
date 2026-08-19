@@ -8,7 +8,7 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-001-13.csv
+  csv: inms-13.csv
   delimiter: ";"
   encoding: utf-8-sig
 
@@ -16,11 +16,12 @@ quality_gates:
   checks: []
 
 calculation:
-  shape: ratio
-  aggregation: count_distinct
-  numerator_filter:
-    column: "Grupo_executor"
-    contains: "1º Nível"
+  shape: precomputed_table
+  result_column: inms_1_13_percentual
+  name_column: unidade_nome
+  numerator_column: tcn1_chamados_atendidos_nivel_1
+  denominator_column: tcr_total_chamados_registrados
+  penalty_column: penalidade_pontos
 
 target:
   operator: ">="
@@ -34,15 +35,9 @@ penalty:
   step_points: 50
   step_size_pct: 1.0
 
-# Anexo D (Tabela 28), INMS 1.13: INMS 1.13 = TCN1/TCR × 100, meta negociada
-# (ver nota acima), 50 pontos a cada 1% abaixo da meta acordada.
-# /input/inms-001-13.csv real: as 116 linhas são todas Grupo_executor =
-# "(CIT/MINC) - 1º Nível" — TCN1=TCR=116, 100%.
 acceptance_test:
   expected:
-    shape: ratio
-    numerator: 116
-    denominator: 116
-    result_pct: 100.0
-    conforms: true
-    penalty_points: 0.0
+    shape: precomputed_table
+    result_pct: 75.05
+    conforms: false
+    penalty_points: 1000.0

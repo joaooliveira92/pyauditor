@@ -72,7 +72,8 @@ def _pooled_numerator_denominator(
     if shape == "count_difference":
         return _as_float(memoria.get("QCSI")), _as_float(memoria.get("QRC"))
 
-    # external_catalog_sum: a point sum, not a ratio — no numerator/denominator.
+    # external_catalog_sum / precomputed_table: point/aggregated measures, not
+    # a ratio — no numerator/denominator at the indicator level.
     return None, None
 
 
