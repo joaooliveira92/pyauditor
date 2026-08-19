@@ -8,8 +8,8 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-001-11.csv
-  delimiter: ","
+  csv: inms-11.csv
+  delimiter: ";"
   encoding: utf-8-sig
 
 quality_gates:
@@ -42,8 +42,8 @@ penalty:
 acceptance_test:
   expected:
     shape: ratio
-    numerator: 93
-    denominator: 492
-    result_pct: 18.9
+    numerator: 119
+    denominator: 924
+    result_pct: 12.8788
     conforms: false
-    penalty_points: 695.12
+    penalty_points: 393.94

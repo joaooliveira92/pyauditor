@@ -1,5 +1,5 @@
 from pyauditor.excel.groups import GROUP_TABS, primary_group
-from pyauditor.excel.report import GLOSAS_SHEET, INMS_BASE_SHEET, build_report_workbook
+from pyauditor.excel.report import CADASTROS_SHEET, EVIDENCIAS_SHEET, GLOSAS_SHEET, INMS_BASE_SHEET, build_report_workbook
 from pyauditor.rom.summary import IndicatorSummary
 
 
@@ -194,3 +194,177 @@ def test_inms_base_shows_consolidated_row_without_affecting_group_tabs_or_glosas
     header = [cell.value for cell in glosas_sheet[1]]
     row = {header[i]: glosas_sheet.cell(row=2, column=i + 1).value for i in range(len(header))}
     assert row["Σ Pontos_NMS do mês"] == 150.0
+
+
+def test_cadastros_sheet_populated_from_configs() -> None:
+    from pyauditor.config.models import (
+        IndicatorConfig,
+        Indicator,
+        Scope,
+        Source,
+        QualityGates,
+        RatioCalculation,
+        ExternalCatalogSumCalculation,
+        Target,
+        Penalty,
+        ColumnEquals,
+    )
+
+    configs = [
+        IndicatorConfig(
+            indicator=Indicator(id="INMS-1.1", contractual_id="INMS 1.1", name="Incidentes atendidos dentro do prazo"),
+            scope=Scope(contract="40/2022"),
+            source=Source(csv="inms-001-01.csv"),
+            quality_gates=QualityGates(),
+            calculation=RatioCalculation(
+                shape="ratio", aggregation="count_distinct",
+                numerator_filter=ColumnEquals(column="No prazo", equals="S"),
+            ),
+            target=Target(operator=">=", value=98.0),
+            penalty=Penalty(base_points=165, step_points=20, step_size_pct=0.1),
+        ),
+        IndicatorConfig(
+            indicator=Indicator(id="INMS-1.8", contractual_id="INMS 1.8", name="Ocorrências de Desconformidade Técnica"),
+            scope=Scope(contract="40/2022"),
+            source=Source(csv="inms-001-08.csv"),
+            quality_gates=QualityGates(),
+            calculation=ExternalCatalogSumCalculation(
+                shape="external_catalog_sum",
+                occurrence_id_column="ID_Ocorrencia",
+                catalog_codes_column="Codigos_Anexo_E",
+            ),
+        ),
+    ]
+
+    summaries = [_summary("INMS-1.1", "INMS 1.1")]
+    workbook = build_report_workbook("2026-06", summaries, configs=configs)
+
+    assert CADASTROS_SHEET in workbook.sheetnames
+    sheet = workbook[CADASTROS_SHEET]
+
+    header = [cell.value for cell in sheet[1]]
+    assert "Código INMS" in header
+    assert "Descrição" in header
+    assert "Formato" in header
+    assert "Meta" in header
+    assert "Sentido" in header
+
+    codes = [sheet.cell(row=r, column=1).value for r in range(2, sheet.max_row + 1)]
+    assert "INMS 1.1" in codes
+    assert "INMS 1.8" in codes
+
+
+def test_cadastros_sheet_skipped_when_no_configs() -> None:
+    summaries = [_summary("INMS-1.1", "INMS 1.1")]
+    workbook = build_report_workbook("2026-06", summaries)
+
+    assert CADASTROS_SHEET not in workbook.sheetnames
+
+
+def test_evidencias_sheet_populated_from_configs() -> None:
+    from pyauditor.config.models import (
+        IndicatorConfig,
+        Indicator,
+        Scope,
+        Source,
+        QualityGates,
+        RatioCalculation,
+        ExternalCatalogSumCalculation,
+        Target,
+        Penalty,
+        ColumnEquals,
+    )
+
+    configs = [
+        IndicatorConfig(
+            indicator=Indicator(id="INMS-1.1", contractual_id="INMS 1.1", name="Incidentes atendidos dentro do prazo"),
+            scope=Scope(contract="40/2022"),
+            source=Source(csv="inms-001-01.csv"),
+            quality_gates=QualityGates(),
+            calculation=RatioCalculation(
+                shape="ratio", aggregation="count_distinct",
+                numerator_filter=ColumnEquals(column="No prazo", equals="S"),
+            ),
+            target=Target(operator=">=", value=98.0),
+            penalty=Penalty(base_points=165, step_points=20, step_size_pct=0.1),
+        ),
+        IndicatorConfig(
+            indicator=Indicator(id="INMS-1.8", contractual_id="INMS 1.8", name="Ocorrências de Desconformidade Técnica"),
+            scope=Scope(contract="40/2022"),
+            source=Source(csv="inms-001-08.csv"),
+            quality_gates=QualityGates(),
+            calculation=ExternalCatalogSumCalculation(
+                shape="external_catalog_sum",
+                occurrence_id_column="ID_Ocorrencia",
+                catalog_codes_column="Codigos_Anexo_E",
+            ),
+        ),
+    ]
+
+    summaries = [_summary("INMS-1.1", "INMS 1.1")]
+    workbook = build_report_workbook("2026-06", summaries, configs=configs)
+
+    assert EVIDENCIAS_SHEET in workbook.sheetnames
+    sheet = workbook[EVIDENCIAS_SHEET]
+
+    header = [cell.value for cell in sheet[1]]
+    assert "Competência" in header
+    assert "Código INMS" in header
+    assert "Tipo de evidência" in header
+    assert "Descrição" in header
+    assert "Fonte/URL" in header
+    assert "Responsável pela coleta" in header
+    assert "Data de coleta" in header
+    assert "Status" in header
+
+    codes = [sheet.cell(row=r, column=2).value for r in range(2, sheet.max_row + 1)]
+    assert "INMS 1.1" in codes
+    assert "INMS 1.8" in codes
+
+    for row_idx in range(2, sheet.max_row + 1):
+        assert sheet.cell(row=row_idx, column=1).value == "2026-06"
+        assert sheet.cell(row=row_idx, column=8).value == "Pendente"
+
+
+def test_evidencias_sheet_has_dropdown_validations() -> None:
+    from pyauditor.config.models import (
+        IndicatorConfig,
+        Indicator,
+        Scope,
+        Source,
+        QualityGates,
+        RatioCalculation,
+        Target,
+        Penalty,
+        ColumnEquals,
+    )
+
+    configs = [
+        IndicatorConfig(
+            indicator=Indicator(id="INMS-1.1", contractual_id="INMS 1.1", name="Teste"),
+            scope=Scope(contract="40/2022"),
+            source=Source(csv="test.csv"),
+            quality_gates=QualityGates(),
+            calculation=RatioCalculation(
+                shape="ratio", aggregation="count_distinct",
+                numerator_filter=ColumnEquals(column="X", equals="S"),
+            ),
+            target=Target(operator=">=", value=98.0),
+            penalty=Penalty(base_points=0, step_points=20, step_size_pct=0.1),
+        ),
+    ]
+
+    workbook = build_report_workbook("2026-06", [_summary("INMS-1.1", "INMS 1.1")], configs=configs)
+    sheet = workbook[EVIDENCIAS_SHEET]
+
+    assert len(sheet.data_validations.dataValidation) == 2
+    formulas = {dv.formula1 for dv in sheet.data_validations.dataValidation}
+    assert any("Pendente" in f for f in formulas)
+    assert any("Planilha original" in f for f in formulas)
+
+
+def test_evidencias_sheet_skipped_when_no_configs() -> None:
+    summaries = [_summary("INMS-1.1", "INMS 1.1")]
+    workbook = build_report_workbook("2026-06", summaries)
+
+    assert EVIDENCIAS_SHEET not in workbook.sheetnames

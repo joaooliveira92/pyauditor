@@ -4,6 +4,11 @@ ROM Markdown per indicator, report hard failures (spec §4/§6).
 Alongside each `<indicator.id>.md` ROM, also writes a `<indicator.id>.json`
 structured summary (see `rom/summary.py`) — `report` (ticket 09) reads these
 JSON sidecars rather than re-parsing the ROM's prose Markdown.
+
+Datasets are organized per competência: `measure 2026-06 --data-dir input`
+reads every CSV from `input/2026/06/` (derived from the competência, never
+from the data-dir root). Keeping each competência in its own folder lets one
+project hold the data of every past aferição side by side.
 """
 
 import json
@@ -11,6 +16,7 @@ import re
 from pathlib import Path
 from typing import Final
 
+from pyauditor.config.manifest import DatasetManifest, load_manifest
 from pyauditor.engine.pipeline import discover_configs, measure
 from pyauditor.logging import logger
 from pyauditor.rom.render import render_rom
@@ -26,10 +32,21 @@ def _sanitize_indicator_id(raw: str) -> str:
     return sanitized or "_indicator"
 
 
-def run_measure(competencia: str, config_dir: Path, data_dir: Path, output_dir: Path) -> int:
+def run_measure(
+    competencia: str,
+    config_dir: Path,
+    data_dir: Path,
+    output_dir: Path,
+    manifest: DatasetManifest | None = None,
+) -> int:
     if not _COMPETENCIA_RE.match(competencia):
         logger.error(f"competência inválida {competencia!r}: esperado YYYY-MM (ex.: 2026-06)")
         return 1
+
+    # Datasets live under <data-dir>/<YYYY>/<MM> for this competência — never
+    # at the data-dir root — so past aferições can coexist in the same project.
+    year, month = competencia.split("-")
+    competencia_data_dir = data_dir / year / month
 
     configs = discover_configs(config_dir)
     if not configs:
@@ -52,7 +69,7 @@ def run_measure(competencia: str, config_dir: Path, data_dir: Path, output_dir: 
         summary_path = target_dir / f"{safe_id}.json"
 
         try:
-            result = measure(config, data_dir=data_dir)
+            result = measure(config, data_dir=competencia_data_dir, manifest=manifest)
             rom_path.write_text(render_rom(result), encoding="utf-8")
             summary_path.write_text(
                 json.dumps(summarize(result).to_dict(), ensure_ascii=False, indent=2),

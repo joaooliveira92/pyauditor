@@ -8,8 +8,8 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-001-12.csv
-  delimiter: ","
+  csv: inms-12.csv
+  delimiter: ";"
   encoding: utf-8-sig
 
 quality_gates:
@@ -30,14 +30,11 @@ penalty:
   step_points: 25
   step_size_pct: 0.1
 
-# Anexo D (Tabela 28), INMS 1.12: INMS 1.12 = TCA20/TCT × 100, meta ≥95%, 25
-# pontos a cada 0,1% abaixo da meta. /input/inms-001-12.csv real: as 492
-# chamadas foram atendidas em até 20s (ESPERA ≤ 0:00:20) — 100%.
 acceptance_test:
   expected:
     shape: ratio
-    numerator: 492
-    denominator: 492
-    result_pct: 100.0
+    numerator: 885
+    denominator: 924
+    result_pct: 95.7792
     conforms: true
     penalty_points: 0.0

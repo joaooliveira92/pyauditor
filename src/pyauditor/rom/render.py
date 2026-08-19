@@ -57,11 +57,30 @@ def render_external_catalog_sum_memoria(calculation: CalculationResult) -> str:
     )
 
 
+def render_precomputed_table_memoria(calculation: CalculationResult) -> str:
+    categories = calculation.memoria["categories"]
+    assert isinstance(categories, list)
+    if not categories:
+        rows_markdown = "| — | — | nenhuma linha |"
+    else:
+        rows_markdown = "\n".join(
+            f"| {c['name']} | {c['result_pct']:.2f}% | {c['penalty_points']:.2f} |"
+            for c in categories
+        )
+    return (
+        "| Ativo | Resultado | Penalidade |\n"
+        "|---|---|---|\n"
+        f"{rows_markdown}\n\n"
+        f"- Soma das penalidades: {calculation.penalty_points:.2f} pontos"
+    )
+
+
 _MEMORIA_RENDERERS: dict[str, Callable[[CalculationResult], str]] = {
     "ratio": render_ratio_memoria,
     "segmented_ratio": render_segmented_ratio_memoria,
     "count_difference": render_count_difference_memoria,
     "external_catalog_sum": render_external_catalog_sum_memoria,
+    "precomputed_table": render_precomputed_table_memoria,
 }
 
 

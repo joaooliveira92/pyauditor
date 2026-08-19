@@ -8,9 +8,7 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-001-12.csv
-  delimiter: ","
-  encoding: utf-8-sig
+  dataset: chamadas_telefonicas
 
 quality_gates:
   checks: []
@@ -36,8 +34,8 @@ penalty:
 acceptance_test:
   expected:
     shape: ratio
-    numerator: 492
-    denominator: 492
-    result_pct: 100.0
+    numerator: 885
+    denominator: 924
+    result_pct: 95.7792
     conforms: true
     penalty_points: 0.0

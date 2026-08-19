@@ -1,15 +1,18 @@
 """Builds the consolidated Excel final: `CAPA_E_CONTROLE` (first sheet) +
-`INMS_BASE` + the 4 per-group tabs (docs/spreadsheet.md §Abas 1, 4-8) +
-`GLOSAS` (spec §12), from the JSON summaries `measure` writes alongside
-each ROM (`rom/summary.py`) and the capa workbook `bootstrap` created.
+`CADASTROS` + `INMS_BASE` + the 4 per-group tabs (docs/spreadsheet.md
+§Abas 1-2, 4-8) + `GLOSAS` (spec §12) + `EVIDENCIAS` (spec §Aba 9),
+from the JSON summaries `measure` writes alongside each ROM
+(`rom/summary.py`) and the capa workbook `bootstrap` created.
 """
 
 from pathlib import Path
 from typing import Final
 
 from openpyxl import Workbook
+from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.worksheet import Worksheet
 
+from pyauditor.config.models import IndicatorConfig
 from pyauditor.excel._style import BODY_FONT, BOTTOM_BORDER, HEADER_FILL, HEADER_FONT, LEFT_ALIGN
 from pyauditor.excel.capa import SHEET_NAME as CAPA_SHEET_NAME
 from pyauditor.excel.capa import render_capa_sheet
@@ -18,6 +21,8 @@ from pyauditor.excel.groups import GROUP_TABS, primary_group
 from pyauditor.excel.orgao_consolidation import with_orgao_consolidation
 from pyauditor.rom.summary import IndicatorSummary
 
+CADASTROS_SHEET: Final = "CADASTROS"
+EVIDENCIAS_SHEET: Final = "EVIDENCIAS"
 INMS_BASE_SHEET: Final = "INMS_BASE"
 GLOSAS_SHEET: Final = "GLOSAS"
 
@@ -84,6 +89,43 @@ _GLOSAS_COLUMNS: Final[tuple[str, ...]] = (
     "Saldo rolado para o mês seguinte (p.p.)",
 )
 
+_CADASTROS_COLUMNS: Final[tuple[str, ...]] = (
+    "Código INMS",
+    "Descrição",
+    "Formato",
+    "Meta",
+    "Sentido",
+    "Penalidade (pontos base)",
+    "Penalidade (p.p. por descumprimento)",
+)
+
+_EVIDENCIAS_COLUMNS: Final[tuple[str, ...]] = (
+    "Competência",
+    "Código INMS",
+    "Tipo de evidência",
+    "Descrição",
+    "Fonte/URL",
+    "Responsável pela coleta",
+    "Data de coleta",
+    "Status",
+)
+
+_EVIDENCIAS_TIPOS: Final[tuple[str, ...]] = (
+    "Planilha original",
+    "Print de sistema",
+    "Documento SEI",
+    "E-mail de confirmação",
+    "Relatório de monitoramento",
+    "Foto/registro visual",
+    "Outro",
+)
+
+_EVIDENCIAS_STATUS: Final[tuple[str, ...]] = (
+    "Pendente",
+    "Coletada",
+    "Validada",
+)
+
 CellValue = str | float | int | None
 
 
@@ -111,6 +153,64 @@ def _write_row(sheet: Worksheet, row_idx: int, values: tuple[CellValue, ...]) ->
         cell = sheet.cell(row=row_idx, column=col_idx, value=value)
         cell.font = BODY_FONT
         cell.border = BOTTOM_BORDER
+
+
+def _cadastros_row(config: IndicatorConfig) -> tuple[CellValue, ...]:
+    target = config.target
+    penalty = config.penalty
+    return (
+        config.indicator.contractual_id,
+        config.indicator.name,
+        config.calculation.shape,
+        target.value if target is not None else None,
+        target.operator if target is not None else None,
+        penalty.base_points if penalty is not None else None,
+        penalty.step_points if penalty is not None else None,
+    )
+
+
+def _evidencias_row(competencia: str, config: IndicatorConfig) -> tuple[CellValue, ...]:
+    return (
+        competencia,
+        config.indicator.contractual_id,
+        None,  # Tipo de evidência — fiscal-manual
+        None,  # Descrição — fiscal-manual
+        None,  # Fonte/URL — fiscal-manual
+        None,  # Responsável pela coleta — fiscal-manual
+        None,  # Data de coleta — fiscal-manual
+        "Pendente",
+    )
+
+
+def _build_evidencias_sheet(
+    workbook: Workbook,
+    competencia: str,
+    configs: list[IndicatorConfig],
+) -> None:
+    sheet = _new_sheet(workbook, EVIDENCIAS_SHEET, _EVIDENCIAS_COLUMNS, width=24)
+    sorted_configs = sorted(configs, key=lambda c: c.indicator.contractual_id)
+    for row_idx, config in enumerate(sorted_configs, start=2):
+        _write_row(sheet, row_idx, _evidencias_row(competencia, config))
+
+    tipo_col = 3  # "Tipo de evidência"
+    status_col = 8  # "Status"
+    max_row = len(sorted_configs) + 1
+
+    tipo_validation = DataValidation(
+        type="list",
+        formula1=f'"{",".join(_EVIDENCIAS_TIPOS)}"',
+        allow_blank=True,
+    )
+    sheet.add_data_validation(tipo_validation)
+    tipo_validation.add(f"C2:C{max_row}")
+
+    status_validation = DataValidation(
+        type="list",
+        formula1=f'"{",".join(_EVIDENCIAS_STATUS)}"',
+        allow_blank=False,
+    )
+    sheet.add_data_validation(status_validation)
+    status_validation.add(f"H2:H{max_row}")
 
 
 def _inms_base_row(competencia: str, summary: IndicatorSummary) -> tuple[CellValue, ...]:
@@ -168,12 +268,16 @@ def build_report_workbook(
     *,
     is_final_month: bool = False,
     capa_fields: dict[str, object] | None = None,
+    configs: list[IndicatorConfig] | None = None,
 ) -> Workbook:
-    """Builds the CAPA_E_CONTROLE + INMS_BASE + group tabs + GLOSAS workbook
-    in memory — pure, no I/O. `capa_fields` (from `capa.read_capa_fields`)
-    is optional so callers/tests that don't care about the capa tab can
-    omit it; `report`'s CLI always passes it since `bootstrap` is a
-    required precondition.
+    """Builds the CAPA_E_CONTROLE + CADASTROS + INMS_BASE + group tabs +
+    GLOSAS + EVIDENCIAS workbook in memory — pure, no I/O. `capa_fields`
+    (from `capa.read_capa_fields`) is optional so callers/tests that don't
+    care about the capa tab can omit it; `report`'s CLI always passes it
+    since `bootstrap` is a required precondition. `configs` (from
+    `pipeline.discover_configs`) powers the CADASTROS and EVIDENCIAS tabs;
+    when omitted both tabs are skipped (backward-compatible with callers
+    that don't supply it).
     """
     workbook = Workbook()
     default_sheet = workbook.active
@@ -183,6 +287,11 @@ def build_report_workbook(
     if capa_fields is not None:
         capa_sheet = workbook.create_sheet(CAPA_SHEET_NAME, 0)
         render_capa_sheet(capa_sheet, capa_fields)
+
+    if configs:
+        cadastros_sheet = _new_sheet(workbook, CADASTROS_SHEET, _CADASTROS_COLUMNS, width=28)
+        for row_idx, config in enumerate(sorted(configs, key=lambda c: c.indicator.contractual_id), start=2):
+            _write_row(cadastros_sheet, row_idx, _cadastros_row(config))
 
     base_sheet = _new_sheet(workbook, INMS_BASE_SHEET, _INMS_BASE_COLUMNS, width=20)
     base_rows = with_orgao_consolidation(summaries)
@@ -218,6 +327,9 @@ def build_report_workbook(
         ),
     )
 
+    if configs:
+        _build_evidencias_sheet(workbook, competencia, configs)
+
     return workbook
 
 
@@ -229,9 +341,12 @@ def build_report(
     *,
     is_final_month: bool = False,
     capa_fields: dict[str, object] | None = None,
+    configs: list[IndicatorConfig] | None = None,
 ) -> None:
     workbook = build_report_workbook(
-        competencia, summaries, valor_base, is_final_month=is_final_month, capa_fields=capa_fields
+        competencia, summaries, valor_base,
+        is_final_month=is_final_month, capa_fields=capa_fields,
+        configs=configs,
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(output_path)

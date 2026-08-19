@@ -8,7 +8,7 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-001-07.csv
+  csv: inms-07.csv
   delimiter: ";"
   encoding: utf-8-sig
   id_column: "Nº Ticket"

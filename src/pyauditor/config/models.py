@@ -24,6 +24,7 @@ __all__: Final[tuple[str, ...]] = (
     "IndicatorConfig",
     "NotNullCheck",
     "Penalty",
+    "PrecomputedTableCalculation",
     "QualityGateCheck",
     "QualityGates",
     "RatioCalculation",
@@ -67,10 +68,21 @@ class Scope(BaseModel):
 
 class Source(BaseModel):
     model_config = _StrictFrozen
-    csv: str = Field(min_length=1)
+    dataset: str | None = Field(default=None, min_length=1)
+    csv: str | None = Field(default=None, min_length=1)
     delimiter: str = Field(default=";", min_length=1)
     encoding: str = Field(default="utf-8-sig", min_length=1)
     id_column: str = Field(default="Nº Solicitacao", min_length=1)
+
+    @model_validator(mode="after")
+    def _check_csv_or_dataset(self) -> Self:
+        has_dataset = self.dataset is not None
+        has_csv = self.csv is not None
+        if has_dataset == has_csv:
+            raise ValueError(
+                "source must specify exactly one of 'dataset' or 'csv'"
+            )
+        return self
 
 
 class NotNullCheck(BaseModel):
@@ -180,11 +192,31 @@ class ExternalCatalogSumCalculation(BaseModel):
     catalog_codes_separator: str = Field(default=",", min_length=1)
 
 
+class PrecomputedTableCalculation(BaseModel):
+    model_config = _StrictFrozen
+    shape: Literal["precomputed_table"]
+    # Per-ativo result column (percentage, or a point total when
+    # `result_is_percent` is false — e.g. INMS 1.8's PDT sum).
+    result_column: str = Field(min_length=1)
+    result_is_percent: bool = True
+    # Optional per-ativo label for the ROM's breakdown table.
+    name_column: str | None = Field(default=None, min_length=1)
+    # Optional weighting columns for the headline pooled result (availability
+    # is hours-weighted: sum(numerador)/sum(base) * 100).
+    numerator_column: str | None = Field(default=None, min_length=1)
+    denominator_column: str | None = Field(default=None, min_length=1)
+    # Optional per-ativo penalty read straight from the dataset (the fiscal
+    # apuração sheets already carry it). When absent, recomputed from target +
+    # penalty (percent) or as points-excess over the target (points mode).
+    penalty_column: str | None = Field(default=None, min_length=1)
+
+
 Calculation: TypeAlias = Annotated[
     RatioCalculation
     | SegmentedRatioCalculation
     | CountDifferenceCalculation
-    | ExternalCatalogSumCalculation,
+    | ExternalCatalogSumCalculation
+    | PrecomputedTableCalculation,
     Field(discriminator="shape"),
 ]
 
@@ -258,11 +290,20 @@ class ExternalCatalogSumAcceptanceExpected(BaseModel):
     occurrences: list[AcceptanceTestOccurrenceExpected] = Field(default_factory=list)
 
 
+class PrecomputedTableAcceptanceExpected(BaseModel):
+    model_config = _StrictFrozen
+    shape: Literal["precomputed_table"]
+    result_pct: float = Field(ge=0, le=100)
+    conforms: bool
+    penalty_points: float = Field(ge=0)
+
+
 AcceptanceTestExpected: TypeAlias = Annotated[
     RatioAcceptanceExpected
     | SegmentedRatioAcceptanceExpected
     | CountDifferenceAcceptanceExpected
-    | ExternalCatalogSumAcceptanceExpected,
+    | ExternalCatalogSumAcceptanceExpected
+    | PrecomputedTableAcceptanceExpected,
     Field(discriminator="shape"),
 ]
 
@@ -290,4 +331,13 @@ class IndicatorConfig(BaseModel):
             raise ValueError("external_catalog_sum must not have target (Anexo E is point sum)")
         if not is_external and self.target is None:
             raise ValueError(f"{self.calculation.shape} requires target")
+        if (
+            self.calculation.shape == "precomputed_table"
+            and self.calculation.result_is_percent
+            and self.calculation.penalty_column is None
+            and self.penalty is None
+        ):
+            raise ValueError(
+                "precomputed_table (percent) requires penalty unless penalty_column is set"
+            )
         return self

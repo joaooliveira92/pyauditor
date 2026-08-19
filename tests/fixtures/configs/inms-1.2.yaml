@@ -8,7 +8,7 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-001-02.csv
+  csv: inms-02.csv
   delimiter: ";"
   encoding: utf-8-sig
 

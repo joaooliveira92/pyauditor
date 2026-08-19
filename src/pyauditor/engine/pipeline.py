@@ -8,6 +8,7 @@ from pathlib import Path
 
 import yaml
 
+from pyauditor.config.manifest import DatasetManifest, load_manifest
 from pyauditor.config.models import IndicatorConfig
 from pyauditor.engine.quality_gates import QualityGateReport, QualityGateRunner
 from pyauditor.engine.strategies import SHAPE_REGISTRY
@@ -45,12 +46,51 @@ def load_rows(source_path: Path, delimiter: str, encoding: str) -> list[dict[str
         return [{name: (row.get(name) or "").strip() for name in fieldnames} for row in reader]
 
 
+def _resolve_source(
+    config: IndicatorConfig,
+    data_dir: Path,
+    manifest: DatasetManifest | None,
+) -> tuple[Path, str, str]:
+    """Resolve the CSV path + parsing options from the indicator's source config.
+
+    Returns:
+        (csv_path, delimiter, encoding)
+    """
+    source = config.source
+    if source.dataset is not None:
+        if manifest is None:
+            raise ValueError(
+                f"{config.indicator.id}: source.dataset={source.dataset!r} "
+                "requires a manifest, but none was provided"
+            )
+        entry = manifest.resolve(source.dataset)
+        csv_path = data_dir / entry.file
+        return csv_path, entry.delimiter, entry.encoding
+    # Legacy: direct csv filename
+    assert source.csv is not None  # guaranteed by Source model validator
+    csv_path = data_dir / source.csv
+    return csv_path, source.delimiter, source.encoding
+
+
 def discover_configs(config_dir: Path) -> list[IndicatorConfig]:
-    return [load_config(path) for path in sorted(config_dir.glob("*.yaml"))]
+    configs: list[IndicatorConfig] = []
+    for path in sorted(config_dir.glob("*.yaml")):
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict) or "indicator" not in raw:
+            # Not an indicator config (e.g. `datasets.yaml`, the manifest that
+            # now lives alongside the indicators) — skip it.
+            continue
+        configs.append(IndicatorConfig.model_validate(raw))
+    return configs
 
 
-def measure(config: IndicatorConfig, data_dir: Path) -> MeasurementResult:
-    rows = load_rows(data_dir / config.source.csv, config.source.delimiter, config.source.encoding)
+def measure(
+    config: IndicatorConfig,
+    data_dir: Path,
+    manifest: DatasetManifest | None = None,
+) -> MeasurementResult:
+    csv_path, delimiter, encoding = _resolve_source(config, data_dir, manifest)
+    rows = load_rows(csv_path, delimiter, encoding)
 
     gate_runner = QualityGateRunner(config.quality_gates.checks, id_column=config.source.id_column)
     gate_report = gate_runner.run(rows)

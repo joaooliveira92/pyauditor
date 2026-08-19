@@ -13,6 +13,7 @@ from pyauditor.config.models import (
     CountDifferenceAcceptanceExpected,
     ExternalCatalogSumAcceptanceExpected,
     IndicatorConfig,
+    PrecomputedTableAcceptanceExpected,
     RatioAcceptanceExpected,
     SegmentedRatioAcceptanceExpected,
 )
@@ -20,7 +21,9 @@ from pyauditor.engine.pipeline import discover_configs, measure
 
 REPO_ROOT = Path(__file__).parent.parent
 CONFIG_DIR = REPO_ROOT / "tests" / "fixtures" / "configs"
-INPUT_DIR = REPO_ROOT / "input"
+# Datasets live under <data-dir>/<competência>/ — the smoke test validates
+# against the real data of one competência (see `cli/measure.py`).
+INPUT_DIR = REPO_ROOT / "input" / "2026" / "06"
 
 _ALL_CONFIGS: list[IndicatorConfig] = discover_configs(CONFIG_DIR)
 
@@ -92,6 +95,11 @@ def test_acceptance_test_matches_real_data(config: IndicatorConfig) -> None:
         assert calc.memoria.get("total_points") == expected.total_points, (
             f"{label}: total_points — expected {expected.total_points}, got {calc.memoria.get('total_points')}"
         )
+
+    elif isinstance(expected, PrecomputedTableAcceptanceExpected):
+        # headline result/conforms/penalty are validated above; the per-ativo
+        # breakdown is exercised synthetically in tests/test_precomputed_table.py.
+        assert isinstance(calc.memoria.get("categories"), list)
 
 
 def test_all_14_indicators_are_discovered() -> None:

@@ -1,10 +1,12 @@
 """`pyauditor report <competência>` — consolidate the ROMs `measure` wrote
-into the final Excel: `INMS_BASE` + per-group tabs + `GLOSAS` (spec §6/§13).
+into the final Excel: `CADASTROS` + `INMS_BASE` + per-group tabs + `GLOSAS`
+(spec §6/§13).
 """
 
 import json
 from pathlib import Path
 
+from pyauditor.engine.pipeline import discover_configs
 from pyauditor.excel.capa import read_capa_fields
 from pyauditor.excel.report import build_report
 from pyauditor.logging import logger
@@ -19,7 +21,7 @@ def _load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
     return summaries
 
 
-def run_report(competencia: str, capa_path: Path, roms_dir: Path, output_path: Path) -> int:
+def run_report(competencia: str, capa_path: Path, roms_dir: Path, output_path: Path, config_dir: Path) -> int:
     if not capa_path.exists():
         logger.error(f"capa não encontrada em {capa_path} — rode `pyauditor bootstrap` primeiro")
         return 1
@@ -49,7 +51,16 @@ def run_report(competencia: str, capa_path: Path, roms_dir: Path, output_path: P
         )
 
     try:
-        build_report(competencia, summaries, output_path, valor_base, capa_fields=capa_fields)
+        configs = discover_configs(config_dir)
+    except (OSError, ValueError) as exc:
+        logger.warning(f"falha ao carregar configs de {config_dir}, CADASTROS será omitido: {exc}")
+        configs = []
+
+    try:
+        build_report(
+            competencia, summaries, output_path, valor_base,
+            capa_fields=capa_fields, configs=configs or None,
+        )
     except OSError as exc:
         logger.error(f"falha ao escrever {output_path}: {exc}")
         return 1
