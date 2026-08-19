@@ -1,0 +1,10 @@
+[project]
+site_name = "pyauditor — documentação"
+site_description = "Documentação do pipeline de apuração INMS do contrato 40/2022 (Ministério da Cultura)"
+site_author = "Documentation Team"
+site_url = "https://joaooliveira92.github.io/pyauditor/"
+docs_dir = "portal"
+copyright = "&copy; 2026 Documentação pyauditor"
+
+[project.theme]
+variant = "modern"
