@@ -4,13 +4,11 @@ indicator:
   name: Índice de chamadas telefônicas abandonadas
 
 scope:
-  contract: "40/2022 - Ministério da Cultura"
-  orgao: MinC
+  contract: "40/2022 - Ministério do Turismo"
+  orgao: MTur
 
 source:
-  csv: inms-11.csv
-  delimiter: ";"
-  encoding: utf-8-sig
+  dataset: telefonemas
 
 quality_gates:
   checks: []

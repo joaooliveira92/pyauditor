@@ -13,7 +13,7 @@ indicator:       # obrigatório
   name: Incidentes atendidos dentro do prazo
   asset: null     # opcional — rótulo do ativo (por-ativo)
 scope:           # obrigatório
-  contract: "40/2022 - Ministério Cultura"
+  contract: "40/2022 - Ministério da Cultura"
   orgao: MinC     # MinC | MTur
 source:          # obrigatório — exatamente UM de dataset|csv
   dataset: incidentes        # alias no manifesto datasets.yaml

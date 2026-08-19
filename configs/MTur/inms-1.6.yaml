@@ -4,8 +4,8 @@ indicator:
   name: Eficácia no tratamento de chamados
 
 scope:
-  contract: "40/2022 - Ministério Cultura"
-  orgao: MinC
+  contract: "40/2022 - Ministério do Turismo"
+  orgao: MTur
 
 source:
   dataset: chamados_reabertos

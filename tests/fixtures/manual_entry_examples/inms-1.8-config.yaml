@@ -8,7 +8,7 @@ indicator:
   name: Ocorrências de Desconformidade Técnica
 
 scope:
-  contract: "40/2022 - Ministério Cultura"
+  contract: "40/2022 - Ministério da Cultura"
   orgao: MinC
 
 source:

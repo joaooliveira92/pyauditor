@@ -8,9 +8,7 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-13.csv
-  delimiter: ";"
-  encoding: utf-8-sig
+  dataset: chamados_grupo_executor
 
 quality_gates:
   checks: []
@@ -35,6 +33,10 @@ penalty:
   step_points: 50
   step_size_pct: 1.0
 
+# Anexo D (Tabela 28), INMS 1.13: INMS 1.13 = TCN1/TCR × 100, meta negociada
+# (ver nota acima), 50 pontos a cada 1% abaixo da meta acordada.
+# /input/inms-001-13.csv real: as 116 linhas são todas Grupo_executor =
+# "(CIT/MINC) - 1º Nível" — TCN1=TCR=116, 100%.
 acceptance_test:
   expected:
     shape: precomputed_table

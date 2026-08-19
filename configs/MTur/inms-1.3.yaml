@@ -4,8 +4,8 @@ indicator:
   name: Projetos atendidos dentro do prazo
 
 scope:
-  contract: "40/2022 - Ministério Cultura"
-  orgao: MinC
+  contract: "40/2022 - Ministério do Turismo"
+  orgao: MTur
 
 source:
   dataset: projetos

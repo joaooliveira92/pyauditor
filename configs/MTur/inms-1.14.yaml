@@ -4,8 +4,8 @@ indicator:
   name: Índice de disponibilidade de serviços de infraestrutura
 
 scope:
-  contract: "40/2022 - Ministério Cultura"
-  orgao: MinC
+  contract: "40/2022 - Ministério do Turismo"
+  orgao: MTur
 
 source:
   dataset: disponibilidade_infra

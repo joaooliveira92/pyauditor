@@ -4,7 +4,7 @@ indicator:
   name: Requisições atendidas dentro do prazo
 
 scope:
-  contract: "40/2022 - Ministério Cultura"
+  contract: "40/2022 - Ministério da Cultura"
   orgao: MinC
 
 source:

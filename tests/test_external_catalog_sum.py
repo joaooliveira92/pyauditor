@@ -70,7 +70,7 @@ indicator:
   name: Indicador sintético de desconformidades
 
 scope:
-  contract: "40/2022 - Ministério Cultura"
+  contract: "40/2022 - Ministério da Cultura"
   orgao: MinC
 
 source:
@@ -120,7 +120,7 @@ indicator:
   name: Indicador sintético sem ocorrências
 
 scope:
-  contract: "40/2022 - Ministério Cultura"
+  contract: "40/2022 - Ministério da Cultura"
   orgao: MinC
 
 source:

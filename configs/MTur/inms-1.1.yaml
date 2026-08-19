@@ -4,13 +4,11 @@ indicator:
   name: Incidentes atendidos dentro do prazo
 
 scope:
-  contract: "40/2022 - Ministério da Cultura"
-  orgao: MinC
+  contract: "40/2022 - Ministério do Turismo"
+  orgao: MTur
 
 source:
-  csv: inms-01.csv
-  delimiter: ";"
-  encoding: utf-8-sig
+  dataset: incidentes
 
 quality_gates:
   checks:
