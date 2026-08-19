@@ -5,7 +5,7 @@ into the final Excel: `INMS_BASE` + per-group tabs + `GLOSAS` (spec §6/§13).
 import json
 from pathlib import Path
 
-from pyauditor.excel.capa import read_valor_mensal_vigente
+from pyauditor.excel.capa import read_capa_fields
 from pyauditor.excel.report import build_report
 from pyauditor.logging import logger
 from pyauditor.rom.summary import IndicatorSummary
@@ -39,7 +39,9 @@ def run_report(competencia: str, capa_path: Path, roms_dir: Path, output_path: P
         logger.error(f"nenhum sumário de medição (.json) encontrado em {competencia_dir}")
         return 1
 
-    valor_base = read_valor_mensal_vigente(capa_path)
+    capa_fields = read_capa_fields(capa_path)
+    valor_base_raw = capa_fields.get("Valor mensal vigente")
+    valor_base = float(valor_base_raw) if isinstance(valor_base_raw, int | float) else None
     if valor_base is None:
         logger.info(
             "capa sem 'Valor mensal vigente' preenchido — GLOSAS terá percentual de ajuste "
@@ -47,7 +49,7 @@ def run_report(competencia: str, capa_path: Path, roms_dir: Path, output_path: P
         )
 
     try:
-        build_report(competencia, summaries, output_path, valor_base)
+        build_report(competencia, summaries, output_path, valor_base, capa_fields=capa_fields)
     except OSError as exc:
         logger.error(f"falha ao escrever {output_path}: {exc}")
         return 1

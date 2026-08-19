@@ -1,12 +1,7 @@
-"""Builds the consolidated Excel final: `INMS_BASE` + the 4 per-group tabs
-(docs/spreadsheet.md §Abas 4-8) + `GLOSAS` (spec §12), from the JSON
-summaries `measure` writes alongside each ROM (`rom/summary.py`).
-
-Scope note: this ticket's output does not copy the capa's `CAPA_E_CONTROLE`
-sheet into this workbook. The capa is a separate deliverable (spec §13);
-`report` only requires it to exist first (fails clearly otherwise), as the
-operational signal that `bootstrap` has run for this contract — and, for
-`GLOSAS`, as the source of `valor-base` (spec §12.2).
+"""Builds the consolidated Excel final: `CAPA_E_CONTROLE` (first sheet) +
+`INMS_BASE` + the 4 per-group tabs (docs/spreadsheet.md §Abas 1, 4-8) +
+`GLOSAS` (spec §12), from the JSON summaries `measure` writes alongside
+each ROM (`rom/summary.py`) and the capa workbook `bootstrap` created.
 """
 
 from pathlib import Path
@@ -16,6 +11,8 @@ from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.excel._style import BODY_FONT, BOTTOM_BORDER, HEADER_FILL, HEADER_FONT, LEFT_ALIGN
+from pyauditor.excel.capa import SHEET_NAME as CAPA_SHEET_NAME
+from pyauditor.excel.capa import render_capa_sheet
 from pyauditor.excel.glosas import compute_glosa
 from pyauditor.excel.groups import GROUP_TABS, primary_group
 from pyauditor.excel.orgao_consolidation import with_orgao_consolidation
@@ -170,12 +167,22 @@ def build_report_workbook(
     valor_base: float | None = None,
     *,
     is_final_month: bool = False,
+    capa_fields: dict[str, object] | None = None,
 ) -> Workbook:
-    """Builds the INMS_BASE + group tabs + GLOSAS workbook in memory — pure, no I/O."""
+    """Builds the CAPA_E_CONTROLE + INMS_BASE + group tabs + GLOSAS workbook
+    in memory — pure, no I/O. `capa_fields` (from `capa.read_capa_fields`)
+    is optional so callers/tests that don't care about the capa tab can
+    omit it; `report`'s CLI always passes it since `bootstrap` is a
+    required precondition.
+    """
     workbook = Workbook()
     default_sheet = workbook.active
     assert default_sheet is not None
     workbook.remove(default_sheet)
+
+    if capa_fields is not None:
+        capa_sheet = workbook.create_sheet(CAPA_SHEET_NAME, 0)
+        render_capa_sheet(capa_sheet, capa_fields)
 
     base_sheet = _new_sheet(workbook, INMS_BASE_SHEET, _INMS_BASE_COLUMNS, width=20)
     base_rows = with_orgao_consolidation(summaries)
@@ -221,7 +228,10 @@ def build_report(
     valor_base: float | None = None,
     *,
     is_final_month: bool = False,
+    capa_fields: dict[str, object] | None = None,
 ) -> None:
-    workbook = build_report_workbook(competencia, summaries, valor_base, is_final_month=is_final_month)
+    workbook = build_report_workbook(
+        competencia, summaries, valor_base, is_final_month=is_final_month, capa_fields=capa_fields
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(output_path)
