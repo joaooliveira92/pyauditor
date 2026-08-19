@@ -35,8 +35,11 @@ penalty:
 # contínua/linear, não degrau discreto).
 #
 # O /input/inms-001-09.csv real tem só o cabeçalho genérico do ITSM, sem
-# nenhuma linha de dado — mesma lacuna do INMS 1.3/1.8/1.10. O
-# acceptance_test abaixo é degenerado (0/0); a prova real da matemática
+# nenhuma linha de dado — confirmado pela fiscalização que não houve mudanças
+# elegíveis para apuração no período 06/2026, não uma lacuna de dado. Zero
+# mudanças elegíveis (denominador 0/0) não é o mesmo que 0% de mudanças
+# implementadas no prazo — não há base para apurar a meta, logo não há glosa
+# (ver RatioStrategy.calculate, denominator == 0). A prova real da matemática
 # `count_distinct` já está coberta pelo INMS 1.1 (ticket 02).
 acceptance_test:
   expected:
@@ -44,5 +47,5 @@ acceptance_test:
     numerator: 0
     denominator: 0
     result_pct: 0.0
-    conforms: false
-    penalty_points: 18000.0
+    conforms: true
+    penalty_points: 0.0

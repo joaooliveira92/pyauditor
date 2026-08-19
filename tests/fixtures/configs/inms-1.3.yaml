@@ -34,16 +34,17 @@ penalty:
 #
 # `aggregation: sum` soma colunas numéricas por linha de projeto (DPE = dias
 # do projeto conforme planejado, DA = dias de atraso), não conta linhas. O
-# /input/inms-001-03.csv real tem só o cabeçalho genérico do ITSM (mesma
-# lacuna do INMS 1.8/1.9/1.10 — colunas DiasProjeto/DiasAtraso não existem
-# nesse dataset), então o acceptance_test abaixo é degenerado (soma vazia
-# = 0/0). A prova real do somatório está no fixture sintético em
-# tests/test_ratio_sum_and_precomputed.py.
+# /input/inms-001-03.csv real tem só o cabeçalho genérico do ITSM — confirmado
+# pela fiscalização que não houve projetos no período 06/2026, não uma lacuna
+# de dado. Zero projetos elegíveis (denominador 0/0) não é o mesmo que 0% de
+# projetos entregues no prazo — não há base para apurar a meta, logo não há
+# glosa (ver RatioStrategy.calculate, denominator == 0). A prova real do
+# somatório está no fixture sintético em tests/test_ratio_sum_and_precomputed.py.
 acceptance_test:
   expected:
     shape: ratio
     numerator: 0
     denominator: 0
     result_pct: 0.0
-    conforms: false
-    penalty_points: 20000.0
+    conforms: true
+    penalty_points: 0.0

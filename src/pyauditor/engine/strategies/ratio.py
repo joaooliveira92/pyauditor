@@ -19,15 +19,22 @@ class RatioStrategy:
         numerator, denominator = _aggregate(calculation, rows)
         result_pct = safe_pct(numerator, denominator)
 
-        conforms = meets_target(result_pct, config.target.operator, config.target.value)
-        penalty_points = 0.0 if conforms else _linear_penalty(
-            result_pct=result_pct,
-            target=config.target.value,
-            operator=config.target.operator,
-            base_points=config.penalty.base_points,
-            step_points=config.penalty.step_points,
-            step_size_pct=config.penalty.step_size_pct,
-        )
+        if denominator == 0:
+            # No eligible activity in the competência (e.g. zero projects/mudanças
+            # that month) is not the same as 0% performance — there's nothing to
+            # measure against the target, so it can't be penalized as a failure.
+            conforms = True
+            penalty_points = 0.0
+        else:
+            conforms = meets_target(result_pct, config.target.operator, config.target.value)
+            penalty_points = 0.0 if conforms else _linear_penalty(
+                result_pct=result_pct,
+                target=config.target.value,
+                operator=config.target.operator,
+                base_points=config.penalty.base_points,
+                step_points=config.penalty.step_points,
+                step_size_pct=config.penalty.step_size_pct,
+            )
 
         return CalculationResult(
             result_pct=result_pct,
