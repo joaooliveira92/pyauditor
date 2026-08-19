@@ -1,0 +1,42 @@
+indicator:
+  id: INMS-1.14
+  contractual_id: "INMS 1.14"
+  name: Índice de disponibilidade de serviços de infraestrutura
+
+scope:
+  contract: "40/2022 - Ministério Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-001-14.csv
+  delimiter: ","
+  encoding: utf-8-sig
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: precomputed
+  precomputed_result_column: "Disponibilidade Realizada (%)"
+
+target:
+  operator: ">="
+  value: 99.5
+
+penalty:
+  step_points: 250
+  step_size_pct: 0.1
+
+# Anexo D (Tabela 28), INMS 1.14: meta ≥99,5% POR serviço de infraestrutura
+# (a-f: File Server, Telefonia, Mensageria, Impressão, WI-FI, Rede — cada um
+# seu próprio YAML+CSV), 250 pontos a cada 0,1% abaixo da meta.
+# /input/inms-001-14.csv real: Disponibilidade Realizada = 0.00%.
+acceptance_test:
+  expected:
+    shape: ratio
+    numerator: 0.0
+    denominator: 100
+    result_pct: 0.0
+    conforms: false
+    penalty_points: 248750.0

@@ -1,0 +1,688 @@
+# Anexo E (docs/termo_de_referencia/anexo_e_desconformidade_tecnica.html),
+# Tabela 29 "Itens de Desconformidade Técnica" — extraído programaticamente,
+# não digitado a mao. 106 itens, ver docs/research/anexo-e-inms-1.8.md (ticket 11).
+items:
+- id: OD-01
+  categoria: Armazenamento e Backup
+  descricao: Perder dados relacionados à sistemas de informação classificados como
+    críticos
+  referencia: Por ocorrência
+  pontos: 20000
+- id: OD-02
+  categoria: Armazenamento e Backup
+  descricao: Perder dados relacionados à sistema de informação não críticos
+  referencia: Por ocorrência
+  pontos: 5000
+- id: OD-03
+  categoria: Armazenamento e Backup
+  descricao: Perder dados relacionados à configuração ou logs de solução de TIC
+  referencia: Por ocorrência
+  pontos: 3000
+- id: OD-04
+  categoria: Armazenamento e Backup
+  descricao: Deixar de executar procedimento de cópia de segurança relacionado à sistema
+    de informação; classificado como crítico
+  referencia: Por ocorrência
+  pontos: 7000
+- id: OD-05
+  categoria: Armazenamento e Backup
+  descricao: Deixar de executar procedimento de cópia de segurança relacionado à sistema
+    de informação; não-crítico.
+  referencia: Por ocorrência
+  pontos: 3000
+- id: OD-06
+  categoria: Armazenamento e Backup
+  descricao: Deixar de executar procedimento de cópia de segurança de configurações,
+    bases de dados, logs; ou outras informações de soluções de TIC.
+  referencia: Por ocorrência
+  pontos: 1500
+- id: OD-07
+  categoria: Banco de Dados
+  descricao: Deixar realizar o tunning ou configuração adequada e recomendada em SGBD
+    s prejudicando o desempenho ou causando impacto negativo nos serviços de TIC
+  referencia: Por ocorrência
+  pontos: 300
+- id: OD-08
+  categoria: Banco de Dados
+  descricao: Executar scripts ou rotinas de sustentação de Bancos de Dados incompletos
+    ou incorretos e que causem impacto nas operações de TIC ou nos serviços de TIC
+  referencia: Por ocorrência
+  pontos: 300
+- id: OD-09
+  categoria: Banco de Dados
+  descricao: Alterar dados em bases de dados do CONTRATANTE sem a devida autorização
+    ou sem que seja uma rotina padrão (prê-autorizada) da operação daquela base de
+    dados
+  referencia: Por ocorrência
+  pontos: 10000
+- id: OD-10
+  categoria: Banco de Dados
+  descricao: Deixar de realizar rotinas diárias do serviço de operação de Banco de
+    Dados, causando impactos negativos nas operações de TIC e serviços de TIC do CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 500
+- id: OD-11
+  categoria: Banco de Dados
+  descricao: Deixar de executar carga de dados nos SGBD s existentes, conforme necessidade
+    do CONTRATANTE.
+  referencia: Por ocorrência
+  pontos: 500
+- id: OD-12
+  categoria: Banco de Dados
+  descricao: 'Deixar de prover migração de dados entre SGBD s distintos, conforme
+    necessidade do CONTRATANTE:'
+  referencia: Por ocorrência
+  pontos: 1000
+- id: OD-13
+  categoria: Banco de Dados
+  descricao: Deixar de investigar ou sugerir melhorias nos Bancos de Dados e Bases
+    de Dados dos sistemas de informações e serviços de TIC do CONTRATANTE, que estejam
+    com problemas ou incidentes em andamento
+  referencia: Por ocorrência
+  pontos: 1000
+- id: OD-14
+  categoria: Banco de Dados
+  descricao: Deixar de executar a análise de desempenho dos SGBD s e suas bases de
+    dados ou implementar melhorias ou atuar proativamente na administração de Banco
+    de Dados não impedindo a ocorrência de problemas e incidentes nos serviços de
+    TIC da CONTRANTANTE
+  referencia: Por ocorrência
+  pontos: 1000
+- id: OD-15
+  categoria: Banco de Dados
+  descricao: Deixar de acompanhar o tempo de resposta de querys e/ou deixar de sugerir
+    melhorias para melhorar o tempo de resposta e aumento do desempenho de SGBD s
+  referencia: Por ocorrência
+  pontos: 500
+- id: OD-16
+  categoria: Banco de Dados
+  descricao: Deixar de atuar para a melhoria contínua do ambiente de Banco de Dados
+    do CONTRATANTE, permitindo a existência de configurações e atributos de Bancos
+    de Dados fora de padrão estabelecido no CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 200
+- id: OD-17
+  categoria: Banco de Dados
+  descricao: Executar atividades nos SGBDs sem seguir as norma e procedimentos de
+    Bancos de Dados vigentes no âmbito do CONTRATANTE ou determinados pela fiscalização
+    da CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 200
+- id: OD-18
+  categoria: DevOps
+  descricao: Deixar de criar esteiras de automação de liberação de versões de softwares
+    para os sistemas de informação do CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 250
+- id: OD-19
+  categoria: DevOps
+  descricao: Deixar de desenvolver scripts que permitam a automatização da infraestrutura
+    e integração com as têcnicas e processos de DevOps
+  referencia: Por ocorrência
+  pontos: 250
+- id: OD-20
+  categoria: Documentação
+  descricao: Finalizar requisição de serviço, incidente, mudança, problema ou outros
+    registros de atendimentos dos serviços de operação sem documentar os procedimentos
+    realizados ou sem seguir o padrão acordado com o CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 50
+- id: OD-21
+  categoria: Documentação
+  descricao: Deixar de apresentar os relatórios consolidados, levantamentos ou inventários,
+    produto ou documento solicitados dentro do prazo definido
+  referencia: Por dia de atraso
+  pontos: 200
+- id: OD-22
+  categoria: Documentação
+  descricao: Deixar de documentar e manter atualizada a documentação das soluções
+    que suportam o ambiente de infraestrutura
+  referencia: Por solução
+  pontos: 200
+- id: OD-23
+  categoria: Documentação
+  descricao: 'Entregar produto ou documentação sem seguir padrão definido junto com
+    o CONTRATANTE (Ex.: margens, alinhamento, fontes, cabeçalhos), ou com erros de
+    redação e português, ou a apresentação do documento não possuir a qualidade ou
+    o nível requerido para entrega de um produto ou documento'
+  referencia: Por produto
+  pontos: 50
+- id: OD-24
+  categoria: Documentação
+  descricao: Entregar produto, relatório, documento ou qualquer solicitação de informações
+    feita pelo CONTRATANTE com informações imprecisas ou incompletas - (1ª entrega)
+  referencia: Por produto
+  pontos: 200
+- id: OD-25
+  categoria: Documentação
+  descricao: Entregar produto, relatório, documento ou qualquer solicitação de informações
+    feita pelo CONTRATANTE com informações imprecisas ou incompletas - (a partir da
+    2ª entrega)
+  referencia: Por produto
+  pontos: 120
+- id: OD-26
+  categoria: Ferramenta de ITSM
+  descricao: Finalizar requisição de serviço, incidente, problema, mudanças ou liberações
+    sem que o atendimento tenha sido concluído ou que tenha atingido os objetivos
+    solicitados
+  referencia: Por ocorrência
+  pontos: 200
+- id: OD-27
+  categoria: Ferramenta de ITSM
+  descricao: Deixar de registrar na ferramenta de ITSM , todas as ocorrências, atendimentos
+    e atividades de operação realizadas no ambiente do CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 50
+- id: OD-28
+  categoria: Geral
+  descricao: Deixar de implementar ou manter atualizadas rotinas de backup de configurações,
+    logs , bases de dados e outras informações importantes de soluções de infraestrutura,
+    referente à configuração do ambiente de TIC
+  referencia: Por ocorrência
+  pontos: 600
+- id: OD-29
+  categoria: Geral
+  descricao: Deixar de participar, quando convocado, de reuniões e eventos com outras
+    equipes do CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 50
+- id: OD-30
+  categoria: Geral
+  descricao: Deixar de contribuir com outras equipes têcnicas, a pedido do CONTRATANTE,
+    com informações sob responsabilidade da CONTRATADA
+  referencia: Por ocorrência
+  pontos: 500
+- id: OD-31
+  categoria: Geral
+  descricao: Omitir informações essenciais em repasses de conhecimento para outras
+    equipes, provocando atrasos na continuidade dos serviços
+  referencia: Por ocorrência
+  pontos: 300
+- id: OD-32
+  categoria: Geral
+  descricao: Provocar conflitos nas relações interpessoais entre as equipes da CONTRATADA
+    e outras equipes do CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 500
+- id: OD-33
+  categoria: Geral
+  descricao: Deixar de cumprir e/ou implementar as rotinas em conformidade com o Plano
+    de Continuidade de TIC
+  referencia: Por ocorrência
+  pontos: 200
+- id: OD-34
+  categoria: Geral
+  descricao: Deixar de criar e implementar ou manter atualizadas, as rotinas e scripts
+    de sustentação da infraestrutura de TIC do CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-35
+  categoria: Geral
+  descricao: Deixar de analisar logs e registros dos equipamentos, ferramentas e softwares
+    e, registrar e executar as devidas ações necessárias para evitar incidentes e
+    problemas nos serviços de TIC
+  referencia: Por ocorrência
+  pontos: 200
+- id: OD-36
+  categoria: Geral
+  descricao: Deixar de monitorar, medir, relatar ou repassar informações sobre o desempenho
+    e números quantitativos e qualitativos de processos de GSTI e procedimentos da
+    operação dos serviços
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-37
+  categoria: Gerenciamento de Acessos
+  descricao: Deixar de relatar à CONTRATANTE, problemas e inconsistências relacionadas
+    a acessos indevidos, acessos fora dos padrões recomendados e melhores práticas
+    ou em não conformidade com as Normas e Política de Segurança da Informação e Comunicações
+    da CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 400
+- id: OD-38
+  categoria: Gerenciamento de Acessos
+  descricao: Deixar de utilizar as ferramentas de controles de acesso da CONTRATANTE
+    para a gestão do processo e suas rotinas operacionais
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-39
+  categoria: Gerenciamento de Acessos
+  descricao: Deixar de entregar ou manter atualizada a política do processo de Gerenciamento
+    de Acesso ou seus procedimentos complementares
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-40
+  categoria: Gerenciamento de Capacidade
+  descricao: Dimensionar incorretamente ou de forma insuficiente a capacidade de componentes,
+    softwares, infraestrutura e serviços de TIC, causando incidentes críticos na operação
+    dos serviços de TIC
+  referencia: Por ocorrência
+  pontos: 500
+- id: OD-41
+  categoria: Gerenciamento de Capacidade
+  descricao: Deixar de otimizar a performance da infraestrutura, sistemas, componentes
+    e serviços de TIC da CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-42
+  categoria: Gerenciamento de Configuração
+  descricao: Deixar de cadastrar, manter atualizado ou complementar informações no
+    Bando de Dados de Gerenciamento de Configuração - BDGC ou ferramentas de inventários
+    e nos controles de itens de configuração da CONTRATADA
+  referencia: Por Item de Configuração desatualizado no BDGC
+  pontos: 50
+- id: OD-43
+  categoria: Gerenciamento de Configuração
+  descricao: Deixar de fornecer informações ou fornecer informações imprecisas ou
+    incompletas de Itens de Configuração e ativos da CONTRATANTE que estão sob operação
+    da CONTRATADA
+  referencia: Por ocorrência
+  pontos: 200
+- id: OD-44
+  categoria: Gerenciamento de Configuração
+  descricao: Inserir, retirar ou alterar Item de Configuração na infraestrutura de
+    suporte aos serviços da CONTRATANTE sem passar pelo processo de gerenciamento
+    de mudança ou sem atualizar as informações no BDGC
+  referencia: Por Item de Configuração
+  pontos: 100
+- id: OD-45
+  categoria: Gerenciamento de Eventos
+  descricao: Deixar de incluir serviços de TIC ou outros Itens de Configuração (IC)
+    nas ferramentas de monitoramento
+  referencia: Por IC e por dia fora do monitoramento
+  pontos: 50
+- id: OD-46
+  categoria: Gerenciamento de Eventos
+  descricao: Deixar de analisar, classificar, dar o devido tratamento ou determinar
+    a ação apropriada à eventos nos Serviços de TIC ou outros IC
+  referencia: Por evento
+  pontos: 50
+- id: OD-47
+  categoria: Gerenciamento de Eventos
+  descricao: Encerrar registros de eventos sem determinar sua ação apropriada ou sem
+    dar tratamento adequado
+  referencia: Por evento
+  pontos: 100
+- id: OD-48
+  categoria: Gerenciamento de Incidentes
+  descricao: Deixar de executar plano de comunicação na ocorrência de incidentes nos
+    serviços de TIC e outros Itens de Configuração
+  referencia: Por ocorrência
+  pontos: 50
+- id: OD-49
+  categoria: Gerenciamento de Incidentes
+  descricao: Resolver incidente e avançar o fluxo do processo sem a associação com
+    um item da Base de Dados de Erros Conhecidos ou sem registrar um problema para
+    investigação
+  referencia: Por ocorrência
+  pontos: 50
+- id: OD-50
+  categoria: Gerenciamento de Incidentes
+  descricao: Deixar de participar de reuniões e salas de crise para o tratamento de
+    incidentes graves nas operações de TIC da CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-51
+  categoria: Gerenciamento de Incidentes
+  descricao: Resolver incidente sem consultar ou sem usar o conhecimento constante
+    da Base de Dados de Erros Conhecidos, adequado para sua resolução
+  referencia: Por ocorrência
+  pontos: 50
+- id: OD-52
+  categoria: Gerenciamento de Instalações
+  descricao: Deixar cabo de rede solto e desorganizado ou sem identificação ou fora
+    dos organizadores dos racks em salas de equipamentos de TIC
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-53
+  categoria: Gerenciamento de Instalações
+  descricao: Deixar de manter a identificação, identificar incorretamente ou não seguir
+    padrão definido de etiquetação e identificação de cabeamento em salas de switches
+    e ambientes seguros.
+  referencia: Por ocorrência
+  pontos: 50
+- id: OD-54
+  categoria: Gerenciamento de Instalações
+  descricao: Deixar de realizar vistoria têcnica em salas de equipamentos e ambientes
+    seguros
+  referencia: Por ambiente não vistoriado e por ocorrência
+  pontos: 100
+- id: OD-55
+  categoria: Gerenciamento de Instalações
+  descricao: Deixar de acompanhar e qualidade da refrigeração, a manutenção e organização
+    de ambientes seguros e salas têcnicas de TIC do CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-56
+  categoria: Gerenciamento de Instalações
+  descricao: Causar incidentes em serviços de TIC devido a manuseio incorreto ou acidental
+    em cabeamento ou equipamentos em ambientes seguros e salas têcnicas de TI
+  referencia: Por ocorrência
+  pontos: 500
+- id: OD-57
+  categoria: Gerenciamento de Instalações
+  descricao: Deixar de acompanhar visitas têcnicas de fornecedores do CONTRATANTE
+    em manutenções em ambientes seguros e salas têcnicas de TI
+  referencia: Por ocorrência
+  pontos: 200
+- id: OD-58
+  categoria: Gerenciamento de Mudanças
+  descricao: Deixar de apoiar, liderar e acompanhar mudanças nos Serviços de TIC e
+    em outros ICs que estão sobre o controle do processo de mudança e são operados
+    pela CONTRATADA
+  referencia: Por Item de Configuração
+  pontos: 50
+- id: OD-59
+  categoria: Gerenciamento de Mudanças
+  descricao: Planejar incorretamente ou com falha ou falta de atividades as mudanças
+    nos serviços de TIC e em outros ICs, de mudanças que dependam exclusivamente da
+    CONTRATADA, causando a necessidade de rollback da mudança
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-60
+  categoria: Gerenciamento de Mudanças
+  descricao: Planejar incorretamente ou com falha ou falta de atividades as mudanças
+    nos serviços de TIC e em outros IC s, causando indisponibilidade, falhas ou interrupções
+    não planejadas nos serviços de TIC
+  referencia: Por ocorrência
+  pontos: 200
+- id: OD-61
+  categoria: Gerenciamento de Mudanças
+  descricao: Planejar ou executar mudanças sem o devido plano de remediação ou sem
+    avaliação de risco, ou com planos incompletos, ou com planejamento deficiente
+    e que causem a não aprovação da mudança pelo Comitê Consultivo de Mudança - CCM
+    - (1º tentativa de aprovação)
+  referencia: Por ocorrência
+  pontos: 50
+- id: OD-62
+  categoria: Gerenciamento de Mudanças
+  descricao: Planejar ou executar mudanças sem o devido plano de remediação ou sem
+    avaliação de risco, ou com estes planos incompletos, ou com planejamento deficiente
+    e que causem a não aprovação da mudança pelo Comitê Consultivo de Mudança - CCM
+    - (a partir da 2º tentativa de aprovação)
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-63
+  categoria: Gerenciamento de Mudanças
+  descricao: Deixar requisições de mudança sem planejamento, sem execução ou pausadas
+    sem a devida justificativa, não atendendo ao prazo solicitado pela CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-64
+  categoria: Gerenciamento de Operações e Projetos de TIC
+  descricao: Deixar de realizar o acompanhamento das operações de TIC, necessários
+    para o gerenciamento eficiente e eficaz da operação dos serviços
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-65
+  categoria: Gerenciamento de Operações e Projetos de TIC
+  descricao: Deixar de coordenar ou supervisionar as atividades das equipes de operação
+    da CONTRATADA
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-66
+  categoria: Gerenciamento de Operações e Projetos de TIC
+  descricao: Deixar de acompanhar a resolução de incidentes críticos para as operações
+    de TIC
+  referencia: Por ocorrência
+  pontos: 200
+- id: OD-67
+  categoria: Gerenciamento de Operações e Projetos de TIC
+  descricao: Deixar de orientar as equipes de operação da CONTRATADA quanto aos procedimentos
+    de segurança da informação, gestão de serviços e operação dos serviços de TIC
+    do CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-68
+  categoria: Gerenciamento de Operações e Projetos de TIC
+  descricao: Não controlar adequadamente os horários de trabalho dos prestadores de
+    serviço da CONTRATADA, resultando em que os horários de prestação de serviços
+    de forma presencial, nas dependências do CONTRATANTE, não sejam plenamente cobertos,
+    conforme previsto neste Termo de Referência
+  referencia: Por ocorrência
+  pontos: 150
+- id: OD-69
+  categoria: Gerenciamento de Operações e Projetos de TIC
+  descricao: Permitir a presença de profissionais mau apresentados (vestimenta inadequada)
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-70
+  categoria: Gerenciamento de Problemas
+  descricao: Deixar de registrar problema para incidentes que não possuam causa raiz
+    definida, bem como, não possuam um erro conhecido, uma solução de contorno ou
+    uma solução definitiva para seu tratamento
+  referencia: Por ocorrência
+  pontos: 500
+- id: OD-71
+  categoria: Gerenciamento de Problemas
+  descricao: Deixar de registrar problema proativo e de evitar incidentes nos Serviços
+    de TIC ou outros Itens de Configuração
+  referencia: Por ocorrência
+  pontos: 500
+- id: OD-72
+  categoria: Gerenciamento de Requisições
+  descricao: Pausar atendimento de requisição de serviço utilizando recursos do processo
+    (Pendente de informação do solicitante ou Pendente de fornecedor) que não se enquadrem
+    corretamente com as informações da solicitação ou contexto do atendimento
+  referencia: Por ocorrência
+  pontos: 50
+- id: OD-73
+  categoria: Monitoramento de Serviços
+  descricao: Excluir, desativar ou colocar em manutenção, sem a autorização do CONTRATANTE
+    ou deixar de inserir itens de configuração, ativos ou rotinas da infraestrutura
+    ou operações de TI, nas ferramentas de monitoramento de serviços
+  referencia: Por Item de Configuração
+  pontos: 400
+- id: OD-74
+  categoria: Monitoramento de Serviços
+  descricao: Deixar turno de monitoramento descoberto sem profissional plantonista
+    conforme exigido para um serviço 24x7
+  referencia: Por ocorrência
+  pontos: 300
+- id: OD-75
+  categoria: Monitoramento de Serviços
+  descricao: Deixar de utilizar as ferramentas de monitoramento disponíveis, deixando
+    de evitar incidentes nos ativos, serviços de TIC e em outros itens de configuração
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-76
+  categoria: Monitoramento de Serviços
+  descricao: Deixar de monitorar a disponibilidade, capacidade ou desempenho de ativos,
+    serviços, aplicações ou outros itens de configuração
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-77
+  categoria: Monitoramento de Serviços
+  descricao: Deixar de realizar o monitoramento proativo de ativos, serviços e outros
+    itens de configuração ou deixar de configurar as ferramentas de monitoramento
+    para que sejam emitidos eventos e alertas progressivos que permitam a prevenção
+    de incidentes
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-78
+  categoria: Monitoramento de Serviços
+  descricao: Deixar de configurar as ferramentas de monitoramento para que efetue
+    o start automático de processos em ferramentas de ITSM ou deixar de integrar e
+    manter uma integração das ferramentas, que permita o start de processos de ITSM
+  referencia: Por dia em que a ferramenta não estiver abrindo chamados automaticamente
+  pontos: 100
+- id: OD-79
+  categoria: Monitoramento de Serviços
+  descricao: Deixar de registrar ou tratar eventos ocorridos nos ativos, serviços,
+    aplicações ou outros itens de configuração
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-80
+  categoria: Monitoramento de Serviços
+  descricao: Deixar de relacionar os eventos críticos com incidentes e outros registros
+    de processos relacionados
+  referencia: Por ocorrência
+  pontos: 50
+- id: OD-81
+  categoria: Monitoramento de Serviços
+  descricao: Deixar de realizar as escalações funcionais ou hierárquicas ou deixar
+    de executar o plano de comunicação para o tratamento de eventos, incidentes, problemas,
+    mudanças ou outros processos e procedimentos
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-82
+  categoria: Monitoramento de Serviços
+  descricao: Deixar de manter o monitoramento das filas de atendimento da operação
+    permitindo, que registros de incidentes, requisições de serviço ou outros processos
+    permaneçam sem o devido atendimento
+  referencia: Por ocorrência
+  pontos: 50
+- id: OD-83
+  categoria: Monitoramento de Serviços
+  descricao: Deixar de detectar de forma automatizada mudanças não autorizadas nos
+    ativos, serviços e outros itens de configuração
+  referencia: Por ocorrência
+  pontos: 300
+- id: OD-84
+  categoria: Monitoramento de Serviços
+  descricao: Deixar de manter os painêis de monitoramento e dashboards das ferramentas
+    de monitoração atualizados, em tempo real ou com informações desatualizadas e
+    irrelevantes, em relação ao estado atual do monitoramento de ativos, serviços
+    e outros itens de configuração
+  referencia: Por IC desatualizado nas telas de monitoração
+  pontos: 300
+- id: OD-85
+  categoria: Monitoramento de Serviços
+  descricao: Deixar de configurar o monitoramento de funcionalidades internas de sistemas
+    e serviços de TIC não gerando eventos que evidenciem a degradação da qualidade,
+    lentidão ou indisponibilidade do sistema ou serviço
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-86
+  categoria: Monitoramento de Serviços
+  descricao: Deixar de monitorar jobs e rotinas prê-agendadas em ativos, serviços,
+    bancos de dados, backups e outros itens de configuração
+  referencia: Por ocorrência
+  pontos: 300
+- id: OD-87
+  categoria: Projetos
+  descricao: Deixar de apresentar o perfil profissional adequado no prazo estabelecido
+    para o atendimento de projetos e demandas de implementação e melhorias dos serviços
+    de TIC
+  referencia: Por profissional e por dia de atraso
+  pontos: 100
+- id: OD-88
+  categoria: Redes
+  descricao: Deixar de manter a documentação e os desenhos das topologias de redes
+    do ambiente da CONTRATANTE atualizados e completos
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-89
+  categoria: Redes
+  descricao: Deixar de atualizar ou atualizar incorretamente planilhas, ferramentas
+    e controles de pontos de rede do CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-90
+  categoria: Redes
+  descricao: Deixar de cadastrar, instalar, substituir e remanejar pontos de rede
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-91
+  categoria: Segurança da Informação
+  descricao: Deixar de propor ou aplicar patches de correções e atualizações lançados
+    pelos fabricantes e/ou comunidades de sustentação (no caso de software livre),
+    de soluções de softwares e/ou hardwares da infraestrutura de TIC
+  referencia: Por solução
+  pontos: 500
+- id: OD-92
+  categoria: Segurança da Informação
+  descricao: Incluir, excluir ou alterar regras dos dispositivos de segurança sem
+    autorização do CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-93
+  categoria: Segurança da Informação
+  descricao: Deixar de tratar, inspecionar e evitar violações à segurança que comprometam
+    o funcionamento da operação dos serviços de TIC
+  referencia: Por ocorrência
+  pontos: 1000
+- id: OD-94
+  categoria: Segurança da Informação
+  descricao: Deixar de instalar, em equipamentos e sistemas, as atualizações de segurança
+    disponibilizadas pelas fabricantes
+  referencia: Por ocorrência
+  pontos: 300
+- id: OD-95
+  categoria: Segurança da Informação
+  descricao: Deixar portas de redes abertas fora de uso e provocando vulnerabilidades
+    no ambiente de infraestrutura
+  referencia: Por ocorrência
+  pontos: 500
+- id: OD-96
+  categoria: Segurança da Informação
+  descricao: Deixar de proceder, no mínimo, uma vez por semestre, testes de penetração
+    na rede de dados, soluções, dispositivos, ativos, sistemas e infraestrutura que
+    hospeda os serviços de TIC do CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 5000
+- id: OD-97
+  categoria: Segurança da Informação
+  descricao: Realizar testes de penetração sem planejamento e/ou sem autorização do
+    CONTRATANTE.
+  referencia: Por ocorrência
+  pontos: 5000
+- id: OD-98
+  categoria: Segurança da Informação
+  descricao: Deixar de cumprir e/ou programar rotinas de trabalho em conformidade
+    com os processos de trabalho e normas e política de segurança da informação e
+    comunicações da CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 300
+- id: OD-99
+  categoria: Segurança da Informação
+  descricao: Deixar os serviços de TIC indisponíveis após realização de testes de
+    penetração por tempo superior ao máximo acordado com o CONTRATANTE
+  referencia: Por hora de atraso
+  pontos: 200
+- id: OD-100
+  categoria: Serviços Corporativos
+  descricao: Deixar de utilizar a plataforma System Center (ou equivalente) para a
+    otimização e gestão do ambiente do CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-101
+  categoria: Serviços Corporativos
+  descricao: Deixar de implementar patchs de segurança e atualizações, disponibilizados
+    pelo fabricante, ou recomendados por comunidades de gestão de infraestrutura,
+    ou pelo CONTRATANTE, no parque de estações de trabalho e servidores, salvo por
+    motivo justificado e aceito pelo CONTRATANTE
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-102
+  categoria: Serviços Corporativos
+  descricao: Deixar de automatizar, propor ou disponibilizar softwares e aplicativos
+    via Central de Software para usuários internos
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-103
+  categoria: Servidores de Aplicação
+  descricao: Deixar de manter controle das versões das aplicações instaladas nos servidores
+    de aplicação e/ou solicitar a inclusão de arquivos importantes na política de
+    backup
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-104
+  categoria: Servidores de Aplicação
+  descricao: Deixar de atuar para a estabilidade, homogeneidade e qualidade dos servidores
+    de aplicação, suas aplicações, versões e atributos nos ambientes de suporte das
+    aplicações
+  referencia: Por ocorrência
+  pontos: 100
+- id: OD-105
+  categoria: Servidores de Aplicação
+  descricao: Deixar de informar ao CONTRATANTE deploy realizados em ambientes de produção
+    que tenham causado degradação ou indisponibilidade do serviço
+  referencia: Por ocorrência
+  pontos: 200
+- id: OD-106
+  categoria: Servidores de Aplicação
+  descricao: Deixar de realizar o tunning ou configuração adequada nos servidores
+    de aplicação a fim de evitar incidentes ou problemas nos sistemas de informações
+    ou serviços de TIC da CONTRANTANTE.
+  referencia: Por ocorrência
+  pontos: 200

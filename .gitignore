@@ -1,0 +1,13 @@
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# Production data (PII) — see docs/spec/inms-pipeline.md §8
+input/

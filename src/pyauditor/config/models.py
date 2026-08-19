@@ -1,0 +1,286 @@
+"""Pydantic models for `inms-<n>.yaml` indicator configs.
+
+All 4 shapes from docs/spec/inms-pipeline.md §2/§3 are modeled: `ratio`
+(ticket 02), `segmented_ratio` (ticket 04), `count_difference` (ticket 05),
+`external_catalog_sum` (ticket 06).
+"""
+from __future__ import annotations
+
+from typing import Annotated, Final, Literal, Self, TypeAlias
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+__all__: Final[tuple[str, ...]] = (
+    "Calculation",
+    "ColumnContains",
+    "ColumnEquals",
+    "ColumnIn",
+    "CountDifferenceCalculation",
+    "DurationAtMost",
+    "ExternalCatalogSumCalculation",
+    "Filter",
+    "InSetCheck",
+    "Indicator",
+    "IndicatorConfig",
+    "NotNullCheck",
+    "Penalty",
+    "QualityGateCheck",
+    "QualityGates",
+    "RatioCalculation",
+    "Scope",
+    "SegmentedCategory",
+    "SegmentedRatioCalculation",
+    "Source",
+    "Target",
+)
+
+# ---------------------------------------------------------------------------
+# Shared config — immutable, strict, forbid extra
+# ---------------------------------------------------------------------------
+_StrictFrozen: Final[ConfigDict] = ConfigDict(
+    frozen=True,
+    strict=True,
+    extra="forbid",
+    str_strip_whitespace=True,
+)
+
+
+class Indicator(BaseModel):
+    model_config = _StrictFrozen
+    id: str = Field(min_length=1)
+    contractual_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+
+
+class Scope(BaseModel):
+    model_config = _StrictFrozen
+    contract: str = Field(min_length=1)
+    orgao: Literal["MinC"] = "MinC"
+
+
+class Source(BaseModel):
+    model_config = _StrictFrozen
+    csv: str = Field(min_length=1)
+    delimiter: str = Field(default=";", min_length=1)
+    encoding: str = Field(default="utf-8-sig", min_length=1)
+    id_column: str = Field(default="Nº Solicitacao", min_length=1)
+
+
+class NotNullCheck(BaseModel):
+    model_config = _StrictFrozen
+    type: Literal["not_null"]
+    column: str = Field(min_length=1)
+
+
+class InSetCheck(BaseModel):
+    model_config = _StrictFrozen
+    type: Literal["in_set"]
+    column: str = Field(min_length=1)
+    values: list[str] = Field(min_length=1)
+
+
+QualityGateCheck: TypeAlias = Annotated[
+    NotNullCheck | InSetCheck, Field(discriminator="type")
+]
+
+
+class QualityGates(BaseModel):
+    model_config = _StrictFrozen
+    checks: list[QualityGateCheck] = Field(default_factory=list)
+
+
+class ColumnEquals(BaseModel):
+    model_config = _StrictFrozen
+    column: str = Field(min_length=1)
+    equals: str
+
+
+class ColumnContains(BaseModel):
+    model_config = _StrictFrozen
+    column: str = Field(min_length=1)
+    contains: str = Field(min_length=1)
+
+
+class ColumnIn(BaseModel):
+    model_config = _StrictFrozen
+    column: str = Field(min_length=1)
+    in_values: list[str] = Field(min_length=1)
+
+
+class DurationAtMost(BaseModel):
+    """Matches rows where an `H:MM:SS` (or `D:HH:MM:SS`) duration column is at most `max_seconds`."""
+
+    model_config = _StrictFrozen
+    column: str = Field(min_length=1)
+    max_seconds: int = Field(ge=0)
+
+
+# Smart union — members distinguished by distinct field names, no discriminator
+Filter: TypeAlias = ColumnEquals | ColumnContains | ColumnIn | DurationAtMost
+
+
+class RatioCalculation(BaseModel):
+    model_config = _StrictFrozen
+    shape: Literal["ratio"]
+    aggregation: Literal["count_distinct", "sum", "precomputed"]
+    numerator_filter: Filter | None = None
+    denominator_filter: Filter | None = None
+    sum_numerator_column: str | None = Field(default=None, min_length=1)
+    sum_denominator_extra_column: str | None = Field(default=None, min_length=1)
+    precomputed_result_column: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def _check_fields_for_aggregation(self) -> Self:
+        if self.aggregation == "count_distinct" and self.numerator_filter is None:
+            raise ValueError("count_distinct requires numerator_filter")
+        if self.aggregation == "sum" and (
+            self.sum_numerator_column is None or self.sum_denominator_extra_column is None
+        ):
+            raise ValueError("sum requires sum_numerator_column and sum_denominator_extra_column")
+        if self.aggregation == "precomputed" and self.precomputed_result_column is None:
+            raise ValueError("precomputed requires precomputed_result_column")
+        return self
+
+
+class SegmentedCategory(BaseModel):
+    model_config = _StrictFrozen
+    name: str = Field(min_length=1)
+    denominator_filter: Filter
+    numerator_filter: Filter
+    step_points: float = Field(ge=0)
+
+
+class SegmentedRatioCalculation(BaseModel):
+    model_config = _StrictFrozen
+    shape: Literal["segmented_ratio"]
+    step_size_pct: float = Field(gt=0)
+    categories: list[SegmentedCategory] = Field(min_length=1)
+
+
+class CountDifferenceCalculation(BaseModel):
+    model_config = _StrictFrozen
+    shape: Literal["count_difference"]
+    recommended_filter: Filter | None = None
+    implemented_filter: Filter
+    penalty_per_unit: float = Field(ge=0)
+
+
+class ExternalCatalogSumCalculation(BaseModel):
+    model_config = _StrictFrozen
+    shape: Literal["external_catalog_sum"]
+    occurrence_id_column: str = Field(min_length=1)
+    catalog_codes_column: str = Field(min_length=1)
+    catalog_codes_separator: str = Field(default=",", min_length=1)
+
+
+Calculation: TypeAlias = Annotated[
+    RatioCalculation
+    | SegmentedRatioCalculation
+    | CountDifferenceCalculation
+    | ExternalCatalogSumCalculation,
+    Field(discriminator="shape"),
+]
+
+
+class Target(BaseModel):
+    model_config = _StrictFrozen
+    operator: Literal[">=", "<="]
+    value: float = Field(ge=0, le=100)
+
+
+class Penalty(BaseModel):
+    model_config = _StrictFrozen
+    base_points: float = Field(default=0.0, ge=0)
+    step_points: float = Field(ge=0)
+    step_size_pct: float = Field(gt=0)
+
+
+class AcceptanceTestCategoryExpected(BaseModel):
+    model_config = _StrictFrozen
+    name: str
+    numerator: int = Field(ge=0)
+    denominator: int = Field(ge=0)
+    result_pct: float = Field(ge=0, le=100)
+    penalty_points: float = Field(ge=0)
+
+
+class AcceptanceTestOccurrenceExpected(BaseModel):
+    model_config = _StrictFrozen
+    occurrence_id: str
+    catalog_id: str
+    pontos: int = Field(ge=0)
+
+
+class RatioAcceptanceExpected(BaseModel):
+    model_config = _StrictFrozen
+    shape: Literal["ratio"]
+    numerator: float = Field(ge=0)
+    denominator: float = Field(ge=0)
+    result_pct: float = Field(ge=0, le=100)
+    conforms: bool
+    penalty_points: float = Field(ge=0)
+
+
+class SegmentedRatioAcceptanceExpected(BaseModel):
+    model_config = _StrictFrozen
+    shape: Literal["segmented_ratio"]
+    result_pct: float = Field(ge=0, le=100)
+    conforms: bool
+    penalty_points: float = Field(ge=0)
+    categories: list[AcceptanceTestCategoryExpected] = Field(min_length=1)
+
+
+class CountDifferenceAcceptanceExpected(BaseModel):
+    model_config = _StrictFrozen
+    shape: Literal["count_difference"]
+    result_pct: float = Field(ge=0, le=100)
+    conforms: bool
+    penalty_points: float = Field(ge=0)
+    qrc: int = Field(ge=0)
+    qcsi: int = Field(ge=0)
+    cni: int
+
+
+class ExternalCatalogSumAcceptanceExpected(BaseModel):
+    model_config = _StrictFrozen
+    shape: Literal["external_catalog_sum"]
+    result_pct: float = Field(ge=0, le=100)
+    conforms: bool
+    penalty_points: float = Field(ge=0)
+    total_points: int = Field(ge=0)
+    occurrences: list[AcceptanceTestOccurrenceExpected] = Field(default_factory=list)
+
+
+AcceptanceTestExpected: TypeAlias = Annotated[
+    RatioAcceptanceExpected
+    | SegmentedRatioAcceptanceExpected
+    | CountDifferenceAcceptanceExpected
+    | ExternalCatalogSumAcceptanceExpected,
+    Field(discriminator="shape"),
+]
+
+
+class AcceptanceTest(BaseModel):
+    model_config = _StrictFrozen
+    expected: AcceptanceTestExpected
+
+
+class IndicatorConfig(BaseModel):
+    model_config = _StrictFrozen
+    indicator: Indicator
+    scope: Scope
+    source: Source
+    quality_gates: QualityGates
+    calculation: Calculation
+    target: Target | None = None
+    penalty: Penalty | None = None
+    acceptance_test: AcceptanceTest | None = None
+
+    @model_validator(mode="after")
+    def _check_target_for_shape(self) -> Self:
+        is_external = self.calculation.shape == "external_catalog_sum"
+        if is_external and self.target is not None:
+            raise ValueError("external_catalog_sum must not have target (Anexo E is point sum)")
+        if not is_external and self.target is None:
+            raise ValueError(f"{self.calculation.shape} requires target")
+        return self

@@ -1,0 +1,48 @@
+indicator:
+  id: INMS-1.9
+  contractual_id: "INMS 1.9"
+  name: Tempo médio de implementação de uma mudança
+
+scope:
+  contract: "40/2022 - Ministério Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-001-09.csv
+  delimiter: ";"
+  encoding: utf-8-sig
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: count_distinct
+  numerator_filter:
+    column: "No prazo"
+    equals: "S"
+
+target:
+  operator: ">="
+  value: 90.0
+
+penalty:
+  step_points: 200
+  step_size_pct: 1.0
+
+# Anexo D (Tabela 28), INMS 1.9: INMS 1.9 = TRMP/TRM × 100, meta ≥90%, 200
+# pontos a cada 1% abaixo da meta ("ex.: 88%, 2 x 200" — confirma leitura
+# contínua/linear, não degrau discreto).
+#
+# O /input/inms-001-09.csv real tem só o cabeçalho genérico do ITSM, sem
+# nenhuma linha de dado — mesma lacuna do INMS 1.3/1.8/1.10. O
+# acceptance_test abaixo é degenerado (0/0); a prova real da matemática
+# `count_distinct` já está coberta pelo INMS 1.1 (ticket 02).
+acceptance_test:
+  expected:
+    shape: ratio
+    numerator: 0
+    denominator: 0
+    result_pct: 0.0
+    conforms: false
+    penalty_points: 18000.0

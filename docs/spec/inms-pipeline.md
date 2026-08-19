@@ -1,0 +1,338 @@
+# Spec: pipeline de apuração INMS (contrato 40/2022 — Ministério da Cultura)
+
+> Arquitetura, não implementação. Consolida as decisões travadas no mapa Wayfinder
+> [`.scratch/inms-pipeline-spec/map.md`](../../.scratch/inms-pipeline-spec/map.md) (tickets 01–13);
+> escrito pelo ticket 14. Pronto para outra sessão implementar.
+
+## 1. Visão geral e destino
+
+O `pyauditor` apura mensalmente os 14 indicadores INMS de SLA do contrato 40/2022 (Anexo D — Prazos
+e Níveis Mínimos de Serviço) a partir de pares declarativos `inms-<n>.yaml` (schema/config) +
+`inms-<n>.csv` (dataset), produz uma memória de cálculo (ROM) Markdown por indicador com quality
+gates que podem falhar a medição, e consolida tudo numa planilha Excel final mais um Excel de capa
+do contrato, geridos por uma CLI.
+
+O engine é genérico o bastante para qualquer YAML aderente ao schema — os indicadores que não
+divergem estruturalmente do INMS 1.1 (razão simples × 100, meta + penalidade em degrau) não exigem
+decisão nova de arquitetura, só configuração. Ver [Ticket 01](../../.scratch/inms-pipeline-spec/issues/01-destino-e-escopo.md).
+
+## 2. Classificação dos 14 indicadores por shape
+
+Leitura integral do Anexo D (Tabela 28) mais inspeção dos 14 CSVs reais em `/input` reduziram o
+engine a **4 shapes**:
+
+| Shape | Indicadores | Descrição |
+|---|---|---|
+| `ratio` (`aggregation: count_distinct \| sum \| precomputed`) | 1.1, 1.3, 1.4, 1.5, 1.6, 1.7, 1.9, 1.11, 1.12, 1.13, 1.14 | numerador/denominador × 100, meta com operador de comparação (`>=`/`<=`), penalidade em degraus |
+| `segmented_ratio` | 1.2 | 3 sub-razões por categoria (prioridade Alta/Média/Baixa), cada uma com meta e taxa de penalidade próprias; penalidade final = soma das 3 |
+| `count_difference` | 1.10 | `CNI = QRC − QCSI` (diferença de contagem, não razão); penalidade fixa por unidade faltante |
+| `external_catalog_sum` | 1.8 | soma de pontos de um catálogo externo fechado (Anexo E), sem meta percentual |
+
+Detalhe por variação de `ratio`:
+
+- `count_distinct` — numerador/denominador contados a partir de linhas do CSV (ex.: 1.1, 1.6, 1.7,
+  1.9, 1.11, 1.12, 1.13).
+- `sum` — razão de somas de dias/tempo, não contagem distinta (ex.: 1.3).
+- `precomputed` — numerador/denominador já vêm prontos de uma ferramenta de monitoramento externa;
+  um YAML+CSV = um ativo/serviço = uma medição independente (ex.: 1.4, 1.5, 1.14 — ver §3.1).
+- `target.operator` cobre metas invertidas (ex.: 1.11 é "≤").
+
+Fonte: [Ticket 02](../../.scratch/inms-pipeline-spec/issues/02-classificacao-shapes.md),
+[Ticket 13](../../.scratch/inms-pipeline-spec/issues/13-revisao-per-asset-ratio.md).
+
+### 2.1 Revisão `per_asset_ratio` → `ratio(aggregation=precomputed)`
+
+Os CSVs reais de 1.4/1.5/1.14 são um único registro pré-agregado por indicador
+(`Descrição, Disponibilidade Esperada (%), Disponibilidade Realizada (%), ...`), não eventos brutos
+por ativo. "Para cada um dos sistemas/serviços, utilizar a fórmula ao lado" (Anexo D) significa, na
+prática, **múltiplos pares YAML+CSV** — um por ativo/serviço — cada um tratado como uma medição
+`ratio` normal, não uma agregação interna multi-ativo dentro de um único CSV. Isso eliminou a
+strategy `per_asset_ratio` que o Ticket 02 havia proposto antes de ver os dados reais.
+
+## 3. Contratos Pydantic por shape
+
+Campo `shape` explícito no YAML seleciona uma strategy registrada (strategy/registry pattern) — um
+único fluxo de execução para os 14 indicadores: `load config → valida quality_gates → aplica
+strategy → gera ROM`.
+
+Pydantic usa **discriminated union pelo campo `shape`**: cada strategy declara seu próprio modelo
+para os blocos `calculation`/`penalty` do YAML (`RatioCalculation`, `SegmentedRatioCalculation`,
+`CountDifferenceCalculation`, `ExternalCatalogSumCalculation`), com `mypy --strict` garantindo que
+cada strategy só recebe o shape de config que sabe processar — sem `dict[str, Any]` nem
+`# type: ignore` espalhados pelo engine.
+
+```python
+Calculation = Annotated[
+    RatioCalculation | SegmentedRatioCalculation | CountDifferenceCalculation | ExternalCatalogSumCalculation,
+    Field(discriminator="shape"),
+]
+```
+
+Fonte: [Ticket 03](../../.scratch/inms-pipeline-spec/issues/03-engine-strategies-pydantic.md).
+
+## 4. Validação em duas camadas
+
+- **Pydantic** — "isso é um YAML/config válido?" (schema errado, coluna obrigatória ausente na
+  declaração). Fail-fast, erro de programador/config, antes de ler o CSV.
+- **`QualityGateRunner`** — "esses dados batem com as regras de negócio declaradas?"
+  (`quality_gates.checks` do YAML). Fail de medição; roda depois do parse do CSV e antes do
+  cálculo; produz os "rejeitados com ID e motivo" que alimentam o ROM.
+
+Manter as camadas separadas preserva, no ROM, a distinção entre "config quebrada" e "dado
+rejeitado". Fonte: [Ticket 04](../../.scratch/inms-pipeline-spec/issues/04-validacao-duas-camadas.md).
+
+## 5. Estratégia de testes
+
+- **Smoke test parametrizado** (`pytest.mark.parametrize`) sobre todos os `acceptance_test`
+  encontrados nos 14 pares yaml+csv de produção — garante que a spec bate com a realidade
+  contratual.
+- **Fixtures sintéticas unitárias por strategy** — cada strategy divergente (`segmented_ratio`,
+  `count_difference`, `external_catalog_sum`) ganha testes com fixtures pequenas, sintéticas
+  (nunca cópia crua de CSV de produção, ver §8), cobrindo casos de borda isolados do dado real.
+
+Fonte: [Ticket 05](../../.scratch/inms-pipeline-spec/issues/05-testes-fixtures.md).
+
+## 6. Contrato da CLI
+
+**3 subcomandos explícitos**, mais um comando guarda-chuva opcional que os chama em sequência:
+
+| Comando | Responsabilidade |
+|---|---|
+| `bootstrap` | cria o Excel de capa do contrato (gestor, SEI, etc.) se não existir; **idempotente** — nunca recria se já existir |
+| `measure <competência>` | roda os indicadores configurados para a competência, gera um ROM Markdown por indicador |
+| `report <competência>` | lê os ROMs + Excel de capa, gera a planilha Excel final consolidada |
+
+Motivo da separação: o fiscal técnico pode precisar rodar `measure` várias vezes num mês (novos
+CSVs chegando) sem reconsolidar toda vez; separar as fases facilita testar cada uma isoladamente.
+
+Fonte: [Ticket 06](../../.scratch/inms-pipeline-spec/issues/06-cli-subcomandos.md).
+
+## 7. Contrato do ROM Markdown
+
+Um **template genérico** + um **renderer por shape** só para a seção de memória de cálculo.
+
+Seções fixas (vêm do `QualityGateRunner`, idênticas para todo indicador):
+
+1. **Cabeçalho** — `indicator.id`, `contractual_id`, competência, contrato.
+2. **População** — filtros de escopo aplicados, contagem inicial.
+3. **Rejeições** — tabela ID + motivo + regra de `quality_gates` violada.
+4. **Memória de cálculo** — a única seção que varia por shape (ver abaixo).
+5. **Resultado vs meta, penalidade.**
+
+Renderer por shape:
+
+- `ratio` — numerador/denominador únicos.
+- `segmented_ratio` — sub-linhas por categoria + soma.
+- `count_difference` — os termos da diferença (`QRC`, `QCSI`, `CNI`).
+- `external_catalog_sum` — lista de ocorrências com pontos (código do catálogo, descrição, pontos,
+  regra de maior-pontuação-vence quando aplicável — ver §11).
+
+Gerar templates completos por shape duplicaria ~80% do conteúdo; por isso um template genérico com
+um ponto de extensão por shape. Fonte: [Ticket 07](../../.scratch/inms-pipeline-spec/issues/07-contrato-rom.md).
+
+### 7.1 Exemplo renderizado — `ratio` (INMS 1.1)
+
+```markdown
+# ROM — INMS 1.1 (Incidentes atendidos dentro do prazo)
+
+**Contrato:** 40/2022 — Ministério da Cultura
+**Competência:** 06/2026
+
+## População
+- Linhas lidas: 812
+- Linhas após filtro de escopo: 798
+
+## Rejeições
+| ID | Motivo |
+|---|---|
+| 87091 | `DataHoraFim` nulo com `No prazo = S` |
+
+## Memória de cálculo
+- Numerador (atendidos no prazo): 750
+- Denominador (total aplicável): 797
+- Resultado: 94,10%
+
+## Resultado vs meta
+- Meta: ≥ 95%
+- Resultado: 94,10% — **não conforme**
+- Penalidade: 116,00 pontos (ver `penalty` do YAML)
+```
+
+> **Nota (pós-ticket 02/04):** a penalidade do Anexo D é uma fórmula linear contínua —
+> `base_points + (meta − resultado) ÷ step_size_pct × step_points`, sem arredondamento/teto por
+> degrau — confirmada pela fórmula explícita do INMS 1.2 (`(META − resultado) ÷ 0,1 × pontos`). Uma
+> leitura inicial de "degrau" como valor inteiro discretizado (ceiling) foi corrigida durante a
+> implementação da ticket 04; ver [Ticket 02](../../.scratch/inms-pipeline/issues/02-ratio-shape-tracer-bullet.md)
+> e [Ticket 04](../../.scratch/inms-pipeline/issues/04-segmented-ratio-shape.md) no mapa de
+> implementação.
+
+### 7.2 Exemplo renderizado — `external_catalog_sum` (INMS 1.8)
+
+```markdown
+# ROM — INMS 1.8 (Ocorrências de Desconformidade Técnica)
+
+## Memória de cálculo
+| Ocorrência | Item Anexo E | Descrição | Pontos |
+|---|---|---|---|
+| OC-014 | OD-52 | Cabo de rede solto | 100 |
+| OC-019 | OD-01 | Perda de dados críticos | 20.000 |
+
+- Σ Pontos_NMS(1.8) = 20.100
+```
+
+## 8. Estrutura do repositório, dados de produção vs fixtures
+
+- **Mono-contrato, sem abstração prematura.** `scope.contract` é valor fixo no YAML; "múltiplos
+  contratos" seria só "múltiplos diretórios de config" no futuro — não exige decisão hoje.
+- **Dados de produção fora do versionamento.** Diretório configurável, git-ignorado (hoje
+  `/Users/joao/dev/pyauditor/input/`) — os 14 CSVs têm nome/solicitante/criador/técnico (PII real);
+  versioná-los arrisca vazar dados pessoais no histórico do git.
+- **Fixtures de teste no repo** (`tests/fixtures/`), sempre sintéticas ou anonimizadas — nunca
+  cópia crua do CSV de produção.
+
+Fonte: [Ticket 08](../../.scratch/inms-pipeline-spec/issues/08-mono-contrato-dados.md).
+
+## 9. Layout de pacotes e registry de strategies
+
+```
+src/pyauditor/
+├── config/        # modelos Pydantic, discriminated union por `shape`
+├── engine/
+│   ├── quality_gates.py   # QualityGateRunner
+│   └── strategies/         # ratio, segmented_ratio, count_difference, external_catalog_sum
+├── rom/            # renderização Markdown (template genérico + renderer por shape)
+├── excel/          # builder da planilha final + capa (usa docs/spreadsheet.md e docs/styleguide.md)
+└── cli/            # bootstrap / measure / report (+ comando guarda-chuva)
+```
+
+Registry de strategies: **dict módulo-level**
+(`SHAPE_REGISTRY: dict[str, type[CalculationStrategy]]` em `engine/strategies/__init__.py`),
+populado por import explícito de cada strategy — sem `entry_points`/plugin discovery (mono-repo,
+strategies fixas e conhecidas, nunca vêm de fora do repo).
+
+Fonte: [Ticket 09](../../.scratch/inms-pipeline-spec/issues/09-layout-pacotes.md).
+
+## 10. Modelagem do campo `orgao`
+
+Os 14 CSVs reais de produção não têm segregação MinC/MTur — todo registro com campo `Contrato`
+mostra apenas `"40/2022 - Ministério Cultura"`, contradizendo a estrutura de `docs/spreadsheet.md`
+(que assume ambos os órgãos desde o início).
+
+Decisão: **modelar o campo `orgao` desde já no schema, com valor fixo `"MinC"`** — evita retrabalho
+de schema quando/se aparecer dado de MTur — mas a *lógica* de consolidação ponderada MinC+MTur
+(fórmula de `docs/spreadsheet.md`: `(Numerador MinC + Numerador MTur) / (Denominador MinC +
+Denominador MTur)`) fica **fora do destino desta versão da spec** (ver §13, fog remanescente).
+
+Fonte: [Ticket 10](../../.scratch/inms-pipeline-spec/issues/10-campo-orgao-minc.md).
+
+## 11. INMS 1.8 — `external_catalog_sum`
+
+Fonte: Anexo E (`docs/termo_de_referencia/anexo_e_desconformidade_tecnica.html`), pesquisa completa
+em [`docs/research/anexo-e-inms-1.8.md`](../research/anexo-e-inms-1.8.md).
+[Ticket 11](../../.scratch/inms-pipeline-spec/issues/11-research-anexo-e.md).
+
+### 11.1 Catálogo
+
+Tabela 29 "Itens de Desconformidade Técnica": 106 itens (`OD-01`..`OD-106`), 22 categorias
+(`ASSUNTO`). Colunas: `ID`, `ASSUNTO`, `DESCRIÇÃO`, `REFERÊNCIA` (unidade de contagem — varia por
+item: "por ocorrência", "por dia de atraso", "por solução", "por Item de Configuração", "por
+produto", "por evento"), `PONTUAÇÃO` (50 a 20.000 pontos por item).
+
+Modelagem: catálogo Pydantic fixo (106 itens), carregado de um arquivo próprio do YAML/config — não
+derivado do Anexo D em runtime.
+
+### 11.2 Cálculo
+
+Soma linear simples, sem teto e sem multiplicador por reincidência:
+
+```
+INMS 1.8 = Σ Pontos_NMS(item correspondente)
+```
+
+Única regra de ajuste: se uma ocorrência se enquadra em mais de um item do catálogo, conta apenas o
+item de **maior pontuação** (dedup por ocorrência, não por período).
+
+### 11.3 Dataset de origem — fog explícito
+
+O Anexo E **não define nenhum mecanismo de coleta/registro** — é puramente um catálogo código →
+descrição → pontos. O formato ITSM do `inms-001-08.csv` real (mesmo header de tickets de chamado
+usado pelos indicadores `ratio`) é **plausível mas não confirmado**: vários itens do catálogo (cabo
+solto, vestimenta inadequada, ausência de pentest, desatualização de CMDB) são achados de
+inspeção/auditoria, não eventos de chamado. Nada no Anexo D ou E define como uma ocorrência de
+desconformidade é registrada no dataset de entrada.
+
+**Esta spec modela o catálogo e o cálculo bruto do 1.8, mas não fecha o schema do dataset de
+entrada** — tratar como pergunta em aberto para a equipe de fiscalização antes da implementação,
+não assumir o CSV ITSM atual como autoritativo (ver §13).
+
+## 12. Glosa monetária (aba `GLOSAS`)
+
+Fonte: item 35 do Termo de Referência (`docs/termo_de_referencia/07_modelo_de_gestao.html`,
+seção "Sanções Administrativas e Procedimentos para retenção ou glosa no pagamento", linhas
+~196–260 e ~893–1060), pesquisa completa em
+[`.scratch/inms-pipeline-spec/research/12-glosa-item-35.md`](../../.scratch/inms-pipeline-spec/research/12-glosa-item-35.md).
+[Ticket 12](../../.scratch/inms-pipeline-spec/issues/12-research-glosa-item-35.md).
+
+### 12.1 Fórmula
+
+```
+Ajuste_NMS(%) = min(30%, Σ Pontos_NMS(mês) × 0,001%)
+valor da glosa = Ajuste_NMS(%) × valor-base
+```
+
+- 1 ponto de penalidade = 0,001% de glosa sobre o pagamento mensal.
+- A pontuação usada é o **somatório de todos os `Pontos_NMS` do mês** — todos os 14 INMS (Anexos D
+  e E combinados) — somados primeiro; o percentual é calculado uma única vez sobre o total, não por
+  indicador.
+- **Fórmula linear contínua, sem degraus.**
+- **Teto de 30%** do valor total mensal; o excedente rola para a fatura do mês seguinte (exceto no
+  último mês de vigência). Ultrapassar o teto 3× em 6 meses caracteriza inexecução parcial do
+  contrato.
+
+### 12.2 Ressalvas documentadas (não bloqueiam a spec)
+
+- Uma segunda fórmula na mesma seção do TR usa os termos `RB` e `Desconto Máximo Anual`, não
+  definidos em nenhum outro lugar do documento — aparenta ser boilerplate de template genérico de
+  contrato regulatório (o rótulo "Anual" destoa do resto do item, inteiramente mensal). **Não deve
+  ser tratada como fonte de verdade operacional.**
+- Fica ambíguo se "valor-base" é o valor total mensal do contrato ou por item/Ordem de Serviço (o
+  texto usa ambos "pagamento mensal" e "PM_por_item"). **Convenção adotada por esta spec: valor
+  total mensal** (é o termo usado explicitamente nas regras de teto) — não bloqueia a
+  implementação.
+
+### 12.3 Aba `GLOSAS` (colunas mínimas cobertas pela fórmula acima)
+
+`competência`, `Σ Pontos_NMS do mês`, `percentual de ajuste`, `valor-base`, `valor da glosa`,
+`teto atingido? (S/N)`, `saldo rolado para o mês seguinte`. As demais colunas de
+`docs/spreadsheet.md` §Aba 10 (`faixa de descumprimento`, `reincidência`, `justificativa`, etc.) são
+de preenchimento manual do fiscal, fora do cálculo automático.
+
+## 13. Excel final e Excel de capa
+
+Referência estrutural: [`docs/spreadsheet.md`](../spreadsheet.md) (abas) e
+[`docs/styleguide.md`](../styleguide.md) (formatação — fonte, cores por função, bordas). Ambos
+servem de referência, não são doutrina rígida: nem toda aba proposta em `docs/spreadsheet.md` é
+sustentada pelos dados reais de produção hoje (ver §10 e fog abaixo).
+
+- **`bootstrap`** gera a aba `CAPA_E_CONTROLE` (idempotente — ver §6).
+- **`report`** consolida os ROMs Markdown gerados por `measure` na aba `INMS_BASE` e nas abas por
+  grupo operacional (`ATENDIMENTO_N1`, `MONITORAMENTO_NOC_SOC`, `ATENDIMENTO_N2`, `OPERACAO_N3`),
+  usando o campo `orgao` fixo `"MinC"` (§10) em vez da segregação MinC/MTur assumida por
+  `docs/spreadsheet.md`.
+- **`GLOSAS`** é preenchida pela fórmula do §12.
+
+### Fog remanescente, explicitamente fora do destino desta versão da spec
+
+1. **Mapeamento ROM→abas para o caso de segregação real MinC/MTur.** Hoje só existe dado MinC nos
+   14 datasets de produção; a lógica de consolidação ponderada de `docs/spreadsheet.md` fica em fog
+   até aparecer um dataset real com os dois órgãos.
+2. **Schema do dataset de origem/ingestão de ocorrências do INMS 1.8** (§11.3) — formato ITSM
+   plausível mas não confirmado.
+3. **Convenção de descoberta de arquivos** quando um indicador tiver múltiplos ativos/serviços
+   pré-agregados no mesmo período (ex.: INMS 1.14 cobre 6 serviços nomeados no TR, mas hoje só há 1
+   CSV por indicador em `/input`) — precisa ser especificada se/quando aparecer mais de um arquivo
+   por indicador por competência.
+
+Nenhum destes três itens bloqueia a implementação do escopo coberto por esta spec (mono-órgão,
+1 CSV por indicador); cada um deve ser resolvido — com o gestor do contrato ou com novos dados
+reais — antes de estender o pipeline além do escopo atual.

@@ -1,0 +1,52 @@
+indicator:
+  id: INMS-1.10
+  contractual_id: "INMS 1.10"
+  name: Taxa de implantação de controles de segurança
+
+scope:
+  contract: "40/2022 - Ministério Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-001-10.csv
+  delimiter: ";"
+  encoding: utf-8-sig
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: count_difference
+  implemented_filter:
+    column: "No prazo"
+    equals: "S"
+  penalty_per_unit: 1000
+
+target:
+  operator: ">="
+  value: 100.0
+
+# Anexo D (Tabela 28), INMS 1.10: CNI = QRC - QCSI (Quantidade de Controles
+# Recomendados - Quantidade de controles de Segurança Implantados), meta
+# "= 100%", 1000 pontos por controle não implementado.
+#
+# O /input/inms-001-10.csv real tem só o cabeçalho genérico do ITSM
+# (mesmo formato usado pelos indicadores `ratio`), sem nenhuma linha de
+# dado — igual ao INMS 1.8 (ticket 11), o Anexo D não define como um
+# controle de segurança recomendado/implantado é registrado no dataset de
+# origem. `implemented_filter` acima usa a coluna "No prazo" só para o
+# schema validar contra o header real; não há linhas para exercitar o
+# cálculo. O acceptance_test abaixo reflete essa realidade (0 recomendados,
+# 0 implantados, CNI=0) — não é um teste significativo do cálculo, só prova
+# que o pipeline roda contra o arquivo real sem quebrar. A prova real da
+# matemática de `count_difference` está no fixture sintético em
+# tests/test_count_difference.py.
+acceptance_test:
+  expected:
+    shape: count_difference
+    result_pct: 100.0
+    conforms: true
+    penalty_points: 0.0
+    qrc: 0
+    qcsi: 0
+    cni: 0

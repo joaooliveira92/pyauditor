@@ -1,0 +1,43 @@
+indicator:
+  id: INMS-1.8
+  contractual_id: "INMS 1.8"
+  name: Ocorrências de Desconformidade Técnica
+
+scope:
+  contract: "40/2022 - Ministério Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-001-08.csv
+  delimiter: ";"
+  encoding: utf-8-sig
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: external_catalog_sum
+  occurrence_id_column: "Nº Solicitacao"
+  catalog_codes_column: "Atividades"
+  catalog_codes_separator: ","
+
+# Anexo E (Tabela 29): soma linear de pontos, sem meta percentual — ver
+# docs/spec/inms-pipeline.md §11.
+#
+# O /input/inms-001-08.csv real tem só o cabeçalho genérico do ITSM, sem
+# nenhuma linha de dado — mesma lacuna do INMS 1.10 (ticket 05) e já
+# documentada como fog no ticket 11: o Anexo E não define como uma
+# ocorrência de desconformidade é registrada no dataset de origem.
+# `catalog_codes_column` aponta para "Atividades" só para o schema validar
+# contra o header real; não há linhas para exercitar o cálculo. O
+# acceptance_test abaixo reflete essa realidade (0 ocorrências, 0 pontos) —
+# a prova real do somatório + dedup por maior-pontuação está no fixture
+# sintético em tests/test_external_catalog_sum.py.
+acceptance_test:
+  expected:
+    shape: external_catalog_sum
+    result_pct: 0.0
+    conforms: true
+    penalty_points: 0.0
+    total_points: 0
+    occurrences: []
