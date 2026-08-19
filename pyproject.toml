@@ -1,7 +1,7 @@
 [project]
 name = "pyauditor"
 version = "0.1.0"
-description = "Add your description here"
+description = "Command-line tool for auditing and validating Excel workbooks using configurable rules."
 readme = "README.md"
 authors = [
     { name = "Joao Antonio Oliveira", email = "joao.oliveira@cultura.gov.br" }
