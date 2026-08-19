@@ -208,7 +208,7 @@ Fonte: [Ticket 08](../../.scratch/inms-pipeline-spec/issues/08-mono-contrato-dad
 
 ## 9. Layout de pacotes e registry de strategies
 
-```
+```python
 src/pyauditor/
 ├── config/        # modelos Pydantic, discriminated union por `shape`
 ├── engine/
