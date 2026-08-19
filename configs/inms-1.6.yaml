@@ -1,0 +1,55 @@
+indicator:
+  id: INMS-1.6
+  contractual_id: "INMS 1.6"
+  name: Eficácia no tratamento de chamados
+
+scope:
+  contract: "40/2022 - Ministério Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-001-06.csv
+  delimiter: ";"
+  encoding: utf-8-sig
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: count_distinct
+  # CA - CR, expresso como filtro de inclusão: numerator_filter seleciona os
+  # chamados NÃO reabertos. Ver nota de fog abaixo.
+  numerator_filter:
+    column: "No prazo"
+    in_values: ["S", "N"]
+
+target:
+  operator: ">="
+  value: 97.0
+
+penalty:
+  step_points: 200
+  step_size_pct: 0.5
+
+# Anexo D (Tabela 28), INMS 1.6: INMS 1.6 = (ΣCA − ΣCR) / ΣCA × 100, meta
+# ≥97%, 200 pontos a cada 0,5% abaixo da meta.
+#
+# Fog: o /input/inms-001-06.csv real (mesmo header ITSM genérico dos outros
+# indicadores) não tem nenhuma coluna que sinalize reabertura de chamado
+# (não há duplicidade de "Nº Solicitacao" nas 1689 linhas — checado). O
+# Anexo D não define como CR (chamados reabertos) é registrado no dataset de
+# origem, mesma lacuna do INMS 1.8/1.10/1.9. `numerator_filter` acima
+# ("No prazo" in {S,N} = todas as linhas) modela CA=CR's complemento como
+# "0 reaberturas" — assume ausência de reabertura, não prova a subtração.
+# CA = todas as 1689 linhas (chamados atendidos = chamados registrados no
+# período, sem distinção de dentro/fora do prazo). A prova real da subtração
+# ΣCA − ΣCR está no fixture sintético em tests/test_ratio_sum_and_precomputed.py.
+acceptance_test:
+  expected:
+    shape: ratio
+    numerator: 1689
+    denominator: 1689
+    result_pct: 100.0
+    conforms: true
+    penalty_points: 0.0

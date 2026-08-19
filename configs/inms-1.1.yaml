@@ -1,0 +1,53 @@
+indicator:
+  id: INMS-1.1
+  contractual_id: "INMS 1.1"
+  name: Incidentes atendidos dentro do prazo
+
+scope:
+  contract: "40/2022 - Ministério Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-001-01.csv
+  delimiter: ";"
+  encoding: utf-8-sig
+
+quality_gates:
+  checks:
+    - type: not_null
+      column: "DataHoraFim"
+    - type: in_set
+      column: "No prazo"
+      values: ["S", "N"]
+
+calculation:
+  shape: ratio
+  aggregation: count_distinct
+  numerator_filter:
+    column: "No prazo"
+    equals: "S"
+
+target:
+  operator: ">="
+  value: 98.0
+
+penalty:
+  base_points: 165
+  step_points: 20
+  step_size_pct: 0.1
+
+# Anexo D (Tabela 28), INMS 1.1: 165 pontos + 20 pontos a cada 0,1% abaixo da
+# meta, linear e contínuo (ver INMS 1.2 no Anexo D, que escreve a mesma forma
+# de penalidade como fórmula explícita de divisão — sem arredondamento/teto
+# por degrau; ticket 04 corrigiu a leitura "ceil" originalmente assumida no
+# ticket 02). A real /input/inms-001-01.csv (175 linhas, 171 "S", nenhuma
+# rejeitada pelos quality gates acima) tem resultado 171/175*100 = 97.714...%,
+# faltando 0.2857 p.p. para a meta de 98%: 165 + (0.2857/0.1)*20 = 222.14.
+acceptance_test:
+  expected:
+    shape: ratio
+    numerator: 171
+    denominator: 175
+    result_pct: 97.71
+    conforms: false
+    penalty_points: 222.14

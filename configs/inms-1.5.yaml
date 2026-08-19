@@ -1,0 +1,45 @@
+indicator:
+  id: INMS-1.5
+  contractual_id: "INMS 1.5"
+  name: Disponibilidade de sistema/serviço não-crítico
+
+scope:
+  contract: "40/2022 - Ministério Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-001-05.csv
+  delimiter: ","
+  encoding: utf-8-sig
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: precomputed
+  precomputed_result_column: "Disponibilidade Realizada (%)"
+
+target:
+  operator: ">="
+  value: 99.0
+
+penalty:
+  step_points: 250
+  step_size_pct: 0.1
+
+# Anexo D (Tabela 28), INMS 1.5: meta ≥99,0% POR sistema/serviço não-crítico,
+# 250 pontos a cada 0,1% abaixo da meta. /input/inms-001-05.csv corrigido a
+# partir do RAS oficial (docs/processo_de_pagamento_junho_2026/relatório_de_
+# acompanhamento_de_serviço.html, período 01/06/2026-30/06/2026): Disponibilidade
+# Realizada = 99,84% ("Alcançado" no RAS) — a versão anterior deste CSV trazia
+# 0,00%/UpTime zerado em todas as colunas, um template não preenchido, não uma
+# medição real (ticket de correção de dados, 2026-08-19).
+acceptance_test:
+  expected:
+    shape: ratio
+    numerator: 99.84
+    denominator: 100
+    result_pct: 99.84
+    conforms: true
+    penalty_points: 0.0

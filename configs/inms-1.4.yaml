@@ -1,0 +1,43 @@
+indicator:
+  id: INMS-1.4
+  contractual_id: "INMS 1.4"
+  name: Disponibilidade de sistema/serviço crítico
+
+scope:
+  contract: "40/2022 - Ministério Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-001-04.csv
+  delimiter: ","
+  encoding: utf-8-sig
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: precomputed
+  precomputed_result_column: "Disponibilidade Realizada (%)"
+
+target:
+  operator: ">="
+  value: 99.5
+
+penalty:
+  step_points: 1000
+  step_size_pct: 0.1
+
+# Anexo D (Tabela 28), INMS 1.4: meta ≥99,5% POR sistema/serviço crítico (não
+# somatório — ticket 13), 1000 pontos a cada 0,1% abaixo da meta. Um único
+# YAML+CSV = um ativo, com 1 linha pré-agregada pela ferramenta de
+# monitoramento (spec §2.1). /input/inms-001-04.csv real: Disponibilidade
+# Realizada = 95.01%.
+acceptance_test:
+  expected:
+    shape: ratio
+    numerator: 95.01
+    denominator: 100
+    result_pct: 95.01
+    conforms: false
+    penalty_points: 44900.0
