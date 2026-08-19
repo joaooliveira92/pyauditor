@@ -8,9 +8,7 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-07.csv
-  delimiter: ";"
-  encoding: utf-8-sig
+  dataset: satisfacao
   id_column: "Nº Ticket"
 
 quality_gates:

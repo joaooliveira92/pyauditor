@@ -8,9 +8,7 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-04.csv
-  delimiter: ";"
-  encoding: utf-8-sig
+  dataset: disponibilidade_sistema_critico
 
 quality_gates:
   checks: []
@@ -31,6 +29,11 @@ penalty:
   step_points: 1000
   step_size_pct: 0.1
 
+# Anexo D (Tabela 28), INMS 1.4: meta ≥99,5% POR sistema/serviço crítico (não
+# somatório — ticket 13), 1000 pontos a cada 0,1% abaixo da meta. Um único
+# YAML+CSV = um ativo, com 1 linha pré-agregada pela ferramenta de
+# monitoramento (spec §2.1). /input/inms-001-04.csv real: Disponibilidade
+# Realizada = 95.01%.
 acceptance_test:
   expected:
     shape: precomputed_table

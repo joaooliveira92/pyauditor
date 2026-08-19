@@ -8,9 +8,7 @@ scope:
   orgao: MinC
 
 source:
-  csv: inms-08.csv
-  delimiter: ";"
-  encoding: utf-8-sig
+  dataset: desconformidade_tecnica
 
 quality_gates:
   checks: []
@@ -22,6 +20,12 @@ calculation:
   name_column: servico_nome
   penalty_column: pontos_acima_meta
 
+# Anexo E (Tabela 29): soma linear de pontos de desconformidade técnica, sem
+# meta percentual. A partir da reavaliação de 2026-08-19 o dataset
+# (`inms-08.csv`) é a tabela de apuração agregada por serviço: cada linha já
+# traz o total de PDT (`inms_1_8_total_pdt`) e o excesso sobre a meta de
+# pontos (`pontos_acima_meta`), lido direto pelo shape `precomputed_table`
+# (modo pontos, `result_is_percent: false`).
 target:
   operator: ">="
   value: 0.0

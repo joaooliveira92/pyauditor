@@ -62,7 +62,7 @@ indicator:
   name: Indicador sintético de soma
 
 scope:
-  contract: "40/2022 - Ministério Cultura"
+  contract: "40/2022 - Ministério da Cultura"
   orgao: MinC
 
 source:
@@ -112,7 +112,7 @@ indicator:
   name: Indicador sintético pré-agregado
 
 scope:
-  contract: "40/2022 - Ministério Cultura"
+  contract: "40/2022 - Ministério da Cultura"
   orgao: MinC
 
 source:

@@ -70,7 +70,7 @@ indicator:
   name: Indicador sintético segmentado
 
 scope:
-  contract: "40/2022 - Ministério Cultura"
+  contract: "40/2022 - Ministério da Cultura"
   orgao: MinC
 
 source:

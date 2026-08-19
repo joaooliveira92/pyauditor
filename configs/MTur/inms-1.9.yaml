@@ -1,0 +1,48 @@
+indicator:
+  id: INMS-1.9
+  contractual_id: "INMS 1.9"
+  name: Tempo médio de implementação de uma mudança
+
+scope:
+  contract: "40/2022 - Ministério do Turismo"
+  orgao: MTur
+
+source:
+  dataset: mudancas
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: precomputed_table
+  result_column: inms_1_9_percentual
+  name_column: ambiente_nome
+  numerator_column: trmp_requisicoes_atendidas_no_prazo
+  denominator_column: trm_total_requisicoes_mudanca
+  penalty_column: penalidade_pontos
+
+target:
+  operator: ">="
+  value: 90.0
+
+penalty:
+  step_points: 200
+  step_size_pct: 1.0
+
+# Anexo D (Tabela 28), INMS 1.9: INMS 1.9 = TRMP/TRM × 100, meta ≥90%, 200
+# pontos a cada 1% abaixo da meta ("ex.: 88%, 2 x 200" — confirma leitura
+# contínua/linear, não degrau discreto).
+#
+# O /input/inms-001-09.csv real tem só o cabeçalho genérico do ITSM, sem
+# nenhuma linha de dado — confirmado pela fiscalização que não houve mudanças
+# elegíveis para apuração no período 06/2026, não uma lacuna de dado. Zero
+# mudanças elegíveis (denominador 0/0) não é o mesmo que 0% de mudanças
+# implementadas no prazo — não há base para apurar a meta, logo não há glosa
+# (ver RatioStrategy.calculate, denominator == 0). A prova real da matemática
+# `count_distinct` já está coberta pelo INMS 1.1 (ticket 02).
+acceptance_test:
+  expected:
+    shape: precomputed_table
+    result_pct: 92.1569
+    conforms: false
+    penalty_points: 3800.0
