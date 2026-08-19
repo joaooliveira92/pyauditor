@@ -1,7 +1,8 @@
-"""CLI entry point. Subcommands per spec §6: `bootstrap` / `measure` / `report`.
+"""CLI entry point. Subcommands per spec §6: `bootstrap` / `measure` /
+`report`, plus `consolidate` (2.1, .scratch/multi-org-pipeline map).
 
-All 3 are implemented: `bootstrap` (ticket 08), `measure` (ticket 03),
-`report` (ticket 09).
+`bootstrap` (ticket 08), `measure` (ticket 03), `report` (ticket 09),
+`consolidate` (multi-org-pipeline tickets 01/02/04) are all implemented.
 """
 from __future__ import annotations
 
@@ -14,19 +15,23 @@ from pathlib import Path
 from typing import Final, Literal, NoReturn, TypeAlias, TypeGuard, TypeVar, assert_never, cast
 
 from pyauditor.cli.bootstrap import run_bootstrap
+from pyauditor.cli.consolidate import run_consolidate
 from pyauditor.cli.measure import run_measure
 from pyauditor.cli.report import run_report
 from pyauditor.config.manifest import load_manifest
 from pyauditor.logging import setup_logging
 
-__all__: Final[tuple[str, ...]] = ("MeasureRequest", "ReportRequest", "build_parser", "cli_main")
+__all__: Final[tuple[str, ...]] = (
+    "ConsolidateRequest", "MeasureRequest", "ReportRequest", "build_parser", "cli_main",
+)
 
 _PROG: Final[str] = "pyauditor"
 _CMD_MEASURE: Final[Literal["measure"]] = "measure"
 _CMD_BOOTSTRAP: Final[Literal["bootstrap"]] = "bootstrap"
 _CMD_REPORT: Final[Literal["report"]] = "report"
+_CMD_CONSOLIDATE: Final[Literal["consolidate"]] = "consolidate"
 
-Command: TypeAlias = Literal["measure", "bootstrap", "report"]
+Command: TypeAlias = Literal["measure", "bootstrap", "report", "consolidate"]
 
 Orgao: TypeAlias = Literal["MinC", "MTur", "both"]
 
@@ -62,8 +67,20 @@ class ReportRequest:
     orgao: Orgao
 
 
+@dataclass(frozen=True, slots=True)
+class ConsolidateRequest:
+    """Validated, immutable request for `consolidate` — CLI agnostic of
+    `--orgao`: it's the MinC+MTur fusion step by definition (ticket 04 Q2).
+    """
+
+    competencia: str
+    report_dir: Path
+    roms_dir: Path
+    output_path: Path
+
+
 def _is_command(value: str) -> TypeGuard[Command]:
-    return value in (_CMD_MEASURE, _CMD_BOOTSTRAP, _CMD_REPORT)
+    return value in (_CMD_MEASURE, _CMD_BOOTSTRAP, _CMD_REPORT, _CMD_CONSOLIDATE)
 
 
 _T = TypeVar("_T")
@@ -130,6 +147,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR
     )
 
+    consolidate_parser = subparsers.add_parser(
+        _CMD_CONSOLIDATE,
+        help="funde os relatórios MinC+MTur já gerados na planilha financeira consolidada",
+    )
+    consolidate_parser.add_argument("competencia", help='ex.: "2026-06"')
+    consolidate_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
+    consolidate_parser.add_argument("--roms-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
+
     return parser
 
 
@@ -185,6 +210,17 @@ def _extract_report_request(ns: argparse.Namespace) -> ReportRequest:
         output_path=output_dir / f"relatorio_{competencia}_{orgao}.xlsx",
         config_dir=_require(ns, "config_dir", Path),
         orgao=cast(Orgao, orgao),
+    )
+
+
+def _extract_consolidate_request(ns: argparse.Namespace) -> ConsolidateRequest:
+    competencia = _require(ns, "competencia", str)
+    report_dir = _require(ns, "report_dir", Path)
+    return ConsolidateRequest(
+        competencia=competencia,
+        report_dir=report_dir,
+        roms_dir=_require(ns, "roms_dir", Path),
+        output_path=report_dir / f"relatorio_{competencia}_consolidado.xlsx",
     )
 
 
@@ -266,6 +302,19 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
                 expected_orgao=orgao,
             )
         return code
+    elif command == _CMD_CONSOLIDATE:
+        consolidate_request = _extract_consolidate_request(args)
+        setup_logging(
+            log_path=_run_log_path(
+                consolidate_request.output_path.parent, _CMD_CONSOLIDATE, consolidate_request.competencia
+            )
+        )
+        return run_consolidate(
+            competencia=consolidate_request.competencia,
+            report_dir=consolidate_request.report_dir,
+            roms_dir=consolidate_request.roms_dir,
+            output_path=consolidate_request.output_path,
+        )
     else:
         assert_never(command)
 

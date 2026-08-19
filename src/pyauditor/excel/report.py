@@ -18,7 +18,6 @@ from pyauditor.excel.capa import SHEET_NAME as CAPA_SHEET_NAME
 from pyauditor.excel.capa import render_capa_sheet
 from pyauditor.excel.glosas import compute_glosa
 from pyauditor.excel.groups import GROUP_TABS, primary_group
-from pyauditor.excel.orgao_consolidation import with_orgao_consolidation
 from pyauditor.rom.summary import IndicatorSummary
 
 CADASTROS_SHEET: Final = "CADASTROS"
@@ -293,9 +292,12 @@ def build_report_workbook(
         for row_idx, config in enumerate(sorted(configs, key=lambda c: c.indicator.contractual_id), start=2):
             _write_row(cadastros_sheet, row_idx, _cadastros_row(config))
 
+    # MinC/MTur pooling lives in `consolidate` (2.1), not here — this report
+    # is per-órgão by construction (`run_report` only ever loads one órgão's
+    # ROMs), so `summaries` never mixes MinC+MTur in practice. See
+    # `pyauditor.excel.consolidate` and .scratch/multi-org-pipeline ticket 02.
     base_sheet = _new_sheet(workbook, INMS_BASE_SHEET, _INMS_BASE_COLUMNS, width=20)
-    base_rows = with_orgao_consolidation(summaries)
-    for row_idx, summary in enumerate(sorted(base_rows, key=_sort_key), start=2):
+    for row_idx, summary in enumerate(sorted(summaries, key=_sort_key), start=2):
         _write_row(base_sheet, row_idx, _inms_base_row(competencia, summary))
 
     by_group: dict[str, list[IndicatorSummary]] = {group: [] for group in GROUP_TABS}
