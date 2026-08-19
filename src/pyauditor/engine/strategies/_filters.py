@@ -1,8 +1,15 @@
-"""Applies a `Filter` (`ColumnEquals` | `ColumnContains` | `ColumnIn` |
-`DurationAtMost`) from a calculation config to CSV rows.
+"""Applies a `Filter` (`ColumnEquals` | `ColumnNotEquals` | `ColumnContains` |
+`ColumnIn` | `DurationAtMost`) from a calculation config to CSV rows.
 """
 
-from pyauditor.config.models import ColumnContains, ColumnEquals, ColumnIn, DurationAtMost, Filter
+from pyauditor.config.models import (
+    ColumnContains,
+    ColumnEquals,
+    ColumnIn,
+    ColumnNotEquals,
+    DurationAtMost,
+    Filter,
+)
 
 
 def filter_rows(rows: list[dict[str, str]], column_filter: Filter | None) -> list[dict[str, str]]:
@@ -15,6 +22,8 @@ def _matches(row: dict[str, str], column_filter: Filter) -> bool:
     value = row.get(column_filter.column, "")
     if isinstance(column_filter, ColumnEquals):
         return value.strip() == column_filter.equals
+    if isinstance(column_filter, ColumnNotEquals):
+        return value.strip() != column_filter.not_equals
     if isinstance(column_filter, ColumnContains):
         return column_filter.contains in value
     if isinstance(column_filter, ColumnIn):

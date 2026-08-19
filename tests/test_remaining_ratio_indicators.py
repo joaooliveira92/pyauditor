@@ -104,6 +104,65 @@ penalty:
     assert result.calculation.penalty_points == pytest.approx(2000.0)
 
 
+def test_sum_aggregation_subtracts_and_excludes_a_totals_row(tmp_path: Path) -> None:
+    """INMS 1.6's shape: (ΣCA − ΣCR) / ΣCA × 100, with a "TOTAIS" row that
+    must be excluded (via `denominator_filter` reused as the eligible-rows
+    filter) — summing it alongside the per-agreement rows would double-count,
+    and the real CSV's "TOTAIS" row formats its counts with a thousands
+    separator ("1.622"), which `float()` would silently misparse as 1.622.
+    """
+    config_yaml = """
+indicator:
+  id: INMS-TEST-1.6
+  contractual_id: "INMS TEST 1.6"
+  name: Indicador sintético de subtração
+
+scope:
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
+
+source:
+  csv: data.csv
+  delimiter: ";"
+  encoding: utf-8
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: sum
+  denominator_filter:
+    column: "Acordo"
+    not_equals: "TOTAIS"
+  sum_numerator_column: "Total de Chamados"
+  sum_numerator_subtract_column: "Total de Chamados Reabertos"
+
+target:
+  operator: ">="
+  value: 97.0
+
+penalty:
+  step_points: 200
+  step_size_pct: 0.5
+"""
+    (tmp_path / "config.yaml").write_text(config_yaml, encoding="utf-8")
+    (tmp_path / "data.csv").write_text(
+        "Acordo;Total de Chamados;Total de Chamados Reabertos\n"
+        "SLA A;79;0\n"
+        "SLA B;8;1\n"
+        "TOTAIS;1.087;999\n",  # thousands-separated + wrong — must be ignored
+        encoding="utf-8",
+    )
+
+    config = load_config(tmp_path / "config.yaml")
+    result = measure(config, data_dir=tmp_path)
+
+    assert result.calculation.memoria == {"numerator": 86.0, "denominator": 87.0}
+    assert result.calculation.conforms is True
+    assert result.calculation.penalty_points == pytest.approx(0.0)
+
+
 def test_precomputed_aggregation_reads_result_directly_from_the_single_row(tmp_path: Path) -> None:
     config_yaml = """
 indicator:

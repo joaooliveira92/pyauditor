@@ -52,16 +52,31 @@ def _aggregate(calculation: RatioCalculation, rows: list[dict[str, str]]) -> tup
 
     if calculation.aggregation == "sum":
         assert calculation.sum_numerator_column is not None
-        assert calculation.sum_denominator_extra_column is not None
-        numerator = sum(
-            float(row[calculation.sum_numerator_column]) for row in rows if row.get(calculation.sum_numerator_column)
+        # `denominator_filter` (otherwise count_distinct-only) doubles as the
+        # eligible-rows filter here — e.g. INMS 1.6's data ships a "TOTAIS"
+        # summary row alongside per-agreement rows; selecting only that row
+        # avoids double-counting the per-agreement breakdown underneath it.
+        eligible_rows = filter_rows(rows, calculation.denominator_filter)
+        raw = sum(
+            float(row[calculation.sum_numerator_column])
+            for row in eligible_rows
+            if row.get(calculation.sum_numerator_column)
         )
-        extra = sum(
-            float(row[calculation.sum_denominator_extra_column])
-            for row in rows
-            if row.get(calculation.sum_denominator_extra_column)
+        if calculation.sum_denominator_extra_column is not None:
+            extra = sum(
+                float(row[calculation.sum_denominator_extra_column])
+                for row in eligible_rows
+                if row.get(calculation.sum_denominator_extra_column)
+            )
+            return raw, raw + extra
+
+        assert calculation.sum_numerator_subtract_column is not None
+        subtract = sum(
+            float(row[calculation.sum_numerator_subtract_column])
+            for row in eligible_rows
+            if row.get(calculation.sum_numerator_subtract_column)
         )
-        return numerator, numerator + extra
+        return raw - subtract, raw
 
     # precomputed: exactly one row per file (one YAML+CSV = one ativo/serviço
     # medição independente — spec §2.1/ticket 13); its value already is the

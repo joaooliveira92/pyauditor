@@ -21,6 +21,19 @@ def test_ratio_sum_requires_columns() -> None:
     with pytest.raises(ValidationError):
         RatioCalculation(shape="ratio", aggregation="sum")
 
+def test_ratio_sum_rejects_both_extra_and_subtract_columns() -> None:
+    with pytest.raises(ValidationError):
+        RatioCalculation(
+            shape="ratio", aggregation="sum", sum_numerator_column="A",
+            sum_denominator_extra_column="B", sum_numerator_subtract_column="C",
+        )
+
+def test_ratio_sum_accepts_subtract_column_alone() -> None:
+    RatioCalculation(
+        shape="ratio", aggregation="sum",
+        sum_numerator_column="A", sum_numerator_subtract_column="B",
+    )
+
 def test_frozen_extra_forbid() -> None:
     m = ColumnEquals(column="a", equals="b")
     with pytest.raises(Exception):

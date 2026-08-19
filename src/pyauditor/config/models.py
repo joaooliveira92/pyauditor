@@ -114,6 +114,12 @@ class ColumnEquals(BaseModel):
     equals: str
 
 
+class ColumnNotEquals(BaseModel):
+    model_config = _StrictFrozen
+    column: str = Field(min_length=1)
+    not_equals: str
+
+
 class ColumnContains(BaseModel):
     model_config = _StrictFrozen
     column: str = Field(min_length=1)
@@ -135,7 +141,7 @@ class DurationAtMost(BaseModel):
 
 
 # Smart union — members distinguished by distinct field names, no discriminator
-Filter: TypeAlias = ColumnEquals | ColumnContains | ColumnIn | DurationAtMost
+Filter: TypeAlias = ColumnEquals | ColumnNotEquals | ColumnContains | ColumnIn | DurationAtMost
 
 
 class RatioCalculation(BaseModel):
@@ -145,17 +151,28 @@ class RatioCalculation(BaseModel):
     numerator_filter: Filter | None = None
     denominator_filter: Filter | None = None
     sum_numerator_column: str | None = Field(default=None, min_length=1)
+    # Mutually exclusive: `sum_denominator_extra_column` for ΣX/(ΣX+ΣY)
+    # (denominator = numerator + extra); `sum_numerator_subtract_column` for
+    # (ΣX−ΣY)/ΣX (denominator = the raw column sum, numerator = that minus
+    # the subtracted column — e.g. INMS 1.6 (ΣCA−ΣCR)/ΣCA).
     sum_denominator_extra_column: str | None = Field(default=None, min_length=1)
+    sum_numerator_subtract_column: str | None = Field(default=None, min_length=1)
     precomputed_result_column: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def _check_fields_for_aggregation(self) -> Self:
         if self.aggregation == "count_distinct" and self.numerator_filter is None:
             raise ValueError("count_distinct requires numerator_filter")
-        if self.aggregation == "sum" and (
-            self.sum_numerator_column is None or self.sum_denominator_extra_column is None
-        ):
-            raise ValueError("sum requires sum_numerator_column and sum_denominator_extra_column")
+        if self.aggregation == "sum":
+            if self.sum_numerator_column is None:
+                raise ValueError("sum requires sum_numerator_column")
+            has_extra = self.sum_denominator_extra_column is not None
+            has_subtract = self.sum_numerator_subtract_column is not None
+            if has_extra == has_subtract:
+                raise ValueError(
+                    "sum requires exactly one of sum_denominator_extra_column, "
+                    "sum_numerator_subtract_column"
+                )
         if self.aggregation == "precomputed" and self.precomputed_result_column is None:
             raise ValueError("precomputed requires precomputed_result_column")
         return self
