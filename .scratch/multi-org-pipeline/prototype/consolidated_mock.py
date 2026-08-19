@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 from openpyxl import Workbook
-from openpyxl.styles import Font
+from openpyxl.styles import Border, Font, Side
 from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.excel._style import (
@@ -34,12 +34,26 @@ from pyauditor.excel._style import (
     BOTTOM_BORDER,
     HEADER_FILL,
     HEADER_FONT,
+    LABEL_FONT,
     LEFT_ALIGN,
+    TITLE_FONT,
 )
 
 REPO = Path(__file__).resolve().parents[3]
 COMP = "2026-06"
 OUT = REPO / "reports" / f"relatorio_{COMP}_consolidado_PROTOTYPE.xlsx"
+
+# docs/styleguide.md — number formats/top-border-on-totals aren't in
+# `_style.py` yet (production `report.py`/`capa.py` don't apply them either);
+# kept local to this throwaway script rather than reaching into production.
+CURRENCY_FMT = "R$#,##0.00;R$#,##0.00;-"
+# Excel's literal "%" symbol auto-multiplies the cell value by 100 on
+# display. `result_pct`/`%Ajuste` are already stored in percent-space (e.g.
+# 95.5 meaning "95.5%"), so they need the symbol escaped (no auto-scale);
+# only true 0-1 fractions (rateio) want the real, auto-scaling "%" format.
+PERCENT_FMT_SCALED = '0.00"%";0.00"%";-'
+PERCENT_FMT_FRACTION = "0.00%;0.00%;-"
+TOP_BORDER = Border(top=Side(style="thin", color="1F2937"))
 
 # Valor mensal de exemplo — a inspiração usa 481.534,80; aqui só ilustra a
 # forma; o valor real vem da CAPA preenchida pelo fiscal (tickets 02/04).
@@ -221,6 +235,9 @@ def _write_inms_row(ws: Worksheet, row: int, rec: dict) -> None:
         round(rec["result_pct"], 2), _unidade(rec["shape"]), "", "", conf, dif,
         None, None, None, None, None, None, None, None, None,
     ))
+    if _unidade(rec["shape"]) == "%":
+        for col in (8, 12, 17):  # Meta, Resultado calculado, Diferença para a meta
+            ws.cell(row=row, column=col).number_format = PERCENT_FMT_SCALED
 
 
 # ---------------------------------------------------------------------------
@@ -230,9 +247,32 @@ def _write_inms_row(ws: Worksheet, row: int, rec: dict) -> None:
 
 def build_capa(wb: Workbook) -> None:
     ws = wb.create_sheet("CAPA_E_CONTROLE", 0)
-    for i, (label, value) in enumerate(CAPA_CAMPOS, start=1):
-        ws.cell(row=i, column=1, value=_clean(label)).font = Font(bold=True)
-        ws.cell(row=i, column=2, value=value).font = BODY_FONT
+    ws.sheet_view.showGridLines = False
+
+    ws["A1"] = "Capa e controle — consolidado (PROTOTYPE)"
+    ws["A1"].font = TITLE_FONT
+    ws.merge_cells("A1:B1")
+
+    ws["A3"] = "Campo"
+    ws["B3"] = "Valor"
+    for cell in (ws["A3"], ws["B3"]):
+        cell.font = HEADER_FONT
+        cell.fill = HEADER_FILL
+        cell.alignment = LEFT_ALIGN
+
+    for offset, (label, value) in enumerate(CAPA_CAMPOS):
+        row = 4 + offset
+        label_cell = ws.cell(row=row, column=1, value=_clean(label))
+        label_cell.font = LABEL_FONT
+        label_cell.alignment = LEFT_ALIGN
+        label_cell.border = BOTTOM_BORDER
+
+        value_cell = ws.cell(row=row, column=2, value=value)
+        value_cell.font = BODY_FONT
+        value_cell.border = BOTTOM_BORDER
+        if label.startswith("Valor"):
+            value_cell.number_format = CURRENCY_FMT
+
     ws.column_dimensions["A"].width = 30
     ws.column_dimensions["B"].width = 42
 
@@ -310,6 +350,11 @@ def build_glosas(wb: Workbook, minc: list[dict], mtur: list[dict]) -> float:
             round(pct, 4), VALOR_BASE, round(VALOR_BASE * pct / 100, 2),
             "", "", "", "", "",
         ))
+        ws.cell(row=row, column=6).number_format = PERCENT_FMT_SCALED  # Resultado
+        ws.cell(row=row, column=7).number_format = PERCENT_FMT_SCALED  # Meta
+        ws.cell(row=row, column=9).number_format = PERCENT_FMT_SCALED  # Percentual de Ajuste
+        ws.cell(row=row, column=10).number_format = CURRENCY_FMT  # Valor Base
+        ws.cell(row=row, column=11).number_format = CURRENCY_FMT  # Valor Glosa
         row += 1
 
     pct_bruto = total_pontos * 0.001
@@ -324,8 +369,15 @@ def build_glosas(wb: Workbook, minc: list[dict], mtur: list[dict]) -> float:
         ("Percentual Aplicado", f"{aplicado:.2f}%"),
         ("Valor Glosa", round(glosa_final, 2)),
     ):
-        ws.cell(row=r, column=1, value=label).font = Font(bold=True)
-        ws.cell(row=r, column=2, value=value).font = BODY_FONT
+        label_cell = ws.cell(row=r, column=1, value=label)
+        value_cell = ws.cell(row=r, column=2, value=value)
+        label_cell.font = Font(bold=True)
+        value_cell.font = Font(bold=True) if label == "Valor Glosa" else BODY_FONT
+        if label == "Total de Pontos":  # top of the totals block
+            label_cell.border = TOP_BORDER
+            value_cell.border = TOP_BORDER
+        if label == "Valor Glosa":
+            value_cell.number_format = CURRENCY_FMT
         r += 1
     return glosa_final
 
@@ -336,17 +388,19 @@ def build_calculo(wb: Workbook, total_pontos: float, _glosa_final: float) -> Non
     ws.sheet_view.showGridLines = False
 
     ws["A1"] = "Parâmetros de Entrada — rateio PROVISÓRIO 0.5/0.5 até fonte oficial"
-    for row, (label, value) in enumerate(
+    for row, (label, value, fmt) in enumerate(
         (
-            ("Valor mensal vigente", VALOR_BASE),
-            ("Limite máximo de glosa (%)", LIMITE_PCT),
-            ("Rateio MinC (provisório)", 0.5),
-            ("Rateio MTur (provisório)", 0.5),
+            ("Valor mensal vigente", VALOR_BASE, CURRENCY_FMT),
+            ("Limite máximo de glosa (%)", LIMITE_PCT, PERCENT_FMT_SCALED),
+            ("Rateio MinC (provisório)", 0.5, PERCENT_FMT_FRACTION),
+            ("Rateio MTur (provisório)", 0.5, PERCENT_FMT_FRACTION),
         ),
         start=3,
     ):
         ws.cell(row=row, column=1, value=label).font = Font(bold=True)
-        ws.cell(row=row, column=2, value=value).font = BODY_FONT
+        value_cell = ws.cell(row=row, column=2, value=value)
+        value_cell.font = BODY_FONT
+        value_cell.number_format = fmt
 
     header_row = 9
     for i, col in enumerate(CALCULO_COLUNAS, start=1):
@@ -363,9 +417,19 @@ def build_calculo(wb: Workbook, total_pontos: float, _glosa_final: float) -> Non
         ("Consolidado", 1.0, total_pontos),
     )
 
+    is_total_row = len(CALCULO_LINHAS) - 1  # "Valor recomendado" — last row, bold + top border
     for idx, label in enumerate(CALCULO_LINHAS):
         row = header_row + 1 + idx
-        ws.cell(row=row, column=1, value=_clean(label)).font = BODY_FONT
+        bold = idx == is_total_row
+        label_cell = ws.cell(row=row, column=1, value=_clean(label))
+        label_cell.font = Font(bold=True) if bold else BODY_FONT
+        if bold:
+            label_cell.border = TOP_BORDER
+        fmt: str | None = None
+        if label.startswith("Percentual de rateio"):
+            fmt = PERCENT_FMT_FRACTION
+        elif label.startswith(("Valor bruto", "Valor da glosa", "Outros ajustes", "Valor recomendado")):
+            fmt = CURRENCY_FMT
         for col, (nome, rateio, pontos) in zip(range(2, len(CALCULO_COLUNAS) + 2), colunas):
             if label.startswith("Percentual de rateio"):
                 value = rateio
@@ -383,7 +447,12 @@ def build_calculo(wb: Workbook, total_pontos: float, _glosa_final: float) -> Non
                 bruto = VALOR_BASE * rateio
                 glosa = min(pontos * 0.001, LIMITE_PCT) / 100 * bruto if pontos else 0.0
                 value = round(max(0.0, bruto - glosa), 2)
-            ws.cell(row=row, column=col, value=value).font = BODY_FONT
+            value_cell = ws.cell(row=row, column=col, value=value)
+            value_cell.font = Font(bold=True) if bold else BODY_FONT
+            if fmt:
+                value_cell.number_format = fmt
+            if bold:
+                value_cell.border = TOP_BORDER
 
 
 def main() -> int:
