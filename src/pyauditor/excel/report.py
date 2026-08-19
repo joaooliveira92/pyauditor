@@ -18,6 +18,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from pyauditor.excel._style import BODY_FONT, BOTTOM_BORDER, HEADER_FILL, HEADER_FONT, LEFT_ALIGN
 from pyauditor.excel.glosas import compute_glosa
 from pyauditor.excel.groups import GROUP_TABS, primary_group
+from pyauditor.excel.orgao_consolidation import with_orgao_consolidation
 from pyauditor.rom.summary import IndicatorSummary
 
 INMS_BASE_SHEET: Final = "INMS_BASE"
@@ -58,6 +59,7 @@ _INMS_BASE_COLUMNS: Final[tuple[str, ...]] = (
 _GROUP_TAB_COLUMNS: Final[tuple[str, ...]] = (
     "Código INMS",
     "Descrição",
+    "Serviço",
     "Órgão",
     "Resultado (%)",
     "Meta",
@@ -88,6 +90,12 @@ _GLOSAS_COLUMNS: Final[tuple[str, ...]] = (
 CellValue = str | float | int | None
 
 
+def _sort_key(summary: IndicatorSummary) -> tuple[str, str]:
+    # Multi-asset rows (spec/ticket "multi-asset file discovery") share a
+    # contractual_id, so sort by asset within it for a stable, readable order.
+    return (summary.contractual_id, summary.asset or "")
+
+
 def _new_sheet(workbook: Workbook, name: str, columns: tuple[str, ...], width: int) -> Worksheet:
     sheet: Worksheet = workbook.create_sheet(name)
     sheet.sheet_view.showGridLines = False
@@ -116,7 +124,7 @@ def _inms_base_row(competencia: str, summary: IndicatorSummary) -> tuple[CellVal
     return (
         competencia,
         None,  # Item contratual — fiscal-manual
-        None,  # Serviço — fiscal-manual
+        summary.asset,  # None for single-asset indicators
         primary_group(summary.contractual_id),
         summary.contractual_id,
         summary.name,
@@ -147,6 +155,7 @@ def _group_row(summary: IndicatorSummary) -> tuple[CellValue, ...]:
     return (
         summary.contractual_id,
         summary.name,
+        summary.asset,
         summary.orgao,
         round(summary.result_pct, 2),
         summary.target_value,
@@ -169,7 +178,8 @@ def build_report_workbook(
     workbook.remove(default_sheet)
 
     base_sheet = _new_sheet(workbook, INMS_BASE_SHEET, _INMS_BASE_COLUMNS, width=20)
-    for row_idx, summary in enumerate(sorted(summaries, key=lambda s: s.contractual_id), start=2):
+    base_rows = with_orgao_consolidation(summaries)
+    for row_idx, summary in enumerate(sorted(base_rows, key=_sort_key), start=2):
         _write_row(base_sheet, row_idx, _inms_base_row(competencia, summary))
 
     by_group: dict[str, list[IndicatorSummary]] = {group: [] for group in GROUP_TABS}
@@ -180,7 +190,7 @@ def build_report_workbook(
 
     for group in GROUP_TABS:
         sheet = _new_sheet(workbook, group, _GROUP_TAB_COLUMNS, width=22)
-        rows = sorted(by_group[group], key=lambda s: s.contractual_id)
+        rows = sorted(by_group[group], key=_sort_key)
         for row_idx, summary in enumerate(rows, start=2):
             _write_row(sheet, row_idx, _group_row(summary))
 

@@ -1,0 +1,40 @@
+# Synthetic — proves multi-asset discovery/consolidation (ticket
+# "multi-asset-file-discovery"), not tied to real /input data. INMS 1.14
+# covers 6 named infrastructure services per Anexo D (File Server, Telefonia,
+# Mensageria, Servidores de impressão, WI-FI, Rede); this is one of them.
+#
+# Naming convention: `inms-<n>-<asset-slug>.yaml`, distinct `indicator.id`
+# per asset (so ROM/summary filenames never collide), shared
+# `contractual_id` (so report.py's grouping/consolidation logic treats them
+# as the same indicator), and `indicator.asset` set to a human-readable
+# label distinguishing the row in INMS_BASE/group tabs.
+indicator:
+  id: INMS-1.14-FILE-SERVER
+  contractual_id: "INMS 1.14"
+  name: Índice de disponibilidade de serviços de infraestrutura
+  asset: File Server
+
+scope:
+  contract: "40/2022 - Ministério Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-1.14-file-server.csv
+  delimiter: ","
+  encoding: utf-8
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: precomputed
+  precomputed_result_column: "Disponibilidade Realizada (%)"
+
+target:
+  operator: ">="
+  value: 99.5
+
+penalty:
+  step_points: 250
+  step_size_pct: 0.1

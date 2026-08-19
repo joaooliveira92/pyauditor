@@ -49,6 +49,20 @@ prática, **múltiplos pares YAML+CSV** — um por ativo/serviço — cada um tr
 `ratio` normal, não uma agregação interna multi-ativo dentro de um único CSV. Isso eliminou a
 strategy `per_asset_ratio` que o Ticket 02 havia proposto antes de ver os dados reais.
 
+### 2.2 INMS 1.10 — schema de preenchimento manual provisório
+
+Como o INMS 1.8 (§11.3), o Anexo D não define como um controle de segurança recomendado/implantado
+é registrado no dataset de origem, e o `/input/inms-001-10.csv` real está vazio. Schema provisório
+adotado, mapeando direto nos campos já existentes de `count_difference`
+(`recommended_filter`/`implemented_filter`): um CSV com uma linha por controle recomendado, colunas
+`ID_Controle`, `Framework` (referência ao framework acordado com a CONTRATADA — Anexo D menciona que
+isso "será acordado", sem fixar um framework específico), `Descricao` (texto livre) e `Implantado`
+(`S`/`N`). `QRC` = total de linhas aceitas pelos quality gates; `QCSI` = subconjunto com
+`Implantado = S`. Exemplo completo em
+`tests/fixtures/manual_entry_examples/inms-1.10-{config.yaml,controles.csv}`, verificado em
+`tests/test_manual_ingestion_inms_1_10.py`. Revisar se/quando a fiscalização identificar um sistema
+real de acompanhamento de controles de segurança.
+
 ## 3. Contratos Pydantic por shape
 
 Campo `shape` explícito no YAML seleciona uma strategy registrada (strategy/registry pattern) — um
@@ -218,12 +232,26 @@ Os 14 CSVs reais de produção não têm segregação MinC/MTur — todo registr
 mostra apenas `"40/2022 - Ministério Cultura"`, contradizendo a estrutura de `docs/spreadsheet.md`
 (que assume ambos os órgãos desde o início).
 
-Decisão: **modelar o campo `orgao` desde já no schema, com valor fixo `"MinC"`** — evita retrabalho
-de schema quando/se aparecer dado de MTur — mas a *lógica* de consolidação ponderada MinC+MTur
-(fórmula de `docs/spreadsheet.md`: `(Numerador MinC + Numerador MTur) / (Denominador MinC +
-Denominador MTur)`) fica **fora do destino desta versão da spec** (ver §13, fog remanescente).
+Decisão original: **modelar o campo `orgao` desde já no schema, com valor fixo `"MinC"`** — evita
+retrabalho de schema quando/se aparecer dado de MTur. Fonte:
+[Ticket 10](../../.scratch/inms-pipeline-spec/issues/10-campo-orgao-minc.md).
 
-Fonte: [Ticket 10](../../.scratch/inms-pipeline-spec/issues/10-campo-orgao-minc.md).
+**Atualização:** `orgao` aceita `"MinC"` e `"MTur"`, e `report` consolida os dois quando ambos
+medem o mesmo indicador (mesmo `contractual_id`, mesmo `asset` — ver §2.1's `Indicator.asset`),
+usando a fórmula ponderada de `docs/spreadsheet.md`:
+`(Numerador MinC + Numerador MTur) / (Denominador MinC + Denominador MTur)`. A linha consolidada é
+adicionada só em `INMS_BASE` (`orgao: "Consolidado"`), ao lado das duas linhas originais por
+órgão — as abas de grupo operacional e `GLOSAS` continuam usando as medições originais, sem
+duplicar penalidade. A penalidade da linha consolidada é a soma direta das penalidades já apuradas
+por órgão (o Termo de Referência não define uma fórmula própria para isso). Nenhum dataset real de
+MTur existe ainda em `/input`; provado com fixtures sintéticas em
+`tests/test_orgao_consolidation.py`.
+
+**Exceção que permanece fog:** para os indicadores de disponibilidade por ativo (1.4, 1.5, 1.14),
+`docs/spreadsheet.md` exige "a fórmula específica prevista no Termo de Referência" em vez da
+fórmula padrão — essa fórmula não foi localizada em nenhuma fonte primária lida. `report` não
+consolida esses 3 indicadores; se ambos os órgãos aparecerem, mostra uma linha por órgão sem
+combiná-las.
 
 ## 11. INMS 1.8 — `external_catalog_sum`
 
@@ -264,6 +292,17 @@ desconformidade é registrada no dataset de entrada.
 **Esta spec modela o catálogo e o cálculo bruto do 1.8, mas não fecha o schema do dataset de
 entrada** — tratar como pergunta em aberto para a equipe de fiscalização antes da implementação,
 não assumir o CSV ITSM atual como autoritativo (ver §13).
+
+**Schema de preenchimento manual provisório** — não uma resposta à pergunta acima, só um jeito de
+começar a registrar ocorrências enquanto ela fica em aberto: um CSV com uma linha por ocorrência,
+colunas `ID_Ocorrencia` (identificador livre), `Data`, `Descricao` (texto livre, não consumido pelo
+cálculo) e `Codigos_Anexo_E` (um ou mais códigos `OD-NN` separados por vírgula, para o caso de
+multi-enquadramento). Mapeia direto nos campos já existentes de `external_catalog_sum`
+(`occurrence_id_column`/`catalog_codes_column`), sem exigir mudança de engine. Exemplo completo em
+`tests/fixtures/manual_entry_examples/inms-1.8-occurrences.csv` +
+`tests/fixtures/manual_entry_examples/inms-1.8-config.yaml`, verificado em
+`tests/test_manual_ingestion_inms_1_8.py`. Revisar este schema se/quando a fiscalização confirmar um
+formato de exportação real.
 
 ## 12. Glosa monetária (aba `GLOSAS`)
 
@@ -317,22 +356,30 @@ sustentada pelos dados reais de produção hoje (ver §10 e fog abaixo).
 - **`bootstrap`** gera a aba `CAPA_E_CONTROLE` (idempotente — ver §6).
 - **`report`** consolida os ROMs Markdown gerados por `measure` na aba `INMS_BASE` e nas abas por
   grupo operacional (`ATENDIMENTO_N1`, `MONITORAMENTO_NOC_SOC`, `ATENDIMENTO_N2`, `OPERACAO_N3`),
-  usando o campo `orgao` fixo `"MinC"` (§10) em vez da segregação MinC/MTur assumida por
-  `docs/spreadsheet.md`.
+  com segregação e consolidação MinC/MTur em `INMS_BASE` (§10) — grupos e `GLOSAS` continuam usando
+  as medições por órgão sem combiná-las.
 - **`GLOSAS`** é preenchida pela fórmula do §12.
 
 ### Fog remanescente, explicitamente fora do destino desta versão da spec
 
-1. **Mapeamento ROM→abas para o caso de segregação real MinC/MTur.** Hoje só existe dado MinC nos
-   14 datasets de produção; a lógica de consolidação ponderada de `docs/spreadsheet.md` fica em fog
-   até aparecer um dataset real com os dois órgãos.
-2. **Schema do dataset de origem/ingestão de ocorrências do INMS 1.8** (§11.3) — formato ITSM
-   plausível mas não confirmado.
-3. **Convenção de descoberta de arquivos** quando um indicador tiver múltiplos ativos/serviços
-   pré-agregados no mesmo período (ex.: INMS 1.14 cobre 6 serviços nomeados no TR, mas hoje só há 1
-   CSV por indicador em `/input`) — precisa ser especificada se/quando aparecer mais de um arquivo
-   por indicador por competência.
+1. **Schema do dataset de origem/ingestão de ocorrências do INMS 1.8** (§11.3) e **de controles de
+   segurança do INMS 1.10** (§2.2) — formato ITSM plausível mas não confirmado para nenhum dos dois.
+   Ambos têm um schema de preenchimento manual provisório documentado e testado (§11.3, §2.2), mas
+   isso não resolve a pergunta de qual sistema real, se algum, deveria alimentar esses dados —
+   permanece uma pergunta em aberto para a equipe de fiscalização.
+2. **Fórmula de consolidação MinC/MTur para os indicadores de disponibilidade por ativo** (1.4, 1.5,
+   1.14) — `docs/spreadsheet.md` exige uma fórmula específica do Termo de Referência para esses 3,
+   não a fórmula padrão; essa fórmula específica não foi localizada em nenhuma fonte primária lida
+   (ver §10).
 
-Nenhum destes três itens bloqueia a implementação do escopo coberto por esta spec (mono-órgão,
+Nenhum destes dois itens bloqueia a implementação do escopo coberto por esta spec (mono-órgão,
 1 CSV por indicador); cada um deve ser resolvido — com o gestor do contrato ou com novos dados
 reais — antes de estender o pipeline além do escopo atual.
+
+> **Atualização:** a convenção de descoberta de arquivos para múltiplos ativos/serviços por
+> indicador (item 3 original desta lista) foi resolvida — `Indicator.asset` distingue medições que
+> compartilham `contractual_id` (ex.: INMS 1.14 por serviço nomeado — File Server, WI-FI, etc.),
+> `measure` grava um ROM/JSON por ativo sem colisão de nome, e `report` mostra uma linha por ativo em
+> `INMS_BASE` e na aba de grupo, ordenada por `(contractual_id, asset)`. Provado com fixtures
+> sintéticas (`tests/fixtures/multi_asset_configs/`) já que `/input` ainda não tem mais de 1 CSV por
+> indicador. Convenção de nomenclatura de arquivo: `inms-<n>-<asset-slug>.yaml`.

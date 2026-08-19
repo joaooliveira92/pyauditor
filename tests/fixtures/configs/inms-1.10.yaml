@@ -18,7 +18,7 @@ quality_gates:
 calculation:
   shape: count_difference
   implemented_filter:
-    column: "No prazo"
+    column: "Implantado"
     equals: "S"
   penalty_per_unit: 1000
 
@@ -34,13 +34,18 @@ target:
 # (mesmo formato usado pelos indicadores `ratio`), sem nenhuma linha de
 # dado — igual ao INMS 1.8 (ticket 11), o Anexo D não define como um
 # controle de segurança recomendado/implantado é registrado no dataset de
-# origem. `implemented_filter` acima usa a coluna "No prazo" só para o
-# schema validar contra o header real; não há linhas para exercitar o
-# cálculo. O acceptance_test abaixo reflete essa realidade (0 recomendados,
-# 0 implantados, CNI=0) — não é um teste significativo do cálculo, só prova
-# que o pipeline roda contra o arquivo real sem quebrar. A prova real da
-# matemática de `count_difference` está no fixture sintético em
-# tests/test_count_difference.py.
+# origem.
+#
+# `implemented_filter` acima aponta para o schema de preenchimento manual
+# provisório definido em docs/spec/inms-pipeline.md §2 (INMS 1.10) — colunas
+# ID_Controle, Framework, Descricao, Implantado — não o header do CSV real,
+# que continua vazio. Se/quando a fiscalização identificar um sistema real
+# de acompanhamento de controles de segurança, este schema deve ser
+# revisado. O acceptance_test abaixo reflete a realidade do arquivo real
+# vazio (0 recomendados, 0 implantados, CNI=0) — a prova da matemática de
+# `count_difference` sobre o novo schema está em
+# tests/test_manual_ingestion_inms_1_10.py (dados sintéticos realistas) e
+# tests/test_count_difference.py (sintético mínimo).
 acceptance_test:
   expected:
     shape: count_difference

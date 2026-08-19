@@ -14,6 +14,7 @@ class IndicatorSummary:
     indicator_id: str
     contractual_id: str
     name: str
+    asset: str | None
     orgao: str
     shape: str
     target_operator: str | None
@@ -40,6 +41,7 @@ def summarize(result: MeasurementResult) -> IndicatorSummary:
         indicator_id=config.indicator.id,
         contractual_id=config.indicator.contractual_id,
         name=config.indicator.name,
+        asset=config.indicator.asset,
         orgao=config.scope.orgao,
         shape=shape,
         target_operator=config.target.operator if config.target is not None else None,

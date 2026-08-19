@@ -86,7 +86,11 @@ def render_rom(result: MeasurementResult) -> str:
         # `external_catalog_sum`: Anexo E is a linear point sum, no percentage meta.
         resultado_vs_meta = f"- Meta: não aplicável (soma de pontos, ver Anexo E) — **{conformidade}**"
 
-    return f"""# ROM — {config.indicator.contractual_id} ({config.indicator.name})
+    titulo = config.indicator.contractual_id
+    if config.indicator.asset is not None:
+        titulo += f" — {config.indicator.asset}"
+
+    return f"""# ROM — {titulo} ({config.indicator.name})
 
 **Contrato:** {config.scope.contract}
 **Órgão:** {config.scope.orgao}

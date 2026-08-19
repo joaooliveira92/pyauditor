@@ -17,22 +17,28 @@ quality_gates:
 
 calculation:
   shape: external_catalog_sum
-  occurrence_id_column: "Nº Solicitacao"
-  catalog_codes_column: "Atividades"
+  occurrence_id_column: "ID_Ocorrencia"
+  catalog_codes_column: "Codigos_Anexo_E"
   catalog_codes_separator: ","
 
 # Anexo E (Tabela 29): soma linear de pontos, sem meta percentual — ver
 # docs/spec/inms-pipeline.md §11.
 #
 # O /input/inms-001-08.csv real tem só o cabeçalho genérico do ITSM, sem
-# nenhuma linha de dado — mesma lacuna do INMS 1.10 (ticket 05) e já
-# documentada como fog no ticket 11: o Anexo E não define como uma
-# ocorrência de desconformidade é registrada no dataset de origem.
-# `catalog_codes_column` aponta para "Atividades" só para o schema validar
-# contra o header real; não há linhas para exercitar o cálculo. O
-# acceptance_test abaixo reflete essa realidade (0 ocorrências, 0 pontos) —
-# a prova real do somatório + dedup por maior-pontuação está no fixture
-# sintético em tests/test_external_catalog_sum.py.
+# nenhuma linha de dado — mesma lacuna do INMS 1.10 (ticket 05). O Anexo E
+# não define como uma ocorrência de desconformidade é registrada no dataset
+# de origem (fog documentada no ticket 11).
+#
+# `occurrence_id_column`/`catalog_codes_column` acima apontam para o schema
+# de preenchimento manual provisório definido em docs/spec/inms-pipeline.md
+# §11.3 (colunas: ID_Ocorrencia, Data, Descricao, Codigos_Anexo_E) — não o
+# header do CSV real, que continua vazio. Se/quando a fiscalização confirmar
+# um formato de exportação real (ITSM ou outro), este schema deve ser
+# revisado. O acceptance_test abaixo reflete a realidade do arquivo real
+# vazio (0 ocorrências, 0 pontos) — a prova do somatório + dedup por
+# maior-pontuação sobre o novo schema está em
+# tests/test_manual_ingestion_inms_1_8.py (dados sintéticos realistas) e
+# tests/test_external_catalog_sum.py (sintético mínimo).
 acceptance_test:
   expected:
     shape: external_catalog_sum

@@ -50,12 +50,19 @@ class Indicator(BaseModel):
     id: str = Field(min_length=1)
     contractual_id: str = Field(min_length=1)
     name: str = Field(min_length=1)
+    # Distinguishes measurements that share `contractual_id` (per-asset
+    # indicators — spec §2.1 — measured independently per sistema/serviço,
+    # e.g. INMS 1.14's File Server vs WI-FI). None for single-asset
+    # indicators, where `contractual_id` alone already identifies the row.
+    asset: str | None = Field(default=None, min_length=1)
 
 
 class Scope(BaseModel):
     model_config = _StrictFrozen
     contract: str = Field(min_length=1)
-    orgao: Literal["MinC"] = "MinC"
+    # "MTur" per docs/spreadsheet.md's MinC/MTur segregation — see
+    # excel/report.py's consolidation step (spec §13).
+    orgao: Literal["MinC", "MTur"] = "MinC"
 
 
 class Source(BaseModel):

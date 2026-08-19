@@ -15,6 +15,7 @@ def _write_summary(roms_dir: Path, competencia: str, indicator_id: str, contract
         "indicator_id": indicator_id,
         "contractual_id": contractual_id,
         "name": f"Indicador {contractual_id}",
+        "asset": None,
         "orgao": "MinC",
         "shape": "ratio",
         "target_operator": ">=",

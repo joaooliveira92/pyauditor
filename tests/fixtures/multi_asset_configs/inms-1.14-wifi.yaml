@@ -1,0 +1,31 @@
+# Synthetic — see inms-1.14-file-server.yaml for the naming convention note.
+indicator:
+  id: INMS-1.14-WIFI
+  contractual_id: "INMS 1.14"
+  name: Índice de disponibilidade de serviços de infraestrutura
+  asset: WI-FI
+
+scope:
+  contract: "40/2022 - Ministério Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-1.14-wifi.csv
+  delimiter: ","
+  encoding: utf-8
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: precomputed
+  precomputed_result_column: "Disponibilidade Realizada (%)"
+
+target:
+  operator: ">="
+  value: 99.5
+
+penalty:
+  step_points: 250
+  step_size_pct: 0.1

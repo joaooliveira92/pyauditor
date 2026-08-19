@@ -33,6 +33,13 @@ _GROUP_MEMBERSHIP: Final[dict[str, tuple[str, ...]]] = {
 }
 
 
+# The per-asset disponibilidade indicators (spec §2.1) are exactly
+# MONITORAMENTO_NOC_SOC's membership — exposed here so other modules (e.g.
+# excel/orgao_consolidation.py's MinC/MTur exception) don't hardcode a
+# second copy of this list and risk drifting from it.
+PER_ASSET_CONTRACTUAL_IDS: Final[frozenset[str]] = frozenset(_GROUP_MEMBERSHIP[MONITORAMENTO_NOC_SOC])
+
+
 def primary_group(contractual_id: str) -> str | None:
     """The first group tab (in GROUP_TABS order) listing `contractual_id`.
 

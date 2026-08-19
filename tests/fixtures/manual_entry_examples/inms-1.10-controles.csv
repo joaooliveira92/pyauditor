@@ -1,0 +1,7 @@
+ID_Controle;Framework;Descricao;Implantado
+CTRL-01;CIS Controls v8;Autenticação multifator (MFA) em acessos administrativos;S
+CTRL-02;CIS Controls v8;Firewall de aplicação web (WAF) nos serviços expostos;S
+CTRL-03;CIS Controls v8;SIEM centralizando logs de segurança;S
+CTRL-04;CIS Controls v8;Solução de prevenção de perda de dados (DLP);N
+CTRL-05;CIS Controls v8;Detecção e resposta de endpoint (EDR) em todas as estações;N
+CTRL-06;CIS Controls v8;Segmentação de rede entre ambientes de produção e homologação;

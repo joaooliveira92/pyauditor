@@ -1,0 +1,35 @@
+# Exemplo do schema de preenchimento manual provisório para INMS 1.10, ver
+# docs/spec/inms-pipeline.md §2. Config sintética — não é o config de
+# produção (esse é tests/fixtures/configs/inms-1.10.yaml, que ainda aponta
+# para o /input/inms-001-10.csv real, vazio).
+indicator:
+  id: INMS-1.10-EXAMPLE
+  contractual_id: "INMS 1.10"
+  name: Taxa de implantação de controles de segurança
+
+scope:
+  contract: "40/2022 - Ministério Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-1.10-controles.csv
+  delimiter: ";"
+  encoding: utf-8
+  id_column: "ID_Controle"
+
+quality_gates:
+  checks:
+    - type: in_set
+      column: "Implantado"
+      values: ["S", "N"]
+
+calculation:
+  shape: count_difference
+  implemented_filter:
+    column: "Implantado"
+    equals: "S"
+  penalty_per_unit: 1000
+
+target:
+  operator: ">="
+  value: 100.0

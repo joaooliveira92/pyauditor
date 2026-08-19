@@ -1,0 +1,31 @@
+# Exemplo do schema de preenchimento manual provisório para INMS 1.8, ver
+# docs/spec/inms-pipeline.md §11.3. Config sintética — não é o config de
+# produção (esse é tests/fixtures/configs/inms-1.8.yaml, que ainda aponta
+# para o /input/inms-001-08.csv real, vazio).
+indicator:
+  id: INMS-1.8-EXAMPLE
+  contractual_id: "INMS 1.8"
+  name: Ocorrências de Desconformidade Técnica
+
+scope:
+  contract: "40/2022 - Ministério Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-1.8-occurrences.csv
+  delimiter: ";"
+  encoding: utf-8
+  id_column: "ID_Ocorrencia"
+
+quality_gates:
+  checks:
+    - type: not_null
+      column: "ID_Ocorrencia"
+    - type: not_null
+      column: "Codigos_Anexo_E"
+
+calculation:
+  shape: external_catalog_sum
+  occurrence_id_column: "ID_Ocorrencia"
+  catalog_codes_column: "Codigos_Anexo_E"
+  catalog_codes_separator: ","
