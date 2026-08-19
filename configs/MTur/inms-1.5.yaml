@@ -25,10 +25,6 @@ target:
   operator: ">="
   value: 99.0
 
-penalty:
-  step_points: 250
-  step_size_pct: 0.1
-
 # Anexo D (Tabela 28), INMS 1.5: meta ≥99,0% POR sistema/serviço não-crítico,
 # 250 pontos a cada 0,1% abaixo da meta. /input/inms-001-05.csv corrigido a
 # partir do RAS oficial (docs/processo_de_pagamento_junho_2026/relatório_de_
