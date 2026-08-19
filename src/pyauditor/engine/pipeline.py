@@ -72,7 +72,13 @@ def _resolve_source(
     return csv_path, source.delimiter, source.encoding
 
 
-def discover_configs(config_dir: Path) -> list[IndicatorConfig]:
+def discover_configs(config_dir: Path, expected_orgao: str | None = None) -> list[IndicatorConfig]:
+    """Load every indicator config from *config_dir* (one per `*.yaml`,
+    skipping non-indicator manifests like `datasets.yaml`).
+
+    When *expected_orgao* is given, every config whose ``scope.orgao`` differs
+    is a hard error (per-conf layout is per-órgão: `configs/<órgão>/`).
+    """
     configs: list[IndicatorConfig] = []
     for path in sorted(config_dir.glob("*.yaml")):
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -80,7 +86,13 @@ def discover_configs(config_dir: Path) -> list[IndicatorConfig]:
             # Not an indicator config (e.g. `datasets.yaml`, the manifest that
             # now lives alongside the indicators) — skip it.
             continue
-        configs.append(IndicatorConfig.model_validate(raw))
+        config = IndicatorConfig.model_validate(raw)
+        if expected_orgao is not None and config.scope.orgao != expected_orgao:
+            raise ValueError(
+                f"{path}: scope.orgao={config.scope.orgao!r} não corresponde ao "
+                f"órgão solicitado {expected_orgao!r} — config no diretório errado"
+            )
+        configs.append(config)
     return configs
 
 

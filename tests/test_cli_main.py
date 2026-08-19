@@ -23,7 +23,8 @@ def test_measure_request_frozen_slots() -> None:
         config_dir=Path("configs"),
         data_dir=Path("input"),
         output_dir=Path("roms"),
-        manifest_path=Path("configs") / "datasets.yaml",
+        manifest_path=Path("configs") / "MinC" / "datasets.yaml",
+        orgao="MinC",
     )
     assert_type(r.competencia, str)
     with pytest.raises(AttributeError):
@@ -38,7 +39,8 @@ def test_cli_main_happy_path(tmp_path: Path) -> None:
         code = cli_main(["measure", "2026-06", "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out)])
         assert code == 0
         assert m.call_args.kwargs["competencia"] == "2026-06"
-        assert m.call_args.kwargs["config_dir"] == cfg
+        assert m.call_args.kwargs["config_dir"] == cfg / "MinC"
+        assert m.call_args.kwargs["expected_orgao"] == "MinC"
 
 
 def test_cli_main_bootstrap_dispatches_with_capa_path(tmp_path: Path) -> None:
@@ -54,7 +56,7 @@ def test_cli_main_bootstrap_default_capa_path(tmp_path: Path, monkeypatch: pytes
     with patch("pyauditor.cli.main.run_bootstrap", return_value=0) as m:
         code = cli_main(["bootstrap"])
         assert code == 0
-        assert m.call_args.args[0] == Path("capa.xlsx")
+        assert m.call_args.args[0] == Path("capa_MinC.xlsx")
 
 
 def test_cli_main_measure_writes_a_traceable_run_log(tmp_path: Path) -> None:
@@ -75,7 +77,7 @@ def test_cli_main_measure_writes_a_traceable_run_log(tmp_path: Path) -> None:
         )
 
     assert code == 1
-    log_files = sorted((out / "2026-06").glob("pyauditor-measure-2026-06-*.log"))
+    log_files = sorted((out / "MinC" / "2026-06").glob("pyauditor-measure-2026-06-*.log"))
     assert len(log_files) == 1
     content = log_files[0].read_text(encoding="utf-8")
     assert "apuração da competência 2026-06" in content
@@ -105,9 +107,9 @@ def test_cli_main_report_dispatches_with_output_filename(tmp_path: Path) -> None
         assert code == 0
         assert m.call_args.kwargs["competencia"] == "2026-06"
         assert m.call_args.kwargs["capa_path"] == capa_path
-        assert m.call_args.kwargs["roms_dir"] == roms_dir
-        assert m.call_args.kwargs["output_path"] == out_dir / "relatorio_2026-06.xlsx"
-        assert m.call_args.kwargs["config_dir"] == config_dir
+        assert m.call_args.kwargs["roms_dir"] == roms_dir / "MinC"
+        assert m.call_args.kwargs["output_path"] == out_dir / "relatorio_2026-06_MinC.xlsx"
+        assert m.call_args.kwargs["config_dir"] == config_dir / "MinC"
 
 
 def test_cli_main_unknown_exits_2() -> None:
