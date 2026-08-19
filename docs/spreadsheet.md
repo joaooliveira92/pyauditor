@@ -126,7 +126,7 @@ Concentrará os parâmetros que não devem ser digitados repetidamente.
 8. Segurança da Informação;
 9. DevOps.
 
-### Aba 4: `INMS_BASE`
+### Aba 3: `INMS_BASE`
 
 Essa será a principal base de dados da aferição.
 
@@ -188,7 +188,7 @@ Junho/2026 + Atendimento Remoto N1 + INMS 1.2 + MTur
 - **INMS 1.13:** chamados atendidos diretamente pelo Nível I;
 - **INMS 1.14:** disponibilidade dos serviços de infraestrutura.
 
-### Aba 5: `ATENDIMENTO_N1`
+### Aba 4: `ATENDIMENTO_N1`
 
 Apresentará os resultados do atendimento remoto nos blocos **MinC**, **MTur**, **Consolidado** e **Análise do fiscal**.
 
@@ -196,25 +196,25 @@ Indicadores previstos: INMS 1.1, 1.2, 1.6, 1.7, 1.11, 1.12 e 1.13.
 
 Os indicadores telefônicos deverão informar se a central é compartilhada e se os dados podem ser segregados por órgão. Se a fonte não fornecer a separação, a limitação será registrada expressamente, sem misturar o resultado compartilhado com os resultados exclusivos.
 
-### Aba 6: `MONITORAMENTO_NOC_SOC`
+### Aba 5: `MONITORAMENTO_NOC_SOC`
 
 Destinada aos indicadores INMS 1.4, 1.5 e 1.14.
 
 Além do resumo por órgão, haverá uma tabela detalhada com órgão, sistema ou serviço, criticidade, período previsto, indisponibilidade programada, indisponibilidade não programada, disponibilidade apurada, meta, conformidade e evidência.
 
-### Aba 7: `ATENDIMENTO_N2`
+### Aba 6: `ATENDIMENTO_N2`
 
 Destinada ao atendimento presencial, inicialmente com os indicadores INMS 1.1, 1.2, 1.6, 1.7 e 1.9.
 
 A ausência de mudança no período será registrada como **Não aplicável no período**, e não como zero, evitando interpretar ausência de demanda como descumprimento.
 
-### Aba 8: `OPERACAO_N3`
+### Aba 7: `OPERACAO_N3`
 
 Destinada à operação e sustentação da infraestrutura, com os indicadores INMS 1.1, 1.2, 1.3, 1.6, 1.7, 1.9, 1.10 e 1.14.
 
 O INMS 1.14 poderá utilizar os dados da aba `MONITORAMENTO_NOC_SOC`, evitando duplicação de digitação.
 
-### Aba 9: `EVIDENCIAS`
+### Aba 8: `EVIDENCIAS`
 
 Será o registro central dos documentos comprobatórios.
 
@@ -239,7 +239,7 @@ Será o registro central dos documentos comprobatórios.
 
 Uma mesma evidência poderá ser associada a mais de um indicador, mas deverá indicar claramente se se refere ao MinC, ao MTur ou a um ambiente compartilhado.
 
-### Aba 10: `GLOSAS`
+### Aba 9: `GLOSAS`
 
 Concentrará apenas ocorrências com impacto financeiro.
 
@@ -264,6 +264,6 @@ Concentrará apenas ocorrências com impacto financeiro.
 
 > **Regra importante:** a fórmula de glosa somente será fechada após a identificação completa da tabela ou metodologia de ajuste do Termo de Referência. O resultado técnico pode ficar abaixo da meta sem que o percentual financeiro seja arbitrado manualmente.
 
-### Aba 14: `PAINEL_GERENCIAL`
+### Aba 10: `PAINEL_GERENCIAL`
 
 Painel visual contendo percentual geral de conformidade, indicadores conformes, não conformes e não aplicáveis, pendências de evidência, glosa total, valor recomendado, comparação MinC versus MTur, distribuição por N1, N2, N3 e NOC/SOC e tendência por competência.
