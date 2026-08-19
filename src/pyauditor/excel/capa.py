@@ -8,6 +8,7 @@ from typing import Final
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.excel._style import (
     BODY_FONT,
@@ -21,13 +22,17 @@ from pyauditor.excel._style import (
 
 SHEET_NAME: Final = "CAPA_E_CONTROLE"
 
-# docs/spreadsheet.md §Aba 1 — "Campos"
+# docs/spreadsheet.md §Aba 1 — "Campos", plus Objeto/Vigência/Valor global
+# anual (not in the original list, added per the reference mockup at
+# inspiration-spreadsheet/afericao_06_2026.xlsx's CAPA_E_CONTROLE tab).
 FIELD_LABELS: Final[tuple[str, ...]] = (
     "Número do contrato",
     "Processo SEI",
     "Empresa contratada",
     "CNPJ da contratada",
     "Órgão contratante atual",
+    "Objeto",
+    "Vigência",
     "Competência",
     "Período inicial da aferição",
     "Período final da aferição",
@@ -39,6 +44,7 @@ FIELD_LABELS: Final[tuple[str, ...]] = (
     "Fiscal administrativo",
     "Gestor do contrato",
     "Valor mensal vigente",
+    "Valor global anual",
     "Versão da planilha",
     "Data da análise",
     "Situação geral da aferição",
@@ -56,12 +62,15 @@ SITUACOES: Final[tuple[str, ...]] = (
     "Não recomendado para pagamento",
 )
 
-def build_capa_workbook() -> Workbook:
-    """Builds the capa workbook in memory — pure, no filesystem access."""
-    workbook = Workbook()
-    sheet = workbook.active
-    assert sheet is not None
-    sheet.title = SHEET_NAME
+def render_capa_sheet(sheet: Worksheet, values: dict[str, object] | None = None) -> None:
+    """Renders the CAPA_E_CONTROLE label/value layout onto `sheet`. With no
+    `values`, cells are left blank for the fiscal técnico to fill in (the
+    `bootstrap` case). With `values` (as returned by `read_capa_fields`),
+    reproduces an existing capa's content — used by `report` to embed the
+    capa as the final workbook's first sheet, so the value stays in sync
+    with whatever the fiscal técnico last filled in, rather than a copy
+    that can drift.
+    """
     sheet.sheet_view.showGridLines = False
 
     sheet["A1"] = "Capa e controle do contrato"
@@ -86,11 +95,14 @@ def build_capa_workbook() -> Workbook:
         value_cell = sheet.cell(row=row, column=2)
         value_cell.font = BODY_FONT
         value_cell.border = BOTTOM_BORDER
-        if label == "Situação geral da aferição":
+        if values is not None:
+            value_cell.value = values.get(label)  # type: ignore[assignment]
+        elif label == "Situação geral da aferição":
             value_cell.value = SITUACOES[0]
+        if label == "Situação geral da aferição":
             situacao_row = row
 
-    if situacao_row is not None:
+    if situacao_row is not None and values is None:
         validation = DataValidation(
             type="list",
             formula1=f'"{",".join(SITUACOES)}"',
@@ -102,6 +114,14 @@ def build_capa_workbook() -> Workbook:
     sheet.column_dimensions["A"].width = 32
     sheet.column_dimensions["B"].width = 40
 
+
+def build_capa_workbook() -> Workbook:
+    """Builds the capa workbook in memory — pure, no filesystem access."""
+    workbook = Workbook()
+    sheet = workbook.active
+    assert sheet is not None
+    sheet.title = SHEET_NAME
+    render_capa_sheet(sheet)
     return workbook
 
 
@@ -120,19 +140,30 @@ def bootstrap_capa(path: Path) -> bool:
     return True
 
 
-def read_valor_mensal_vigente(path: Path) -> float | None:
-    """Reads "Valor mensal vigente" from an existing capa — the fiscal
-    técnico fills this in by hand after `bootstrap` creates the blank cell,
-    so it's None until they do. Used by `report`'s GLOSAS calculation as
-    `valor-base` (spec §12.2).
+def read_capa_fields(path: Path) -> dict[str, object]:
+    """Reads every `FIELD_LABELS` label/value pair from an existing capa —
+    the fiscal técnico fills these in by hand after `bootstrap` creates the
+    blank cells. Missing labels (e.g. an older capa predating a field added
+    later) are simply absent from the returned dict. Used by `report` to
+    embed CAPA_E_CONTROLE as the final workbook's first sheet.
     """
     workbook = load_workbook(path, data_only=True)
     if SHEET_NAME not in workbook.sheetnames:
-        return None
+        return {}
     sheet = workbook[SHEET_NAME]
 
+    fields: dict[str, object] = {}
     for row in range(4, 4 + len(FIELD_LABELS)):
-        if sheet.cell(row=row, column=1).value == "Valor mensal vigente":
-            value = sheet.cell(row=row, column=2).value
-            return float(value) if isinstance(value, int | float) else None
-    return None
+        label = sheet.cell(row=row, column=1).value
+        if isinstance(label, str):
+            fields[label] = sheet.cell(row=row, column=2).value
+    return fields
+
+
+def read_valor_mensal_vigente(path: Path) -> float | None:
+    """Reads "Valor mensal vigente" from an existing capa — None until the
+    fiscal técnico fills it in. Used by `report`'s GLOSAS calculation as
+    `valor-base` (spec §12.2).
+    """
+    value = read_capa_fields(path).get("Valor mensal vigente")
+    return float(value) if isinstance(value, int | float) else None
