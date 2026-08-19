@@ -1,5 +1,5 @@
 Type: grilling
-Status: open
+Status: resolved
 
 ## Question
 
@@ -9,4 +9,4 @@ Duas leituras possíveis: (1) esse código é resquício de uma suposição de a
 
 ## Answer
 
-(aberto)
+Leitura (2): existe uma etapa 4, e foi construída — o subcomando `pyauditor consolidate <competencia>` (ver `.scratch/multi-org-pipeline/`). `with_orgao_consolidation` saiu de dentro de `report` e virou a base de `src/pyauditor/excel/consolidate.py` (import em `consolidate.py:39`, chamada em `consolidate.py:288`), que lê os dois `relatorio_<comp>_<orgao>.xlsx` já gerados e nunca refaz `measure`/`report`. `cli/report.py` não referencia mais `orgao_consolidation`. Código não é resquício — foi realocado para o lugar certo do pipeline.

@@ -14,4 +14,9 @@ Qual (se algum) desses vale a pena implementar agora, versus aceitar como proces
 
 ## Answer
 
-(aberto)
+(aberto — nenhum dos quatro itens resolvido; nota de estado)
+
+- **CI**: `.github/workflows/docs.yml` existe (publicação do portal Zensical, commit `36c2da3`), mas não é CI de teste/lint — segue sem `ruff`/`flake8` e sem `pytest`/`mypy --strict` rodando em PR.
+- Pré-validação da capa, sugestão automática de "situação geral" e relatório narrativo assinável — sem mudança, nenhum código encontrado.
+
+Segue aberto: decisão de prioridade ainda não tomada para nenhum dos quatro itens.

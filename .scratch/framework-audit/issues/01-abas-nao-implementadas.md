@@ -1,5 +1,5 @@
 Type: grilling
-Status: open
+Status: resolved
 
 ## Question
 
@@ -9,4 +9,10 @@ Quais dessas são realmente necessárias para o relatório final ser um artefato
 
 ## Answer
 
-(aberto)
+Decisão de prioridade tomada no mapa `multi-org-pipeline` (grill com o fiscal, 2026-08-19), respondendo pergunta a pergunta:
+
+- `CADASTROS` (aba 2) e `EVIDENCIAS` (aba 9) — necessárias, implementadas (tickets [[09-cadastros-aba-de-dados-de-referencia]] e [[10-evidencias-registro-de-provas]], ambos `closed`).
+- `CALCULO_PAGAMENTO` e `SERVICOS_POR_ORGAO` — necessárias, escopadas para dentro do subcomando `consolidate` (2.1, núcleo financeiro) em vez de abas do relatório por-órgão. Confirmado implementado: `CALCULO_SHEET`/`SERVICOS_SHEET` em `src/pyauditor/excel/consolidate.py`.
+- `PAINEL_GERENCIAL`, `HISTORICO`, `CHECKLIST_FISCAL`, `RELATORIO_FISCAL`, `FONTES_E_PREMISSAS` — elaboração do mockup sem exigência confirmada no Termo de Referência; **out of scope** por decisão explícita.
+
+Nenhuma aba pendente restante da lista original — todas ou implementadas ou explicitamente fora de escopo.

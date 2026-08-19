@@ -15,19 +15,24 @@ Para cada lacuna identificada na auditoria de 2026-08-19 (abaixo), uma decisão 
 
 ## Decisions so far
 
-(nenhuma ainda — mapa criado a partir da auditoria, tickets abertos)
+- [orgao_consolidation.py pode estar desalinhado com o fluxo real de dois repositórios](issues/07-orgao-consolidation-desalinhado.md) — `Status: resolved`. O pooling saiu de dentro do `report` e virou a base do subcomando `consolidate` (2.1, ver `.scratch/multi-org-pipeline/`). `with_orgao_consolidation` hoje só é chamado por `src/pyauditor/excel/consolidate.py`, nunca por `cli/report.py`.
+- [Cadastros: aba de dados de referência](issues/09-cadastros-aba-de-dados-de-referencia.md) — `Status: closed`, implementada (`CADASTROS_SHEET` em `report.py`).
+- [Evidências: registro de provas](issues/10-evidencias-registro-de-provas.md) — `Status: closed`, implementada (`EVIDENCIAS_SHEET` em `report.py`).
+- [Abas do mockup não implementadas](issues/01-abas-nao-implementadas.md) — `Status: resolved`. CADASTROS/EVIDENCIAS saíram do fog (09/10 acima); CALCULO_PAGAMENTO e SERVICOS_POR_ORGAO confirmadas implementadas dentro do `consolidate` (`CALCULO_SHEET`/`SERVICOS_SHEET` em `consolidate.py`); PAINEL_GERENCIAL, HISTORICO, CHECKLIST_FISCAL, RELATORIO_FISCAL e FONTES_E_PREMISSAS foram para **out of scope** no mapa `multi-org-pipeline`. Nenhuma aba da lista original ficou pendente.
+- [Fórmula de consolidação MinC/MTur para disponibilidade por ativo (1.4/1.5/1.14)](issues/06-formula-consolidacao-per-asset.md) — `Status: resolved` (como decisão, não como pesquisa concluída). Fórmula do TR continua não localizada; decidido manter por-ativo uma linha por órgão, sem consolidar, até o TR definir. Fog deliberado — reabrir só se surgir fonte primária nova.
+
+## Partially addressed
+
+- [Lacunas operacionais: pré-validação, CI, relatório narrativo](issues/08-lacunas-operacionais.md) — ainda `open`. Único fato novo: `.github/workflows/docs.yml` existe, mas é publicação do portal Zensical, não CI de teste/lint. Pré-validação da capa, sugestão automática de "situação geral" e relatório narrativo seguem sem código.
 
 ## Not yet specified
 
-- [Abas do mockup não implementadas](issues/01-abas-nao-implementadas.md)
-- [Rollover de glosa entre competências não é lido de volta](issues/02-rollover-glosa-nao-consumido.md)
-- [Reincidência (repeat offense) não é rastreada](issues/03-reincidencia-nao-rastreada.md)
-- [Teto anual de glosa não verificado](issues/04-teto-anual-glosa.md)
-- [Fonte de dados real do INMS 1.8/1.10 ainda não confirmada](issues/05-fonte-dados-inms-1-8-1-10.md)
-- [Fórmula de consolidação MinC/MTur para disponibilidade por ativo (1.4/1.5/1.14)](issues/06-formula-consolidacao-per-asset.md)
-- [orgao_consolidation.py pode estar desalinhado com o fluxo real de dois repositórios](issues/07-orgao-consolidation-desalinhado.md)
-- [Lacunas operacionais: pré-validação, CI, relatório narrativo](issues/08-lacunas-operacionais.md)
+- [Rollover de glosa entre competências não é lido de volta](issues/02-rollover-glosa-nao-consumido.md) — sem progresso, depende do Termo de Referência.
+- [Reincidência (repeat offense) não é rastreada](issues/03-reincidencia-nao-rastreada.md) — sem progresso, depende do Termo de Referência.
+- [Teto anual de glosa não verificado](issues/04-teto-anual-glosa.md) — sem progresso, depende do Termo de Referência.
+- [Fonte de dados real do INMS 1.8/1.10 ainda não confirmada](issues/05-fonte-dados-inms-1-8-1-10.md) — sem progresso, depende de resposta externa (fiscalização/gestor do contrato).
 
 ## Out of scope
 
-(nenhum item identificado até o momento)
+- Reproduzir as 17 abas da planilha de inspiração além do núcleo financeiro — decidido no mapa `multi-org-pipeline`: `CHECKLIST_FISCAL`, `RELATORIO_FISCAL`, `PAINEL_GERENCIAL`, `HISTORICO` ficam fora (ver ticket 01 acima).
+- Fórmula de consolidação por-ativo (1.4/1.5/1.14) — mantida por-órgão até o TR definir (ver ticket 06 acima).

@@ -1,5 +1,5 @@
 Type: research
-Status: open
+Status: resolved
 
 ## Question
 
@@ -7,4 +7,4 @@ Status: open
 
 ## Answer
 
-(aberto)
+Não resolvido por pesquisa — a fórmula específica do Termo de Referência continua não localizada. Mas o mapa `multi-org-pipeline` fechou a decisão de escopo: por-ativo (1.4/1.5/1.14) fica **uma linha por órgão, sem consolidar**, até o TR definir a fórmula (registrado em "Out of scope" nesse mapa). `orgao_consolidation.py`/`consolidate.py` mantêm esse comportamento hoje. Reabrir apenas se surgir fonte primária nova (Anexo D ou confirmação do gestor do contrato) — até lá, fog deliberado, não pendência de implementação.
