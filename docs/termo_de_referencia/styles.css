@@ -1,0 +1,748 @@
+
+            p.Citacao {
+                font-size: 10pt;
+                font-family: Calibri;
+                word-wrap: normal;
+                margin: 4pt 0 4pt 160px;
+                text-align: justify;
+            }
+            p.Item_Alinea_Letra {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-indent: 0mm;
+                text-align: justify;
+                word-wrap: normal;
+                margin: 6pt 6pt 6pt 120px;
+                counter-increment: letra_minuscula;
+            }
+            p.Item_Alinea_Letra:before {
+                content: counter(letra_minuscula, lower-latin) ") ";
+                display: inline-block;
+                width: 5mm;
+                font-weight: normal;
+            }
+            p.Item_Inciso {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0mm;
+                margin: 6pt 6pt 6pt 120px;
+                counter-increment: romano_maiusculo;
+                counter-reset: letra_minuscula;
+            }
+            p.Item_Inciso_Romano:before {
+                content: counter(romano_maiusculo, upper-roman) " - ";
+                display: inline-block;
+                width: 15mm;
+                font-weight: normal;
+            }
+            p.Item_Nivel1 {
+                text-transform: uppercase;
+                font-weight: bold;
+                background-color: #e6e6e6;
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+                counter-increment: item-n1;
+                counter-reset: item-n2 item-n3 item-n4 romano_maiusculo
+                    letra_minuscula;
+            }
+            p.Item_Nivel1:before {
+                content: counter(item-n1) ".";
+                display: inline-block;
+                width: 25mm;
+                font-weight: normal;
+            }
+            p.Item_Nivel2 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-indent: 0mm;
+                text-align: justify;
+                word-wrap: normal;
+                margin: 6pt;
+                counter-increment: item-n2;
+                counter-reset: item-n3 item-n4 romano_maiusculo letra_minuscula;
+            }
+            p.Item_Nivel2:before {
+                content: counter(item-n1) "." counter(item-n2) ".";
+                display: inline-block;
+                width: 25mm;
+                font-weight: normal;
+            }
+            p.Item_Nivel3 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-indent: 0mm;
+                text-align: justify;
+                word-wrap: normal;
+                margin: 6pt;
+                counter-increment: item-n3;
+                counter-reset: item-n4 romano_maiusculo letra_minuscula;
+            }
+            p.Item_Nivel3:before {
+                content: counter(item-n1) "." counter(item-n2) "."
+                    counter(item-n3) ".";
+                display: inline-block;
+                width: 25mm;
+                font-weight: normal;
+            }
+            p.Item_Nivel4 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-indent: 0mm;
+                text-align: justify;
+                word-wrap: normal;
+                margin: 6pt;
+                counter-increment: item-n4;
+                counter-reset: romano_maiusculo letra_minuscula;
+            }
+            p.Item_Nivel4:before {
+                content: counter(item-n1) "." counter(item-n2) "."
+                    counter(item-n3) "." counter(item-n4) ".";
+                display: inline-block;
+                width: 25mm;
+                font-weight: normal;
+            }
+            p.Paragrafo_Numerado_Nivel1 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0mm;
+                margin: 6pt;
+                counter-increment: paragrafo-n1;
+                counter-reset: paragrafo-n2 paragrafo-n3 romano_maiusculo
+                    letra_minuscula;
+            }
+            p.Paragrafo_Numerado_Nivel1:before {
+                content: counter(paragrafo-n1) ".";
+                display: inline-block;
+                width: 25mm;
+                font-weight: normal;
+            }
+            p.Paragrafo_Numerado_Nivel2 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-indent: 0mm;
+                text-align: justify;
+                word-wrap: normal;
+                margin: 6pt;
+                counter-increment: paragrafo-n2;
+                counter-reset: paragrafo-n3 romano_maiusculo letra_minuscula;
+            }
+            p.Paragrafo_Numerado_Nivel2:before {
+                content: counter(paragrafo-n1) "." counter(paragrafo-n2) ".";
+                display: inline-block;
+                width: 25mm;
+                font-weight: normal;
+            }
+            p.Paragrafo_Numerado_Nivel3 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-indent: 0mm;
+                text-align: justify;
+                word-wrap: normal;
+                margin: 6pt;
+                counter-increment: paragrafo-n3;
+                counter-reset: romano_maiusculo letra_minuscula;
+            }
+            p.Paragrafo_Numerado_Nivel3:before {
+                content: counter(paragrafo-n1) "." counter(paragrafo-n2) "."
+                    counter(paragrafo-n3) ".";
+                display: inline-block;
+                width: 25mm;
+                font-weight: normal;
+            }
+            p.Tabela_texto {
+                font-size: 1pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+            }
+            p.Tabela_Texto_10 {
+                font-size: 10pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+            }
+            p.Tabela_Texto_11 {
+                font-size: 11pt;
+                font-family: Calibri;
+                text-align: right;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+            }
+            p.Tabela_Texto_8 {
+                font-size: 8pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+            }
+            p.Tabela_Texto_Alinhado_Esquerda {
+                font-size: 11pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+            }
+            p.Tabela_texto_alinhado_esquerda_10 {
+                font-size: 10pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+            }
+            p.Tabela_Texto_Alinhamento_Superior_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+                valign: top;
+            }
+            p.Tabela_texto_centralizado_10 {
+                font-size: 10pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+            }
+            p.Tabela_texto_centralizado_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+            }
+            p.Tabela_Texto_Centralizado_Calibri_11 {
+                font-size: 11pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: normal;
+                margin: 0 3pt 0;
+            }
+            p.Tabela_Texto_Direita_Simples_Minusc_Normal_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: right;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+            }
+            p.Tabela_Texto_Esquerda_9 {
+                font-size: 9pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+            }
+            p.Tachado {
+                font-size: 11pt;
+                font-family: Calibri;
+                text-indent: 1.18in;
+                text-align: justify;
+                word-wrap: normal;
+                text-decoration: line-through;
+            }
+            p.teste {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-indent: 0mm;
+                text-align: justify;
+                word-wrap: normal;
+                margin: 6pt 6pt 6pt 120px;
+                counter-increment: letra_minuscula;
+            }
+            p.Texto_Alinhado_Direita {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: right;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_alinhado_direita_12_negrito {
+                font-size: 12pt;
+                word-wrap: bold;
+                font-family: Calibri;
+                text-align: right;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Alinhado_Direita_Maiusculo {
+                font-weight: bold;
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: right;
+                text-transform: uppercase;
+                word-wrap: normal;
+            }
+            p.Texto_Alinhado_Esquerda {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Alinhado_Esquerda_10 {
+                font-size: 10pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+            }
+            p.Texto_alinhado_esquerda_11_espacamento_simples {
+                font-size: 11pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 0;
+            }
+            p.Texto_Alinhado_Esquerda_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+            }
+            p.Texto_Alinhado_Esquerda_12_MAIUSC {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Alinhado_Esquerda_12_negrito {
+                font-weight: bold;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+            }
+            p.Texto_Alinhado_Esquerda_Espacamento_Simples {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 0;
+            }
+            p.Texto_Alinhado_Esquerda_Espacamento_Simples_Maiusc {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: left;
+                text-transform: uppercase;
+                word-wrap: normal;
+                margin: 0;
+            }
+            p.Texto_Alinhado_Esquerda_negrito {
+                font-weight: bold;
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Alinhado_Esquerda_negrito_12_MAIUSC {
+                font-weight: bold;
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Alinhado_TimeNewRoman_Esquerda_16 {
+                font-size: 16pt;
+                font-family: Times New Roman;
+                text-align: left;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+            }
+            p.Texto_Centralizado {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Centralizado_10 {
+                font-size: 10pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: normal;
+                margin: 0 3pt 0;
+            }
+            p.Texto_Centralizado_11 {
+                font-size: 11pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+            }
+            p.texto_centralizado_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+            }
+            p.Texto_Centralizado_14 {
+                font-size: 14pt;
+                font-family: Calibri;
+                text-align: center;
+                text-transform: uppercase;
+                word-wrap: normal;
+            }
+            p.Texto_Centralizado_16 {
+                font-size: 16pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: normal;
+            }
+            p.Texto_centralizado_maiuscula {
+                font-weight: bold;
+                background-color: #e6e6e6;
+                font-size: 16pt;
+                font-family: Calibri;
+                text-align: center;
+                text-transform: uppercase;
+                word-wrap: normal;
+            }
+            p.Texto_centralizado_maiuscula_20 {
+                font-size: 20pt;
+                font-family: Calibri;
+                text-align: center;
+                text-transform: uppercase;
+                word-wrap: normal;
+            }
+            p.Texto_Centralizado_Maiusculas {
+                font-size: 13pt;
+                font-family: Calibri;
+                text-align: center;
+                text-transform: uppercase;
+                word-wrap: normal;
+            }
+            p.Texto_Centralizado_Maiusculas_Negrito {
+                font-weight: bold;
+                font-size: 13pt;
+                font-family: Calibri;
+                text-align: center;
+                text-transform: uppercase;
+                word-wrap: normal;
+            }
+            p.Texto_centralizado_maiusculo {
+                font-weight: normal;
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: center;
+                text-transform: uppercase;
+                word-wrap: normal;
+            }
+            p.Texto_Centralizado_Maiusculo_12 {
+                font-weight: bold;
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: center;
+                text-transform: uppercase;
+                word-wrap: normal;
+            }
+            p.Texto_Centralizado_Negrito_11 {
+                font-size: 11pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: bold;
+                margin: 6pt;
+            }
+            p.Texto_centralizado_negrito_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: bold;
+                margin: 6pt;
+            }
+            p.Texto_centralizado_negrito_12_MAIUSC {
+                font-weight: bold;
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Centralizado_Negrito_14 {
+                font-size: 14pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: bold;
+                margin: 6pt;
+            }
+            p.Texto_Centralizado_Negrito_16 {
+                font-size: 16pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: bold;
+                margin: 6pt;
+            }
+            p.Texto_Centralizado_Negrito_18 {
+                font-size: 18pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: bold;
+                margin: 6pt;
+            }
+            p.Texto_centralizado_negrito_20 {
+                font-size: 20pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: bold;
+                margin: 6pt;
+            }
+            p.Texto_Centralizado_Simples_Maiusculo_Negrito_12 {
+                font-weight: bold;
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: center;
+                text-transform: uppercase;
+                word-wrap: normal;
+            }
+            p.Texto_Centralizado_Simples_Maiusculo_Negrito_13 {
+                font-weight: bold;
+                font-size: 13pt;
+                font-family: Calibri;
+                text-align: center;
+                text-transform: uppercase;
+                word-wrap: normal;
+            }
+            p.Texto_Centralizado_Simples_Maiusculo_Normal_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: center;
+                text-transform: uppercase;
+                word-wrap: normal;
+            }
+            p.Texto_Centralizado_Simples_Maiusculo_Normal_13 {
+                font-size: 13pt;
+                font-family: Calibri;
+                text-align: center;
+                text-transform: uppercase;
+                word-wrap: normal;
+            }
+            p.Texto_Centralizado_Simples_Minusculo_Negrito_12 {
+                font-weight: bold;
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Centralizado_Simples_Minusculo_Normal_10 {
+                font-size: 10pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Centralizado_Simples_Minusculo_Normal_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Direita_Simples_Minusculo_Normal_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: right;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Esquerda_Simples_Maiusculo_Normal_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: left;
+                text-transform: uppercase;
+                word-wrap: normal;
+                margin: 0;
+            }
+            p.Texto_Esquerda_Simples_Minusculo_Normal_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: left;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Justif_Simp_Minusc_Negrito_12_Recuo_1ªLinha_ {
+                letter-spacing: 0.2em;
+                font-weight: bold;
+                font-size: 12pt;
+                font-family: Calibri;
+                text-indent: 25mm;
+                text-align: justify;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Justif_Simp_Minusc_Normal_12_Recuo_1ªLinha {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-indent: 25mm;
+                text-align: justify;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Justif_Simples_Maiusc_Negrito_12_Fundo_Cinza {
+                text-transform: uppercase;
+                font-weight: bold;
+                background-color: #e6e6e6;
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+            }
+            p.Texto_Justif_Simples_Maiusc_Normal_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+                text-transform: uppercase;
+            }
+            p.Texto_Justif_Simples_Minusc_Negrito_12_Fundo_Cinza {
+                font-weight: bold;
+                background-color: #e6e6e6;
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+            }
+            p.Texto_Justif_Simples_Minusc_Normal_10 {
+                font-size: 10pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+            }
+            p.Texto_Justif_Simples_Minusc_Normal_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+            }
+            p.Texto_Justif_TimesNewRoman_Minusc_Normal_16 {
+                font-size: 16pt;
+                font-family: Times New Roman;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+            }
+            p.Texto_Justificado {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+            }
+            p.Texto_Justificado_11 {
+                font-size: 11pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+            }
+            p.texto_justificado_12 {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                margin: 0 3pt 0 3pt;
+            }
+            p.Texto_Justificado_Maiusculas {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+                text-transform: uppercase;
+            }
+            p.Texto_Justificado_Recuo_Primeira_linha {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-indent: 25mm;
+                text-align: justify;
+                word-wrap: normal;
+                margin: 6pt;
+            }
+            p.Texto_Mono_Espacado {
+                font-size: 8pt;
+                font-family: Calibri;
+                text-align: left;
+                white-space: pre;
+                word-wrap: normal;
+                margin: 2pt;
+            }
+            p.Texto_Paragrafo {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+                text-indent: 25mm;
+            }
+            p.Texto_Paragrafo_Maiuscula {
+                font-size: 12pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: normal;
+                text-indent: 0;
+                margin: 6pt;
+                text-indent: 25mm;
+                text-transform: uppercase;
+            }
+            p.Titulo_Centralizado_14 {
+                font-size: 14pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: bold;
+                margin: 6pt;
+            }
+            p.Titulo_Centralizado_16 {
+                font-size: 16pt;
+                font-family: Calibri;
+                text-align: center;
+                word-wrap: bold;
+                margin: 6pt;
+            }
+            p.Titulo_Esquerda_16 {
+                font-size: 16pt;
+                font-family: Calibri;
+                text-align: justify;
+                word-wrap: bold;
+                margin: 6pt;
+            }
+            p.Tituto_Centralizado_TimesNewRoman_16 {
+                font-size: 16pt;
+                font-family: Times New Roman;
+                text-align: center;
+                word-wrap: bold;
+                margin: 6pt;
+            }
+        

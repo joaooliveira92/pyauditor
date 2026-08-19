@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}});
+</script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+<script type="text/javascript">
+document.addEventListener('DOMContentLoaded', function () {
+    var targets = Array.prototype.slice.call(document.querySelectorAll('[data-include]'));
+    Promise.all(targets.map(function (target) {
+        var file = target.getAttribute('data-include');
+        return fetch(file).then(function (response) {
+            if (!response.ok) throw new Error(file + ': HTTP ' + response.status);
+            return response.text();
+        }).then(function (content) {
+            target.innerHTML = content;
+            target.setAttribute('data-include-loaded', 'true');
+        }).catch(function (error) {
+            target.setAttribute('data-include-error', 'true');
+            target.innerHTML = '<p style="color:#b00020">Erro ao carregar ' + file + '</p>';
+            console.error('Erro ao carregar componente:', error);
+        });
+    })).then(function () {
+        if (window.MathJax && MathJax.Hub) MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
+    });
+});
+</script>
+<meta content="no-cache" http-equiv="Pragma"/>
+<meta charset="utf-8"/>
+<link rel="stylesheet" href="styles.css">
+<title>SEI/MTUR - 1691353 - (STII) TR - IN SGD/ME n° 1</title>
+</head>
+<body>
+        <div class="componente-tr" data-include="00_pre_documento.html"></div>
+        <div class="componente-tr" data-include="01_objeto_da_contratacao.html"></div>
+        <div class="componente-tr" data-include="02_descricao_da_solucao_tic.html"></div>
+        <div class="componente-tr" data-include="03_necessidade_e_justificativa.html"></div>
+        <div class="componente-tr" data-include="04_requisitos_da_contratacao.html"></div>
+        <div class="componente-tr" data-include="05_responsabilidades.html"></div>
+        <div class="componente-tr" data-include="06_modelo_de_execucao.html"></div>
+        <div class="componente-tr" data-include="07_modelo_de_gestao.html"></div>
+        <div class="componente-tr" data-include="08_estimativa_de_precos.html"></div>
+        <div class="componente-tr" data-include="09_adequacao_orcamentaria.html"></div>
+        <div class="componente-tr" data-include="10_vigencia_do_contrato.html"></div>
+        <div class="componente-tr" data-include="11_reajuste_de_precos.html"></div>
+        <div class="componente-tr" data-include="12_criterios_de_selecao.html"></div>
+        <div class="componente-tr" data-include="13_equipe_e_aprovacao.html"></div>
+        <div class="componente-tr" data-include="anexo_a_perfis_profissionais.html"></div>
+        <div class="componente-tr" data-include="anexo_b_certificacoes_minimas.html"></div>
+        <div class="componente-tr" data-include="anexo_c_catalogo_servicos_tecnicos.html"></div>
+        <div class="componente-tr" data-include="anexo_d_prazos.html"></div>
+        <div class="componente-tr" data-include="anexo_e_desconformidade_tecnica.html"></div>
+        <div class="componente-tr" data-include="anexo_f_parque_tecnologico.html"></div>
+        <div class="componente-tr" data-include="anexo_g_sistemas.html"></div>
+        <div class="componente-tr" data-include="anexo_h_termo_compromisso.html"></div>
+        <div class="componente-tr" data-include="anexo_i_termo_ciencia.html"></div>
+        <div class="componente-tr" data-include="anexo_j_declaracao_vistoria.html"></div>
+        <div class="componente-tr" data-include="anexo_k_recusa_vistoria.html"></div>
+        <div class="componente-tr" data-include="anexo_l_catalogo_servicos.html"></div>
+        <div class="componente-tr" data-include="anexo_m_planilha_custos.html"></div>
+        <div class="componente-tr" data-include="anexo_n_ordem_servico.html"></div>
+</body>
+</html>

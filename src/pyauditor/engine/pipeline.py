@@ -21,8 +21,11 @@ class MeasurementResult:
 
     @property
     def hard_failure(self) -> bool:
-        """Quality gates rejected every row — no data survived to measure against."""
-        return len(self.quality_gate_report.accepted) == 0
+        """Quality gates rejected every row that existed — not the same as a source
+        CSV that had zero rows to begin with (a legitimately empty competência,
+        e.g. INMS 1.3/1.8/1.9/1.10 before manual data entry exists)."""
+        report = self.quality_gate_report
+        return len(report.accepted) == 0 and len(report.rejected) > 0
 
 
 def load_config(config_path: Path) -> IndicatorConfig:

@@ -11,3 +11,8 @@ __pycache__/
 
 # Production data (PII) — see docs/spec/inms-pipeline.md §8
 input/
+
+# CLI run outputs (regenerable — bootstrap/measure/report default paths)
+/capa.xlsx
+/roms/
+/reports/
