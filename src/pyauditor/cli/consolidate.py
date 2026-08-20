@@ -15,6 +15,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from pyauditor.atomic_write import atomic_write
 from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
 from pyauditor.excel.capa import read_capa_fields
 from pyauditor.excel.consolidate import build_consolidated_workbook, read_existing_decisions
@@ -116,8 +117,7 @@ def run_consolidate(
         return _error(f"falha inesperada ao montar consolidado de {competencia}: {exc}")
 
     try:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        result.workbook.save(output_path)
+        atomic_write(output_path, result.workbook.save)
     except OSError as exc:
         return _error(f"falha ao escrever {output_path}: {exc}")
     finally:

@@ -10,6 +10,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.worksheet import Worksheet
 
+from pyauditor.atomic_write import atomic_write
 from pyauditor.excel._style import (
     BODY_FONT,
     BOTTOM_BORDER,
@@ -134,10 +135,9 @@ def bootstrap_capa(path: Path) -> bool:
     if path.exists():
         return False
 
-    path.parent.mkdir(parents=True, exist_ok=True)
     workbook = build_capa_workbook()
     try:
-        workbook.save(path)
+        atomic_write(path, workbook.save)
     finally:
         workbook.close()
     return True

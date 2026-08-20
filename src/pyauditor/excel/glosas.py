@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from pyauditor.atomic_write import atomic_write
+
 POINTS_TO_PERCENT: Final = 0.001
 CAP_PCT: Final = 30.0
 JANELA_REINCIDENCIA_MESES: Final = 6
@@ -120,8 +122,8 @@ def read_historico(path: Path) -> Historico:
 
 
 def write_historico(path: Path, historico: Historico) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(historico, indent=2, sort_keys=True, ensure_ascii=False), encoding="utf-8")
+    payload = json.dumps(historico, indent=2, sort_keys=True, ensure_ascii=False)
+    atomic_write(path, lambda tmp: tmp.write_text(payload, encoding="utf-8"))
 
 
 def historico_entry(competencia: str, glosa: GlosaResult) -> dict[str, object]:

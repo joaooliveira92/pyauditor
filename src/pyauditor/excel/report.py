@@ -12,6 +12,7 @@ from openpyxl import Workbook
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.worksheet import Worksheet
 
+from pyauditor.atomic_write import atomic_write
 from pyauditor.config.models import IndicatorConfig
 from pyauditor.excel._style import BODY_FONT, BOTTOM_BORDER, HEADER_FILL, HEADER_FONT, LEFT_ALIGN
 from pyauditor.excel.capa import SHEET_NAME as CAPA_SHEET_NAME
@@ -390,8 +391,7 @@ def build_report(
         is_final_month=is_final_month, capa_fields=capa_fields,
         configs=configs, historico=historico,
     )
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        workbook.save(output_path)
+        atomic_write(output_path, workbook.save)
     finally:
         workbook.close()
