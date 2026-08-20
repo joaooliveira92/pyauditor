@@ -23,6 +23,7 @@ from pyauditor.cli.consolidate import ConsolidateResult, check_consolidate_ready
 from pyauditor.cli.dependencies import CHECKERS
 from pyauditor.cli.measure import MeasureResult, run_measure
 from pyauditor.cli.report import ReportResult, check_report_ready, run_report
+from pyauditor.config.manifest import load_manifest
 from pyauditor.logging import logger
 from pyauditor.orchestration.state import (
     CommandStateEntry,
@@ -156,11 +157,15 @@ def _dispatch(command: str, orgao: str | None, request: RunRequest) -> CommandRe
         capa_path = _capa_path_for(request.capa_path, orgao or "")
         return run_bootstrap(capa_path, orgao or "")
     if command == "measure":
+        per_orgao_config_dir = request.config_dir / (orgao or "")
+        manifest_path = per_orgao_config_dir / "datasets.yaml"
+        manifest = load_manifest(manifest_path) if manifest_path.exists() else None
         return run_measure(
             competencia=request.competencia,
-            config_dir=request.config_dir / (orgao or ""),
+            config_dir=per_orgao_config_dir,
             data_dir=request.data_dir / (orgao or ""),
             output_dir=request.output_dir / (orgao or ""),
+            manifest=manifest,
             expected_orgao=orgao,
             capa_path=_capa_path_for(request.capa_path, orgao or ""),
         )
