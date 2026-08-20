@@ -19,10 +19,10 @@ from pathlib import Path
 from typing import Final, Literal
 
 from pyauditor.cli.bootstrap import BootstrapResult, run_bootstrap
-from pyauditor.cli.consolidate import ConsolidateResult, run_consolidate
+from pyauditor.cli.consolidate import ConsolidateResult, check_consolidate_ready, run_consolidate
 from pyauditor.cli.dependencies import CHECKERS
 from pyauditor.cli.measure import MeasureResult, run_measure
-from pyauditor.cli.report import ReportResult, run_report
+from pyauditor.cli.report import ReportResult, check_report_ready, run_report
 from pyauditor.logging import logger
 from pyauditor.orchestration.state import (
     CommandStateEntry,
@@ -132,15 +132,22 @@ def _ensure_state(request: RunRequest, plan: tuple[tuple[str, str | None], ...])
 
 
 def dependency_missing(command: str, orgao: str | None, request: RunRequest) -> tuple[str, ...]:
-    checker = CHECKERS[command]
+    """`report`/`consolidate` are called through their real, fully-typed
+    function so mypy can catch a wrong-arity/wrong-type call — `CHECKERS`'s
+    `Callable[..., DependencyCheck]` erases each checker's actual parameter
+    list, so routing every call through it would let a mismatched call
+    silently pass type-checking. `bootstrap`/`measure` take no arguments, so
+    the erasure is harmless for them — they're the registry's genuine use
+    case: a runtime string→checker lookup for the zero-arg case, where
+    `command` is a loop variable, not statically known."""
     if command == "report":
         capa_path = _capa_path_for(request.capa_path, orgao or "")
         roms_dir = request.output_dir / (orgao or "")
-        check = checker(request.competencia, orgao or "", capa_path, roms_dir)
+        check = check_report_ready(request.competencia, orgao or "", capa_path, roms_dir)
     elif command == "consolidate":
-        check = checker(request.competencia, request.report_dir, request.output_dir)
+        check = check_consolidate_ready(request.competencia, request.report_dir, request.output_dir)
     else:
-        check = checker()
+        check = CHECKERS[command]()
     return check.missing
 
 
