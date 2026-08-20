@@ -5,7 +5,7 @@ from pathlib import Path
 from rich.console import Console
 
 from pyauditor.orchestration.run import RunRequest, execute_run
-from pyauditor.orchestration.summary import exit_code_for_run, render_summary
+from pyauditor.orchestration.summary import exit_code_for_run, fmt_pt_br, render_summary
 
 _CONFIG_YAML = """\
 indicator:
@@ -56,6 +56,15 @@ def _run(tmp_path: Path) -> RunRequest:
         capa_path=tmp_path / "capa.xlsx",
         runs_dir=tmp_path / ".pyauditor" / "runs",
     )
+
+
+def test_fmt_pt_br_formato_humano() -> None:
+    # Ticket 06, Q5/Q6: formato humano pt-BR (milhar com ponto, decimal com
+    # vírgula) — só no painel; logs/JSON mantém ponto decimal (máquina).
+    assert fmt_pt_br(46909.85) == "46.909,85"
+    assert fmt_pt_br(1.24) == "1,24"
+    assert fmt_pt_br(0.0) == "0,00"
+    assert fmt_pt_br(1234567.891) == "1.234.567,89"
 
 
 def test_render_summary_prints_and_exit_code_is_4_for_unfilled_capa(tmp_path: Path) -> None:

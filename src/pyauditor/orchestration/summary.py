@@ -190,6 +190,7 @@ def _consolidado_info(run_result: RunResult) -> dict[str, Any] | None:
         "caminho": str(csol.output_path),
         "decisoes_preservadas": csol.decisions_preserved,
         "glosa": "calculada" if csol.glosa_calculada else "não calculada",
+        "total_pontos": csol.total_pontos,
     }
 
 
@@ -205,6 +206,16 @@ def _caminhos_artefatos(run_result: RunResult) -> list[str]:
 
 def _warnings_count(run_result: RunResult) -> int:
     return sum(len(getattr(result, "warnings", ())) for result in run_result.results)
+
+
+def fmt_pt_br(value: float, *, decimals: int = 2) -> str:
+    """Formato numérico humano pt-BR (ticket 06, Q5/Q6): separador de milhar
+    `.`, decimal `,`. Uso no painel "Resultado" (humano); os logs técnicos e
+    JSON mantêm o ponto decimal (máquina)."""
+    raw = f"{value:.{decimals}f}"
+    inteiro, _, frac = raw.partition(".")
+    inteiro_p = f"{int(inteiro):,}".replace(",", ".")
+    return f"{inteiro_p},{frac}"
 
 
 def _errors_count(run_result: RunResult) -> int:
@@ -291,6 +302,7 @@ def _painel_resultado(run_result: RunResult, exit_code: int) -> Panel:
     else:
         publicacao = "não informada (falha técnica)"
 
+    csol = _consolidado_info(run_result)
     linhas = [
         f"[bold]Resultado:[/bold] {exit_code_name(exit_code)}",
         f"[bold]Competência:[/bold] {run_result.competencia}",
@@ -298,12 +310,14 @@ def _painel_resultado(run_result: RunResult, exit_code: int) -> Panel:
         f"[bold]Indicadores apurados:[/bold] {indicadores}",
         f"[bold]Relatórios individuais:[/bold] {relatorios}",
         "[bold]Relatório consolidado:[/bold] "
-        + ("gerado" if _consolidado_info(run_result) else "não gerado"),
+        + ("gerado" if csol else "não gerado"),
+        "[bold]Total de pontos (consolidado):[/bold] "
+        + (fmt_pt_br(csol["total_pontos"]) if csol else "—"),
         f"[bold]Avisos:[/bold] {_warnings_count(run_result)}",
         f"[bold]Erros:[/bold] {_errors_count(run_result)}",
         f"[bold]Glosa monetária:[/bold] {glosa}",
         f"[bold]Publicação:[/bold] {publicacao}",
-        f"[bold]Duração:[/bold] {_duracao_ms(run_result) / 1000:.2f} s",
+        f"[bold]Duração:[/bold] {fmt_pt_br(_duracao_ms(run_result) / 1000)} s",
     ]
     return Panel("\n".join(linhas), title="Resultado", border_style="white")
 

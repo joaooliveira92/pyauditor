@@ -34,6 +34,7 @@ class ConsolidateResult:
     warnings: tuple[str, ...]
     error_message: str | None
     glosa_calculada: bool = True
+    total_pontos: float = 0.0
 
 
 def check_consolidate_ready(competencia: str, report_dir: Path, roms_dir: Path) -> DependencyCheck:
@@ -134,10 +135,11 @@ def run_consolidate(
         "INFO",
         arquivo=str(output_path),
         total_pontos=f"{result.total_pontos:.2f}",
-        glosa="não calculada" if not result.glosa_calculada else f"{result.glosa_final:,.2f}",
+        glosa="não calculada" if not result.glosa_calculada else f"{result.glosa_final:.2f}",
     )
     return ConsolidateResult(
         status="done", competencia=competencia, output_path=output_path,
         decisions_preserved=len(existing_decisions), warnings=(), error_message=None,
         glosa_calculada=result.glosa_calculada,
+        total_pontos=result.total_pontos,
     )
