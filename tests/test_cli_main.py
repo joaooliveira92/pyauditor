@@ -8,7 +8,13 @@ from unittest.mock import patch
 
 import pytest
 
-from pyauditor.cli.main import MeasureRequest, build_parser, cli_main
+from pyauditor.cli.main import (
+    MeasureRequest,
+    _dispatch_bootstrap,
+    _dispatch_measure,
+    build_parser,
+    cli_main,
+)
 from pyauditor.logging import logger
 
 
@@ -193,6 +199,36 @@ def test_cli_main_run_dispatches_to_run_run(tmp_path: Path) -> None:
         assert m.call_args.kwargs["orgao"] == "MinC"
         assert m.call_args.kwargs["config_dir"] == cfg
         assert m.call_args.kwargs["report_dir"] == reports
+
+
+def test_dispatch_measure_is_callable_directly_without_argparse(tmp_path: Path) -> None:
+    """The point of splitting cli_main's branches into _dispatch_* functions:
+    each is independently testable with a hand-built Namespace, no argparse
+    or the no-args guided-flow branch in the way."""
+    cfg, data, out = tmp_path / "c", tmp_path / "d", tmp_path / "o"
+    for p in (cfg, data, out):
+        p.mkdir()
+    args = build_parser().parse_args(
+        [
+            "measure", "2026-06",
+            "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out),
+        ]
+    )
+    with patch("pyauditor.cli.main.run_measure", return_value=SimpleNamespace(status="done")) as m:
+        code = _dispatch_measure(args)
+        assert code == 0
+        assert m.call_args.kwargs["competencia"] == "2026-06"
+
+
+def test_dispatch_bootstrap_is_callable_directly_without_argparse(tmp_path: Path) -> None:
+    capa_path = tmp_path / "capa.xlsx"
+    args = build_parser().parse_args(["bootstrap", "--capa-path", str(capa_path)])
+    with patch(
+        "pyauditor.cli.main.run_bootstrap", return_value=SimpleNamespace(status="done")
+    ) as m:
+        code = _dispatch_bootstrap(args)
+        assert code == 0
+        assert m.call_args.args[0] == capa_path
 
 
 def test_cli_main_no_args_without_tty_exits_2(monkeypatch: pytest.MonkeyPatch) -> None:

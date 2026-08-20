@@ -257,6 +257,134 @@ def _each_single_orgao(orgao: str) -> tuple[str, ...]:
     return _SINGLE_ORGAOS if orgao == "both" else (orgao,)
 
 
+def _dispatch_measure(args: argparse.Namespace) -> int:
+    request = _extract_measure_request(args)
+    setup_logging(
+        log_path=_run_log_path(
+            request.output_dir / request.orgao / request.competencia,
+            _CMD_MEASURE, request.competencia,
+        )
+    )
+    measure_results = []
+    for orgao in _each_single_orgao(request.orgao):
+        per_orgao_config_dir = request.config_dir / orgao
+        per_orgao_data_dir = request.data_dir / orgao
+        per_orgao_output_dir = request.output_dir / orgao
+        per_orgao_manifest_path = request.config_dir / orgao / "datasets.yaml"
+        per_orgao_capa = _capa_path_for(request.capa_path, cast(Orgao, orgao))
+        manifest = None
+        if per_orgao_manifest_path.exists():
+            manifest = load_manifest(per_orgao_manifest_path)
+        measure_results.append(run_measure(
+            competencia=request.competencia,
+            config_dir=per_orgao_config_dir,
+            data_dir=per_orgao_data_dir,
+            output_dir=per_orgao_output_dir,
+            manifest=manifest,
+            expected_orgao=orgao,
+            capa_path=per_orgao_capa,
+        ))
+    return exit_code_for_results(measure_results)
+
+
+def _dispatch_bootstrap(args: argparse.Namespace) -> int:
+    capa_path = _extract_capa_path(args)
+    orgao = _require(args, "orgao", str)
+    bootstrap_results = []
+    for single_orgao in _each_single_orgao(orgao):
+        per_orgao_capa = _capa_path_for(capa_path, cast(Orgao, single_orgao))
+        setup_logging(log_path=_run_log_path(per_orgao_capa.parent, _CMD_BOOTSTRAP))
+        bootstrap_results.append(run_bootstrap(per_orgao_capa, single_orgao))
+    return exit_code_for_results(bootstrap_results)
+
+
+def _dispatch_report(args: argparse.Namespace) -> int:
+    report_request = _extract_report_request(args)
+    setup_logging(
+        log_path=_run_log_path(
+            report_request.output_path.parent, _CMD_REPORT, report_request.competencia
+        )
+    )
+    report_results = []
+    for orgao in _each_single_orgao(report_request.orgao):
+        per_orgao_capa = _capa_path_for(report_request.capa_path, cast(Orgao, orgao))
+        output_path = (
+            report_request.output_path.parent
+            / f"relatorio_{report_request.competencia}_{orgao}.xlsx"
+        )
+        # Pre-flight (ticket "Dependency enforcement"): same checker `run_report`
+        # calls internally — fast, actionable error before touching the pipeline.
+        per_orgao_roms_dir = report_request.roms_dir / orgao
+        dependency_check = check_report_ready(
+            report_request.competencia, orgao, per_orgao_capa, per_orgao_roms_dir
+        )
+        if not dependency_check.satisfied:
+            message = "dependência não satisfeita: " + "; ".join(dependency_check.missing)
+            logger.error(message)
+            report_results.append(ReportResult(
+                status="error", competencia=report_request.competencia, orgao=orgao,
+                output_path=output_path, indicator_count=0, warnings=(), error_message=message,
+            ))
+            continue
+        report_results.append(run_report(
+            competencia=report_request.competencia,
+            capa_path=per_orgao_capa,
+            roms_dir=per_orgao_roms_dir,
+            output_path=output_path,
+            config_dir=report_request.config_dir / orgao,
+            expected_orgao=orgao,
+            is_final_month=report_request.is_final_month,
+        ))
+    return exit_code_for_results(report_results)
+
+
+def _dispatch_consolidate(args: argparse.Namespace) -> int:
+    consolidate_request = _extract_consolidate_request(args)
+    setup_logging(
+        log_path=_run_log_path(
+            consolidate_request.output_path.parent, _CMD_CONSOLIDATE, consolidate_request.competencia
+        )
+    )
+    # Pre-flight (ticket "Dependency enforcement"): same checker `run_consolidate`
+    # calls internally — fast, actionable error before touching the pipeline.
+    dependency_check = check_consolidate_ready(
+        consolidate_request.competencia,
+        consolidate_request.report_dir,
+        consolidate_request.roms_dir,
+    )
+    if not dependency_check.satisfied:
+        message = "dependência não satisfeita: " + "; ".join(dependency_check.missing)
+        logger.error(message)
+        return exit_code_for("error")
+    consolidate_result = run_consolidate(
+        competencia=consolidate_request.competencia,
+        report_dir=consolidate_request.report_dir,
+        roms_dir=consolidate_request.roms_dir,
+        output_path=consolidate_request.output_path,
+    )
+    return exit_code_for(consolidate_result.status)
+
+
+def _dispatch_run(args: argparse.Namespace) -> int:
+    competencia = _require(args, "competencia", str)
+    orgao = _require(args, "orgao", str)
+    output_dir = _require(args, "output_dir", Path)
+    report_dir = _require(args, "report_dir", Path)
+    setup_logging(
+        log_path=_run_log_path(report_dir, _CMD_RUN, competencia)
+    )
+    return run_run(
+        competencia=competencia,
+        orgao=orgao,
+        config_dir=_require(args, "config_dir", Path),
+        data_dir=_require(args, "data_dir", Path),
+        output_dir=output_dir,
+        report_dir=report_dir,
+        capa_path=_extract_capa_path(args),
+        final_month=bool(cast(object, getattr(args, "final_month", False))),
+    )
+
+
 def cli_main(argv: Sequence[str] | None = None) -> int:
     """Dispatch CLI. Returns exit code; never leaks Any."""
     effective_argv = list(argv) if argv is not None else sys.argv[1:]
@@ -290,123 +418,15 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
     command: Command = command_raw
 
     if command == _CMD_MEASURE:
-        request = _extract_measure_request(args)
-        setup_logging(
-            log_path=_run_log_path(
-                request.output_dir / request.orgao / request.competencia,
-                _CMD_MEASURE, request.competencia,
-            )
-        )
-        measure_results = []
-        for orgao in _each_single_orgao(request.orgao):
-            per_orgao_config_dir = request.config_dir / orgao
-            per_orgao_data_dir = request.data_dir / orgao
-            per_orgao_output_dir = request.output_dir / orgao
-            per_orgao_manifest_path = request.config_dir / orgao / "datasets.yaml"
-            per_orgao_capa = _capa_path_for(request.capa_path, cast(Orgao, orgao))
-            manifest = None
-            if per_orgao_manifest_path.exists():
-                manifest = load_manifest(per_orgao_manifest_path)
-            measure_results.append(run_measure(
-                competencia=request.competencia,
-                config_dir=per_orgao_config_dir,
-                data_dir=per_orgao_data_dir,
-                output_dir=per_orgao_output_dir,
-                manifest=manifest,
-                expected_orgao=orgao,
-                capa_path=per_orgao_capa,
-            ))
-        return exit_code_for_results(measure_results)
+        return _dispatch_measure(args)
     elif command == _CMD_BOOTSTRAP:
-        capa_path = _extract_capa_path(args)
-        orgao = _require(args, "orgao", str)
-        bootstrap_results = []
-        for single_orgao in _each_single_orgao(orgao):
-            per_orgao_capa = _capa_path_for(capa_path, cast(Orgao, single_orgao))
-            setup_logging(log_path=_run_log_path(per_orgao_capa.parent, _CMD_BOOTSTRAP))
-            bootstrap_results.append(run_bootstrap(per_orgao_capa, single_orgao))
-        return exit_code_for_results(bootstrap_results)
+        return _dispatch_bootstrap(args)
     elif command == _CMD_REPORT:
-        report_request = _extract_report_request(args)
-        setup_logging(
-            log_path=_run_log_path(
-                report_request.output_path.parent, _CMD_REPORT, report_request.competencia
-            )
-        )
-        report_results = []
-        for orgao in _each_single_orgao(report_request.orgao):
-            per_orgao_capa = _capa_path_for(report_request.capa_path, cast(Orgao, orgao))
-            output_path = (
-                report_request.output_path.parent
-                / f"relatorio_{report_request.competencia}_{orgao}.xlsx"
-            )
-            # Pre-flight (ticket "Dependency enforcement"): same checker `run_report`
-            # calls internally — fast, actionable error before touching the pipeline.
-            per_orgao_roms_dir = report_request.roms_dir / orgao
-            dependency_check = check_report_ready(
-                report_request.competencia, orgao, per_orgao_capa, per_orgao_roms_dir
-            )
-            if not dependency_check.satisfied:
-                message = "dependência não satisfeita: " + "; ".join(dependency_check.missing)
-                logger.error(message)
-                report_results.append(ReportResult(
-                    status="error", competencia=report_request.competencia, orgao=orgao,
-                    output_path=output_path, indicator_count=0, warnings=(), error_message=message,
-                ))
-                continue
-            report_results.append(run_report(
-                competencia=report_request.competencia,
-                capa_path=per_orgao_capa,
-                roms_dir=per_orgao_roms_dir,
-                output_path=output_path,
-                config_dir=report_request.config_dir / orgao,
-                expected_orgao=orgao,
-                is_final_month=report_request.is_final_month,
-            ))
-        return exit_code_for_results(report_results)
+        return _dispatch_report(args)
     elif command == _CMD_CONSOLIDATE:
-        consolidate_request = _extract_consolidate_request(args)
-        setup_logging(
-            log_path=_run_log_path(
-                consolidate_request.output_path.parent, _CMD_CONSOLIDATE, consolidate_request.competencia
-            )
-        )
-        # Pre-flight (ticket "Dependency enforcement"): same checker `run_consolidate`
-        # calls internally — fast, actionable error before touching the pipeline.
-        dependency_check = check_consolidate_ready(
-            consolidate_request.competencia,
-            consolidate_request.report_dir,
-            consolidate_request.roms_dir,
-        )
-        if not dependency_check.satisfied:
-            message = "dependência não satisfeita: " + "; ".join(dependency_check.missing)
-            logger.error(message)
-            return exit_code_for("error")
-        consolidate_result = run_consolidate(
-            competencia=consolidate_request.competencia,
-            report_dir=consolidate_request.report_dir,
-            roms_dir=consolidate_request.roms_dir,
-            output_path=consolidate_request.output_path,
-        )
-        return exit_code_for(consolidate_result.status)
+        return _dispatch_consolidate(args)
     elif command == _CMD_RUN:
-        competencia = _require(args, "competencia", str)
-        orgao = _require(args, "orgao", str)
-        output_dir = _require(args, "output_dir", Path)
-        report_dir = _require(args, "report_dir", Path)
-        setup_logging(
-            log_path=_run_log_path(report_dir, _CMD_RUN, competencia)
-        )
-        return run_run(
-            competencia=competencia,
-            orgao=orgao,
-            config_dir=_require(args, "config_dir", Path),
-            data_dir=_require(args, "data_dir", Path),
-            output_dir=output_dir,
-            report_dir=report_dir,
-            capa_path=_extract_capa_path(args),
-            final_month=bool(cast(object, getattr(args, "final_month", False))),
-        )
+        return _dispatch_run(args)
     else:
         assert_never(command)
 
