@@ -7,6 +7,9 @@ uses `rich.Console` directly rather than the `InteractionProvider` Protocol.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -51,22 +54,42 @@ def _result_for(entry: CommandStateEntry, results: tuple[object, ...]) -> object
     return None
 
 
+def _bootstrap_artifact(result: BootstrapResult) -> str:
+    return str(result.capa_path)
+
+
+def _measure_artifact(result: MeasureResult) -> str:
+    failing = [i.contractual_id for i in result.indicators if i.hard_failure]
+    line = f"{len(result.indicators)} indicador(es) apurado(s)"
+    if failing:
+        line += f" — falhas: {', '.join(failing)}"
+    return line
+
+
+def _report_artifact(result: ReportResult) -> str:
+    return f"{result.output_path} ({result.indicator_count} indicadores)"
+
+
+def _consolidate_artifact(result: ConsolidateResult) -> str:
+    return f"{result.output_path} ({result.decisions_preserved} decisão(ões) preservada(s))"
+
+
+# Keyed the same way as `_RESULT_TYPE_FOR_COMMAND` — one type-discrimination
+# point instead of two (a prior isinstance-chain here re-decided the same
+# "which CommandResult subtype is this" question `_result_for` already answered).
+_ARTIFACT_FORMATTER_FOR_TYPE: dict[type, Callable[[Any], str]] = {
+    BootstrapResult: _bootstrap_artifact,
+    MeasureResult: _measure_artifact,
+    ReportResult: _report_artifact,
+    ConsolidateResult: _consolidate_artifact,
+}
+
+
 def _artifact_line(entry: CommandStateEntry, result: object | None) -> str:
     if result is None:
         return "pulado" if entry.status == "skipped" else "—"
-    if isinstance(result, BootstrapResult):
-        return str(result.capa_path)
-    if isinstance(result, MeasureResult):
-        failing = [i.contractual_id for i in result.indicators if i.hard_failure]
-        line = f"{len(result.indicators)} indicador(es) apurado(s)"
-        if failing:
-            line += f" — falhas: {', '.join(failing)}"
-        return line
-    if isinstance(result, ReportResult):
-        return f"{result.output_path} ({result.indicator_count} indicadores)"
-    if isinstance(result, ConsolidateResult):
-        return f"{result.output_path} ({result.decisions_preserved} decisão(ões) preservada(s))"
-    return "—"
+    formatter = _ARTIFACT_FORMATTER_FOR_TYPE.get(type(result))
+    return formatter(result) if formatter is not None else "—"
 
 
 def _next_steps(run_result: RunResult) -> list[str]:
