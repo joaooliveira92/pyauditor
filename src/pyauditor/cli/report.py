@@ -4,8 +4,10 @@ into the final Excel: `CADASTROS` + `INMS_BASE` + per-group tabs + `GLOSAS`
 """
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
+from pyauditor.cli.results import DependencyCheck, Status
 from pyauditor.engine.pipeline import discover_configs
 from pyauditor.excel.capa import read_capa_fields
 from pyauditor.excel.glosas import historico_entry, read_historico, write_historico
@@ -14,6 +16,32 @@ from pyauditor.logging import logger
 from pyauditor.rom.summary import IndicatorSummary
 
 HISTORICO_FILENAME = "glosa_historico.json"
+
+
+@dataclass(frozen=True, slots=True)
+class ReportResult:
+    status: Status
+    competencia: str
+    orgao: str
+    output_path: Path
+    indicator_count: int
+    warnings: tuple[str, ...]
+    error_message: str | None
+
+
+def check_report_ready(
+    competencia: str, orgao: str, capa_path: Path, roms_dir: Path
+) -> DependencyCheck:
+    """`report` needs bootstrap's capa and measure's ROMs for this
+    (competencia, orgao) — extracted from the ad-hoc checks below."""
+    missing: list[str] = []
+    if not capa_path.exists():
+        missing.append(f"capa ({capa_path}) — rode `pyauditor bootstrap`")
+    if not (roms_dir / competencia).is_dir():
+        missing.append(
+            f"ROMs de {orgao}/{competencia} ({roms_dir / competencia}) — rode `pyauditor measure`"
+        )
+    return DependencyCheck(satisfied=not missing, missing=tuple(missing))
 
 
 def _load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
@@ -33,26 +61,33 @@ def run_report(
     *,
     expected_orgao: str | None = None,
     is_final_month: bool = False,
-) -> int:
-    if not capa_path.exists():
-        logger.error(f"capa não encontrada em {capa_path} — rode `pyauditor bootstrap` primeiro")
-        return 1
+) -> ReportResult:
+    orgao = expected_orgao or ""
+
+    def _error(message: str) -> ReportResult:
+        logger.error(message)
+        return ReportResult(
+            status="error", competencia=competencia, orgao=orgao, output_path=output_path,
+            indicator_count=0, warnings=(), error_message=message,
+        )
+
+    # Defense-in-depth: same checker `cli_main`/the orchestrator call pre-dispatch
+    # (ticket "Dependency enforcement") — direct callers that bypass dispatch
+    # (tests, future code) still get it.
+    dependency_check = check_report_ready(competencia, orgao, capa_path, roms_dir)
+    if not dependency_check.satisfied:
+        return _error("dependência não satisfeita: " + "; ".join(dependency_check.missing))
 
     competencia_dir = roms_dir / competencia
-    if not competencia_dir.is_dir():
-        logger.error(f"nenhum ROM encontrado em {competencia_dir} — rode `pyauditor measure` primeiro")
-        return 1
-
     try:
         summaries = _load_summaries(competencia_dir)
     except (OSError, json.JSONDecodeError, TypeError) as exc:
-        logger.error(f"falha ao ler sumários de medição em {competencia_dir}: {exc}")
-        return 1
+        return _error(f"falha ao ler sumários de medição em {competencia_dir}: {exc}")
 
     if not summaries:
-        logger.error(f"nenhum sumário de medição (.json) encontrado em {competencia_dir}")
-        return 1
+        return _error(f"nenhum sumário de medição (.json) encontrado em {competencia_dir}")
 
+    warnings: list[str] = []
     capa_fields = read_capa_fields(capa_path)
     valor_base_raw = capa_fields.get("Valor mensal vigente")
     valor_base = float(valor_base_raw) if isinstance(valor_base_raw, int | float) else None
@@ -65,14 +100,18 @@ def run_report(
     try:
         configs = discover_configs(config_dir, expected_orgao=expected_orgao)
     except (OSError, ValueError) as exc:
-        logger.warning(f"falha ao carregar configs de {config_dir}, CADASTROS será omitido: {exc}")
+        warning = f"falha ao carregar configs de {config_dir}, CADASTROS será omitido: {exc}"
+        logger.warning(warning)
+        warnings.append(warning)
         configs = []
 
     historico_path = roms_dir / HISTORICO_FILENAME
     try:
         historico = read_historico(historico_path)
     except (OSError, json.JSONDecodeError) as exc:
-        logger.warning(f"falha ao ler histórico de glosa em {historico_path}, rollover será 0: {exc}")
+        warning = f"falha ao ler histórico de glosa em {historico_path}, rollover será 0: {exc}"
+        logger.warning(warning)
+        warnings.append(warning)
         historico = {}
 
     try:
@@ -82,8 +121,7 @@ def run_report(
             configs=configs or None, historico=historico,
         )
     except OSError as exc:
-        logger.error(f"falha ao escrever {output_path}: {exc}")
-        return 1
+        return _error(f"falha ao escrever {output_path}: {exc}")
 
     glosa = compute_report_glosa(
         competencia, summaries, valor_base, is_final_month=is_final_month, historico=historico
@@ -92,7 +130,12 @@ def run_report(
     try:
         write_historico(historico_path, historico)
     except OSError as exc:
-        logger.warning(f"falha ao gravar histórico de glosa em {historico_path}: {exc}")
+        warning = f"falha ao gravar histórico de glosa em {historico_path}: {exc}"
+        logger.warning(warning)
+        warnings.append(warning)
 
     logger.info(f"relatório consolidado: {output_path} ({len(summaries)} indicadores)")
-    return 0
+    return ReportResult(
+        status="done", competencia=competencia, orgao=orgao, output_path=output_path,
+        indicator_count=len(summaries), warnings=tuple(warnings), error_message=None,
+    )

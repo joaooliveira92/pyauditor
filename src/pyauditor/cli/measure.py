@@ -13,10 +13,12 @@ project hold the data of every past aferição side by side.
 
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from pyauditor.config.manifest import DatasetManifest, load_manifest
+from pyauditor.cli.results import DependencyCheck, Status
+from pyauditor.config.manifest import DatasetManifest
 from pyauditor.engine.pipeline import discover_config_files, measure
 from pyauditor.excel.capa import read_capa_fields
 from pyauditor.logging import logger
@@ -25,6 +27,31 @@ from pyauditor.rom.summary import summarize
 
 _COMPETENCIA_RE: Final = re.compile(r"^\d{4}-\d{2}$")
 _UNSAFE_ID_CHARS_RE: Final = re.compile(r"[^A-Za-z0-9._-]")
+
+
+@dataclass(frozen=True, slots=True)
+class IndicatorOutcome:
+    contractual_id: str
+    rom_path: Path
+    summary_path: Path
+    hard_failure: bool
+    error: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class MeasureResult:
+    status: Status
+    competencia: str
+    orgao: str
+    indicators: tuple[IndicatorOutcome, ...]
+    warnings: tuple[str, ...]
+    error_message: str | None
+
+
+def check_measure_ready(*_args: object, **_kwargs: object) -> DependencyCheck:
+    """`measure` only needs configs+data, both external inputs it validates
+    itself — no dependency on another Command's output."""
+    return DependencyCheck(satisfied=True, missing=())
 
 # Capa labels the ROM's Identificação/Responsáveis sections read (rom/render.py).
 _CAPA_ROM_FIELDS: Final[tuple[str, ...]] = (
@@ -53,10 +80,18 @@ def run_measure(
     *,
     expected_orgao: str | None = None,
     capa_path: Path | None = None,
-) -> int:
+) -> MeasureResult:
+    orgao = expected_orgao or ""
+
+    def _error(message: str) -> MeasureResult:
+        logger.error(message)
+        return MeasureResult(
+            status="error", competencia=competencia, orgao=orgao, indicators=(),
+            warnings=(), error_message=message,
+        )
+
     if not _COMPETENCIA_RE.match(competencia):
-        logger.error(f"competência inválida {competencia!r}: esperado YYYY-MM (ex.: 2026-06)")
-        return 1
+        return _error(f"competência inválida {competencia!r}: esperado YYYY-MM (ex.: 2026-06)")
 
     # Datasets live under <data-dir>/<YYYY>/<MM> for this competência — never
     # at the data-dir root — so past aferições can coexist in the same project.
@@ -66,39 +101,42 @@ def run_measure(
     try:
         configs = discover_config_files(config_dir, expected_orgao=expected_orgao)
     except (OSError, ValueError) as exc:
-        logger.error(f"falha ao carregar configs de {config_dir}: {exc}")
-        return 1
+        return _error(f"falha ao carregar configs de {config_dir}: {exc}")
     if not configs:
-        logger.error(f"nenhum config encontrado em {config_dir}")
-        return 1
+        return _error(f"nenhum config encontrado em {config_dir}")
 
     target_dir = output_dir / competencia
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        logger.error(f"falha ao criar diretório {target_dir}: {exc}")
-        return 1
+        return _error(f"falha ao criar diretório {target_dir}: {exc}")
 
     # Identificação/Responsáveis in the ROM come from the capa — informational
     # only here (unlike `report`'s "Valor mensal vigente", nothing here blocks
     # the measurement), so a missing capa is a warning, not a hard failure.
     capa_fields: dict[str, object] = {}
+    warnings: list[str] = []
     if capa_path is not None:
         if capa_path.exists():
             capa_fields = read_capa_fields(capa_path)
             empty_fields = [f for f in _CAPA_ROM_FIELDS if not capa_fields.get(f)]
             if empty_fields:
-                logger.warning(
+                warning = (
                     f"capa em {capa_path} sem preencher: {', '.join(empty_fields)} — "
                     "ROM mostra '[a preencher]' nesses campos"
                 )
+                logger.warning(warning)
+                warnings.append(warning)
         else:
-            logger.warning(
+            warning = (
                 f"capa não encontrada em {capa_path} — identificação/responsáveis do ROM "
                 "ficam '[a preencher]'"
             )
+            logger.warning(warning)
+            warnings.append(warning)
 
     any_hard_failure = False
+    outcomes: list[IndicatorOutcome] = []
 
     for config_path, config_hash, config in configs:
         contractual_id = config.indicator.contractual_id
@@ -120,21 +158,50 @@ def run_measure(
                 encoding="utf-8",
             )
         except OSError as exc:
-            logger.error(f"falha ao escrever {rom_path}: {exc}")
+            message = f"falha ao escrever {rom_path}: {exc}"
+            logger.error(message)
             any_hard_failure = True
+            outcomes.append(IndicatorOutcome(
+                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
+                hard_failure=True, error=message,
+            ))
             continue
-        except Exception as exc:  # noqa: BLE001 — boundary: log and keep processing other indicators
-            logger.error(f"{contractual_id}: exceção na medição: {exc}")
+        except Exception as exc:
+            message = f"{contractual_id}: exceção na medição: {exc}"
+            logger.error(message)
             any_hard_failure = True
+            outcomes.append(IndicatorOutcome(
+                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
+                hard_failure=True, error=message,
+            ))
             continue
 
         if result.hard_failure:
             any_hard_failure = True
-            logger.error(
+            error = (
                 f"{contractual_id}: falha de medição — "
                 f"nenhuma linha sobreviveu aos quality gates ({rom_path})"
             )
+            logger.error(error)
+            outcomes.append(IndicatorOutcome(
+                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
+                hard_failure=True, error=error,
+            ))
         else:
             logger.info(f"{contractual_id}: {rom_path}")
+            outcomes.append(IndicatorOutcome(
+                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
+                hard_failure=False, error=None,
+            ))
 
-    return 1 if any_hard_failure else 0
+    error_message = (
+        "um ou mais indicadores tiveram falha de medição" if any_hard_failure else None
+    )
+    return MeasureResult(
+        status="error" if any_hard_failure else "done",
+        competencia=competencia,
+        orgao=orgao,
+        indicators=tuple(outcomes),
+        warnings=tuple(warnings),
+        error_message=error_message,
+    )

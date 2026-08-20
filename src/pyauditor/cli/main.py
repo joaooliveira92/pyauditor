@@ -15,11 +15,13 @@ from pathlib import Path
 from typing import Final, Literal, NoReturn, TypeAlias, TypeGuard, TypeVar, assert_never, cast
 
 from pyauditor.cli.bootstrap import run_bootstrap
-from pyauditor.cli.consolidate import run_consolidate
+from pyauditor.cli.consolidate import check_consolidate_ready, run_consolidate
 from pyauditor.cli.measure import run_measure
-from pyauditor.cli.report import run_report
+from pyauditor.cli.report import ReportResult, check_report_ready, run_report
+from pyauditor.cli.results import exit_code_for, exit_code_for_results
+from pyauditor.cli.run import run_run
 from pyauditor.config.manifest import load_manifest
-from pyauditor.logging import setup_logging
+from pyauditor.logging import logger, setup_logging
 
 __all__: Final[tuple[str, ...]] = (
     "ConsolidateRequest", "MeasureRequest", "ReportRequest", "build_parser", "cli_main",
@@ -30,8 +32,9 @@ _CMD_MEASURE: Final[Literal["measure"]] = "measure"
 _CMD_BOOTSTRAP: Final[Literal["bootstrap"]] = "bootstrap"
 _CMD_REPORT: Final[Literal["report"]] = "report"
 _CMD_CONSOLIDATE: Final[Literal["consolidate"]] = "consolidate"
+_CMD_RUN: Final[Literal["run"]] = "run"
 
-Command: TypeAlias = Literal["measure", "bootstrap", "report", "consolidate"]
+Command: TypeAlias = Literal["measure", "bootstrap", "report", "consolidate", "run"]
 
 Orgao: TypeAlias = Literal["MinC", "MTur", "both"]
 
@@ -82,7 +85,7 @@ class ConsolidateRequest:
 
 
 def _is_command(value: str) -> TypeGuard[Command]:
-    return value in (_CMD_MEASURE, _CMD_BOOTSTRAP, _CMD_REPORT, _CMD_CONSOLIDATE)
+    return value in (_CMD_MEASURE, _CMD_BOOTSTRAP, _CMD_REPORT, _CMD_CONSOLIDATE, _CMD_RUN)
 
 
 _T = TypeVar("_T")
@@ -163,6 +166,23 @@ def build_parser() -> argparse.ArgumentParser:
     consolidate_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
     consolidate_parser.add_argument("--roms-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
 
+    run_parser = subparsers.add_parser(
+        _CMD_RUN,
+        help="encadeia bootstrap→measure→report→consolidate numa invocação scriptável",
+    )
+    run_parser.add_argument("competencia", help='ex.: "2026-06"')
+    _add_orgao_argument(run_parser)
+    run_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
+    run_parser.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA_DIR)
+    run_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
+    run_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
+    run_parser.add_argument("--capa-path", type=Path, default=None)
+    run_parser.add_argument(
+        "--final-month",
+        action="store_true",
+        help="último mês de vigência do contrato — desliga o rollover de glosa (item 35 do TR)",
+    )
+
     return parser
 
 
@@ -239,8 +259,24 @@ def _each_single_orgao(orgao: str) -> tuple[str, ...]:
 
 def cli_main(argv: Sequence[str] | None = None) -> int:
     """Dispatch CLI. Returns exit code; never leaks Any."""
+    effective_argv = list(argv) if argv is not None else sys.argv[1:]
+
+    if not effective_argv:
+        # No args at all -> guided flow (map.md decision). A named command with
+        # missing required args still falls through to argparse's normal error.
+        if not sys.stdin.isatty():
+            print(
+                "nenhum terminal detectado — use um subcomando diretamente, "
+                "ex.: `pyauditor measure 2026-06`",
+                file=sys.stderr,
+            )
+            return 2
+        from pyauditor.interactive import run_interactive  # local: TTY-gated import
+
+        return run_interactive()
+
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(effective_argv)
 
     # Boundary: Namespace.command is Any -> object -> str
     command_raw: object = cast(object, getattr(args, "command", None))
@@ -261,7 +297,7 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
                 _CMD_MEASURE, request.competencia,
             )
         )
-        code = 0
+        measure_results = []
         for orgao in _each_single_orgao(request.orgao):
             per_orgao_config_dir = request.config_dir / orgao
             per_orgao_data_dir = request.data_dir / orgao
@@ -271,7 +307,7 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
             manifest = None
             if per_orgao_manifest_path.exists():
                 manifest = load_manifest(per_orgao_manifest_path)
-            code |= run_measure(
+            measure_results.append(run_measure(
                 competencia=request.competencia,
                 config_dir=per_orgao_config_dir,
                 data_dir=per_orgao_data_dir,
@@ -279,17 +315,17 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
                 manifest=manifest,
                 expected_orgao=orgao,
                 capa_path=per_orgao_capa,
-            )
-        return code
+            ))
+        return exit_code_for_results(measure_results)
     elif command == _CMD_BOOTSTRAP:
         capa_path = _extract_capa_path(args)
         orgao = _require(args, "orgao", str)
-        code = 0
+        bootstrap_results = []
         for single_orgao in _each_single_orgao(orgao):
             per_orgao_capa = _capa_path_for(capa_path, cast(Orgao, single_orgao))
             setup_logging(log_path=_run_log_path(per_orgao_capa.parent, _CMD_BOOTSTRAP))
-            code |= run_bootstrap(per_orgao_capa)
-        return code
+            bootstrap_results.append(run_bootstrap(per_orgao_capa, single_orgao))
+        return exit_code_for_results(bootstrap_results)
     elif command == _CMD_REPORT:
         report_request = _extract_report_request(args)
         setup_logging(
@@ -297,23 +333,37 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
                 report_request.output_path.parent, _CMD_REPORT, report_request.competencia
             )
         )
-        code = 0
+        report_results = []
         for orgao in _each_single_orgao(report_request.orgao):
             per_orgao_capa = _capa_path_for(report_request.capa_path, cast(Orgao, orgao))
             output_path = (
                 report_request.output_path.parent
                 / f"relatorio_{report_request.competencia}_{orgao}.xlsx"
             )
-            code |= run_report(
+            # Pre-flight (ticket "Dependency enforcement"): same checker `run_report`
+            # calls internally — fast, actionable error before touching the pipeline.
+            per_orgao_roms_dir = report_request.roms_dir / orgao
+            dependency_check = check_report_ready(
+                report_request.competencia, orgao, per_orgao_capa, per_orgao_roms_dir
+            )
+            if not dependency_check.satisfied:
+                message = "dependência não satisfeita: " + "; ".join(dependency_check.missing)
+                logger.error(message)
+                report_results.append(ReportResult(
+                    status="error", competencia=report_request.competencia, orgao=orgao,
+                    output_path=output_path, indicator_count=0, warnings=(), error_message=message,
+                ))
+                continue
+            report_results.append(run_report(
                 competencia=report_request.competencia,
                 capa_path=per_orgao_capa,
-                roms_dir=report_request.roms_dir / orgao,
+                roms_dir=per_orgao_roms_dir,
                 output_path=output_path,
                 config_dir=report_request.config_dir / orgao,
                 expected_orgao=orgao,
                 is_final_month=report_request.is_final_month,
-            )
-        return code
+            ))
+        return exit_code_for_results(report_results)
     elif command == _CMD_CONSOLIDATE:
         consolidate_request = _extract_consolidate_request(args)
         setup_logging(
@@ -321,11 +371,41 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
                 consolidate_request.output_path.parent, _CMD_CONSOLIDATE, consolidate_request.competencia
             )
         )
-        return run_consolidate(
+        # Pre-flight (ticket "Dependency enforcement"): same checker `run_consolidate`
+        # calls internally — fast, actionable error before touching the pipeline.
+        dependency_check = check_consolidate_ready(
+            consolidate_request.competencia,
+            consolidate_request.report_dir,
+            consolidate_request.roms_dir,
+        )
+        if not dependency_check.satisfied:
+            message = "dependência não satisfeita: " + "; ".join(dependency_check.missing)
+            logger.error(message)
+            return exit_code_for("error")
+        consolidate_result = run_consolidate(
             competencia=consolidate_request.competencia,
             report_dir=consolidate_request.report_dir,
             roms_dir=consolidate_request.roms_dir,
             output_path=consolidate_request.output_path,
+        )
+        return exit_code_for(consolidate_result.status)
+    elif command == _CMD_RUN:
+        competencia = _require(args, "competencia", str)
+        orgao = _require(args, "orgao", str)
+        output_dir = _require(args, "output_dir", Path)
+        report_dir = _require(args, "report_dir", Path)
+        setup_logging(
+            log_path=_run_log_path(report_dir, _CMD_RUN, competencia)
+        )
+        return run_run(
+            competencia=competencia,
+            orgao=orgao,
+            config_dir=_require(args, "config_dir", Path),
+            data_dir=_require(args, "data_dir", Path),
+            output_dir=output_dir,
+            report_dir=report_dir,
+            capa_path=_extract_capa_path(args),
+            final_month=bool(cast(object, getattr(args, "final_month", False))),
         )
     else:
         assert_never(command)

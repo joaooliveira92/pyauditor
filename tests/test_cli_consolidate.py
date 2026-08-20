@@ -55,7 +55,7 @@ def _build_orgao_report(tmp_path: Path, orgao: str, valor_mensal: float = 100_00
         "2026-06", capa_path, roms_dir / orgao, output_path,
         config_dir=tmp_path / "configs" / orgao,
     )
-    assert exit_code == 0
+    assert exit_code.status == "done"
 
 
 def test_run_consolidate_fails_when_a_report_is_missing(tmp_path: Path) -> None:
@@ -67,7 +67,7 @@ def test_run_consolidate_fails_when_a_report_is_missing(tmp_path: Path) -> None:
         tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx",
     )
 
-    assert exit_code == 1
+    assert exit_code.status == "error"
     assert not (tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx").exists()
 
 
@@ -78,7 +78,7 @@ def test_run_consolidate_builds_workbook_from_both_orgaos(tmp_path: Path) -> Non
 
     exit_code = run_consolidate("2026-06", tmp_path / "reports", tmp_path / "roms", output_path)
 
-    assert exit_code == 0
+    assert exit_code.status == "done"
     assert output_path.exists()
     workbook = load_workbook(output_path)
     sheet = workbook[GLOSAS_SHEET]

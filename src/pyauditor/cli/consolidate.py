@@ -12,14 +12,39 @@ preserved (ticket 04 Q3).
 """
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
+from pyauditor.cli.results import DependencyCheck, Status
 from pyauditor.excel.capa import read_capa_fields
 from pyauditor.excel.consolidate import build_consolidated_workbook, read_existing_decisions
 from pyauditor.logging import logger
 from pyauditor.rom.summary import IndicatorSummary
 
 _ORGAOS: tuple[str, str] = ("MinC", "MTur")
+
+
+@dataclass(frozen=True, slots=True)
+class ConsolidateResult:
+    status: Status
+    competencia: str  # sem orgao — consolidate é agnóstico de órgão
+    output_path: Path
+    decisions_preserved: int
+    warnings: tuple[str, ...]
+    error_message: str | None
+
+
+def check_consolidate_ready(competencia: str, report_dir: Path, roms_dir: Path) -> DependencyCheck:
+    """`consolidate` needs both MinC and MTur `report` outputs (and their
+    ROMs) — the pair is fixed, not a generic per-orgao predecessor."""
+    missing: list[str] = []
+    report_paths = {
+        orgao: report_dir / f"relatorio_{competencia}_{orgao}.xlsx" for orgao in _ORGAOS
+    }
+    missing.extend(str(path) for path in report_paths.values() if not path.exists())
+    roms_dirs = {orgao: roms_dir / orgao / competencia for orgao in _ORGAOS}
+    missing.extend(str(d) for d in roms_dirs.values() if not d.is_dir())
+    return DependencyCheck(satisfied=not missing, missing=tuple(missing))
 
 
 def _load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
@@ -35,43 +60,43 @@ def run_consolidate(
     report_dir: Path,
     roms_dir: Path,
     output_path: Path,
-) -> int:
-    report_paths = {orgao: report_dir / f"relatorio_{competencia}_{orgao}.xlsx" for orgao in _ORGAOS}
-    missing = [str(path) for path in report_paths.values() if not path.exists()]
-    if missing:
-        logger.error(
-            "faltam relatórios por órgão para consolidar: "
-            + ", ".join(missing)
-            + " — rode `pyauditor report` para cada órgão antes de `consolidate`"
+) -> ConsolidateResult:
+    def _error(message: str) -> ConsolidateResult:
+        logger.error(message)
+        return ConsolidateResult(
+            status="error", competencia=competencia, output_path=output_path,
+            decisions_preserved=0, warnings=(), error_message=message,
         )
-        return 1
 
+    # Defense-in-depth: same checker `cli_main`/the orchestrator call pre-dispatch
+    # (ticket "Dependency enforcement") — direct callers that bypass dispatch
+    # (tests, future code) still get it.
+    dependency_check = check_consolidate_ready(competencia, report_dir, roms_dir)
+    if not dependency_check.satisfied:
+        return _error("dependência não satisfeita: " + "; ".join(dependency_check.missing))
+
+    report_paths = {
+        orgao: report_dir / f"relatorio_{competencia}_{orgao}.xlsx" for orgao in _ORGAOS
+    }
     roms_dirs = {orgao: roms_dir / orgao / competencia for orgao in _ORGAOS}
-    missing_roms = [str(d) for d in roms_dirs.values() if not d.is_dir()]
-    if missing_roms:
-        logger.error(
-            "faltam ROMs por órgão para consolidar: " + ", ".join(missing_roms)
-            + " — rode `pyauditor measure` para cada órgão antes de `consolidate`"
-        )
-        return 1
 
     try:
         minc = _load_summaries(roms_dirs["MinC"])
         mtur = _load_summaries(roms_dirs["MTur"])
     except (OSError, json.JSONDecodeError, TypeError) as exc:
-        logger.error(f"falha ao ler sumários de medição: {exc}")
-        return 1
+        return _error(f"falha ao ler sumários de medição: {exc}")
 
     if not minc or not mtur:
-        logger.error("nenhum sumário de medição (.json) encontrado para um dos órgãos")
-        return 1
+        return _error("nenhum sumário de medição (.json) encontrado para um dos órgãos")
 
     minc_capa = read_capa_fields(report_paths["MinC"])
     mtur_capa = read_capa_fields(report_paths["MTur"])
 
     existing_decisions = read_existing_decisions(output_path)
     if existing_decisions:
-        logger.info(f"{len(existing_decisions)} decisão(ões) do fiscal preservada(s) de {output_path}")
+        logger.info(
+            f"{len(existing_decisions)} decisão(ões) do fiscal preservada(s) de {output_path}"
+        )
 
     result = build_consolidated_workbook(
         competencia, minc, mtur, minc_capa, mtur_capa, existing_decisions
@@ -81,11 +106,13 @@ def run_consolidate(
         output_path.parent.mkdir(parents=True, exist_ok=True)
         result.workbook.save(output_path)
     except OSError as exc:
-        logger.error(f"falha ao escrever {output_path}: {exc}")
-        return 1
+        return _error(f"falha ao escrever {output_path}: {exc}")
 
     logger.info(
         f"relatório consolidado: {output_path} "
         f"(total de pontos: {result.total_pontos:.2f}, glosa: {result.glosa_final:,.2f})"
     )
-    return 0
+    return ConsolidateResult(
+        status="done", competencia=competencia, output_path=output_path,
+        decisions_preserved=len(existing_decisions), warnings=(), error_message=None,
+    )

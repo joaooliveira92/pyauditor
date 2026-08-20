@@ -66,7 +66,7 @@ def test_run_report_persists_glosa_historico(tmp_path: Path) -> None:
 
     exit_code = run_report("2026-06", capa_path, roms_dir, output_path, config_dir=tmp_path / "configs")
 
-    assert exit_code == 0
+    assert exit_code.status == "done"
     historico = json.loads((roms_dir / "glosa_historico.json").read_text(encoding="utf-8"))
     assert historico["2026-06"]["saldo_rolado_pct"] == 10.0
     assert historico["2026-06"]["teto_atingido"] is True
@@ -87,7 +87,7 @@ def test_run_report_next_competencia_consumes_rollover(tmp_path: Path) -> None:
     output_path = tmp_path / "reports" / "relatorio_2026-07.xlsx"
     exit_code = run_report("2026-07", capa_path, roms_dir, output_path, config_dir=tmp_path / "configs")
 
-    assert exit_code == 0
+    assert exit_code.status == "done"
     workbook = load_workbook(output_path)
     glosas_sheet = workbook[GLOSAS_SHEET]
     assert glosas_sheet.cell(row=2, column=3).value == 10.0  # saldo recebido do mês anterior
@@ -105,7 +105,7 @@ def test_run_report_final_month_does_not_roll_over(tmp_path: Path) -> None:
         "2026-06", capa_path, roms_dir, output_path, config_dir=tmp_path / "configs", is_final_month=True
     )
 
-    assert exit_code == 0
+    assert exit_code.status == "done"
     historico = json.loads((roms_dir / "glosa_historico.json").read_text(encoding="utf-8"))
     assert historico["2026-06"]["saldo_rolado_pct"] == 0.0
 
@@ -117,7 +117,7 @@ def test_run_report_fails_without_capa(tmp_path: Path) -> None:
 
     exit_code = run_report("2026-06", capa_path, roms_dir, tmp_path / "reports" / "out.xlsx", config_dir=tmp_path / "configs")
 
-    assert exit_code == 1
+    assert exit_code.status == "error"
     assert not (tmp_path / "reports" / "out.xlsx").exists()
 
 
@@ -128,7 +128,7 @@ def test_run_report_fails_without_roms(tmp_path: Path) -> None:
 
     exit_code = run_report("2026-06", capa_path, roms_dir, tmp_path / "reports" / "out.xlsx", config_dir=tmp_path / "configs")
 
-    assert exit_code == 1
+    assert exit_code.status == "error"
 
 
 def test_run_report_builds_workbook_from_summaries(tmp_path: Path) -> None:
@@ -140,7 +140,7 @@ def test_run_report_builds_workbook_from_summaries(tmp_path: Path) -> None:
 
     exit_code = run_report("2026-06", capa_path, roms_dir, output_path, config_dir=tmp_path / "configs")
 
-    assert exit_code == 0
+    assert exit_code.status == "done"
     assert output_path.exists()
 
     workbook = load_workbook(output_path)
@@ -186,7 +186,7 @@ def test_run_report_reads_valor_base_from_capa_for_glosas(tmp_path: Path) -> Non
 
     exit_code = run_report("2026-06", capa_path, roms_dir, output_path, config_dir=tmp_path / "configs")
 
-    assert exit_code == 0
+    assert exit_code.status == "done"
     workbook = load_workbook(output_path)
     glosas_sheet = workbook[GLOSAS_SHEET]
     assert glosas_sheet.cell(row=2, column=5).value == 100_000.0  # Valor-base

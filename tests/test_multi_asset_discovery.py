@@ -56,9 +56,9 @@ def test_measure_writes_distinct_rom_and_summary_per_asset(tmp_path: Path) -> No
         rom = render_rom(result)
         assert f"— {config.indicator.asset}" in rom  # asset shown in ROM title
 
-    exit_code = run_measure("2026-06", CONFIG_DIR, tmp_path, tmp_path / "roms")
+    measure_result = run_measure("2026-06", CONFIG_DIR, tmp_path, tmp_path / "roms")
 
-    assert exit_code == 0
+    assert measure_result.status == "done"
     roms_dir = tmp_path / "roms" / "2026-06"
     assert (roms_dir / "INMS-1.14-FILE-SERVER.md").exists()
     assert (roms_dir / "INMS-1.14-WIFI.md").exists()

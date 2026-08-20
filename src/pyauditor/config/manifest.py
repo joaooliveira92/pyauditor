@@ -36,7 +36,7 @@ class DatasetEntry(BaseModel):
     encoding: str = "utf-8-sig"
 
 
-class _RawManifest(dict[str, object]):  # type: ignore[type-arg]
+class _RawManifest(dict[str, object]):
     """Typed wrapper for the raw YAML top-level mapping."""
 
 
