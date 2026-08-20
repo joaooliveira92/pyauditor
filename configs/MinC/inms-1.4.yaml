@@ -25,10 +25,6 @@ target:
   operator: ">="
   value: 99.5
 
-penalty:
-  step_points: 1000
-  step_size_pct: 0.1
-
 # Anexo D (Tabela 28), INMS 1.4: meta ≥99,5% POR sistema/serviço crítico (não
 # somatório — ticket 13), 1000 pontos a cada 0,1% abaixo da meta. Um único
 # YAML+CSV = um ativo, com 1 linha pré-agregada pela ferramenta de

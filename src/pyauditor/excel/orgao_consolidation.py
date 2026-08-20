@@ -2,9 +2,11 @@
 
     Resultado consolidado = (Numerador MinC + Numerador MTur) / (Denominador MinC + Denominador MTur)
 
-Only affects `INMS_BASE`'s view — `report.py`'s group tabs and `GLOSAS` keep
-using the original per-órgão summaries unchanged, so this never double-counts
-penalty points or duplicates rows outside `INMS_BASE`.
+Used by `excel/consolidate.py`'s `consolidate` subcommand (2.1), which is the
+only place MinC and MTur summaries are ever combined — `report.py` is
+per-órgão by construction and never calls this (.scratch/multi-org-pipeline
+ticket 02). Only affects `INMS_BASE`'s view — `consolidate.py`'s GLOSAS keeps
+one row per (indicador × órgão), so this never double-counts penalty points.
 
 Scope: `docs/spreadsheet.md` calls out an exception for per-asset
 disponibilidade indicators (1.4/1.5/1.14) — "o consolidado deverá seguir a

@@ -1,5 +1,5 @@
 Type: prototype
-Status: claimed
+Status: resolved
 Blocked by: 01
 
 ## Question
@@ -16,4 +16,10 @@ Baseado no detalhe financeiro documentado no ticket [Mapear as abas financeiras 
 
 ## Answer
 
-(aberto)
+Mock gerado e aprovado pelo fiscal (19/08/2026): `reports/relatorio_<comp>_consolidado_PROTOTYPE.xlsx` com as 5 abas do núcleo financeiro, construído a partir dos ROMs reais MinC+MTur (com uma divergência sintética documentada no script, para o MTur não ser um espelho degenerado do MinC).
+
+Formato validado: reutiliza `pyauditor.excel._style` (Arial 10, header branco-em-navy, bordas finas, freeze panes) e vai além — aplica os formatos numéricos de `docs/styleguide.md` que a produção (`capa.py`/`report.py`) ainda não tem: moeda (`R$#,##0.00`), percentual (escapado quando o valor já está em espaço-percentual vs. formato `%` nativo quando é fração), e borda superior + negrito nas linhas de total (GLOSAS "Valor Glosa", CALCULO_PAGAMENTO "Valor recomendado"). `CAPA_E_CONTROLE` do mock passou a espelhar o padrão título/header de `capa.py` (`TITLE_FONT`/`HEADER_FONT`+`HEADER_FILL`/`LABEL_FONT`).
+
+Gap remanescente (não implementado no mock nem na produção): color-coding por função de célula (azul=hardcode, preto=fórmula mesma aba, verde=link entre abas) do styleguide — deixado para quando `consolidate` virar código de produção, não é bloqueador da forma do workbook.
+
+Prototype capturado como fonte primária na branch `prototype/consolidated-workbook-mock` (commit `a7df79c`), fora do master.

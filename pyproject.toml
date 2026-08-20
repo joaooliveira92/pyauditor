@@ -13,6 +13,8 @@ dependencies = [
     "openpyxl>=3.1.5",
     "pydantic>=2.13.4",
     "pyyaml>=6.0.3",
+    "questionary>=2.1.1",
+    "rich>=15.0.0",
 ]
 
 [project.scripts]
@@ -45,6 +47,9 @@ quality = [
 security = [
     "bandit>=1.9",
     "pip-audit>=2.10",
+]
+docs = [
+    "zensical>=0.0.56",
 ]
 
 [tool.mypy]

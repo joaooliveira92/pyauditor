@@ -10,7 +10,7 @@ indicador é declarativo: um YAML + um CSV.
 
 ## Procedimento
 
-1. Coloque o CSV da competência em `input/<ano>/<mês>/` e registre-o no
+1. Coloque o CSV da competência em `input/<orgao>/<ano>/<mês>/` e registre-o no
    manifesto se for um novo dataset:
 
    ```yaml
@@ -21,7 +21,7 @@ indicador é declarativo: um YAML + um CSV.
        encoding: utf-8-sig
    ```
 
-2. Crie `configs/inms-99.yaml` declarando: `indicator`, `scope`, `source`
+2. Crie `configs/<orgao>/inms-99.yaml` declarando: `indicator`, `scope`, `source`
    (com `dataset: novo_dataset`), `quality_gates`, `calculation` (shape),
    e, conforme o shape, `target`/`penalty`.
 
@@ -30,12 +30,12 @@ indicador é declarativo: um YAML + um CSV.
 4. Valide a medição:
 
    ```bash
-   uv run pyauditor measure 2026-06 --config-dir configs --data-dir input --output-dir roms
+   uv run pyauditor measure 2026-06 --orgao MinC --config-dir configs --data-dir input --output-dir roms
    ```
 
 ## Verificação
 
-- `roms/2026-06/INMS-99.md` e `roms/2026-06/INMS-99.json` foram criados.
+- `roms/MinC/2026-06/INMS-99.md` e `roms/MinC/2026-06/INMS-99.json` foram criados.
 - O ROM mostra população, rejeições, memória de cálculo e resultado vs meta
   coerentes.
 - Rode os testes para garantir que novas configs não quebram o pipeline:
@@ -46,10 +46,10 @@ indicador é declarativo: um YAML + um CSV.
 
 ## Exemplos por shape
 
-- **`ratio`** — `configs/inms-1.1.yaml` (razão simples com meta e penalidade).
-- **`segmented_ratio`** — `configs/inms-1.2.yaml`.
-- **`precomputed_table`** — `configs/inms-1.10.yaml` (tabela de apuração por
-  linha/ativo).
+- **`ratio`** — `configs/<orgao>/inms-1.1.yaml` (razão simples com meta e penalidade).
+- **`segmented_ratio`** — `configs/<orgao>/inms-1.2.yaml`.
+- **`precomputed_table`** — `configs/<orgao>/inms-1.10.yaml` (tabela de apuração
+  por linha/ativo).
 - **`count_difference`** — modelo e fixture em
   `tests/fixtures/manual_entry_examples/inms-1.10-*`.
 - **`external_catalog_sum`** — `tests/fixtures/manual_entry_examples/inms-1.8-*`.

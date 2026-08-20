@@ -7,20 +7,27 @@ config** (`inms-<n>.yaml`). Um único engine atende os 14 indicadores: o campo
 ## Visão geral do fluxo
 
 ```text
-bootstrap ──► capa.xlsx (Excel de capa, idempotente)
+bootstrap ──► capa_<orgao>.xlsx (Excel de capa, idempotente)
                  │
-measure  ──► para cada config em configs/:
+measure  ──► para cada config em configs/<orgao>/:
                  │  1. descobre e valida os configs (Pydantic)
                  │  2. resolve o CSV (via manifest datasets.yaml ou csv direto)
-                 │  3. lê o CSV (<data-dir>/<ano>/<mês>/)
+                 │  3. lê o CSV (<data-dir>/<orgao>/<ano>/<mês>/)
                  │  4. roda quality gates (Qualidade de Dados)
                  │  5. strategy de cálculo pelo shape
                  │  6. escreve <id>.md (ROM) + <id>.json (sumário)
                  ▼
-report   ──► lê os .json dos ROMs + capa + configs
+report   ──► lê os .json dos ROMs + capa + configs (por órgão)
                  ▼
-           relatorio_<competencia>.xlsx (INMS_BASE + grupos + GLOSAS + ...)
+           relatorio_<competencia>_<orgao>.xlsx (INMS_BASE + grupos + GLOSAS + ...)
+                 ▼
+consolidate ──► relatorio_<competencia>_consolidado.xlsx (funde MinC + MTur)
 ```
+
+As quatro fases (`bootstrap`, `measure`, `report`, `consolidate`) rodam em
+sequência por órgão (`--orgao MinC|MTur|both`); `consolidate` só roda quando os
+dois relatórios existem (com `--orgao both`, ele é a última fase). O `run`
+encadeia as quatro fases numa única invocação.
 
 Detalhes por camada:
 
@@ -29,17 +36,17 @@ Detalhes por camada:
    quebrada" (erro de schema, fail-rápido) de "dado rejeitado" (filtro de
    business, no passo 4).
 
-2. **Descoberta de arquivos.** `discover_configs` varre `--config-dir` por
-   `*.yaml`. Arquivos que não têm a chave `indicator` (ex.: `datasets.yaml`)
-   são ignorados.
+2. **Descoberta de arquivos.** `discover_configs` varre
+   `<config-dir>/<orgao>/` por `*.yaml`. Arquivos que não têm a chave
+   `indicator` (ex.: `datasets.yaml`) são ignorados.
 
 3. **Resolução do dataset.** Cada config referencia o CSV por `source.dataset`
-   (um alias no manifesto `configs/datasets.yaml`) ou pelo campo legado
+   (um alias no manifesto `configs/<orgao>/datasets.yaml`) ou pelo campo legado
    `source.csv`. O manifesto resolve alias → arquivo + `delimiter` + `encoding`.
 
 4. **Caminho de leitura por competência.** `measure <YYYY-MM>` lê os CSVs de
-   `<data-dir>/<YYYY>/<MM>/`, nunca da raiz do `--data-dir` — assim um projeto
-   guarda todas as aferições passadas lado a lado.
+   `<data-dir>/<orgao>/<YYYY>/<MM>/`, nunca da raiz do `--data-dir` — assim um
+   projeto guarda todas as aferições passadas lado a lado.
 
 5. **Quality gates.** O `QualityGateRunner` aplica os `quality_gates.checks`
    declarados no YAML (hoje: `not_null` e `in_set`). Cada linha rejeitada vira
@@ -53,19 +60,24 @@ Detalhes por camada:
    `penalty_points` e uma `memoria` específica do shape para o renderer do ROM.
 
 7. **Saídas.** O `measure` grava, por indicador, `<sanitized-id>.md` (ROM) e
-   `<sanitized-id>.json` (sumário flat via `IndicatorSummary`). O `report` lê
-   **somente os JSONs** (não re-parseia o Markdown), junta a capa, os configs
-   (para abas `CADASTROS`/`EVIDENCIAS`) e consolida `INMS_BASE`, abas por grupo
-   e `GLOSAS`.
+   `<sanitized-id>.json` (sumário flat via `IndicatorSummary`) em
+   `<output-dir>/<orgao>/<competência>/`. O `report` lê **somente os JSONs**
+   (não re-parseia o Markdown), junta a capa, os configs (para abas
+   `CADASTROS`/`EVIDENCIAS`) e gera `relatorio_<competencia>_<orgao>.xlsx`.
+   O `consolidate` funde os dois relatórios em
+   `relatorio_<competencia>_consolidado.xlsx` (5 abas — ver
+   [Planilha Excel final](../reference/excel.md)).
 
 ## Princípios de projeto
 
 - **Validação em duas camadas**: Pydantic (config) e quality gates (dados).
 - **Pipeline monólito por shape, não por indicador**: indicadores que não
   divergem estruturalmente compartilham a mesma strategy.
-- **Multi-órgão**: `scope.orgao` aceita `MinC` e `MTur`; o `report` consolida
-  os dois quando medem o mesmo indicador (fórmula ponderada — ver
-  `docs/spec/inms-pipeline.md` §10).
+- **Multi-órgão**: `scope.orgao` aceita `MinC` e `MTur`; as pastas são por
+  órgão (`configs/<orgao>/`, `input/<orgao>/`, `roms/<orgao>/`) e cada fase roda
+  para um órgão de cada vez (`--orgao both` roda os dois em sequência). O
+  `consolidate` funde os dois relatórios no workbook consolidado (fórmula
+  ponderada — ver [Planilha Excel final](../reference/excel.md)).
 
 ## Fontes primárias
 

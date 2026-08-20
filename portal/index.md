@@ -7,6 +7,11 @@ qualidade, calcula a medição por um de cinco *shapes*, escreve um ROM (memóri
 de cálculo) em Markdown e consolida tudo em uma planilha Excel final, com capa
 do contrato e aba de glosas.
 
+O pipeline apura **por órgão** (`MinC` e `MTur`), cada um com suas pastas
+(`configs/<orgao>/`, `input/<orgao>/`, `roms/<orgao>/`) e capa
+(`capa_<orgao>.xlsx`); depois de gerar um relatório por órgão, o `consolidate`
+funde os dois em `relatorio_<competencia>_consolidado.xlsx`.
+
 Para a especificação arquitetural completa, veja
 [`docs/spec/inms-pipeline.md` no repositório](https://github.com/joaooliveira92/pyauditor/blob/master/docs/spec/inms-pipeline.md).
 

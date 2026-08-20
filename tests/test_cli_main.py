@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from types import SimpleNamespace
 from typing import assert_type
 from unittest.mock import patch
 
 import pytest
 
-from pyauditor.cli.main import MeasureRequest, build_parser, cli_main
+from pyauditor.cli.main import (
+    MeasureRequest,
+    _dispatch_bootstrap,
+    _dispatch_measure,
+    build_parser,
+    cli_main,
+)
 from pyauditor.logging import logger
 
 
@@ -25,6 +32,7 @@ def test_measure_request_frozen_slots() -> None:
         output_dir=Path("roms"),
         manifest_path=Path("configs") / "MinC" / "datasets.yaml",
         orgao="MinC",
+        capa_path=Path("capa.xlsx"),
     )
     assert_type(r.competencia, str)
     with pytest.raises(AttributeError):
@@ -35,25 +43,72 @@ def test_cli_main_happy_path(tmp_path: Path) -> None:
     cfg, data, out = tmp_path / "c", tmp_path / "d", tmp_path / "o"
     for p in (cfg, data, out):
         p.mkdir()
-    with patch("pyauditor.cli.main.run_measure", return_value=0) as m:
-        code = cli_main(["measure", "2026-06", "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out)])
+    with patch("pyauditor.cli.main.run_measure", return_value=SimpleNamespace(status="done")) as m:
+        code = cli_main(
+            [
+                "measure", "2026-06",
+                "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out),
+            ]
+        )
         assert code == 0
         assert m.call_args.kwargs["competencia"] == "2026-06"
         assert m.call_args.kwargs["config_dir"] == cfg / "MinC"
         assert m.call_args.kwargs["expected_orgao"] == "MinC"
 
 
+def test_cli_main_measure_dispatches_with_capa_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    cfg, data, out = tmp_path / "c", tmp_path / "d", tmp_path / "o"
+    for p in (cfg, data, out):
+        p.mkdir()
+    with patch("pyauditor.cli.main.run_measure", return_value=SimpleNamespace(status="done")) as m:
+        code = cli_main(
+            [
+                "measure", "2026-06",
+                "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out),
+            ]
+        )
+        assert code == 0
+        # default orgao MinC -> per-órgão split, same convention as bootstrap/report
+        assert m.call_args.kwargs["capa_path"] == Path("capa_MinC.xlsx")
+
+
+def test_cli_main_measure_dispatches_with_explicit_capa_path(tmp_path: Path) -> None:
+    cfg, data, out = tmp_path / "c", tmp_path / "d", tmp_path / "o"
+    for p in (cfg, data, out):
+        p.mkdir()
+    capa_path = tmp_path / "capa.xlsx"
+    with patch("pyauditor.cli.main.run_measure", return_value=SimpleNamespace(status="done")) as m:
+        code = cli_main(
+            [
+                "measure", "2026-06",
+                "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out),
+                "--capa-path", str(capa_path),
+            ]
+        )
+        assert code == 0
+        assert m.call_args.kwargs["capa_path"] == capa_path
+
+
 def test_cli_main_bootstrap_dispatches_with_capa_path(tmp_path: Path) -> None:
     capa_path = tmp_path / "capa.xlsx"
-    with patch("pyauditor.cli.main.run_bootstrap", return_value=0) as m:
+    with patch(
+        "pyauditor.cli.main.run_bootstrap", return_value=SimpleNamespace(status="done")
+    ) as m:
         code = cli_main(["bootstrap", "--capa-path", str(capa_path)])
         assert code == 0
         assert m.call_args.args[0] == capa_path
 
 
-def test_cli_main_bootstrap_default_capa_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_main_bootstrap_default_capa_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.chdir(tmp_path)
-    with patch("pyauditor.cli.main.run_bootstrap", return_value=0) as m:
+    with patch(
+        "pyauditor.cli.main.run_bootstrap", return_value=SimpleNamespace(status="done")
+    ) as m:
         code = cli_main(["bootstrap"])
         assert code == 0
         assert m.call_args.args[0] == Path("capa_MinC.xlsx")
@@ -66,14 +121,17 @@ def test_cli_main_measure_writes_a_traceable_run_log(tmp_path: Path) -> None:
     for p in (cfg, data, out):
         p.mkdir()
 
-    def _fake_run(**kwargs: object) -> int:
+    def _fake_run(**kwargs: object) -> SimpleNamespace:
         logger.info("apuração da competência {}", kwargs["competencia"])
         logger.error("falha simulada no indicador X")
-        return 1
+        return SimpleNamespace(status="error")
 
     with patch("pyauditor.cli.main.run_measure", side_effect=_fake_run):
         code = cli_main(
-            ["measure", "2026-06", "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out)]
+            [
+                "measure", "2026-06",
+                "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out),
+            ]
         )
 
     assert code == 1
@@ -89,7 +147,11 @@ def test_cli_main_report_dispatches_with_output_filename(tmp_path: Path) -> None
     roms_dir = tmp_path / "roms"
     out_dir = tmp_path / "reports"
     config_dir = tmp_path / "configs"
-    with patch("pyauditor.cli.main.run_report", return_value=0) as m:
+    satisfied = SimpleNamespace(satisfied=True, missing=())
+    with (
+        patch("pyauditor.cli.main.run_report", return_value=SimpleNamespace(status="done")) as m,
+        patch("pyauditor.cli.main.check_report_ready", return_value=satisfied),
+    ):
         code = cli_main(
             [
                 "report",
@@ -116,3 +178,68 @@ def test_cli_main_unknown_exits_2() -> None:
     with pytest.raises(SystemExit) as e:
         cli_main(["unknown"])
     assert e.value.code == 2
+
+
+def test_cli_main_run_dispatches_to_run_run(tmp_path: Path) -> None:
+    cfg, data, out, reports = (
+        tmp_path / "c", tmp_path / "d", tmp_path / "o", tmp_path / "r"
+    )
+    for p in (cfg, data, out, reports):
+        p.mkdir()
+    with patch("pyauditor.cli.main.run_run", return_value=0) as m:
+        code = cli_main(
+            [
+                "run", "2026-06",
+                "--config-dir", str(cfg), "--data-dir", str(data),
+                "--output-dir", str(out), "--report-dir", str(reports),
+            ]
+        )
+        assert code == 0
+        assert m.call_args.kwargs["competencia"] == "2026-06"
+        assert m.call_args.kwargs["orgao"] == "MinC"
+        assert m.call_args.kwargs["config_dir"] == cfg
+        assert m.call_args.kwargs["report_dir"] == reports
+
+
+def test_dispatch_measure_is_callable_directly_without_argparse(tmp_path: Path) -> None:
+    """The point of splitting cli_main's branches into _dispatch_* functions:
+    each is independently testable with a hand-built Namespace, no argparse
+    or the no-args guided-flow branch in the way."""
+    cfg, data, out = tmp_path / "c", tmp_path / "d", tmp_path / "o"
+    for p in (cfg, data, out):
+        p.mkdir()
+    args = build_parser().parse_args(
+        [
+            "measure", "2026-06",
+            "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out),
+        ]
+    )
+    with patch("pyauditor.cli.main.run_measure", return_value=SimpleNamespace(status="done")) as m:
+        code = _dispatch_measure(args)
+        assert code == 0
+        assert m.call_args.kwargs["competencia"] == "2026-06"
+
+
+def test_dispatch_bootstrap_is_callable_directly_without_argparse(tmp_path: Path) -> None:
+    capa_path = tmp_path / "capa.xlsx"
+    args = build_parser().parse_args(["bootstrap", "--capa-path", str(capa_path)])
+    with patch(
+        "pyauditor.cli.main.run_bootstrap", return_value=SimpleNamespace(status="done")
+    ) as m:
+        code = _dispatch_bootstrap(args)
+        assert code == 0
+        assert m.call_args.args[0] == capa_path
+
+
+def test_cli_main_no_args_without_tty_exits_2(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    code = cli_main([])
+    assert code == 2
+
+
+def test_cli_main_no_args_with_tty_runs_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    with patch("pyauditor.interactive.run_interactive", return_value=0) as m:
+        code = cli_main([])
+        assert code == 0
+        m.assert_called_once()

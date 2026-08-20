@@ -10,7 +10,11 @@ not raw ticket data this strategy would have to classify itself.
 
 from pyauditor.config.catalog import load_anexo_e_catalog
 from pyauditor.config.models import ExternalCatalogSumCalculation, IndicatorConfig
-from pyauditor.engine.strategies.base import CalculationResult, narrow_calculation
+from pyauditor.engine.strategies.base import (
+    CalculationResult,
+    narrow_calculation,
+    no_pooled_numerator_denominator,
+)
 
 
 class ExternalCatalogSumStrategy:
@@ -45,3 +49,6 @@ class ExternalCatalogSumStrategy:
             penalty_points=float(total_points),
             memoria={"occurrences": occurrences, "total_points": total_points},
         )
+
+    # Point/aggregated measure, not a ratio — no numerator/denominator.
+    pool_numerator_denominator = staticmethod(no_pooled_numerator_denominator)

@@ -5,30 +5,31 @@ da competência chegarem.
 
 ## Pré-requisitos
 
-- Configs em `configs/` (e manifesto `datasets.yaml`).
-- CSVs da competência em `input/<ano>/<mês>/`.
+- Configs em `configs/<orgao>/` (e manifesto `datasets.yaml`).
+- CSVs da competência em `input/<orgao>/<ano>/<mês>/`.
 
 ## Procedimento
 
 1. Confira a estrutura de pastas:
 
    ```text
-   configs/inms-1.1.yaml ...
-   input/2026/06/inms-01.csv ...   (ou os nomes do datasets.yaml)
+   configs/MinC/inms-1.1.yaml ...
+   input/MinC/2026/06/inms-01.csv ...   (ou os nomes do datasets.yaml)
    ```
 
 2. Rode a medição:
 
    ```bash
-   uv run pyauditor measure 2026-06 --config-dir configs --data-dir input --output-dir roms
+   uv run pyauditor measure 2026-06 --orgao MinC --config-dir configs --data-dir input --output-dir roms
    ```
 
    Para usar um manifesto/CSVs fora dos defaults, ajuste `--config-dir`,
-   `--data-dir`, `--output-dir` e `--manifest`.
+   `--data-dir`, `--output-dir` e `--manifest`. O default de `--manifest` é
+   `<config-dir>/<orgao>/datasets.yaml`.
 
 ## Verificação
 
-- `roms/2026-06/` contém um par `<id>.md` + `<id>.json` por indicador.
+- `roms/MinC/2026-06/` contém um par `<id>.md` + `<id>.json` por indicador.
 - O log mostra `INMS x.y: <path>.md` por indicador aceito.
 - Exit code `0` se não houve `hard_failure`; `1` se algum indicador falhou
   (o processamento continua para os demais).

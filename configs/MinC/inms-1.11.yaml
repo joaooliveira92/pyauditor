@@ -35,8 +35,8 @@ penalty:
   step_size_pct: 1.0
 
 # Anexo D (Tabela 28), INMS 1.11: INMS 1.11 = TCTA/TCT × 100, meta ≤5%, 50
-# pontos a cada 1% acima da meta. /input/inms-001-11.csv real: 93/492 =
-# 18,90% abandonadas — bem acima da meta.
+# pontos a cada 1% acima da meta. /input/inms-001-11.csv real: 119/924 =
+# 12,88% abandonadas — bem acima da meta.
 acceptance_test:
   expected:
     shape: ratio

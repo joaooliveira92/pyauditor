@@ -29,10 +29,6 @@ target:
   # com o gestor do contrato antes de uso em produção.
   value: 90.0
 
-penalty:
-  step_points: 50
-  step_size_pct: 1.0
-
 # Anexo D (Tabela 28), INMS 1.13: INMS 1.13 = TCN1/TCR × 100, meta negociada
 # (ver nota acima), 50 pontos a cada 1% abaixo da meta acordada.
 # /input/inms-001-13.csv real: as 116 linhas são todas Grupo_executor =

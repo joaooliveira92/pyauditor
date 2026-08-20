@@ -9,19 +9,23 @@ Use este procedimento para criar (uma vez) e depois preencher a capa usada pelo
 
 ## Procedimento
 
-1. Crie a capa (idempotente — não sobrescreve se já existir):
+1. Crie a capa do órgão (idempotente — não sobrescreve se já existir):
 
    ```bash
-   uv run pyauditor bootstrap --capa-path capa.xlsx
+   uv run pyauditor bootstrap --orgao MinC --capa-path capa_MinC.xlsx
    ```
 
-2. Abra `capa.xlsx` e preencha o campo **Valor mensal vigente** (necessário
-   para o valor da glosa). Os demais campos da aba `CAPA_E_CONTROLE` são de
-   preenchimento do fiscal.
+   Por default, `bootstrap` cria `capa_<orgao>.xlsx` (use `--orgao MTur` para
+   `capa_MTur.xlsx`; `--orgao both` cria ambas). `--capa-path` permite um
+   caminho próprio.
+
+2. Abra `capa_MinC.xlsx` (o `--orgao` correspondente) e preencha o campo
+   **Valor mensal vigente** (necessário para o valor da glosa). Os demais
+   campos da aba `CAPA_E_CONTROLE` são de preenchimento do fiscal.
 
 ## Verificação
 
-- O arquivo existe em `capa.xlsx`.
+- O arquivo existe em `capa_<orgao>.xlsx`.
 - A aba `CAPA_E_CONTROLE` lista os campos do contrato com a célula
   «Situação geral da aferição» preenchida.
 
@@ -29,8 +33,8 @@ Use este procedimento para criar (uma vez) e depois preencher a capa usada pelo
 
 - Rodar `bootstrap` de novo **não** recria a capa existente — é intencional
   para evitar que o fiscal perca dados preenchidos.
-- O `report` reaproveita a capa (embedded na primeira aba do relatório),
-  sem duplicar conteúdo, ver [Planilha Excel](../reference/excel.md).
+- O `report` reaproveita a capa do órgão (embedded na primeira aba do
+  relatório), sem duplicar conteúdo, ver [Planilha Excel](../reference/excel.md).
 
 ## Próximos passos
 

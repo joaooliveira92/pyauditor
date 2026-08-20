@@ -68,7 +68,7 @@ def test_measure_reads_data_from_competencia_subfolder(tmp_path: Path) -> None:
     exit_code = run_measure("2026-06", config_dir, data_dir, output_dir)
 
     rom_path = output_dir / "2026-06" / "INMS-TEST.md"
-    assert exit_code == 0
+    assert exit_code.status == "done"
     content = rom_path.read_text(encoding="utf-8")
     assert "- Numerador: 1.0\n- Denominador: 2.0" in content
 
@@ -96,7 +96,7 @@ def test_measure_writes_one_rom_per_indicator_and_is_idempotent(tmp_path: Path) 
     exit_code = run_measure("2026-06", config_dir, data_dir, output_dir)
 
     rom_path = output_dir / "2026-06" / "INMS-TEST.md"
-    assert exit_code == 0
+    assert exit_code.status == "done"
     assert rom_path.exists()
     first_write = rom_path.read_text(encoding="utf-8")
 
@@ -127,6 +127,6 @@ def test_measure_exits_nonzero_on_hard_failure(tmp_path: Path) -> None:
 
     exit_code = run_measure("2026-06", config_dir, data_dir, output_dir)
 
-    assert exit_code == 1
+    assert exit_code.status == "error"
     rom_path = output_dir / "2026-06" / "INMS-TEST.md"
     assert rom_path.exists()  # ROM still written so rejections are visible

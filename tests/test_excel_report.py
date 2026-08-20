@@ -169,7 +169,10 @@ def test_glosas_sheet_without_valor_base_leaves_valor_da_glosa_blank() -> None:
     assert row["Percentual de ajuste"] == 0.22214
 
 
-def test_inms_base_shows_consolidated_row_without_affecting_group_tabs_or_glosas() -> None:
+def test_inms_base_never_synthesizes_a_consolidado_row() -> None:
+    # `report` is per-órgão by construction (ticket 02, multi-org-pipeline
+    # map) — pooling MinC+MTur lives in `consolidate` (excel/consolidate.py),
+    # not here, even if a caller passes mixed-órgão summaries directly.
     minc = _summary(
         "INMS-1.1-MINC", "INMS 1.1", orgao="MinC", numerator=90, denominator=100, penalty_points=100.0
     )
@@ -181,15 +184,8 @@ def test_inms_base_shows_consolidated_row_without_affecting_group_tabs_or_glosas
 
     base_sheet = workbook[INMS_BASE_SHEET]
     orgaos_in_base = [str(base_sheet.cell(row=r, column=7).value) for r in range(2, base_sheet.max_row + 1)]
-    assert set(orgaos_in_base) == {"Consolidado", "MinC", "MTur"}
+    assert set(orgaos_in_base) == {"MinC", "MTur"}
 
-    # Group tab keeps only the 2 real measurements — no synthetic row leaks in.
-    n1_sheet = workbook["ATENDIMENTO_N1"]
-    orgaos_in_group = [str(n1_sheet.cell(row=r, column=4).value) for r in range(2, n1_sheet.max_row + 1)]
-    assert set(orgaos_in_group) == {"MinC", "MTur"}
-
-    # GLOSAS sums only the 2 real measurements' penalties (150), not
-    # 150 + the consolidated row's 150 again (would be 300 if double-counted).
     glosas_sheet = workbook[GLOSAS_SHEET]
     header = [cell.value for cell in glosas_sheet[1]]
     row = {header[i]: glosas_sheet.cell(row=2, column=i + 1).value for i in range(len(header))}

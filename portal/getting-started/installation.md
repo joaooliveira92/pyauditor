@@ -28,11 +28,12 @@ O `pyauditor` é um CLI em Python 3.12+ gerenciado por [uv](https://docs.astral.
    uv run pyauditor --help
    ```
 
-   A saída lista os subcomandos `bootstrap`, `measure` e `report`.
+   A saída lista os subcomandos `bootstrap`, `measure`, `report`,
+   `consolidate` e `run`.
 
 ## Verificação
 
-A presença dos três subcomandos na saída confirma a instalação. Se `uv sync`
+A presença dos cinco subcomandos na saída confirma a instalação. Se `uv sync`
 falhar, verifique a versão do Python (`python --version`) e a presença do `uv`
 antes de continuar.
 

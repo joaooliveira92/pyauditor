@@ -22,7 +22,11 @@ from math import isnan
 from pyauditor.config.models import IndicatorConfig, PrecomputedTableCalculation
 from pyauditor.engine.strategies._numbers import parse_decimal
 from pyauditor.engine.strategies._target import safe_pct, shortfall
-from pyauditor.engine.strategies.base import CalculationResult, narrow_calculation
+from pyauditor.engine.strategies.base import (
+    CalculationResult,
+    narrow_calculation,
+    no_pooled_numerator_denominator,
+)
 
 
 class PrecomputedTableStrategy:
@@ -87,3 +91,6 @@ class PrecomputedTableStrategy:
             penalty_points=total_penalty,
             memoria={"categories": categories},
         )
+
+    # Point/aggregated measure, not a ratio — no numerator/denominator.
+    pool_numerator_denominator = staticmethod(no_pooled_numerator_denominator)

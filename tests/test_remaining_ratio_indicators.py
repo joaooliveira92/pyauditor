@@ -104,6 +104,113 @@ penalty:
     assert result.calculation.penalty_points == pytest.approx(2000.0)
 
 
+def test_sum_aggregation_parses_pt_br_comma_decimals(tmp_path: Path) -> None:
+    """The real datasets are PT-BR exports (comma decimal separator) — the
+    `sum` aggregation must route through `parse_decimal`, not bare `float()`,
+    same as every other numeric-reading strategy."""
+    config_yaml = """
+indicator:
+  id: INMS-TEST-1.3-DECIMAL
+  contractual_id: "INMS TEST 1.3 decimal"
+  name: Indicador sintético de soma com decimal PT-BR
+
+scope:
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
+
+source:
+  csv: data.csv
+  delimiter: ";"
+  encoding: utf-8
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: sum
+  sum_numerator_column: "DiasProjeto"
+  sum_denominator_extra_column: "DiasAtraso"
+
+target:
+  operator: ">="
+  value: 100.0
+
+penalty:
+  step_points: 200
+  step_size_pct: 1.0
+"""
+    (tmp_path / "config.yaml").write_text(config_yaml, encoding="utf-8")
+    # Comma-decimal values ("90,5") — bare float() raises ValueError on these.
+    (tmp_path / "data.csv").write_text(
+        "Projeto;DiasProjeto;DiasAtraso\nP1;90,5;10,5\n", encoding="utf-8"
+    )
+
+    config = load_config(tmp_path / "config.yaml")
+    result = measure(config, data_dir=tmp_path)
+
+    assert result.calculation.memoria == {"numerator": 90.5, "denominator": 101.0}
+
+
+def test_sum_aggregation_subtracts_and_excludes_a_totals_row(tmp_path: Path) -> None:
+    """INMS 1.6's shape: (ΣCA − ΣCR) / ΣCA × 100, with a "TOTAIS" row that
+    must be excluded (via `denominator_filter` reused as the eligible-rows
+    filter) — summing it alongside the per-agreement rows would double-count,
+    and the real CSV's "TOTAIS" row formats its counts with a thousands
+    separator ("1.622"), which `float()` would silently misparse as 1.622.
+    """
+    config_yaml = """
+indicator:
+  id: INMS-TEST-1.6
+  contractual_id: "INMS TEST 1.6"
+  name: Indicador sintético de subtração
+
+scope:
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
+
+source:
+  csv: data.csv
+  delimiter: ";"
+  encoding: utf-8
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: sum
+  denominator_filter:
+    column: "Acordo"
+    not_equals: "TOTAIS"
+  sum_numerator_column: "Total de Chamados"
+  sum_numerator_subtract_column: "Total de Chamados Reabertos"
+
+target:
+  operator: ">="
+  value: 97.0
+
+penalty:
+  step_points: 200
+  step_size_pct: 0.5
+"""
+    (tmp_path / "config.yaml").write_text(config_yaml, encoding="utf-8")
+    (tmp_path / "data.csv").write_text(
+        "Acordo;Total de Chamados;Total de Chamados Reabertos\n"
+        "SLA A;79;0\n"
+        "SLA B;8;1\n"
+        "TOTAIS;1.087;999\n",  # thousands-separated + wrong — must be ignored
+        encoding="utf-8",
+    )
+
+    config = load_config(tmp_path / "config.yaml")
+    result = measure(config, data_dir=tmp_path)
+
+    assert result.calculation.memoria == {"numerator": 86.0, "denominator": 87.0}
+    assert result.calculation.conforms is True
+    assert result.calculation.penalty_points == pytest.approx(0.0)
+
+
 def test_precomputed_aggregation_reads_result_directly_from_the_single_row(tmp_path: Path) -> None:
     config_yaml = """
 indicator:

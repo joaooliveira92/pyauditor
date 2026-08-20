@@ -5,6 +5,8 @@ Termos do domínio do projeto, na grafia usada pelo código e pelos documentos.
 - **Anexo D** — tabela 28 do Termo de Referência: "Prazos e Níveis Mínimos de Serviço", fonte dos 14 indicadores INMS e das fórmulas de penalidade.
 - **Anexo E** — catálogo de itens de desconformidade técnica (106 itens, 22 categorias), usado pelo INMS 1.8.
 - **Competência** — mês/ano de apuração, no formato `YYYY-MM` (ex.: `2026-06`).
+- **Consolidate** — subcomando que funde os relatórios `MinC` e `MTur` no
+  workbook financeiro consolidado (`relatorio_<comp>_consolidado.xlsx`).
 - **CNI** — Controle Não Implantado, `CNI = QRC − QCSI` (shape `count_difference`, INMS 1.10).
 - **INMS** — Indicador de Nível Mínimo de Serviço (contrato 40/2022).
 - **Fog** — questionamento deliberadamente em aberto na spec (ex.: schema de entrada do 1.8/1.10).
@@ -12,6 +14,8 @@ Termos do domínio do projeto, na grafia usada pelo código e pelos documentos.
 - **hard_failure** — medição em que todas as linhas existentes foram rejeitadas; sinaliza dado ruim, não competência vazia.
 - **Manifesto (datasets.yaml)** — mapeia alias (`incidentes`) → arquivo CSV + `delimiter` + `encoding`.
 - **Memória de cálculo** — seção do ROM que mostra o passo a passo da conta do indicador (varia por shape).
+- **Órgão** — instância contratual apurada (`MinC` ou `MTur`); as pastas e os
+  relatórios são por órgão (`capa_<orgao>.xlsx`, `roms/<orgao>/`, etc.).
 - **Pontos_NMS** — penalidade em pontos de um indicador; somados no mês para a glosa.
 - **QCSI** — Quantidade de Controles de Segurança Implantados.
 - **QRC** — Quantidade de Controles Recomendados.

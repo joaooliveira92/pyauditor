@@ -10,6 +10,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.worksheet import Worksheet
 
+from pyauditor.atomic_write import atomic_write
 from pyauditor.excel._style import (
     BODY_FONT,
     BOTTOM_BORDER,
@@ -134,9 +135,11 @@ def bootstrap_capa(path: Path) -> bool:
     if path.exists():
         return False
 
-    path.parent.mkdir(parents=True, exist_ok=True)
     workbook = build_capa_workbook()
-    workbook.save(path)
+    try:
+        atomic_write(path, workbook.save)
+    finally:
+        workbook.close()
     return True
 
 
@@ -148,16 +151,28 @@ def read_capa_fields(path: Path) -> dict[str, object]:
     embed CAPA_E_CONTROLE as the final workbook's first sheet.
     """
     workbook = load_workbook(path, data_only=True)
-    if SHEET_NAME not in workbook.sheetnames:
-        return {}
-    sheet = workbook[SHEET_NAME]
+    try:
+        if SHEET_NAME not in workbook.sheetnames:
+            return {}
+        sheet = workbook[SHEET_NAME]
 
-    fields: dict[str, object] = {}
-    for row in range(4, 4 + len(FIELD_LABELS)):
-        label = sheet.cell(row=row, column=1).value
-        if isinstance(label, str):
-            fields[label] = sheet.cell(row=row, column=2).value
-    return fields
+        fields: dict[str, object] = {}
+        duplicates: set[str] = set()
+        for row in range(4, 4 + len(FIELD_LABELS)):
+            label = sheet.cell(row=row, column=1).value
+            if isinstance(label, str):
+                if label in fields:
+                    duplicates.add(label)
+                fields[label] = sheet.cell(row=row, column=2).value
+        if duplicates:
+            names = ", ".join(sorted(duplicates))
+            raise ValueError(
+                f"{path}: rótulo(s) duplicado(s) em {SHEET_NAME!r}: {names} — planilha "
+                "hand-edited em formato inesperado, corrija antes de continuar"
+            )
+        return fields
+    finally:
+        workbook.close()
 
 
 def read_valor_mensal_vigente(path: Path) -> float | None:

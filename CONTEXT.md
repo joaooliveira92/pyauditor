@@ -26,3 +26,13 @@ _Avoid_: perdoar, dispensar
 
 **Rateio MinC/MTur**: Parâmetro fiscal (hoje provisório 0.5/0.5) que divide o pagamento entre os dois órgãos. Entrada do fiscal, não calculada pelo pipeline.
 _Avoid_: proporção, divisão
+
+**ROM**: Relatório de Ocorrências e Medição — o markdown por indicador×competência que documenta a memória de cálculo de um INMS. Insumo para a Glosa por ocorrência, não a decisão em si.
+
+**Pontuação apurada**: Os pontos de INMS/IMR calculados pela regra contratual do indicador (base + degraus abaixo da meta). Entra como insumo em `%Ajuste`/Glosa por ocorrência; não é, por si só, sanção administrativa.
+_Avoid_: penalidade, multa, sanção
+
+**Ressalva interpretativa**: Nota no ROM que declara quando uma regra contratual admite mais de uma leitura plausível (ex.: degraus lineares vs. degraus inteiros) e mostra os resultados de cada leitura, sem o pipeline decidir qual prevalece.
+
+**Linhas aprovadas pelo quality gate**: As linhas do CSV que passaram nos `quality_gates` do indicador. Não equivale a população contratual (ex.: um incidente sem `DataHoraFim` pode ser rejeitado pelo gate mas ainda pertencer à população de incidentes abertos no período) — distinção que o ROM precisa declarar, não apenas o pipeline.
+_Avoid_: população, linhas aceitas (sem qualificação)

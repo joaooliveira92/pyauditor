@@ -5,25 +5,39 @@ workbook final. Rode depois do `measure` da mesma competência.
 
 ## Pré-requisitos
 
-- Capa criada: `capa.xlsx` (use [Crie a capa do contrato](bootstrap-capa.md)).
-- Medição feita: `roms/<competência>/` com os `.json` (use [Meça uma
+- Capa criada: `capa_<orgao>.xlsx` (use [Crie a capa do contrato](bootstrap-capa.md)).
+- Medição feita: `roms/<orgao>/<competência>/` com os `.json` (use [Meça uma
   competência](measure-indicators.md)).
 
 ## Procedimento
 
-1. Rode o consolidado:
+1. Rode o relatório do órgão:
 
    ```bash
-   uv run pyauditor report 2026-06 --capa-path capa.xlsx --roms-dir roms --output-dir reports
+   uv run pyauditor report 2026-06 --orgao MinC --capa-path capa_MinC.xlsx --roms-dir roms --output-dir reports
    ```
 
-2. Abra `reports/relatorio_2026-06.xlsx` para revisão.
+2. Abra `reports/relatorio_2026-06_MinC.xlsx` para revisão.
+
+3. (Opcional, quando os dois órgãos estão prontos) Funde os relatórios MinC+MTur
+   no consolidado financeiro:
+
+   ```bash
+   uv run pyauditor consolidate 2026-06 --report-dir reports --roms-dir roms
+   ```
+
+   Exige que `relatorio_2026-06_MinC.xlsx` e `_MTur.xlsx` já existam (não
+   re-executa `measure`/`report`). Saída:
+   `reports/relatorio_2026-06_consolidado.xlsx`.
 
 ## Verificação
 
-- O arquivo existe em `reports/relatorio_2026-06.xlsx` e o log mostra
+- O arquivo existe em `reports/relatorio_2026-06_<orgao>.xlsx` e o log mostra
   `relatório consolidado: <path> (N indicadores)`.
 - As abas esperadas estão presentes — veja [Planilha Excel](../reference/excel.md).
+- (consolidado) `reports/relatorio_2026-06_consolidado.xlsx` abre com as abas
+  `CAPA_E_CONTROLE`, `SERVICOS_POR_ORGAO`, `INMS_BASE`, `GLOSAS` e
+  `CALCULO_PAGAMENTO`.
 
 ## Falhas comuns
 

@@ -123,6 +123,13 @@ Fonte: [Ticket 06](../../.scratch/inms-pipeline-spec/issues/06-cli-subcomandos.m
 
 ## 7. Contrato do ROM Markdown
 
+> **Nota (2026-08, `.scratch/melhoria_rom/map.md`):** as seções fixas e o
+> exemplo abaixo são o desenho **original** (ticket 07) — mantidos aqui como
+> histórico da decisão. O template **atual**, com seção de Identificação
+> (proveniência/capa), "Linhas aprovadas pelo quality gate" (renomeado de
+> "População"), Ressalva interpretativa condicional e "Pontuação apurada"
+> (renomeado de "Penalidade"), está documentado em `portal/reference/rom.md`.
+
 Um **template genérico** + um **renderer por shape** só para a seção de memória de cálculo.
 
 Seções fixas (vêm do `QualityGateRunner`, idênticas para todo indicador):

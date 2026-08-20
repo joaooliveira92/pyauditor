@@ -1,5 +1,5 @@
 Type: research
-Status: open
+Status: resolved
 
 ## Question
 
@@ -7,4 +7,8 @@ Status: open
 
 ## Answer
 
-(aberto)
+**Exige, sim — é um requisito real do TR, não um teto duro sem efeito cascata.** Texto literal (`07_modelo_de_gestao.html:229-236`, citado em `.scratch/inms-pipeline-spec/research/12-glosa-item-35.md` §2):
+
+> "A glosa sobre o pagamento mensal será aplicada até o limite de 30% do valor total mensal... Caso o saldo devedor ultrapasse o limite de 30% de glosa estabelecido, **o restante poderá ser aplicado na fatura do mês subsequente**, com a exceção do último mês de vigência do contrato."
+
+`compute_glosa` (`src/pyauditor/excel/glosas.py`) já calcula `saldo_rolado_pct` corretamente, mas confirmado por leitura do código atual: nada em `report`/`cli` lê esse valor de volta no mês seguinte — cada execução continua stateless. É um gap real de implementação, não uma leitura equivocada da spec. Abre ticket de acompanhamento: [[11-estado-persistente-entre-competencias]] (decisão de prioridade de implementação, junta com [[03-reincidencia-nao-rastreada]] e a conclusão negativa de [[04-teto-anual-glosa]] — mesma família de "pipeline precisa de histórico entre execuções mensais").

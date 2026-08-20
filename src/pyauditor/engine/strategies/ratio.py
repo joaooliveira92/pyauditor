@@ -4,10 +4,25 @@ See docs/spec/inms-pipeline.md §2 and §7.1. All 3 `aggregation` variants are
 implemented: `count_distinct` (ticket 02), `sum` and `precomputed` (ticket 07).
 """
 
+from math import isnan
+
 from pyauditor.config.models import IndicatorConfig, RatioCalculation
 from pyauditor.engine.strategies._filters import filter_rows
+from pyauditor.engine.strategies._numbers import as_float, parse_decimal
 from pyauditor.engine.strategies._target import meets_target, safe_pct, shortfall
 from pyauditor.engine.strategies.base import CalculationResult, narrow_calculation
+
+
+def _sum_column(rows: list[dict[str, str]], column: str) -> float:
+    total = 0.0
+    for row in rows:
+        raw = row.get(column)
+        if not raw:
+            continue
+        value = parse_decimal(raw)
+        if not isnan(value):
+            total += value
+    return total
 
 
 class RatioStrategy:
@@ -43,6 +58,11 @@ class RatioStrategy:
             memoria={"numerator": numerator, "denominator": denominator},
         )
 
+    def pool_numerator_denominator(
+        self, memoria: dict[str, object]
+    ) -> tuple[float | None, float | None]:
+        return as_float(memoria.get("numerator")), as_float(memoria.get("denominator"))
+
 
 def _aggregate(calculation: RatioCalculation, rows: list[dict[str, str]]) -> tuple[float, float]:
     if calculation.aggregation == "count_distinct":
@@ -52,16 +72,19 @@ def _aggregate(calculation: RatioCalculation, rows: list[dict[str, str]]) -> tup
 
     if calculation.aggregation == "sum":
         assert calculation.sum_numerator_column is not None
-        assert calculation.sum_denominator_extra_column is not None
-        numerator = sum(
-            float(row[calculation.sum_numerator_column]) for row in rows if row.get(calculation.sum_numerator_column)
-        )
-        extra = sum(
-            float(row[calculation.sum_denominator_extra_column])
-            for row in rows
-            if row.get(calculation.sum_denominator_extra_column)
-        )
-        return numerator, numerator + extra
+        # `denominator_filter` (otherwise count_distinct-only) doubles as the
+        # eligible-rows filter here — e.g. INMS 1.6's data ships a "TOTAIS"
+        # summary row alongside per-agreement rows; selecting only that row
+        # avoids double-counting the per-agreement breakdown underneath it.
+        eligible_rows = filter_rows(rows, calculation.denominator_filter)
+        raw = _sum_column(eligible_rows, calculation.sum_numerator_column)
+        if calculation.sum_denominator_extra_column is not None:
+            extra = _sum_column(eligible_rows, calculation.sum_denominator_extra_column)
+            return raw, raw + extra
+
+        assert calculation.sum_numerator_subtract_column is not None
+        subtract = _sum_column(eligible_rows, calculation.sum_numerator_subtract_column)
+        return raw - subtract, raw
 
     # precomputed: exactly one row per file (one YAML+CSV = one ativo/serviço
     # medição independente — spec §2.1/ticket 13); its value already is the

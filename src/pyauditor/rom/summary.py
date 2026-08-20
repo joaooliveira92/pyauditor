@@ -4,13 +4,25 @@ by `report` (ticket 09) to build the consolidated Excel without re-parsing
 Markdown.
 """
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 
 from pyauditor.engine.pipeline import MeasurementResult
+from pyauditor.engine.strategies import SHAPE_REGISTRY
+
+_STR_FIELDS: tuple[str, ...] = ("indicator_id", "contractual_id", "name", "orgao", "shape")
+_OPTIONAL_STR_FIELDS: tuple[str, ...] = ("asset", "target_operator")
+_NUMERIC_FIELDS: tuple[str, ...] = ("result_pct", "penalty_points")
+_OPTIONAL_NUMERIC_FIELDS: tuple[str, ...] = ("target_value", "numerator", "denominator")
+_BOOL_FIELDS: tuple[str, ...] = ("conforms", "hard_failure")
 
 
 @dataclass(frozen=True)
 class IndicatorSummary:
+    """Round-trips through JSON (`to_dict()` / `IndicatorSummary(**raw)`) as
+    the sidecar `report`/`consolidate` read back — a stale or hand-edited
+    sidecar with a wrong-typed field is rejected here, at load time, rather
+    than crashing deep in `excel/report.py`/`excel/consolidate.py` arithmetic."""
+
     indicator_id: str
     contractual_id: str
     name: str
@@ -26,8 +38,46 @@ class IndicatorSummary:
     denominator: float | None
     hard_failure: bool
 
+    def __post_init__(self) -> None:
+        known_fields = {f.name for f in fields(self)}
+        for name in _STR_FIELDS:
+            assert name in known_fields
+            _require_str(self, name)
+        for name in _OPTIONAL_STR_FIELDS:
+            _require_str(self, name, optional=True)
+        for name in _NUMERIC_FIELDS:
+            _require_numeric(self, name)
+        for name in _OPTIONAL_NUMERIC_FIELDS:
+            _require_numeric(self, name, optional=True)
+        for name in _BOOL_FIELDS:
+            _require_bool(self, name)
+
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
+
+
+def _require_str(summary: "IndicatorSummary", name: str, *, optional: bool = False) -> None:
+    value: object = getattr(summary, name)
+    if optional and value is None:
+        return
+    if not isinstance(value, str):
+        raise TypeError(f"IndicatorSummary.{name} must be str, got {type(value).__name__}")
+
+
+def _require_numeric(summary: "IndicatorSummary", name: str, *, optional: bool = False) -> None:
+    value: object = getattr(summary, name)
+    if optional and value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise TypeError(
+            f"IndicatorSummary.{name} must be a number, got {type(value).__name__}"
+        )
+
+
+def _require_bool(summary: "IndicatorSummary", name: str) -> None:
+    value: object = getattr(summary, name)
+    if not isinstance(value, bool):
+        raise TypeError(f"IndicatorSummary.{name} must be bool, got {type(value).__name__}")
 
 
 def summarize(result: MeasurementResult) -> IndicatorSummary:
@@ -58,26 +108,11 @@ def summarize(result: MeasurementResult) -> IndicatorSummary:
 def _pooled_numerator_denominator(
     shape: str, memoria: dict[str, object]
 ) -> tuple[float | None, float | None]:
-    if shape == "ratio":
-        return _as_float(memoria.get("numerator")), _as_float(memoria.get("denominator"))
-
-    if shape == "segmented_ratio":
-        categories = memoria.get("categories")
-        if not isinstance(categories, list):
-            return None, None
-        numerator = sum(_as_float(c.get("numerator")) or 0.0 for c in categories if isinstance(c, dict))
-        denominator = sum(_as_float(c.get("denominator")) or 0.0 for c in categories if isinstance(c, dict))
-        return numerator, denominator
-
-    if shape == "count_difference":
-        return _as_float(memoria.get("QCSI")), _as_float(memoria.get("QRC"))
-
-    # external_catalog_sum / precomputed_table: point/aggregated measures, not
-    # a ratio — no numerator/denominator at the indicator level.
-    return None, None
-
-
-def _as_float(value: object) -> float | None:
-    if isinstance(value, int | float):
-        return float(value)
-    return None
+    """Delegates to the shape's own strategy (`SHAPE_REGISTRY`, the same
+    registry `engine.pipeline.measure` dispatches on) instead of a second,
+    separately-maintained shape-keyed dispatch — one place to update when a
+    shape is added, not two."""
+    strategy = SHAPE_REGISTRY.get(shape)
+    if strategy is None:
+        return None, None
+    return strategy.pool_numerator_denominator(memoria)
