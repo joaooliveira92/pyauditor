@@ -1,11 +1,11 @@
-indicator:
-  id: INMS-1.9
+﻿indicator:
+  id: INMS-09
   contractual_id: "INMS 1.9"
   name: Tempo médio de implementação de uma mudança
 
 scope:
-  contract: "40/2022 - Ministério da Cultura"
-  orgao: MinC
+  contract: "40/2022 - Ministério do Turismo"
+  orgao: MTur
 
 source:
   dataset: mudancas

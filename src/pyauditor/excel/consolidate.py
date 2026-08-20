@@ -27,6 +27,7 @@ from typing import Final
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Border, Font, Side
 
+from pyauditor.codes import format_inms_code
 from pyauditor.excel._style import (
     BODY_FONT,
     BOTTOM_BORDER,
@@ -180,7 +181,7 @@ def read_existing_decisions(path: Path) -> dict[RowKey, dict[str, object]]:
                 if name in _DECISION_COLUMNS
             }
             if any(v not in (None, "") for v in values.values()):
-                decisions[(indicador, orgao)] = values
+                decisions[(format_inms_code(indicador), orgao)] = values
         return decisions
     finally:
         workbook.close()
@@ -269,7 +270,7 @@ def _inms_base_row(competencia: str, summary: IndicatorSummary) -> tuple[CellVal
     if summary.target_value is not None:
         dif = round(summary.target_value - summary.result_pct, 2)
     return (
-        competencia, None, summary.asset, None, summary.contractual_id,
+        competencia, None, summary.asset, None, format_inms_code(summary.contractual_id),
         summary.name, summary.orgao, summary.target_value, summary.target_operator,
         summary.numerator, summary.denominator, round(summary.result_pct, 2),
         _UNIT_BY_SHAPE.get(summary.shape, ""),
@@ -338,7 +339,7 @@ def build_glosas(
     for summary in minc + mtur:
         if summary.penalty_points <= 0:
             continue
-        key: RowKey = (summary.contractual_id, summary.orgao)
+        key: RowKey = (format_inms_code(summary.contractual_id), summary.orgao)
         seen_keys.add(key)
         decision = existing_decisions.get(key, {})
         is_amnestied = str(decision.get("Decisão Fiscal") or "").strip().lower().startswith(_DECISAO_ACEITA)
@@ -350,7 +351,7 @@ def build_glosas(
         valor_glosa = round((valor_base or 0.0) * pct / 100, 2) if valor_base is not None else None
 
         _write(ws, row, (
-            competencia, summary.orgao, "", "", summary.contractual_id,
+            competencia, summary.orgao, "", "", format_inms_code(summary.contractual_id),
             round(summary.result_pct, 2), summary.target_value, _faixa(summary),
             round(pct, 4), valor_base, 0.0 if is_amnestied else valor_glosa,
             _decision_value(decision, "Reincidência"), _decision_value(decision, "Justificativa"),

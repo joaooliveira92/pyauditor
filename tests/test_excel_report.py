@@ -66,7 +66,7 @@ def test_inms_base_row_matches_summary_and_leaves_fiscal_columns_blank() -> None
     row = {header[i]: sheet.cell(row=2, column=i + 1).value for i in range(len(header))}
 
     assert row["Competência"] == "2026-06"
-    assert row["Código INMS"] == "INMS 1.1"
+    assert row["Código INMS"] == "INMS 1.01"
     assert row["Grupo operacional"] == "ATENDIMENTO_N1"
     assert row["Numerador"] == 171
     assert row["Denominador"] == 175
@@ -86,12 +86,12 @@ def test_group_tabs_only_contain_their_indicators() -> None:
 
     n1_sheet = workbook["ATENDIMENTO_N1"]
     n1_codes = [n1_sheet.cell(row=r, column=1).value for r in range(2, n1_sheet.max_row + 1)]
-    assert "INMS 1.1" in n1_codes
-    assert "INMS 1.4" not in n1_codes
+    assert "INMS 1.01" in n1_codes
+    assert "INMS 1.04" not in n1_codes
 
     noc_soc_sheet = workbook["MONITORAMENTO_NOC_SOC"]
     noc_soc_codes = [noc_soc_sheet.cell(row=r, column=1).value for r in range(2, noc_soc_sheet.max_row + 1)]
-    assert "INMS 1.4" in noc_soc_codes
+    assert "INMS 1.04" in noc_soc_codes
 
 
 def test_indicator_outside_group_tabs_only_appears_in_inms_base() -> None:
@@ -100,12 +100,12 @@ def test_indicator_outside_group_tabs_only_appears_in_inms_base() -> None:
     workbook = build_report_workbook("2026-06", summaries)
 
     base_sheet = workbook[INMS_BASE_SHEET]
-    assert base_sheet.cell(row=2, column=5).value == "INMS 1.8"  # Código INMS column
+    assert base_sheet.cell(row=2, column=5).value == "INMS 1.08"  # Código INMS column
 
     for group in GROUP_TABS:
         sheet = workbook[group]
         codes = [sheet.cell(row=r, column=1).value for r in range(2, sheet.max_row + 1)]
-        assert "INMS 1.8" not in codes
+        assert "INMS 1.08" not in codes
 
 
 def test_rows_sorted_by_contractual_id() -> None:
@@ -246,8 +246,8 @@ def test_cadastros_sheet_populated_from_configs() -> None:
     assert "Sentido" in header
 
     codes = [sheet.cell(row=r, column=1).value for r in range(2, sheet.max_row + 1)]
-    assert "INMS 1.1" in codes
-    assert "INMS 1.8" in codes
+    assert "INMS 1.01" in codes
+    assert "INMS 1.08" in codes
 
 
 def test_cadastros_sheet_skipped_when_no_configs() -> None:
@@ -314,8 +314,8 @@ def test_evidencias_sheet_populated_from_configs() -> None:
     assert "Status" in header
 
     codes = [sheet.cell(row=r, column=2).value for r in range(2, sheet.max_row + 1)]
-    assert "INMS 1.1" in codes
-    assert "INMS 1.8" in codes
+    assert "INMS 1.01" in codes
+    assert "INMS 1.08" in codes
 
     for row_idx in range(2, sheet.max_row + 1):
         assert sheet.cell(row=row_idx, column=1).value == "2026-06"

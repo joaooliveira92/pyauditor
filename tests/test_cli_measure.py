@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import pytest
+
+from pyauditor.cli.main import cli_main
 from pyauditor.cli.measure import run_measure
 
 CONFIG_YAML = """\
@@ -130,3 +133,65 @@ def test_measure_exits_nonzero_on_hard_failure(tmp_path: Path) -> None:
     assert exit_code.status == "error"
     rom_path = output_dir / "2026-06" / "INMS-TEST.md"
     assert rom_path.exists()  # ROM still written so rejections are visible
+
+
+def _write_per_orgao_config_and_data(
+    tmp_path: Path, orgao: str, contract: str, csv_body: str
+) -> None:
+    config_dir = tmp_path / "configs" / orgao
+    data_dir = tmp_path / "input" / orgao
+    config_dir.mkdir(parents=True, exist_ok=True)
+    month_dir = data_dir / "2026" / "06"
+    month_dir.mkdir(parents=True, exist_ok=True)
+    yaml = CONFIG_YAML
+    if orgao != "MinC":
+        yaml = yaml.replace("orgao: MinC", f"orgao: {orgao}")
+        yaml = yaml.replace("Ministério da Cultura", contract)
+    (config_dir / "inms-test.yaml").write_text(yaml, encoding="utf-8")
+    (month_dir / "data.csv").write_text(csv_body, encoding="utf-8")
+
+
+def test_measure_both_writes_per_orgao_and_combined_roms(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    config_dir = tmp_path / "configs"
+    data_dir = tmp_path / "input"
+    output_dir = tmp_path / "roms"
+    _write_per_orgao_config_and_data(
+        tmp_path,
+        "MinC",
+        "Ministério da Cultura",
+        "Nº Solicitacao;DataHoraFim;No prazo\n1;2026-06-01;S\n2;2026-06-02;N\n",
+    )
+    _write_per_orgao_config_and_data(
+        tmp_path,
+        "MTur",
+        "Ministério do Turismo",
+        "Nº Solicitacao;DataHoraFim;No prazo\n1;2026-06-01;S\n",
+    )
+
+    code = cli_main(
+        [
+            "measure", "2026-06",
+            "--orgao", "both",
+            "--config-dir", str(config_dir),
+            "--data-dir", str(data_dir),
+            "--output-dir", str(output_dir),
+        ]
+    )
+
+    assert code == 0
+    per_minc = output_dir / "MinC" / "2026-06" / "INMS-TEST.md"
+    per_mtur = output_dir / "MTur" / "2026-06" / "INMS-TEST.md"
+    assert per_minc.exists()
+    assert per_mtur.exists()
+
+    combined = output_dir / "both" / "2026-06" / "INMS-TEST.md"
+    assert combined.exists()
+    combined_content = combined.read_text(encoding="utf-8")
+    assert "# ROM — INMS TEST (Indicador sintético) — MinC e MTur" in combined_content
+    assert combined_content.index("## MinC") < combined_content.index("## MTur")
+    assert combined_content.count("### Resultado vs meta") == 2
+    assert "- Órgão: MinC" in combined_content
+    assert "- Órgão: MTur" in combined_content

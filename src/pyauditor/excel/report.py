@@ -12,6 +12,7 @@ from openpyxl import Workbook
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from pyauditor.atomic_write import atomic_write
+from pyauditor.codes import format_inms_code
 from pyauditor.config.models import IndicatorConfig
 from pyauditor.excel._style import UNIT_BY_SHAPE as _UNIT_BY_SHAPE
 from pyauditor.excel._style import CellValue
@@ -143,7 +144,7 @@ def _cadastros_row(config: IndicatorConfig) -> tuple[CellValue, ...]:
     target = config.target
     penalty = config.penalty
     return (
-        config.indicator.contractual_id,
+        format_inms_code(config.indicator.contractual_id),
         config.indicator.name,
         config.calculation.shape,
         target.value if target is not None else None,
@@ -156,7 +157,7 @@ def _cadastros_row(config: IndicatorConfig) -> tuple[CellValue, ...]:
 def _evidencias_row(competencia: str, config: IndicatorConfig) -> tuple[CellValue, ...]:
     return (
         competencia,
-        config.indicator.contractual_id,
+        format_inms_code(config.indicator.contractual_id),
         None,  # Tipo de evidência — fiscal-manual
         None,  # Descrição — fiscal-manual
         None,  # Fonte/URL — fiscal-manual
@@ -207,7 +208,7 @@ def _inms_base_row(competencia: str, summary: IndicatorSummary) -> tuple[CellVal
         None,  # Item contratual — fiscal-manual
         summary.asset,  # None for single-asset indicators
         primary_group(summary.contractual_id),
-        summary.contractual_id,
+        format_inms_code(summary.contractual_id),
         summary.name,
         summary.orgao,
         summary.target_value,
@@ -234,7 +235,7 @@ def _inms_base_row(competencia: str, summary: IndicatorSummary) -> tuple[CellVal
 
 def _group_row(summary: IndicatorSummary) -> tuple[CellValue, ...]:
     return (
-        summary.contractual_id,
+        format_inms_code(summary.contractual_id),
         summary.name,
         summary.asset,
         summary.orgao,

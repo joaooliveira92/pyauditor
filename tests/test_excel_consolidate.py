@@ -92,7 +92,7 @@ def test_glosas_has_one_row_per_indicator_times_orgao_with_breaches() -> None:
         (sheet.cell(row=r, column=5).value, sheet.cell(row=r, column=2).value)
         for r in range(2, 4)
     ]
-    assert set(rows) == {("INMS 1.6", "MinC"), ("INMS 1.6", "MTur")}
+    assert set(rows) == {("INMS 1.06", "MinC"), ("INMS 1.06", "MTur")}
     assert result.total_pontos == 150.0
     assert result.glosa_final == 100000.0 * 0.15 / 100
 
@@ -131,7 +131,7 @@ def test_amnestied_decision_zeroes_pontos_and_is_preserved() -> None:
     decisao: dict[str, object] = {
         "Decisão Fiscal": "Aceita", "Justificativa": "fornecedor comprovou",
     }
-    existing = {("INMS 1.6", "MinC"): decisao}
+    existing = {("INMS 1.06", "MinC"): decisao}
 
     result = build_consolidated_workbook(
         "2026-06", minc, mtur, {"Valor mensal vigente": 100000.0}, {},
@@ -168,14 +168,14 @@ def test_read_existing_decisions_roundtrips_from_a_saved_workbook(tmp_path) -> N
     decisao: dict[str, object] = {"Decisão Fiscal": "Não aceita", "Observação do Gestor": "mantida"}
     result = build_consolidated_workbook(
         "2026-06", minc, [], {"Valor mensal vigente": 100000.0}, {},
-        existing_decisions={("INMS 1.6", "MinC"): decisao},
+        existing_decisions={("INMS 1.06", "MinC"): decisao},
     )
     path = tmp_path / "relatorio_2026-06_consolidado.xlsx"
     result.workbook.save(path)
 
     decisions = read_existing_decisions(path)
-    assert decisions[("INMS 1.6", "MinC")]["Decisão Fiscal"] == "Não aceita"
-    assert decisions[("INMS 1.6", "MinC")]["Observação do Gestor"] == "mantida"
+    assert decisions[("INMS 1.06", "MinC")]["Decisão Fiscal"] == "Não aceita"
+    assert decisions[("INMS 1.06", "MinC")]["Observação do Gestor"] == "mantida"
 
 
 def test_glosas_summary_only_bolds_total_and_valor_glosa_rows() -> None:
@@ -219,7 +219,7 @@ def test_non_latin1_free_text_is_preserved_unmangled() -> None:
     decisao: dict[str, object] = {"Observação do Gestor": "aprovado ✔ — café não é cafe’"}
     result = build_consolidated_workbook(
         "2026-06", minc, [], {"Valor mensal vigente": 100000.0}, {},
-        existing_decisions={("INMS 1.6", "MinC"): decisao},
+        existing_decisions={("INMS 1.06", "MinC"): decisao},
     )
 
     sheet = result.workbook[GLOSAS_SHEET]

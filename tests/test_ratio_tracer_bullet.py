@@ -43,7 +43,7 @@ def test_inms_1_1_rom_renders_expected_sections() -> None:
 
     rom = render_rom(result)
 
-    assert "# ROM — INMS 1.1" in rom
+    assert "# ROM — INMS 1.01" in rom
     assert "## Identificação" in rom
     assert "## Linhas aprovadas pelo quality gate" in rom
     assert "## Rejeições" in rom

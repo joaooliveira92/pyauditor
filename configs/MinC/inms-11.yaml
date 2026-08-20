@@ -1,5 +1,5 @@
-indicator:
-  id: INMS-1.11
+﻿indicator:
+  id: INMS-11
   contractual_id: "INMS 1.11"
   name: Índice de chamadas telefônicas abandonadas
 

@@ -32,7 +32,7 @@ finais.
    ```
 
    Saída esperada: um log por indicador como
-   `INMS 1.1: roms/MinC/2026-06/INMS-1.1.md`.
+   `INMS 1.1: roms/MinC/2026-06/INMS-01.md`.
 
 4. Gere o relatório do órgão:
 

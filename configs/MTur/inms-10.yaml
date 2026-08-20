@@ -1,5 +1,5 @@
-indicator:
-  id: INMS-1.10
+﻿indicator:
+  id: INMS-10
   contractual_id: "INMS 1.10"
   name: Taxa de implantação de controles de segurança
 

@@ -57,7 +57,7 @@ def test_inms_1_8_rom_renders_without_target_section() -> None:
 
     rom = render_rom(result)
 
-    assert "# ROM — INMS 1.8" in rom
+    assert "# ROM — INMS 1.08" in rom
     assert "| Ocorrência | Item Anexo E | Descrição | Pontos |" in rom
     assert "não aplicável" in rom
 

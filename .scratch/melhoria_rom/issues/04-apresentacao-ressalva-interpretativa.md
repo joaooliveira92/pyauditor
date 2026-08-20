@@ -6,7 +6,7 @@ Status: resolved
 Como apresentar as 3 leituras da pontuação (achado 8 da auditoria) sem o
 script "decidir" qual é a correta, dado que `engine/strategies/_target.py`
 já documenta uma decisão de engenharia anterior (linear contínua, sem
-teto/piso) tomada com base na leitura do Anexo D — e `configs/MinC/inms-1.1.yaml`
+teto/piso) tomada com base na leitura do Anexo D — e `configs/MinC/inms-01.yaml`
 tem um comentário registrando esse histórico (referência a um "ticket 04"
 anterior que corrigiu uma leitura "ceil" assumida antes)?
 

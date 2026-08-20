@@ -41,7 +41,7 @@ def test_inms_1_4_rom_renders_per_asset_table() -> None:
 
     rom = render_rom(result)
 
-    assert "# ROM — INMS 1.4" in rom
+    assert "# ROM — INMS 1.04" in rom
     assert "| Ativo | Resultado | Penalidade |" in rom
     assert "Barramento de Integracao" in rom or "Barramento de Integração" in rom
 

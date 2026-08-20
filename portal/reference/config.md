@@ -8,7 +8,7 @@ desconhecidos falham.
 
 ```yaml
 indicator:       # obrigatório
-  id: INMS-1.1
+  id: INMS-01
   contractual_id: "INMS 1.1"
   name: Incidentes atendidos dentro do prazo
   asset: null     # opcional — rótulo do ativo (por-ativo)
@@ -142,9 +142,9 @@ usado pelo smoke test parametrizado (`tests/test_full_acceptance_smoke.py`).
 Os configs de produção vivem por órgão em `configs/<orgao>/` (ex.:
 `configs/MinC/`), cada um com seu manifesto `datasets.yaml`.
 
-- `ratio` — `configs/<orgao>/inms-1.1.yaml`.
-- `segmented_ratio` — `configs/<orgao>/inms-1.2.yaml` (3 categorias por prioridade).
-- `precomputed_table` — `configs/<orgao>/inms-1.8.yaml`, `configs/<orgao>/inms-1.10.yaml`.
+- `ratio` — `configs/<orgao>/inms-01.yaml`.
+- `segmented_ratio` — `configs/<orgao>/inms-02.yaml` (3 categorias por prioridade).
+- `precomputed_table` — `configs/<orgao>/inms-08.yaml`, `configs/<orgao>/inms-10.yaml`.
 - Fixtures para `count_difference` e `external_catalog_sum`: `tests/fixtures/manual_entry_examples/`.
 
 O manifesto por órgão (`<config-dir>/<orgao>/datasets.yaml`) é o default de

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from pyauditor.engine.pipeline import load_config, measure
-from pyauditor.rom.render import render_rom
+from pyauditor.rom.render import render_combined_rom, render_rom
 
 _RATIO_YAML = """
 indicator:
@@ -216,3 +216,33 @@ def test_footer_note_present(tmp_path: Path) -> None:
     rom = render_rom(result)
 
     assert "refletem o estado da capa no momento" in rom
+
+
+def test_render_combined_rom_stacks_both_orgaos(tmp_path: Path) -> None:
+    """The `both` markdown nests each orgão's full ROM body under its own
+    `## <órgão>` heading (sections drop one level to `###`)."""
+    minc_path = _write_orgao_fixture(tmp_path, "MinC", resultado=91.0)
+    mtur_path = _write_orgao_fixture(tmp_path, "MTur", resultado=100.0)
+    result_minc = measure(load_config(minc_path), data_dir=tmp_path, config_path=minc_path)
+    result_mtur = measure(load_config(mtur_path), data_dir=tmp_path, config_path=mtur_path)
+
+    rom = render_combined_rom(result_minc, result_mtur)
+
+    assert rom.startswith("# ROM — INMS TEST (Indicador sintético) — MinC e MTur\n")
+    assert "## MinC" in rom and "## MTur" in rom
+    assert "### Identificação" in rom
+    assert "### Resultado vs meta" in rom
+    assert rom.count("não são valores definitivos") == 2  # footer once per orgão
+    # Per-orgão sections keep their own scope, MinC first.
+    assert rom.index("## MinC") < rom.index("## MTur")
+
+
+def _write_orgao_fixture(tmp_path: Path, orgao: str, *, resultado: float) -> Path:
+    yaml = _RATIO_YAML
+    if orgao != "MinC":
+        yaml = yaml.replace("orgao: MinC", f"orgao: {orgao}")
+        yaml = yaml.replace("Ministério da Cultura", "Ministério do Turismo")
+    config_path = tmp_path / f"{orgao}.yaml"
+    config_path.write_text(yaml, encoding="utf-8")
+    (tmp_path / "data.csv").write_text(f"Descrição,Resultado\nX,{resultado}\n", encoding="utf-8")
+    return config_path

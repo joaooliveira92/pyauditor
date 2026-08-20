@@ -1,11 +1,11 @@
-indicator:
-  id: INMS-1.6
+﻿indicator:
+  id: INMS-06
   contractual_id: "INMS 1.6"
   name: Eficácia no tratamento de chamados
 
 scope:
-  contract: "40/2022 - Ministério do Turismo"
-  orgao: MTur
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
 
 source:
   dataset: chamados_reabertos
@@ -19,9 +19,9 @@ calculation:
   # ΣCA − ΣCR sobre ΣCA. `denominator_filter` exclui a linha "TOTAIS" — o CSV
   # real traz um resumo por Acordo de Nível de Serviço mais uma linha de
   # total; somar as duas contaria em dobro. Não dá para usar só a linha
-  # "TOTAIS" isolada: ela formata milhar com ponto (ex.: "1.622"), que vira
-  # 1,622 ao converter para float — as linhas individuais não têm essa
-  # formatação, por isso são a soma confiável.
+  # "TOTAIS" isolada: ela formata milhar com ponto ("1.622"), que vira 1,622
+  # ao converter para float — as linhas individuais não têm essa formatação,
+  # por isso são a soma confiável.
   denominator_filter:
     column: "Acordo de Nível de Serviço"
     not_equals: "TOTAIS"
@@ -44,18 +44,20 @@ penalty:
 # de Chamados Reabertos" (CR) prontas, mais uma linha "TOTAIS". Confirmado
 # contra o RAS oficial (docs/processo_de_pagamento_junho_2026): fórmula
 # "(Total de chamados atendidos − Total de chamados reabertos) / Total de
-# chamados atendidos". A soma das linhas individuais do MTur (CA=862, CR=3)
+# chamados atendidos". A soma das linhas individuais do MinC (CA=1622, CR=1)
 # bate exatamente com a linha "TOTAIS" — cross-check usado para confirmar a
 # leitura, não a fonte (ver nota do `denominator_filter` acima sobre o
 # formato de milhar da linha "TOTAIS"). Corrigido 2026-08-19: a versão
 # anterior filtrava uma coluna "No prazo" (S/N) que não existe nesse
-# formato — sempre resultou 0% (penalidade máxima) para os dois órgãos até
-# esta correção. Prova sintética em tests/test_remaining_ratio_indicators.py.
+# formato — o antigo header ITSM genérico descrito no comentário anterior
+# não é o real; a leitura sempre resultou 0% (penalidade máxima) para os
+# dois órgãos até esta correção. Prova sintética em
+# tests/test_remaining_ratio_indicators.py.
 acceptance_test:
   expected:
     shape: ratio
-    numerator: 859.0
-    denominator: 862.0
-    result_pct: 99.6520
+    numerator: 1621.0
+    denominator: 1622.0
+    result_pct: 99.9383
     conforms: true
     penalty_points: 0.0

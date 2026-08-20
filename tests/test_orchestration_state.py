@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import pytest
 
@@ -44,7 +45,7 @@ def test_load_state_raises_run_state_corrupted_on_malformed_json(tmp_path: Path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("not json", encoding="utf-8")
 
-    with pytest.raises(RunStateCorrupted, match=str(path)):
+    with pytest.raises(RunStateCorrupted, match=re.escape(str(path))):
         load_state(path)
 
 

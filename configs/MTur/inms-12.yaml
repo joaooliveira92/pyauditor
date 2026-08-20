@@ -1,5 +1,5 @@
-indicator:
-  id: INMS-1.12
+﻿indicator:
+  id: INMS-12
   contractual_id: "INMS 1.12"
   name: Índice de chamadas telefônicas atendidas em até 20 segundos
 

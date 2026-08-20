@@ -208,7 +208,7 @@ def test_run_report_builds_workbook_from_summaries(tmp_path: Path) -> None:
     workbook = load_workbook(output_path)
     assert INMS_BASE_SHEET in workbook.sheetnames
     sheet = workbook[INMS_BASE_SHEET]
-    assert sheet.cell(row=2, column=5).value == "INMS 1.1"
+    assert sheet.cell(row=2, column=5).value == "INMS 1.01"
 
 
 def test_run_report_is_regenerated_not_cumulative(tmp_path: Path) -> None:
@@ -229,7 +229,7 @@ def test_run_report_is_regenerated_not_cumulative(tmp_path: Path) -> None:
     workbook = load_workbook(output_path)
     sheet = workbook[INMS_BASE_SHEET]
     codes = [str(sheet.cell(row=r, column=5).value) for r in range(2, sheet.max_row + 1)]
-    assert sorted(codes) == ["INMS 1.1", "INMS 1.2"]
+    assert sorted(codes) == ["INMS 1.01", "INMS 1.02"]
     assert output_path.stat().st_size != first_size or len(codes) == 2
 
 

@@ -52,7 +52,7 @@ def test_inms_1_2_rom_renders_category_table() -> None:
 
     rom = render_rom(result)
 
-    assert "# ROM — INMS 1.2" in rom
+    assert "# ROM — INMS 1.02" in rom
     assert "| Categoria | Numerador | Denominador | Resultado | Penalidade |" in rom
     assert "alta" in rom
     assert "media" in rom

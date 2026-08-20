@@ -13,7 +13,7 @@ da competência chegarem.
 1. Confira a estrutura de pastas:
 
    ```text
-   configs/MinC/inms-1.1.yaml ...
+   configs/MinC/inms-01.yaml ...
    input/MinC/2026/06/inms-01.csv ...   (ou os nomes do datasets.yaml)
    ```
 
@@ -37,7 +37,8 @@ da competência chegarem.
 ## Falhas comuns
 
 - **`competência inválida`** — use `YYYY-MM`.
-- **`nenhum config encontrado`** — o `--config-dir` não tem `inms-*.yaml`.
+- **`nenhum config encontrado`** — o `--config-dir` não tem `inms-*.yaml`
+  (o discovery ignora nomes; qualquer `*.yaml` com `indicator` vale).
 - **`source.dataset=... requires a manifest`** — falta `configs/datasets.yaml`
   (ou `--manifest` apontando para ele).
 - **`hard_failure` de um indicador** — todas as linhas existentes foram

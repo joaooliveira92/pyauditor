@@ -130,6 +130,22 @@ def test_execute_run_persists_state_and_resume_skips_done(tmp_path: Path) -> Non
     assert calls == []  # nothing re-run — everything already "done"
 
 
+def test_execute_run_force_reruns_commands_marked_done(tmp_path: Path) -> None:
+    request = _scaffold(tmp_path, csv_body=_GOOD_CSV)
+    execute_run(request)
+
+    path = state_path(request.competencia, request.orgao, request.runs_dir)
+    state = load_state(path)
+    assert state is not None
+    assert all(entry.status == "done" for entry in state.commands)
+
+    calls: list[str] = []
+    execute_run(replace(request, force=True), on_state_change=lambda e: calls.append(e.command))
+
+    assert calls != []  # force re-runs what the persisted state already marked done
+    assert all(entry.status == "done" for entry in execute_run(replace(request, force=True)).state.commands)
+
+
 def test_execute_run_cascades_skip_to_downstream_commands(tmp_path: Path) -> None:
     request = _scaffold(tmp_path, csv_body=_HARD_FAILURE_CSV)
 

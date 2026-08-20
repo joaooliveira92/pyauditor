@@ -1,11 +1,11 @@
-indicator:
-  id: INMS-1.4
+﻿indicator:
+  id: INMS-04
   contractual_id: "INMS 1.4"
   name: Disponibilidade de sistema/serviço crítico
 
 scope:
-  contract: "40/2022 - Ministério da Cultura"
-  orgao: MinC
+  contract: "40/2022 - Ministério do Turismo"
+  orgao: MTur
 
 source:
   dataset: disponibilidade_sistema_critico

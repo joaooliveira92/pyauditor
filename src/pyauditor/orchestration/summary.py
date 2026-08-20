@@ -21,12 +21,16 @@ from pyauditor.cli.report import ReportResult
 from pyauditor.orchestration.run import RunResult, dependency_missing
 from pyauditor.orchestration.state import CommandStateEntry
 
+# ASCII-only markers: the status column is printed to a possibly cp1252-coded
+# Windows console (rich falls back to legacy_windows_render there), where any
+# non-ASCII glyph would raise UnicodeEncodeError and take the whole `run` down
+# with it. Colours still distinguish states on capable terminals.
 _STATE_ICON: dict[str, tuple[str, str]] = {
-    "pending": ("○", "dim"),
-    "running": ("◐", "cyan"),
-    "done": ("●", "green"),
-    "skipped": ("◌", "yellow"),
-    "error": ("✕", "bold red"),
+    "pending": ("[ ]", "dim"),
+    "running": ("[>]", "cyan"),
+    "done": ("[x]", "green"),
+    "skipped": ("[~]", "yellow"),
+    "error": ("[!]", "bold red"),
 }
 
 

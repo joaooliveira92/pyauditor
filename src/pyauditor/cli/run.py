@@ -3,6 +3,10 @@ of bootstrap→measure→report→consolidate in one invocation (ticket "Run
 orchestrator and resume"). Thin wrapper: builds a `RunRequest` from the same
 flags `measure`/`report`/`consolidate` already use, calls `execute_run` with
 no-op callbacks, then renders the shared summary.
+
+`run` always regenerates: it sets `force=True`, so the persisted run-state
+never suppresses re-running a Command that a previous attempt already marked
+done (unlike the interactive flow, which resumes where it left off).
 """
 
 from __future__ import annotations
@@ -38,6 +42,7 @@ def run_run(
         capa_path=capa_path,
         final_month=final_month,
         runs_dir=runs_dir,
+        force=True,
     )
     run_result = execute_run(request)
     render_summary(run_result)

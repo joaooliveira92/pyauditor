@@ -19,10 +19,14 @@ from typing import Final
 
 from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
 from pyauditor.config.manifest import DatasetManifest
-from pyauditor.engine.pipeline import discover_config_files, measure
+from pyauditor.engine.pipeline import (
+    MeasurementResult,
+    discover_config_files,
+    measure,
+)
 from pyauditor.excel.capa import read_capa_fields
 from pyauditor.logging import logger
-from pyauditor.rom.render import render_rom
+from pyauditor.rom.render import render_combined_rom, render_rom
 from pyauditor.rom.summary import summarize
 
 _UNSAFE_ID_CHARS_RE: Final = re.compile(r"[^A-Za-z0-9._-]")
@@ -45,6 +49,18 @@ class MeasureResult:
     indicators: tuple[IndicatorOutcome, ...]
     warnings: tuple[str, ...]
     error_message: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class _MeasuredIndicator:
+    """A measured indicator alongside enough to render the combined markdown
+    later — `result` (the numbers) and the capa fields used for its orgão."""
+
+    indicator_id: str
+    safe_id: str
+    orgao: str
+    result: MeasurementResult
+    capa_fields: dict[str, object]
 
 
 def check_measure_ready(*_args: object, **_kwargs: object) -> DependencyCheck:
@@ -79,6 +95,7 @@ def run_measure(
     *,
     expected_orgao: str | None = None,
     capa_path: Path | None = None,
+    collect: list[_MeasuredIndicator] | None = None,
 ) -> MeasureResult:
     orgao = expected_orgao or ""
 
@@ -198,6 +215,15 @@ def run_measure(
                 hard_failure=False, error=None,
             ))
 
+        if collect is not None:
+            collect.append(_MeasuredIndicator(
+                indicator_id=config.indicator.id,
+                safe_id=safe_id,
+                orgao=config.scope.orgao,
+                result=result,
+                capa_fields=capa_fields,
+            ))
+
     error_message = (
         "um ou mais indicadores tiveram falha de medição" if any_hard_failure else None
     )
@@ -209,3 +235,40 @@ def run_measure(
         warnings=tuple(warnings),
         error_message=error_message,
     )
+
+
+def write_combined_roms(
+    per_orgao: dict[str, list[_MeasuredIndicator]], competencia: str, output_dir: Path
+) -> None:
+    """Given the measured indicators of each orgão (from `run_measure(...,
+    collect=...)` calls with `--orgao both`), write under
+    `output_dir/both/<competencia>/` one markdown per indicator with both
+    orgãos' ROMs stacked. Skips indicators that only measured in one orgão
+    (warning, no combined render without the pair)."""
+    both_dir = output_dir / "both" / competencia
+    both_dir.mkdir(parents=True, exist_ok=True)
+
+    by_id: dict[str, dict[str, _MeasuredIndicator]] = {}
+    for orgao, measured in per_orgao.items():
+        for item in measured:
+            by_id.setdefault(item.indicator_id, {})[orgao] = item
+
+    for indicator_id, orgs in sorted(by_id.items()):
+        if len(orgs) < 2:
+            missing = ", ".join(sorted({"MinC", "MTur"} - set(orgs)))
+            logger.warning(
+                f"{indicator_id}: ROM combinado 'both' não gerado — falta medição de {missing}"
+            )
+            continue
+
+        minc = orgs["MinC"]
+        mtur = orgs["MTur"]
+        capa_by_orgao = {"MinC": minc.capa_fields, "MTur": mtur.capa_fields}
+        combined_path = both_dir / f"{minc.safe_id}.md"
+        try:
+            combined_path.write_text(
+                render_combined_rom(minc.result, mtur.result, capa_by_orgao),
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            logger.error(f"falha ao escrever {combined_path}: {exc}")

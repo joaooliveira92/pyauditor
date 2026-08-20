@@ -1,11 +1,11 @@
-indicator:
-  id: INMS-1.14
+﻿indicator:
+  id: INMS-14
   contractual_id: "INMS 1.14"
   name: Índice de disponibilidade de serviços de infraestrutura
 
 scope:
-  contract: "40/2022 - Ministério do Turismo"
-  orgao: MTur
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
 
 source:
   dataset: disponibilidade_infra

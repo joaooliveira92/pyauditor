@@ -1,11 +1,11 @@
-indicator:
-  id: INMS-1.13
+﻿indicator:
+  id: INMS-13
   contractual_id: "INMS 1.13"
   name: Índice de chamados atendidos no Nível I
 
 scope:
-  contract: "40/2022 - Ministério da Cultura"
-  orgao: MinC
+  contract: "40/2022 - Ministério do Turismo"
+  orgao: MTur
 
 source:
   dataset: chamados_grupo_executor

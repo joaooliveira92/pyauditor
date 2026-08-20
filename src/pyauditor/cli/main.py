@@ -16,7 +16,7 @@ from typing import Final, Literal, NoReturn, TypeAlias, TypeGuard, TypeVar, asse
 
 from pyauditor.cli.bootstrap import run_bootstrap
 from pyauditor.cli.consolidate import check_consolidate_ready, run_consolidate
-from pyauditor.cli.measure import run_measure
+from pyauditor.cli.measure import _MeasuredIndicator, run_measure, write_combined_roms
 from pyauditor.cli.report import ReportResult, check_report_ready, run_report
 from pyauditor.cli.results import exit_code_for, exit_code_for_results
 from pyauditor.cli.run import run_run
@@ -266,6 +266,7 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
         )
     )
     measure_results = []
+    per_orgao: dict[str, list[_MeasuredIndicator]] = {}
     for orgao in _each_single_orgao(request.orgao):
         per_orgao_config_dir = request.config_dir / orgao
         per_orgao_data_dir = request.data_dir / orgao
@@ -275,6 +276,7 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
         manifest = None
         if per_orgao_manifest_path.exists():
             manifest = load_manifest(per_orgao_manifest_path)
+        collect: list[_MeasuredIndicator] = []
         measure_results.append(run_measure(
             competencia=request.competencia,
             config_dir=per_orgao_config_dir,
@@ -283,7 +285,13 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
             manifest=manifest,
             expected_orgao=orgao,
             capa_path=per_orgao_capa,
+            collect=collect,
         ))
+        per_orgao[orgao] = collect
+    if request.orgao == "both":
+        # Single markdown per indicator covering both orgãos, alongside the
+        # per-orgão ROMs (roms/MinC/..., roms/MTur/...).
+        write_combined_roms(per_orgao, request.competencia, request.output_dir)
     return exit_code_for_results(measure_results)
 
 

@@ -46,9 +46,9 @@ indicador é declarativo: um YAML + um CSV.
 
 ## Exemplos por shape
 
-- **`ratio`** — `configs/<orgao>/inms-1.1.yaml` (razão simples com meta e penalidade).
-- **`segmented_ratio`** — `configs/<orgao>/inms-1.2.yaml`.
-- **`precomputed_table`** — `configs/<orgao>/inms-1.10.yaml` (tabela de apuração
+- **`ratio`** — `configs/<orgao>/inms-01.yaml` (razão simples com meta e penalidade).
+- **`segmented_ratio`** — `configs/<orgao>/inms-02.yaml`.
+- **`precomputed_table`** — `configs/<orgao>/inms-10.yaml` (tabela de apuração
   por linha/ativo).
 - **`count_difference`** — modelo e fixture em
   `tests/fixtures/manual_entry_examples/inms-1.10-*`.

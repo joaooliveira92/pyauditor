@@ -47,7 +47,7 @@ def test_schema_produces_a_valid_rom_and_lists_rejection_reason() -> None:
 
     rom = render_rom(result)
 
-    assert "# ROM — INMS 1.8" in rom
+    assert "# ROM — INMS 1.08" in rom
     assert "OC-2026-004" in rom
     assert "nulo/vazio" in rom
     assert "OD-52" in rom

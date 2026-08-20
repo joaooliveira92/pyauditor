@@ -55,6 +55,7 @@ class RunRequest:
     final_month: bool = False
     commands: frozenset[str] = _ALL_COMMANDS
     runs_dir: Path = Path(".pyauditor/runs")
+    force: bool = False  # re-run commands the persisted state already marked done/skipped
 
 
 @dataclass(frozen=True, slots=True)
@@ -257,7 +258,7 @@ def execute_run(
             continue
 
         current = _find_entry(state, command, orgao)
-        if current is not None and current.status in ("done", "skipped"):
+        if current is not None and current.status in ("done", "skipped") and not request.force:
             continue
         if (command, orgao) in skipped_steps:
             continue

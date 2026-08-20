@@ -32,7 +32,7 @@ Exemplo:
 
 ```json
 {
-  "indicator_id": "INMS-1.1",
+  "indicator_id": "INMS-01",
   "contractual_id": "INMS 1.1",
   "name": "Incidentes atendidos dentro do prazo",
   "asset": null,

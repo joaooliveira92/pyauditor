@@ -1,11 +1,11 @@
-indicator:
-  id: INMS-1.7
+﻿indicator:
+  id: INMS-07
   contractual_id: "INMS 1.7"
   name: Satisfação dos usuários
 
 scope:
-  contract: "40/2022 - Ministério da Cultura"
-  orgao: MinC
+  contract: "40/2022 - Ministério do Turismo"
+  orgao: MTur
 
 source:
   dataset: satisfacao
