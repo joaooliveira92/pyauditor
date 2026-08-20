@@ -34,7 +34,7 @@ penalty:
 """
 
 
-def test_run_run_executes_bootstrap_measure_report_and_returns_0(tmp_path: Path) -> None:
+def test_run_run_executes_pipeline_and_returns_4_for_unfilled_capa(tmp_path: Path) -> None:
     (tmp_path / "configs" / "MinC").mkdir(parents=True)
     (tmp_path / "input" / "MinC" / "2026" / "06").mkdir(parents=True)
     (tmp_path / "configs" / "MinC" / "inms-test.yaml").write_text(_CONFIG_YAML, encoding="utf-8")
@@ -52,6 +52,7 @@ def test_run_run_executes_bootstrap_measure_report_and_returns_0(tmp_path: Path)
         capa_path=tmp_path / "capa.xlsx",
         runs_dir=tmp_path / ".pyauditor" / "runs",
     )
-
-    assert exit_code == 0
+    # Capa em branco criada pelo bootstrap: relatório rascunho (3) + glosa não
+    # calculada (4) → 4 vence pela precedência; nunca 0.
+    assert exit_code == 4
     assert (tmp_path / "reports" / "relatorio_2026-06_MinC.xlsx").exists()

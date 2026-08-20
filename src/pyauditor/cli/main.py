@@ -12,7 +12,17 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Final, Literal, NoReturn, TypeAlias, TypeGuard, TypeVar, assert_never, cast
+from typing import (
+    Final,
+    Literal,
+    NoReturn,
+    TypeAlias,
+    TypedDict,
+    TypeGuard,
+    TypeVar,
+    assert_never,
+    cast,
+)
 
 from pyauditor.cli.bootstrap import run_bootstrap
 from pyauditor.cli.consolidate import check_consolidate_ready, run_consolidate
@@ -112,6 +122,53 @@ def _add_orgao_argument(parser: argparse.ArgumentParser, *, default: Orgao = "Mi
     )
 
 
+def _add_logging_arguments(parser: argparse.ArgumentParser) -> None:
+    """Flags de observabilidade (ticket 05): verbosidade `-v`/`-vv`, nível
+    explícito e formato JSON para automação. Aplicado a todos os subcomandos
+    (Q8): o nível efetivo = `--log-level` se dado, senão a verbosidade."""
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="-v: um evento por indicador; -vv: detalhes de leitura/validação/cálculo",
+    )
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
+        default=None,
+        help="nível de log manual (prevalece sobre -v; default INFO)",
+    )
+    parser.add_argument(
+        "--log-format",
+        type=str,
+        choices=("text", "json"),
+        default="text",
+        help="json: cada registro em stderr vira uma linha JSON ({time, level, event, ...})",
+    )
+
+
+class _LoggingKwargs(TypedDict):
+    """Flags de logging do argparse, com os tipos exatos que `setup_logging`
+    espera — TypedDict para o unpacking `**` passar pelo mypy strict."""
+
+    verbose: int
+    log_level_explicit: str | None
+    json_format: bool
+
+
+def _logging_kwargs(args: argparse.Namespace) -> _LoggingKwargs:
+    """Traduz os flags de logging do argparse para `setup_logging`."""
+    verbose = _require(args, "verbose", int)
+    log_level_raw: object = cast(object, getattr(args, "log_level", None))
+    return {
+        "verbose": verbose,
+        "log_level_explicit": cast(str | None, log_level_raw),
+        "json_format": cast(object, getattr(args, "log_format", "text")) == "json",
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build strictly-typed parser for spec §6."""
     parser = argparse.ArgumentParser(prog=_PROG)
@@ -134,12 +191,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="caminho para datasets.yaml (default: <config-dir>/<órgão>/datasets.yaml)"
     )
     measure_parser.add_argument("--capa-path", type=Path, default=None)
+    _add_logging_arguments(measure_parser)
 
     bootstrap_parser = subparsers.add_parser(
         _CMD_BOOTSTRAP, help="cria a capa Excel do contrato, se ainda não existir"
     )
     _add_orgao_argument(bootstrap_parser)
     bootstrap_parser.add_argument("--capa-path", type=Path, default=None)
+    _add_logging_arguments(bootstrap_parser)
 
     report_parser = subparsers.add_parser(
         _CMD_REPORT, help="consolida os ROMs de uma competência no Excel final"
@@ -157,6 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="último mês de vigência do contrato — desliga o rollover de glosa (item 35 do TR)",
     )
+    _add_logging_arguments(report_parser)
 
     consolidate_parser = subparsers.add_parser(
         _CMD_CONSOLIDATE,
@@ -165,6 +225,7 @@ def build_parser() -> argparse.ArgumentParser:
     consolidate_parser.add_argument("competencia", help='ex.: "2026-06"')
     consolidate_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
     consolidate_parser.add_argument("--roms-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
+    _add_logging_arguments(consolidate_parser)
 
     run_parser = subparsers.add_parser(
         _CMD_RUN,
@@ -177,6 +238,14 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
     run_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
     run_parser.add_argument("--capa-path", type=Path, default=None)
+    run_parser.add_argument(
+        "--output",
+        type=str,
+        choices=("text", "json"),
+        default="text",
+        help="formato do resumo final: 'text' (painel rico, padrão) ou 'json' (automação/CI)",
+    )
+    _add_logging_arguments(run_parser)
     run_parser.add_argument(
         "--final-month",
         action="store_true",
@@ -263,7 +332,8 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
         log_path=_run_log_path(
             request.output_dir / request.orgao / request.competencia,
             _CMD_MEASURE, request.competencia,
-        )
+        ),
+        **_logging_kwargs(args),
     )
     measure_results = []
     per_orgao: dict[str, list[_MeasuredIndicator]] = {}
@@ -301,7 +371,10 @@ def _dispatch_bootstrap(args: argparse.Namespace) -> int:
     bootstrap_results = []
     for single_orgao in _each_single_orgao(orgao):
         per_orgao_capa = _capa_path_for(capa_path, cast(Orgao, single_orgao))
-        setup_logging(log_path=_run_log_path(per_orgao_capa.parent, _CMD_BOOTSTRAP))
+        setup_logging(
+            log_path=_run_log_path(per_orgao_capa.parent, _CMD_BOOTSTRAP),
+            **_logging_kwargs(args),
+        )
         bootstrap_results.append(run_bootstrap(per_orgao_capa, single_orgao))
     return exit_code_for_results(bootstrap_results)
 
@@ -311,7 +384,8 @@ def _dispatch_report(args: argparse.Namespace) -> int:
     setup_logging(
         log_path=_run_log_path(
             report_request.output_path.parent, _CMD_REPORT, report_request.competencia
-        )
+        ),
+        **_logging_kwargs(args),
     )
     report_results = []
     for orgao in _each_single_orgao(report_request.orgao):
@@ -351,7 +425,8 @@ def _dispatch_consolidate(args: argparse.Namespace) -> int:
     setup_logging(
         log_path=_run_log_path(
             consolidate_request.output_path.parent, _CMD_CONSOLIDATE, consolidate_request.competencia
-        )
+        ),
+        **_logging_kwargs(args),
     )
     # Pre-flight (ticket "Dependency enforcement"): same checker `run_consolidate`
     # calls internally — fast, actionable error before touching the pipeline.
@@ -370,7 +445,7 @@ def _dispatch_consolidate(args: argparse.Namespace) -> int:
         roms_dir=consolidate_request.roms_dir,
         output_path=consolidate_request.output_path,
     )
-    return exit_code_for(consolidate_result.status)
+    return exit_code_for_results((consolidate_result,))
 
 
 def _dispatch_run(args: argparse.Namespace) -> int:
@@ -379,8 +454,10 @@ def _dispatch_run(args: argparse.Namespace) -> int:
     output_dir = _require(args, "output_dir", Path)
     report_dir = _require(args, "report_dir", Path)
     setup_logging(
-        log_path=_run_log_path(report_dir, _CMD_RUN, competencia)
+        log_path=_run_log_path(report_dir, _CMD_RUN, competencia),
+        **_logging_kwargs(args),
     )
+    output_raw = _require(args, "output", str)
     return run_run(
         competencia=competencia,
         orgao=orgao,
@@ -390,6 +467,7 @@ def _dispatch_run(args: argparse.Namespace) -> int:
         report_dir=report_dir,
         capa_path=_extract_capa_path(args),
         final_month=bool(cast(object, getattr(args, "final_month", False))),
+        output="json" if output_raw == "json" else "text",
     )
 
 

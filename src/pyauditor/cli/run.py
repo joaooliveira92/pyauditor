@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Final
 
 from pyauditor.orchestration.run import RunRequest, execute_run
-from pyauditor.orchestration.summary import exit_code_for_run, render_summary
+from pyauditor.orchestration.summary import OutputFormat, exit_code_for_run, render_summary
 
 _DEFAULT_RUNS_DIR: Final[Path] = Path(".pyauditor/runs")
 
@@ -31,6 +31,7 @@ def run_run(
     *,
     final_month: bool = False,
     runs_dir: Path = _DEFAULT_RUNS_DIR,
+    output: OutputFormat = "text",
 ) -> int:
     request = RunRequest(
         competencia=competencia,
@@ -45,5 +46,5 @@ def run_run(
         force=True,
     )
     run_result = execute_run(request)
-    render_summary(run_result)
-    return exit_code_for_run(run_result.state.commands)
+    render_summary(run_result, output=output)
+    return exit_code_for_run(run_result.state.commands, run_result.results)

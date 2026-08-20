@@ -100,4 +100,4 @@ class RichQuestionaryProvider:
 
     def show_summary(self, run_result: RunResult, *, log_path: object | None = None) -> int:
         render_summary(run_result, log_path=log_path, console=self.console)
-        return exit_code_for_run(run_result.state.commands)
+        return exit_code_for_run(run_result.state.commands, run_result.results)

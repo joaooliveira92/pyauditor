@@ -122,6 +122,7 @@ class ConsolidationResult:
     total_pontos: float
     glosa_final: float
     warnings: tuple[str, ...]
+    glosa_calculada: bool
 
 
 _TRACKED_HEADER_NAMES: Final[frozenset[str]] = frozenset({"Indicador", "Órgão", *_DECISION_COLUMNS})
@@ -507,4 +508,7 @@ def build_consolidated_workbook(
     for warning in warnings:
         logger.warning(warning)
 
-    return ConsolidationResult(workbook=wb, total_pontos=total_pontos, glosa_final=glosa_final, warnings=tuple(warnings))
+    return ConsolidationResult(
+        workbook=wb, total_pontos=total_pontos, glosa_final=glosa_final,
+        warnings=tuple(warnings), glosa_calculada=valor_base is not None,
+    )

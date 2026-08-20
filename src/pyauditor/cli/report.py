@@ -6,16 +6,40 @@ into the final Excel: `CADASTROS` + `INMS_BASE` + per-group tabs + `GLOSAS`
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Final
 
 from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
 from pyauditor.engine.pipeline import discover_configs
 from pyauditor.excel.capa import read_capa_fields
 from pyauditor.excel.glosas import historico_entry, read_historico, write_historico
 from pyauditor.excel.report import build_report, compute_report_glosa
-from pyauditor.logging import logger
+from pyauditor.logging import log_event, logger
 from pyauditor.rom.summary import IndicatorSummary
 
 HISTORICO_FILENAME = "glosa_historico.json"
+
+# Obrigatórios para publicar/assinar (ticket "02 - Criticidade dos campos da
+# capa"): ausentes → relatório vira rascunho (não-publicável), o que o código
+# de saída 3 reflete. Monetários ficam fora — saem da capa (ticket 07); a
+# ausência de valor é "glosa não calculada" (ticket 01 → código 4).
+_PUBLICATION_FIELDS: Final[tuple[str, ...]] = (
+    "Período inicial da aferição",
+    "Período final da aferição",
+    "Fiscal técnico",
+    "Fiscal requisitante",
+    "Fiscal administrativo",
+    "Gestor do contrato",
+)
+
+
+def missing_publication_fields(capa_fields: dict[str, object]) -> tuple[str, ...]:
+    """Campos `_PUBLICATION_FIELDS` vazios/ausentes na capa — o conjunto de
+    "pendências impeditivas" que o código 3 mapeia. A Situação ≠ "Em
+    preenchimento" também bloqueia publicação (ticket 02), mas não entra na
+    contagem por campo: é um gate à parte avaliado pelo chamador."""
+    return tuple(
+        label for label in _PUBLICATION_FIELDS if not str(capa_fields.get(label, "")).strip()
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +51,8 @@ class ReportResult:
     indicator_count: int
     warnings: tuple[str, ...]
     error_message: str | None
+    publicable: bool = True
+    glosa_calculada: bool = True
 
 
 def check_report_ready(
@@ -102,9 +128,12 @@ def run_report(
     valor_base_raw = capa_fields.get("Valor mensal vigente")
     valor_base = float(valor_base_raw) if isinstance(valor_base_raw, int | float) else None
     if valor_base is None:
-        logger.info(
-            "capa sem 'Valor mensal vigente' preenchido — GLOSAS terá percentual de ajuste "
-            "mas não valor da glosa"
+        log_event(
+            "glosa_nao_calculada",
+            "glosa monetária não calculada",
+            "WARNING",
+            orgao=orgao,
+            motivo="valor mensal ausente na capa",
         )
 
     try:
@@ -149,8 +178,18 @@ def run_report(
         logger.warning(warning)
         warnings.append(warning)
 
-    logger.info(f"relatório consolidado: {output_path} ({len(summaries)} indicadores)")
+    situacao = str(capa_fields.get("Situação geral da aferição", "")).strip()
+    publicable = not missing_publication_fields(capa_fields) and situacao != "Em preenchimento"
+    log_event(
+        "report_generated",
+        f"relatório gerado: {output_path} ({len(summaries)} indicadores)",
+        "INFO",
+        orgao=orgao,
+        arquivo=str(output_path),
+        status="rascunho" if not publicable else "publicavel",
+    )
     return ReportResult(
         status="done", competencia=competencia, orgao=orgao, output_path=output_path,
         indicator_count=len(summaries), warnings=tuple(warnings), error_message=None,
+        publicable=publicable, glosa_calculada=valor_base is not None,
     )

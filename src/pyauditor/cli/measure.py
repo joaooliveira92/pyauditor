@@ -25,7 +25,7 @@ from pyauditor.engine.pipeline import (
     measure,
 )
 from pyauditor.excel.capa import read_capa_fields
-from pyauditor.logging import logger
+from pyauditor.logging import log_event, logger
 from pyauditor.rom.render import render_combined_rom, render_rom
 from pyauditor.rom.summary import summarize
 
@@ -170,8 +170,9 @@ def run_measure(
                 config_hash=config_hash,
             )
             rom_path.write_text(render_rom(result, capa_fields=capa_fields), encoding="utf-8")
+            summary = summarize(result)
             summary_path.write_text(
-                json.dumps(summarize(result).to_dict(), ensure_ascii=False, indent=2),
+                json.dumps(summary.to_dict(), ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
         except OSError as exc:
@@ -209,7 +210,17 @@ def run_measure(
                 hard_failure=True, error=error,
             ))
         else:
-            logger.info(f"{contractual_id}: {rom_path}")
+            # Observabilidade (ticket 05, Q2/Q7): sem linha por indicador no
+            # padrão (INFO); com `-v`/`-vv` (DEBUG) um evento por indicador.
+            log_event(
+                "indicator_measured",
+                "indicador apurado",
+                "DEBUG",
+                orgao=orgao or "",
+                codigo=contractual_id,
+                rom_path=str(rom_path),
+                status="conforme" if getattr(summary, "conforms", True) else "nao_conforme",
+            )
             outcomes.append(IndicatorOutcome(
                 contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
                 hard_failure=False, error=None,
@@ -223,6 +234,18 @@ def run_measure(
                 result=result,
                 capa_fields=capa_fields,
             ))
+
+    # Resumo conciso por órgão (INFO) — no lugar das N linhas repetidas.
+    total = len(outcomes)
+    ok = sum(1 for o in outcomes if not o.hard_failure)
+    log_event(
+        "measure_done",
+        f"{orgao or 'órgão'}: {ok}/{total} indicador(es) apurado(s)",
+        "INFO",
+        orgao=orgao,
+        competencia=competencia,
+        status="error" if any_hard_failure else "done",
+    )
 
     error_message = (
         "um ou mais indicadores tiveram falha de medição" if any_hard_failure else None

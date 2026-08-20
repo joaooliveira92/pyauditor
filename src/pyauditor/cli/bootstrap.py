@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pyauditor.cli.results import DependencyCheck, Status
 from pyauditor.excel.capa import bootstrap_capa
-from pyauditor.logging import logger
+from pyauditor.logging import log_event, logger
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,9 +42,13 @@ def run_bootstrap(capa_path: Path, orgao: str) -> BootstrapResult:
         )
 
     if created:
-        logger.info(f"capa criada: {capa_path}")
+        log_event("capa_created", "capa criada", "INFO", orgao=orgao, arquivo=str(capa_path))
     else:
-        logger.info(f"capa já existe, nada a fazer: {capa_path}")
+        # Revisão §3: "nada a fazer" era impreciso — o arquivo é reutilizado.
+        log_event(
+            "capa_reused", "capa existente será reutilizada", "INFO",
+            orgao=orgao, arquivo=str(capa_path),
+        )
     return BootstrapResult(
         status="done", orgao=orgao, capa_path=capa_path, created=created,
         warnings=(), error_message=None,

@@ -19,7 +19,7 @@ from pyauditor.atomic_write import atomic_write
 from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
 from pyauditor.excel.capa import read_capa_fields
 from pyauditor.excel.consolidate import build_consolidated_workbook, read_existing_decisions
-from pyauditor.logging import logger
+from pyauditor.logging import log_event, logger
 from pyauditor.rom.summary import IndicatorSummary
 
 _ORGAOS: tuple[str, str] = ("MinC", "MTur")
@@ -33,6 +33,7 @@ class ConsolidateResult:
     decisions_preserved: int
     warnings: tuple[str, ...]
     error_message: str | None
+    glosa_calculada: bool = True
 
 
 def check_consolidate_ready(competencia: str, report_dir: Path, roms_dir: Path) -> DependencyCheck:
@@ -105,8 +106,12 @@ def run_consolidate(
         return _error(f"falha ao ler workbook Excel: {exc}")
 
     if existing_decisions:
-        logger.info(
-            f"{len(existing_decisions)} decisão(ões) do fiscal preservada(s) de {output_path}"
+        log_event(
+            "decisoes_preservadas",
+            f"{len(existing_decisions)} decisão(ões) do fiscal preservada(s)",
+            "INFO",
+            arquivo=str(output_path),
+            quantidade=len(existing_decisions),
         )
 
     try:
@@ -123,11 +128,16 @@ def run_consolidate(
     finally:
         result.workbook.close()
 
-    logger.info(
-        f"relatório consolidado: {output_path} "
-        f"(total de pontos: {result.total_pontos:.2f}, glosa: {result.glosa_final:,.2f})"
+    log_event(
+        "consolidate_generated",
+        "consolidado gerado",
+        "INFO",
+        arquivo=str(output_path),
+        total_pontos=f"{result.total_pontos:.2f}",
+        glosa="não calculada" if not result.glosa_calculada else f"{result.glosa_final:,.2f}",
     )
     return ConsolidateResult(
         status="done", competencia=competencia, output_path=output_path,
         decisions_preserved=len(existing_decisions), warnings=(), error_message=None,
+        glosa_calculada=result.glosa_calculada,
     )
