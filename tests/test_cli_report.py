@@ -139,6 +139,22 @@ def test_run_report_converts_unexpected_exception_to_error_result(tmp_path: Path
     assert "boom" in result.error_message
 
 
+def test_run_report_converts_corrupt_capa_to_error_result(tmp_path: Path) -> None:
+    capa_path = tmp_path / "capa.xlsx"
+    capa_path.write_bytes(b"not a real xlsx file")
+    roms_dir = tmp_path / "roms"
+    _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
+
+    result = run_report(
+        "2026-06", capa_path, roms_dir, tmp_path / "reports" / "out.xlsx",
+        config_dir=tmp_path / "configs",
+    )
+
+    assert result.status == "error"
+    assert result.error_message is not None
+    assert "capa" in result.error_message
+
+
 def test_run_report_fails_without_capa(tmp_path: Path) -> None:
     capa_path = tmp_path / "capa.xlsx"
     roms_dir = tmp_path / "roms"

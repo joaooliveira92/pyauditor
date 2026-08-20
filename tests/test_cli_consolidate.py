@@ -87,6 +87,20 @@ def test_run_consolidate_converts_unexpected_exception_to_error_result(tmp_path:
     assert "boom" in result.error_message
 
 
+def test_run_consolidate_converts_corrupt_report_workbook_to_error_result(tmp_path: Path) -> None:
+    _build_orgao_report(tmp_path, "MinC")
+    _build_orgao_report(tmp_path, "MTur")
+    (tmp_path / "reports" / "relatorio_2026-06_MinC.xlsx").write_bytes(b"not a real xlsx file")
+
+    result = run_consolidate(
+        "2026-06", tmp_path / "reports", tmp_path / "roms",
+        tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx",
+    )
+
+    assert result.status == "error"
+    assert result.error_message is not None
+
+
 def test_run_consolidate_fails_when_a_report_is_missing(tmp_path: Path) -> None:
     _build_orgao_report(tmp_path, "MinC")
     # MTur report never built.

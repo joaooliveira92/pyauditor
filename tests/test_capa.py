@@ -1,8 +1,16 @@
 from pathlib import Path
 
+import pytest
 from openpyxl import Workbook, load_workbook
 
-from pyauditor.excel.capa import FIELD_LABELS, SHEET_NAME, SITUACOES, bootstrap_capa, read_valor_mensal_vigente
+from pyauditor.excel.capa import (
+    FIELD_LABELS,
+    SHEET_NAME,
+    SITUACOES,
+    bootstrap_capa,
+    read_capa_fields,
+    read_valor_mensal_vigente,
+)
 
 
 def test_bootstrap_creates_capa_with_expected_fields(tmp_path: Path) -> None:
@@ -86,3 +94,18 @@ def test_read_valor_mensal_vigente_none_when_sheet_missing(tmp_path: Path) -> No
     workbook.save(capa_path)
 
     assert read_valor_mensal_vigente(capa_path) is None
+
+
+def test_read_capa_fields_rejects_duplicate_label(tmp_path: Path) -> None:
+    capa_path = tmp_path / "capa.xlsx"
+    bootstrap_capa(capa_path)
+
+    workbook = load_workbook(capa_path)
+    sheet = workbook[SHEET_NAME]
+    # Hand-edit: duplicate an existing label at a different row.
+    sheet.cell(row=4, column=1, value="Número do contrato")
+    sheet.cell(row=5, column=1, value="Número do contrato")
+    workbook.save(capa_path)
+
+    with pytest.raises(ValueError, match="duplicado"):
+        read_capa_fields(capa_path)

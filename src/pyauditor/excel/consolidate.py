@@ -19,6 +19,7 @@ workbooks existing.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -77,6 +78,9 @@ _DECISION_COLUMNS: Final[tuple[str, ...]] = (
     "Reincidência", "Justificativa", "Número da Ocorrência",
     "Decisão Fiscal", "Observação do Gestor",
 )
+_DECISION_TEXT_COLUMNS: Final[tuple[int, ...]] = tuple(
+    _GLOSAS_COLUMNS.index(name) + 1 for name in _DECISION_COLUMNS
+)
 
 _CALCULO_COLUMNS: Final[tuple[str, ...]] = ("Componente", "MinC", "MTur", "Consolidado")
 _CALCULO_LINHAS: Final[tuple[str, ...]] = (
@@ -117,6 +121,27 @@ class ConsolidationResult:
     warnings: tuple[str, ...]
 
 
+_TRACKED_HEADER_NAMES: Final[frozenset[str]] = frozenset({"Indicador", "Órgão", *_DECISION_COLUMNS})
+
+
+def _check_no_duplicate_headers(path: Path, header_row: Sequence[object]) -> None:
+    """A hand-edited workbook with a duplicate column name (two "Indicador"
+    columns, or a stray column literally named "Justificativa" inserted by a
+    fiscal) would otherwise make the header→index lookup silently keep the
+    *last* matching column — decision values then get read from the wrong
+    column with no error. Fail loudly instead."""
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for name in header_row:
+        if isinstance(name, str) and name in _TRACKED_HEADER_NAMES:
+            (duplicates if name in seen else seen).add(name)
+    if duplicates:
+        raise ValueError(
+            f"{path}: coluna(s) duplicada(s) em {GLOSAS_SHEET!r}: {', '.join(sorted(duplicates))} — "
+            "planilha hand-edited em formato inesperado, corrija antes de rodar consolidate de novo"
+        )
+
+
 def read_existing_decisions(path: Path) -> dict[RowKey, dict[str, object]]:
     """Reads the decision columns from a previously-generated consolidado
     workbook's `GLOSAS` sheet, keyed by (indicador, órgão) — the merge
@@ -126,46 +151,44 @@ def read_existing_decisions(path: Path) -> dict[RowKey, dict[str, object]]:
     if not path.exists():
         return {}
     workbook = load_workbook(path, data_only=True)
-    if GLOSAS_SHEET not in workbook.sheetnames:
-        return {}
-    sheet = workbook[GLOSAS_SHEET]
+    try:
+        if GLOSAS_SHEET not in workbook.sheetnames:
+            return {}
+        sheet = workbook[GLOSAS_SHEET]
 
-    header_row = [cell.value for cell in sheet[1]]
-    if not header_row or "Indicador" not in header_row:
-        return {}
-    col_idx = {name: i + 1 for i, name in enumerate(header_row) if isinstance(name, str)}
-    indicador_col = col_idx.get("Indicador")
-    orgao_col = col_idx.get("Órgão")
-    if indicador_col is None or orgao_col is None:
-        return {}
+        header_row = [cell.value for cell in sheet[1]]
+        if not header_row or "Indicador" not in header_row:
+            return {}
+        _check_no_duplicate_headers(path, header_row)
+        col_idx = {name: i + 1 for i, name in enumerate(header_row) if isinstance(name, str)}
+        indicador_col = col_idx.get("Indicador")
+        orgao_col = col_idx.get("Órgão")
+        if indicador_col is None or orgao_col is None:
+            return {}
 
-    decisions: dict[RowKey, dict[str, object]] = {}
-    for row in range(2, sheet.max_row + 1):
-        indicador = sheet.cell(row=row, column=indicador_col).value
-        orgao = sheet.cell(row=row, column=orgao_col).value
-        if not isinstance(indicador, str) or not isinstance(orgao, str):
-            continue
-        values: dict[str, object] = {
-            name: sheet.cell(row=row, column=idx).value
-            for name, idx in col_idx.items()
-            if name in _DECISION_COLUMNS
-        }
-        if any(v not in (None, "") for v in values.values()):
-            decisions[(indicador, orgao)] = values
-    return decisions
-
-
-def _clean(value: CellValue) -> CellValue:
-    if not isinstance(value, str) or not value:
-        return value
-    return value.encode("cp1252", errors="replace").decode("cp1252")
+        decisions: dict[RowKey, dict[str, object]] = {}
+        for row in range(2, sheet.max_row + 1):
+            indicador = sheet.cell(row=row, column=indicador_col).value
+            orgao = sheet.cell(row=row, column=orgao_col).value
+            if not isinstance(indicador, str) or not isinstance(orgao, str):
+                continue
+            values: dict[str, object] = {
+                name: sheet.cell(row=row, column=idx).value
+                for name, idx in col_idx.items()
+                if name in _DECISION_COLUMNS
+            }
+            if any(v not in (None, "") for v in values.values()):
+                decisions[(indicador, orgao)] = values
+        return decisions
+    finally:
+        workbook.close()
 
 
 def _new_sheet(wb: Workbook, name: str, columns: tuple[str, ...], width: int = 24) -> Worksheet:
     ws: Worksheet = wb.create_sheet(name)
     ws.sheet_view.showGridLines = False
     for i, col in enumerate(columns, start=1):
-        cell = ws.cell(row=1, column=i, value=_clean(col))
+        cell = ws.cell(row=1, column=i, value=col)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
         cell.alignment = LEFT_ALIGN
@@ -176,7 +199,7 @@ def _new_sheet(wb: Workbook, name: str, columns: tuple[str, ...], width: int = 2
 
 def _write(ws: Worksheet, row: int, values: tuple[CellValue, ...]) -> None:
     for i, value in enumerate(values, start=1):
-        cell = ws.cell(row=row, column=i, value=_clean(value))
+        cell = ws.cell(row=row, column=i, value=value)
         cell.font = BODY_FONT
         cell.border = BOTTOM_BORDER
 
@@ -226,7 +249,7 @@ def build_capa(
     )
     for offset, (label, value) in enumerate(campos):
         row = 4 + offset
-        label_cell = ws.cell(row=row, column=1, value=_clean(label))
+        label_cell = ws.cell(row=row, column=1, value=label)
         label_cell.font = LABEL_FONT
         label_cell.alignment = LEFT_ALIGN
         label_cell.border = BOTTOM_BORDER
@@ -364,6 +387,13 @@ def build_glosas(
         if valor_base is not None:
             ws.cell(row=row, column=10).number_format = _CURRENCY_FMT
             ws.cell(row=row, column=11).number_format = _CURRENCY_FMT
+        # Fiscal-entered free text round-trips across runs (ticket 04 Q3) —
+        # the one column set most likely to accumulate copy-pasted content
+        # over the contract's lifetime. Text format blocks formula injection
+        # (a value starting with =+-@ would otherwise become a live formula
+        # the next time this workbook is opened) without altering the text.
+        for column in _DECISION_TEXT_COLUMNS:
+            ws.cell(row=row, column=column).number_format = "@"
         row += 1
 
     for key, decision in existing_decisions.items():
@@ -387,8 +417,8 @@ def build_glosas(
         label_cell = ws.cell(row=r, column=1, value=label)
         value_cell = ws.cell(row=r, column=2, value=value)
         bold = label in ("Total de Pontos", "Valor Glosa")
-        label_cell.font = Font(bold=True)
-        value_cell.font = Font(bold=True) if label == "Valor Glosa" else BODY_FONT
+        label_cell.font = Font(bold=True) if bold else BODY_FONT
+        value_cell.font = Font(bold=True) if bold else BODY_FONT
         if label == "Total de Pontos":
             label_cell.border = _TOP_BORDER
             value_cell.border = _TOP_BORDER
@@ -438,7 +468,7 @@ def build_calculo(
     for idx, label in enumerate(_CALCULO_LINHAS):
         row = header_row + 1 + idx
         bold = idx == total_row_idx
-        label_cell = ws.cell(row=row, column=1, value=_clean(label))
+        label_cell = ws.cell(row=row, column=1, value=label)
         label_cell.font = Font(bold=True) if bold else BODY_FONT
         if bold:
             label_cell.border = _TOP_BORDER

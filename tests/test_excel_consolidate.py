@@ -1,3 +1,5 @@
+import pytest
+
 from pyauditor.excel.consolidate import (
     CALCULO_SHEET,
     CAPA_SHEET,
@@ -174,3 +176,67 @@ def test_read_existing_decisions_roundtrips_from_a_saved_workbook(tmp_path) -> N
     decisions = read_existing_decisions(path)
     assert decisions[("INMS 1.6", "MinC")]["Decisão Fiscal"] == "Não aceita"
     assert decisions[("INMS 1.6", "MinC")]["Observação do Gestor"] == "mantida"
+
+
+def test_glosas_summary_only_bolds_total_and_valor_glosa_rows() -> None:
+    """Regression: a dead `bold` variable used to make every summary row
+    (including "Fórmula"/"Limite"/"Percentual Aplicado") render bold."""
+    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
+    result = build_consolidated_workbook(
+        "2026-06", minc, [], {"Valor mensal vigente": 100000.0}, {}
+    )
+
+    sheet = result.workbook[GLOSAS_SHEET]
+    labels_bold = {
+        sheet.cell(row=r, column=1).value: sheet.cell(row=r, column=1).font.bold
+        for r in range(5, 10)
+    }
+    assert labels_bold["Total de Pontos"] is True
+    assert labels_bold["Valor Glosa"] is True
+    assert labels_bold["Fórmula (pontos × 0,001)"] is not True
+    assert labels_bold["Limite"] is not True
+    assert labels_bold["Percentual Aplicado"] is not True
+
+
+def test_decision_columns_are_text_formatted_against_formula_injection() -> None:
+    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
+    decisao: dict[str, object] = {"Justificativa": "=cmd|' /C calc'!A1"}
+    result = build_consolidated_workbook(
+        "2026-06", minc, [], {"Valor mensal vigente": 100000.0}, {},
+        existing_decisions={("INMS 1.6", "MinC"): decisao},
+    )
+
+    sheet = result.workbook[GLOSAS_SHEET]
+    header = [sheet.cell(row=1, column=c).value for c in range(1, 17)]
+    justificativa_col = header.index("Justificativa") + 1
+    assert sheet.cell(row=2, column=justificativa_col).number_format == "@"
+
+
+def test_non_latin1_free_text_is_preserved_unmangled() -> None:
+    """Regression: fiscal free text used to round-trip through cp1252,
+    silently replacing any character outside that codepage with '?'."""
+    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
+    decisao: dict[str, object] = {"Observação do Gestor": "aprovado ✔ — café não é cafe’"}
+    result = build_consolidated_workbook(
+        "2026-06", minc, [], {"Valor mensal vigente": 100000.0}, {},
+        existing_decisions={("INMS 1.6", "MinC"): decisao},
+    )
+
+    sheet = result.workbook[GLOSAS_SHEET]
+    header = [sheet.cell(row=1, column=c).value for c in range(1, 17)]
+    col = header.index("Observação do Gestor") + 1
+    assert sheet.cell(row=2, column=col).value == "aprovado ✔ — café não é cafe’"
+
+
+def test_read_existing_decisions_rejects_duplicate_indicador_header(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
+    result = build_consolidated_workbook(
+        "2026-06", minc, [], {"Valor mensal vigente": 100000.0}, {}
+    )
+    sheet = result.workbook[GLOSAS_SHEET]
+    sheet.cell(row=1, column=17, value="Indicador")  # hand-edited duplicate
+    path = tmp_path / "relatorio_2026-06_consolidado.xlsx"
+    result.workbook.save(path)
+
+    with pytest.raises(ValueError, match="duplicada"):
+        read_existing_decisions(path)

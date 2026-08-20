@@ -96,10 +96,13 @@ def run_consolidate(
     if not minc or not mtur:
         return _error("nenhum sumário de medição (.json) encontrado para um dos órgãos")
 
-    minc_capa = read_capa_fields(report_paths["MinC"])
-    mtur_capa = read_capa_fields(report_paths["MTur"])
+    try:
+        minc_capa = read_capa_fields(report_paths["MinC"])
+        mtur_capa = read_capa_fields(report_paths["MTur"])
+        existing_decisions = read_existing_decisions(output_path)
+    except Exception as exc:  # boundary: corrupt/hand-edited workbook, never leak a raw traceback
+        return _error(f"falha ao ler workbook Excel: {exc}")
 
-    existing_decisions = read_existing_decisions(output_path)
     if existing_decisions:
         logger.info(
             f"{len(existing_decisions)} decisão(ões) do fiscal preservada(s) de {output_path}"
@@ -117,6 +120,8 @@ def run_consolidate(
         result.workbook.save(output_path)
     except OSError as exc:
         return _error(f"falha ao escrever {output_path}: {exc}")
+    finally:
+        result.workbook.close()
 
     logger.info(
         f"relatório consolidado: {output_path} "

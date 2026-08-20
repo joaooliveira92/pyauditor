@@ -391,4 +391,7 @@ def build_report(
         configs=configs, historico=historico,
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    workbook.save(output_path)
+    try:
+        workbook.save(output_path)
+    finally:
+        workbook.close()

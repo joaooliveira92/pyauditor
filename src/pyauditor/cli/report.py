@@ -95,7 +95,10 @@ def run_report(
         return _error(f"nenhum sumário de medição (.json) encontrado em {competencia_dir}")
 
     warnings: list[str] = []
-    capa_fields = read_capa_fields(capa_path)
+    try:
+        capa_fields = read_capa_fields(capa_path)
+    except Exception as exc:  # boundary: corrupt/hand-edited workbook, never leak a raw traceback
+        return _error(f"falha ao ler capa em {capa_path}: {exc}")
     valor_base_raw = capa_fields.get("Valor mensal vigente")
     valor_base = float(valor_base_raw) if isinstance(valor_base_raw, int | float) else None
     if valor_base is None:
