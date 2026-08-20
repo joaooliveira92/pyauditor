@@ -13,7 +13,8 @@ fluxo de apuração e as saídas.
 
 Principais tarefas (jobs-to-be-done):
 
-- Rodar a apuração mensal de ponta a ponta (bootstrap → measure → report).
+- Rodar a apuração mensal de ponta a ponta (bootstrap → measure → report →
+  consolidate).
 - Entender o que o pipeline calcula e como os 14 indicadores são classificados.
 - Adicionar um novo indicador/serviço sem mudar o motor.
 - Interpretar os artefatos gerados: ROM Markdown, sumário JSON, planilha final.
@@ -35,7 +36,7 @@ docs/
     shapes.md                               Os 5 shapes de cálculo
     data-layout.md                          Organização de entrada/saída no disco
   reference/
-    cli.md                                  CLI bootstrap/measure/report
+    cli.md                                  CLI bootstrap/measure/report/consolidate/run
     config.md                               Schema dos YAML `inms-<n>.yaml`
     rom.md                                  Formato do ROM Markdown
     summary.md                              Sumário JSON (lido pelo report)
@@ -81,8 +82,8 @@ guide em `.agents/skills/zensical-documentation-skill/references/style-guide.md`
 ## 5. Decisões de terminologia
 
 - Manter os nomes internos do código como termos canônicos: `bootstrap`,
-  `measure`, `report`, `shape`, `ROM`, `competência` (português), `quality
-  gates`, `memoria de cálculo`.
+  `measure`, `report`, `consolidate`, `run`, `shape`, `ROM`, `competência`
+  (português), `quality gates`, `memoria de cálculo`.
 - Header dos ROMs usa acentos; o portal escreve em português para o público
   do contrato, adotando a grafia já usada no repo.
 

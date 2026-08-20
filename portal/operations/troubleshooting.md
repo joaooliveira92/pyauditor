@@ -21,20 +21,22 @@ O log distingue erro de config (fail antes de ler CSV) de falha de medição
 ### `pyauditor: comando desconhecido`
 
 - **Causa:** subcomando digitado errado.
-- **Recuperação:** `pyauditor --help` lista `bootstrap`, `measure`, `report`.
+- **Recuperação:** `pyauditor --help` lista `bootstrap`, `measure`, `report`,
+  `consolidate` e `run`.
 
 ### `capa não encontrada` (no report)
 
-- **Causa:** `bootstrap` não rodou ou `--capa-path` errado.
+- **Causa:** `bootstrap` não rodou, `--capa-path` errado, ou o `--orgao` não
+  bate com o arquivo `capa_<orgao>.xlsx` esperado.
 - **Recuperação:** rode [Crie a capa do contrato](../guides/bootstrap-capa.md)
-  e confira o caminho.
+  e confira o caminho por órgão (`capa_MinC.xlsx` / `capa_MTur.xlsx`).
 
 ### `nenhum sumário de medição (.json) encontrado`
 
-- **Causa:** `measure` não rodou para a competência, ou os `.json` foram
-  apagados.
+- **Causa:** `measure` não rodou para a competência/órgão, ou os `.json`
+  foram apagados.
 - **Recuperação:** rode [Meça uma competência](../guides/measure-indicators.md);
-  `report` só consome os JSONs.
+  `report` só consome os JSONs de `roms/<orgao>/<competencia>/`.
 
 ## Falhas de medição (por indicador)
 
@@ -47,14 +49,14 @@ ao final.
   quality gates (ex.: `DataHoraFim` nulo com `No prazo = S`).
 - **Diferente de:** CSV vazio de origem (competência sem lançamentos, ex.:
   1.3/1.8/1.9/1.10 antes da digitação manual) — isso **não** é falha dura.
-- **Recuperação:** abra o ROM gerado (`roms/<competência>/<id>.md`), seção
+- **Recuperação:** abra o ROM gerado (`roms/<orgao>/<competencia>/<id>.md`), seção
   Rejeições, para ver ID + motivo; corrija os dados ou ajuste os gates se
   declarar errado (não mude os gates para "passar" dados ruins sem validar a
   regra de negócio).
 
 ### `source.dataset=... requires a manifest, but none was provided`
 
-- **Causa:** config usa `source.dataset`, mas `configs/datasets.yaml` não
+- **Causa:** config usa `source.dataset`, mas `configs/<orgao>/datasets.yaml` não
   existe / não foi passado via `--manifest`.
 - **Recuperação:** forneça o manifesto.
 
@@ -76,13 +78,21 @@ ao final.
 ### `GLOSAS` sem valor da glosa
 
 - **Causa:** `Valor mensal vigente` vazio na capa.
-- **Recuperação:** preencha o campo na `capa.xlsx` e re-rode `report` (log avisa).
+- **Recuperação:** preencha o campo na `capa_<orgao>.xlsx` e re-rode `report`
+  (log avisa).
 
 ### `CADASTROS` omitido
 
 - **Causa:** falha ao carregar configs (`--config-dir`), loga aviso.
 - **Recuperação:** corrija o erro do config e re-rode. `INMS_BASE` e grupos
   continuam sendo gerados.
+
+### `consolidate` sem os relatórios dos dois órgãos
+
+- **Causa:** `relatorio_<comp>_MinC.xlsx` ou `_MTur.xlsx` não existem — o
+  `consolidate` exige os dois (não re-executa `measure`/`report`).
+- **Recuperação:** rode `report` para cada órgão antes, ou use
+  `run <competencia> --orgao both` (que encadeia as quatro fases).
 
 ## Dados sensíveis
 
@@ -98,6 +108,6 @@ ao final.
   pergunta de qual sistema real alimenta esses dados continua aberta para a
   fiscalização.
 - Fórmula de consolidação MinC/MTur específica para os indicadores por ativo
-  (1.4, 1.5, 1.14): não localizada (o `report` não consolida esses 3).
+  (1.4, 1.5, 1.14): não localizada (o `consolidate` não funde esses 3).
 
 Detalhe: [spec §13](https://github.com/joaooliveira92/pyauditor/blob/master/docs/spec/inms-pipeline.md).

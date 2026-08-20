@@ -64,7 +64,7 @@ acceptance_test: # opcional — esperado para o smoke test
 | Campo | Tipo | Obrigatório | Descrição |
 |---|---|---|---|
 | `contract` | string | sim | Identificador do contrato |
-| `orgao` | `"MinC"` \| `"MTur"` | não | Órgão; default `MinC`. `report` consolida os dois |
+| `orgao` | `"MinC"` \| `"MTur"` | não | Órgão; default `MinC`. `measure`/`report` são por órgão; `consolidate` funde os dois |
 
 ### `source`
 
@@ -139,13 +139,19 @@ usado pelo smoke test parametrizado (`tests/test_full_acceptance_smoke.py`).
 
 ## Exemplos reais
 
-- `ratio` — `configs/inms-1.1.yaml`.
-- `segmented_ratio` — `configs/inms-1.2.yaml` (3 categorias por prioridade).
-- `precomputed_table` — `configs/inms-1.8.yaml`, `configs/inms-1.10.yaml`.
+Os configs de produção vivem por órgão em `configs/<orgao>/` (ex.:
+`configs/MinC/`), cada um com seu manifesto `datasets.yaml`.
+
+- `ratio` — `configs/<orgao>/inms-1.1.yaml`.
+- `segmented_ratio` — `configs/<orgao>/inms-1.2.yaml` (3 categorias por prioridade).
+- `precomputed_table` — `configs/<orgao>/inms-1.8.yaml`, `configs/<orgao>/inms-1.10.yaml`.
 - Fixtures para `count_difference` e `external_catalog_sum`: `tests/fixtures/manual_entry_examples/`.
+
+O manifesto por órgão (`<config-dir>/<orgao>/datasets.yaml`) é o default de
+`--manifest` em `measure`; se não existe, o `measure` usa `source.csv` e avisa.
 
 ## Fontes primárias
 
 - `src/pyauditor/config/models.py` — definição exata dos campos e validações.
-- `configs/*.yaml` — exemplos.
+- `configs/<orgao>/*.yaml` — exemplos.
 - `tests/fixtures/configs/` e `tests/fixtures/multi_asset_configs/`.
