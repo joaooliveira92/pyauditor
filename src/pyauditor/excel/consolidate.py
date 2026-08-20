@@ -26,7 +26,6 @@ from typing import Final
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Border, Font, Side
-from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.excel._style import (
     BODY_FONT,
@@ -36,7 +35,11 @@ from pyauditor.excel._style import (
     LABEL_FONT,
     LEFT_ALIGN,
     TITLE_FONT,
+    CellValue,
 )
+from pyauditor.excel._style import UNIT_BY_SHAPE as _UNIT_BY_SHAPE
+from pyauditor.excel._style import new_sheet as _new_sheet
+from pyauditor.excel._style import write_row as _write
 from pyauditor.excel.orgao_consolidation import with_orgao_consolidation
 from pyauditor.logging import logger
 from pyauditor.rom.summary import IndicatorSummary
@@ -110,7 +113,6 @@ _SERVICOS: Final[tuple[tuple[str, str, str, str], ...]] = (
 _CAPA_VALOR_LABELS: Final = ("Valor mensal vigente", "Valor global anual")
 
 RowKey = tuple[str, str]  # (contractual_id, orgao)
-CellValue = str | float | int | None
 
 
 @dataclass(frozen=True)
@@ -182,26 +184,6 @@ def read_existing_decisions(path: Path) -> dict[RowKey, dict[str, object]]:
         return decisions
     finally:
         workbook.close()
-
-
-def _new_sheet(wb: Workbook, name: str, columns: tuple[str, ...], width: int = 24) -> Worksheet:
-    ws: Worksheet = wb.create_sheet(name)
-    ws.sheet_view.showGridLines = False
-    for i, col in enumerate(columns, start=1):
-        cell = ws.cell(row=1, column=i, value=col)
-        cell.font = HEADER_FONT
-        cell.fill = HEADER_FILL
-        cell.alignment = LEFT_ALIGN
-        ws.column_dimensions[cell.column_letter].width = width
-    ws.freeze_panes = "A2"
-    return ws
-
-
-def _write(ws: Worksheet, row: int, values: tuple[CellValue, ...]) -> None:
-    for i, value in enumerate(values, start=1):
-        cell = ws.cell(row=row, column=i, value=value)
-        cell.font = BODY_FONT
-        cell.border = BOTTOM_BORDER
 
 
 def build_capa(
@@ -281,12 +263,6 @@ _INMS_BASE_COLUMNS: Final[tuple[str, ...]] = (
     "Sentido da meta", "Numerador", "Denominador", "Resultado calculado",
     "Unidade", "Conformidade", "Diferença para a meta",
 )
-
-_UNIT_BY_SHAPE: Final[dict[str, str]] = {
-    "ratio": "%", "segmented_ratio": "%",
-    "count_difference": "unidades", "external_catalog_sum": "pontos",
-}
-
 
 def _inms_base_row(competencia: str, summary: IndicatorSummary) -> tuple[CellValue, ...]:
     dif = None

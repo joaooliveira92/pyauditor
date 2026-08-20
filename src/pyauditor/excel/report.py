@@ -10,11 +10,13 @@ from typing import Final
 
 from openpyxl import Workbook
 from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.atomic_write import atomic_write
 from pyauditor.config.models import IndicatorConfig
-from pyauditor.excel._style import BODY_FONT, BOTTOM_BORDER, HEADER_FILL, HEADER_FONT, LEFT_ALIGN
+from pyauditor.excel._style import UNIT_BY_SHAPE as _UNIT_BY_SHAPE
+from pyauditor.excel._style import CellValue
+from pyauditor.excel._style import new_sheet as _new_sheet
+from pyauditor.excel._style import write_row as _write_row
 from pyauditor.excel.capa import SHEET_NAME as CAPA_SHEET_NAME
 from pyauditor.excel.capa import render_capa_sheet
 from pyauditor.excel.glosas import (
@@ -75,13 +77,6 @@ _GROUP_TAB_COLUMNS: Final[tuple[str, ...]] = (
     "Penalidade (pontos)",
 )
 
-_UNIT_BY_SHAPE: Final[dict[str, str]] = {
-    "ratio": "%",
-    "segmented_ratio": "%",
-    "count_difference": "unidades",
-    "external_catalog_sum": "pontos",
-}
-
 # spec.md §12.3, plus rollover/reincidência (.scratch/framework-audit/issues/
 # 11-estado-persistente-entre-competencias.md): saldo do mês anterior consumido
 # no cálculo e a flag de reincidência (item 35 do TR — 3+ estouros do teto em
@@ -137,33 +132,11 @@ _EVIDENCIAS_STATUS: Final[tuple[str, ...]] = (
     "Validada",
 )
 
-CellValue = str | float | int | None
-
 
 def _sort_key(summary: IndicatorSummary) -> tuple[str, str]:
     # Multi-asset rows (spec/ticket "multi-asset file discovery") share a
     # contractual_id, so sort by asset within it for a stable, readable order.
     return (summary.contractual_id, summary.asset or "")
-
-
-def _new_sheet(workbook: Workbook, name: str, columns: tuple[str, ...], width: int) -> Worksheet:
-    sheet: Worksheet = workbook.create_sheet(name)
-    sheet.sheet_view.showGridLines = False
-    for col_idx, column in enumerate(columns, start=1):
-        cell = sheet.cell(row=1, column=col_idx, value=column)
-        cell.font = HEADER_FONT
-        cell.fill = HEADER_FILL
-        cell.alignment = LEFT_ALIGN
-        sheet.column_dimensions[cell.column_letter].width = width
-    sheet.freeze_panes = "A2"
-    return sheet
-
-
-def _write_row(sheet: Worksheet, row_idx: int, values: tuple[CellValue, ...]) -> None:
-    for col_idx, value in enumerate(values, start=1):
-        cell = sheet.cell(row=row_idx, column=col_idx, value=value)
-        cell.font = BODY_FONT
-        cell.border = BOTTOM_BORDER
 
 
 def _cadastros_row(config: IndicatorConfig) -> tuple[CellValue, ...]:
