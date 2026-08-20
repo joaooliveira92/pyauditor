@@ -78,7 +78,8 @@ def load_config(config_path: Path) -> IndicatorConfig:
 def load_rows(source_path: Path, delimiter: str, encoding: str) -> list[dict[str, str]]:
     with source_path.open(encoding=encoding, newline="") as handle:
         reader = csv.DictReader(handle, delimiter=delimiter)
-        assert reader.fieldnames is not None
+        if reader.fieldnames is None:
+            raise ValueError(f"{source_path}: CSV vazio ou sem linha de cabeçalho")
         fieldnames = [name.strip() for name in reader.fieldnames]
         reader.fieldnames = fieldnames
         # Real-world rows are occasionally ragged (free-text fields containing

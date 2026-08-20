@@ -1,6 +1,8 @@
 """A stray `|`/newline in CSV-derived data must not corrupt the ROM's
 Markdown tables — ticket "ROM package review", finding 1."""
 
+import pytest
+
 from pyauditor.engine.strategies.base import CalculationResult
 from pyauditor.rom.render import (
     render_external_catalog_sum_memoria,
@@ -73,3 +75,16 @@ def test_precomputed_table_escapes_pipe_in_asset_name() -> None:
     markdown = render_precomputed_table_memoria(calculation)
 
     assert "WI-FI \\| forjado" in markdown
+
+
+def test_segmented_ratio_rejects_malformed_categories_shape() -> None:
+    """Regression: `assert isinstance(categories, list)` used to be stripped
+    under `python -O`, turning a malformed `memoria` shape into a raw
+    KeyError/TypeError further down instead of an actionable message."""
+    calculation = CalculationResult(
+        result_pct=0.0, conforms=True, penalty_points=0.0,
+        memoria={"categories": "not-a-list"},
+    )
+
+    with pytest.raises(TypeError, match="categories"):
+        render_segmented_ratio_memoria(calculation)

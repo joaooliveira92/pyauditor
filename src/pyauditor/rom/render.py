@@ -9,6 +9,7 @@ this template implements.
 
 import math
 from collections.abc import Callable
+from typing import Any
 
 from pyauditor.config.models import IndicatorConfig
 from pyauditor.engine.pipeline import MeasurementProvenance, MeasurementResult
@@ -17,6 +18,12 @@ from pyauditor.engine.strategies._target import shortfall
 from pyauditor.engine.strategies.base import CalculationResult
 
 _CAPA_PLACEHOLDER = "[a preencher]"
+
+
+def _require_list(value: object, *, field: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise TypeError(f"memoria[{field!r}] deveria ser list, veio {type(value).__name__}")
+    return value
 
 
 def _md_cell(value: object) -> str:
@@ -34,8 +41,7 @@ def render_ratio_memoria(calculation: CalculationResult) -> str:
 
 
 def render_segmented_ratio_memoria(calculation: CalculationResult) -> str:
-    categories = calculation.memoria["categories"]
-    assert isinstance(categories, list)
+    categories = _require_list(calculation.memoria["categories"], field="categories")
     lines = [
         f"| {_md_cell(c['name'])} | {c['numerator']} | {c['denominator']} | "
         f"{c['result_pct']:.2f}% | {c['penalty_points']:.2f} |"
@@ -58,8 +64,7 @@ def render_count_difference_memoria(calculation: CalculationResult) -> str:
 
 
 def render_external_catalog_sum_memoria(calculation: CalculationResult) -> str:
-    occurrences = calculation.memoria["occurrences"]
-    assert isinstance(occurrences, list)
+    occurrences = _require_list(calculation.memoria["occurrences"], field="occurrences")
     if not occurrences:
         rows_markdown = "| — | — | nenhuma ocorrência | — |"
     else:
@@ -77,8 +82,7 @@ def render_external_catalog_sum_memoria(calculation: CalculationResult) -> str:
 
 
 def render_precomputed_table_memoria(calculation: CalculationResult) -> str:
-    categories = calculation.memoria["categories"]
-    assert isinstance(categories, list)
+    categories = _require_list(calculation.memoria["categories"], field="categories")
     if not categories:
         rows_markdown = "| — | — | nenhuma linha |"
     else:
