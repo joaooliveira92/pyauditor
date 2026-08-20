@@ -1,13 +1,22 @@
 """Generic ROM Markdown template + per-shape memória de cálculo renderers.
 
-Fixed sections (cabeçalho, população, rejeições, resultado vs meta) are the
-same for every shape (spec §7); only the memória de cálculo varies.
+Fixed sections (identificação, linhas aprovadas, rejeições, resultado vs
+meta, responsáveis) are the same for every shape; only the memória de
+cálculo — and the "ressalva interpretativa" (only shown for indicators with a
+step-based `penalty`) — varies. See .scratch/melhoria_rom/map.md for the spec
+this template implements.
 """
 
+import math
 from collections.abc import Callable
 
-from pyauditor.engine.pipeline import MeasurementResult
+from pyauditor.config.models import IndicatorConfig
+from pyauditor.engine.pipeline import MeasurementProvenance, MeasurementResult
+from pyauditor.engine.quality_gates import QualityGateReport
+from pyauditor.engine.strategies._target import shortfall
 from pyauditor.engine.strategies.base import CalculationResult
+
+_CAPA_PLACEHOLDER = "[a preencher]"
 
 
 def render_ratio_memoria(calculation: CalculationResult) -> str:
@@ -84,18 +93,92 @@ _MEMORIA_RENDERERS: dict[str, Callable[[CalculationResult], str]] = {
 }
 
 
-def render_rom(result: MeasurementResult) -> str:
-    config = result.config
-    gate_report = result.quality_gate_report
-    calculation = result.calculation
+def _capa_value(capa_fields: dict[str, object], label: str) -> str:
+    value = capa_fields.get(label)
+    if value in (None, ""):
+        return _CAPA_PLACEHOLDER
+    return str(value)
 
-    rejected_table = "\n".join(
-        f"| {row.row_id} | {row.reason} |" for row in gate_report.rejected
-    ) or "| — | nenhuma rejeição |"
 
-    memoria_renderer = _MEMORIA_RENDERERS[config.calculation.shape]
+def _render_identificacao(
+    config: IndicatorConfig, provenance: MeasurementProvenance, capa_fields: dict[str, object]
+) -> str:
+    periodo_inicial = _capa_value(capa_fields, "Período inicial da aferição")
+    periodo_final = _capa_value(capa_fields, "Período final da aferição")
+    return (
+        "## Identificação\n"
+        f"- Contrato: {config.scope.contract}\n"
+        f"- Órgão: {config.scope.orgao}\n"
+        f"- Competência: {_capa_value(capa_fields, 'Competência')}\n"
+        f"- Período da aferição: {periodo_inicial} a {periodo_final}\n"
+        f"- Data de processamento: {provenance.processed_at.isoformat(timespec='seconds')}\n"
+        f"- Versão do pipeline: {provenance.pipeline_version}\n"
+        f"- Versão da configuração: {provenance.config_hash or '[indisponível]'}\n"
+        f"- Arquivo de origem: {provenance.csv_path.name} "
+        f"(SHA-256: {provenance.csv_hash}, delimitador `{provenance.delimiter}`, "
+        f"codificação {provenance.encoding})"
+    )
+
+
+def _render_responsaveis(capa_fields: dict[str, object]) -> str:
+    return (
+        "## Responsáveis\n"
+        f"- Fiscal técnico: {_capa_value(capa_fields, 'Fiscal técnico')}\n"
+        f"- Fiscal requisitante: {_capa_value(capa_fields, 'Fiscal requisitante')}\n"
+        f"- Fiscal administrativo: {_capa_value(capa_fields, 'Fiscal administrativo')}\n"
+        f"- Gestor do contrato: {_capa_value(capa_fields, 'Gestor do contrato')}"
+    )
+
+
+def _render_ressalva_interpretativa(
+    config: IndicatorConfig, calculation: CalculationResult
+) -> str | None:
+    """Only shapes with a step-based `penalty` (today: `ratio`) have a
+    linear-vs-degraus ambiguity to disclose, and only when there's an actual
+    shortfall to score — a conforming indicator has nothing to interpret."""
+    if config.penalty is None or calculation.penalty_points <= 0:
+        return None
+    assert config.target is not None  # `penalty` always accompanies `target` for `ratio`
+
+    deficit = max(
+        shortfall(calculation.result_pct, config.target.operator, config.target.value), 0.0
+    )
+    steps = deficit / config.penalty.step_size_pct
+    base = config.penalty.base_points
+    step_points = config.penalty.step_points
+    linear_points = calculation.penalty_points
+    floor_points = base + math.floor(steps) * step_points
+    ceil_points = base + math.ceil(steps) * step_points
+
+    formula_linear = "base + (déficit / passo) × pontos_degrau"
+    formula_floor = "base + ⌊déficit / passo⌋ × pontos_degrau"
+    formula_ceil = "base + ⌈déficit / passo⌉ × pontos_degrau"
+    return (
+        "| Leitura | Fórmula | Pontuação apurada |\n"
+        "|---|---|---|\n"
+        f"| Linear contínua (adotada) | {formula_linear} | {linear_points:.2f} |\n"
+        f"| Degraus completos | {formula_floor} | {floor_points:.2f} |\n"
+        f"| Qualquer fração inicia novo degrau | {formula_ceil} | {ceil_points:.2f} |\n"
+        "\n"
+        "> A leitura linear contínua é a metodologia adotada por este pipeline. As\n"
+        "> demais leituras são apresentadas para transparência e não foram validadas\n"
+        "> formalmente pela gestão contratual/assessoria jurídica."
+    )
+
+
+def _render_linhas_aprovadas(gate_report: QualityGateReport) -> str:
+    return (
+        "## Linhas aprovadas pelo quality gate\n"
+        f"- Linhas lidas: {len(gate_report.accepted) + len(gate_report.rejected)}\n"
+        f"- Linhas aprovadas: {len(gate_report.accepted)}\n\n"
+        "> Aprovação pelo quality gate não equivale à população contratual completa\n"
+        "> (registros podem ser rejeitados por critérios estruturais que não decidem\n"
+        "> se pertencem ao universo do indicador)."
+    )
+
+
+def _render_resultado_vs_meta(config: IndicatorConfig, calculation: CalculationResult) -> str:
     conformidade = "conforme" if calculation.conforms else "não conforme"
-
     if config.target is not None:
         resultado_vs_meta = (
             f"- Meta: {config.target.operator} {config.target.value}%\n"
@@ -105,28 +188,49 @@ def render_rom(result: MeasurementResult) -> str:
         # `external_catalog_sum`: Anexo E is a linear point sum, no percentage meta.
         resultado_vs_meta = f"- Meta: não aplicável (soma de pontos, ver Anexo E) — **{conformidade}**"
 
+    return (
+        f"## Resultado vs meta\n{resultado_vs_meta}\n"
+        f"- Pontuação apurada: {calculation.penalty_points:.2f} pontos\n\n"
+        '> "Pontuação apurada" não implica sanção administrativa — ver processo\n'
+        "> sancionador próprio, se cabível."
+    )
+
+
+def render_rom(result: MeasurementResult, capa_fields: dict[str, object] | None = None) -> str:
+    capa_fields = capa_fields or {}
+    config = result.config
+    gate_report = result.quality_gate_report
+    calculation = result.calculation
+    provenance = result.provenance
+
+    rejected_table = "\n".join(
+        f"| {row.row_id} | {row.reason} |" for row in gate_report.rejected
+    ) or "| — | nenhuma rejeição |"
+
+    memoria_renderer = _MEMORIA_RENDERERS[config.calculation.shape]
+
     titulo = config.indicator.contractual_id
     if config.indicator.asset is not None:
         titulo += f" — {config.indicator.asset}"
 
-    return f"""# ROM — {titulo} ({config.indicator.name})
+    sections = [
+        f"# ROM — {titulo} ({config.indicator.name})",
+        _render_identificacao(config, provenance, capa_fields),
+        _render_linhas_aprovadas(gate_report),
+        f"## Rejeições\n| ID | Motivo |\n|---|---|\n{rejected_table}",
+        f"## Memória de cálculo\n{memoria_renderer(calculation)}",
+    ]
 
-**Contrato:** {config.scope.contract}
-**Órgão:** {config.scope.orgao}
+    ressalva = _render_ressalva_interpretativa(config, calculation)
+    if ressalva is not None:
+        sections.append(f"## Ressalva interpretativa\n{ressalva}")
 
-## População
-- Linhas lidas: {len(gate_report.accepted) + len(gate_report.rejected)}
-- Linhas aceitas: {len(gate_report.accepted)}
+    sections.append(_render_resultado_vs_meta(config, calculation))
+    sections.append(_render_responsaveis(capa_fields))
+    sections.append(
+        "---\n"
+        "*Competência, período e responsáveis refletem o estado da capa no momento "
+        "em que este ROM foi gerado — não são valores definitivos.*"
+    )
 
-## Rejeições
-| ID | Motivo |
-|---|---|
-{rejected_table}
-
-## Memória de cálculo
-{memoria_renderer(calculation)}
-
-## Resultado vs meta
-{resultado_vs_meta}
-- Penalidade: {calculation.penalty_points:.2f} pontos
-"""
+    return "\n\n".join(sections) + "\n"

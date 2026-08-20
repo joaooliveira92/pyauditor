@@ -25,6 +25,7 @@ def test_measure_request_frozen_slots() -> None:
         output_dir=Path("roms"),
         manifest_path=Path("configs") / "MinC" / "datasets.yaml",
         orgao="MinC",
+        capa_path=Path("capa.xlsx"),
     )
     assert_type(r.competencia, str)
     with pytest.raises(AttributeError):
@@ -41,6 +42,37 @@ def test_cli_main_happy_path(tmp_path: Path) -> None:
         assert m.call_args.kwargs["competencia"] == "2026-06"
         assert m.call_args.kwargs["config_dir"] == cfg / "MinC"
         assert m.call_args.kwargs["expected_orgao"] == "MinC"
+
+
+def test_cli_main_measure_dispatches_with_capa_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    cfg, data, out = tmp_path / "c", tmp_path / "d", tmp_path / "o"
+    for p in (cfg, data, out):
+        p.mkdir()
+    with patch("pyauditor.cli.main.run_measure", return_value=0) as m:
+        code = cli_main(
+            ["measure", "2026-06", "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out)]
+        )
+        assert code == 0
+        # default orgao MinC -> per-órgão split, same convention as bootstrap/report
+        assert m.call_args.kwargs["capa_path"] == Path("capa_MinC.xlsx")
+
+
+def test_cli_main_measure_dispatches_with_explicit_capa_path(tmp_path: Path) -> None:
+    cfg, data, out = tmp_path / "c", tmp_path / "d", tmp_path / "o"
+    for p in (cfg, data, out):
+        p.mkdir()
+    capa_path = tmp_path / "capa.xlsx"
+    with patch("pyauditor.cli.main.run_measure", return_value=0) as m:
+        code = cli_main(
+            [
+                "measure", "2026-06",
+                "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out),
+                "--capa-path", str(capa_path),
+            ]
+        )
+        assert code == 0
+        assert m.call_args.kwargs["capa_path"] == capa_path
 
 
 def test_cli_main_bootstrap_dispatches_with_capa_path(tmp_path: Path) -> None:

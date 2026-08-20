@@ -44,8 +44,11 @@ def test_inms_1_1_rom_renders_expected_sections() -> None:
     rom = render_rom(result)
 
     assert "# ROM — INMS 1.1" in rom
-    assert "## População" in rom
+    assert "## Identificação" in rom
+    assert "## Linhas aprovadas pelo quality gate" in rom
     assert "## Rejeições" in rom
     assert "## Memória de cálculo" in rom
+    assert "## Ressalva interpretativa" in rom  # 171/175 falls short of 98% -> penalty > 0
     assert "## Resultado vs meta" in rom
+    assert "## Responsáveis" in rom
     assert "não conforme" in rom

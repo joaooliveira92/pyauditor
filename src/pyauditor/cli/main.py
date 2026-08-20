@@ -53,6 +53,7 @@ class MeasureRequest:
     output_dir: Path
     manifest_path: Path
     orgao: Orgao
+    capa_path: Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +130,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--manifest", type=Path, default=None,
         help="caminho para datasets.yaml (default: <config-dir>/<órgão>/datasets.yaml)"
     )
+    measure_parser.add_argument("--capa-path", type=Path, default=None)
 
     bootstrap_parser = subparsers.add_parser(
         _CMD_BOOTSTRAP, help="cria a capa Excel do contrato, se ainda não existir"
@@ -180,6 +182,7 @@ def _extract_measure_request(ns: argparse.Namespace) -> MeasureRequest:
         output_dir=_require(ns, "output_dir", Path),
         manifest_path=manifest_path,
         orgao=cast(Orgao, orgao),
+        capa_path=_extract_capa_path(ns),
     )
 
 
@@ -208,10 +211,9 @@ def _extract_report_request(ns: argparse.Namespace) -> ReportRequest:
     competencia = _require(ns, "competencia", str)
     output_dir = _require(ns, "output_dir", Path)
     orgao = _require(ns, "orgao", str)
-    capa_arg: object = cast(object, getattr(ns, "capa_path", None))
     return ReportRequest(
         competencia=competencia,
-        capa_path=capa_arg if isinstance(capa_arg, Path) else _DEFAULT_CAPA_PATH,
+        capa_path=_extract_capa_path(ns),
         roms_dir=_require(ns, "roms_dir", Path),
         output_path=output_dir / f"relatorio_{competencia}_{orgao}.xlsx",
         config_dir=_require(ns, "config_dir", Path),
@@ -265,6 +267,7 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
             per_orgao_data_dir = request.data_dir / orgao
             per_orgao_output_dir = request.output_dir / orgao
             per_orgao_manifest_path = request.config_dir / orgao / "datasets.yaml"
+            per_orgao_capa = _capa_path_for(request.capa_path, cast(Orgao, orgao))
             manifest = None
             if per_orgao_manifest_path.exists():
                 manifest = load_manifest(per_orgao_manifest_path)
@@ -275,6 +278,7 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
                 output_dir=per_orgao_output_dir,
                 manifest=manifest,
                 expected_orgao=orgao,
+                capa_path=per_orgao_capa,
             )
         return code
     elif command == _CMD_BOOTSTRAP:

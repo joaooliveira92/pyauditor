@@ -17,13 +17,25 @@ from pathlib import Path
 from typing import Final
 
 from pyauditor.config.manifest import DatasetManifest, load_manifest
-from pyauditor.engine.pipeline import discover_configs, measure
+from pyauditor.engine.pipeline import discover_config_files, measure
+from pyauditor.excel.capa import read_capa_fields
 from pyauditor.logging import logger
 from pyauditor.rom.render import render_rom
 from pyauditor.rom.summary import summarize
 
 _COMPETENCIA_RE: Final = re.compile(r"^\d{4}-\d{2}$")
 _UNSAFE_ID_CHARS_RE: Final = re.compile(r"[^A-Za-z0-9._-]")
+
+# Capa labels the ROM's Identificação/Responsáveis sections read (rom/render.py).
+_CAPA_ROM_FIELDS: Final[tuple[str, ...]] = (
+    "Competência",
+    "Período inicial da aferição",
+    "Período final da aferição",
+    "Fiscal técnico",
+    "Fiscal requisitante",
+    "Fiscal administrativo",
+    "Gestor do contrato",
+)
 
 
 def _sanitize_indicator_id(raw: str) -> str:
@@ -40,6 +52,7 @@ def run_measure(
     manifest: DatasetManifest | None = None,
     *,
     expected_orgao: str | None = None,
+    capa_path: Path | None = None,
 ) -> int:
     if not _COMPETENCIA_RE.match(competencia):
         logger.error(f"competência inválida {competencia!r}: esperado YYYY-MM (ex.: 2026-06)")
@@ -51,7 +64,7 @@ def run_measure(
     competencia_data_dir = data_dir / year / month
 
     try:
-        configs = discover_configs(config_dir, expected_orgao=expected_orgao)
+        configs = discover_config_files(config_dir, expected_orgao=expected_orgao)
     except (OSError, ValueError) as exc:
         logger.error(f"falha ao carregar configs de {config_dir}: {exc}")
         return 1
@@ -66,17 +79,42 @@ def run_measure(
         logger.error(f"falha ao criar diretório {target_dir}: {exc}")
         return 1
 
+    # Identificação/Responsáveis in the ROM come from the capa — informational
+    # only here (unlike `report`'s "Valor mensal vigente", nothing here blocks
+    # the measurement), so a missing capa is a warning, not a hard failure.
+    capa_fields: dict[str, object] = {}
+    if capa_path is not None:
+        if capa_path.exists():
+            capa_fields = read_capa_fields(capa_path)
+            empty_fields = [f for f in _CAPA_ROM_FIELDS if not capa_fields.get(f)]
+            if empty_fields:
+                logger.warning(
+                    f"capa em {capa_path} sem preencher: {', '.join(empty_fields)} — "
+                    "ROM mostra '[a preencher]' nesses campos"
+                )
+        else:
+            logger.warning(
+                f"capa não encontrada em {capa_path} — identificação/responsáveis do ROM "
+                "ficam '[a preencher]'"
+            )
+
     any_hard_failure = False
 
-    for config in configs:
+    for config_path, config_hash, config in configs:
         contractual_id = config.indicator.contractual_id
         safe_id = _sanitize_indicator_id(config.indicator.id)
         rom_path = target_dir / f"{safe_id}.md"
         summary_path = target_dir / f"{safe_id}.json"
 
         try:
-            result = measure(config, data_dir=competencia_data_dir, manifest=manifest)
-            rom_path.write_text(render_rom(result), encoding="utf-8")
+            result = measure(
+                config,
+                data_dir=competencia_data_dir,
+                manifest=manifest,
+                config_path=config_path,
+                config_hash=config_hash,
+            )
+            rom_path.write_text(render_rom(result, capa_fields=capa_fields), encoding="utf-8")
             summary_path.write_text(
                 json.dumps(summarize(result).to_dict(), ensure_ascii=False, indent=2),
                 encoding="utf-8",
