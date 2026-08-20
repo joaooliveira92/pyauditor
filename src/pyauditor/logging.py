@@ -1,11 +1,11 @@
 """Logging e observabilidade do pipeline (ticket 05, .scratch/ajuste-cli).
 
-Politica de verbosidade (decisões Q1-Q9 do ticket 05):
-- padrao (INFO): etapas, pendências e resumo - sem linha por indicador;
+Política de verbosidade (decisões Q1-Q9 do ticket 05):
+- padrão (INFO): etapas, pendências e resumo — sem linha por indicador;
 - `-v` (DEBUG): um evento por indicador (`indicador apurado ...`);
 - `-vv`: detalhes de leitura/validação/cálculo (DEBUG estendido);
 - `--log-format json`: cada registro no stream vira um JSON de uma linha
-  ({time, level, event, ...message}) - para automação; o arquivo de log
+  ({time, level, event, ...message}) — para automação; o arquivo de log
   permanece texto legível (o JSON serve para o stderr consumido por CI).
 
 `--output json` (ticket 04) é uma superfície separada: os logs aqui (stderr/
@@ -49,7 +49,7 @@ def log_event(
 ) -> None:
     """Registra um evento estruturado: frase legível + contexto chave=valor, e
     o nome `event` reservado para o JSON (`--log-format json`). Valores `None`
-    são omitidos - campos ausentes nunca aparecem como vazio/zero.
+    são omitidos — campos ausentes nunca aparecem como vazio/zero.
 
     Ex.: log_event("indicator_measured", "indicador apurado", "INFO",
     orgao="MinC", codigo="INMS-1.1", rom_path="roms/...", status="conforme")
@@ -78,7 +78,7 @@ def setup_logging(
     Seguro de chamar repetidamente: sempre remove os handlers anteriores, de
     modo que os sink nunca se acumulam. `verbose`/`log_level_explicit`/
     `json_format` implementam o ticket 05: `json_format` estrutura o stream
-    (stderr) com `serialize=True` do loguru (uma línea JSON por registro, com
+    (stderr) com `serialize=True` do loguru (uma linha JSON por registro, com
     `record.extra`); o arquivo de `log_path` permanece texto legível. Retorna o
     id do handler do console (que os testes podem querer remover).
     """
