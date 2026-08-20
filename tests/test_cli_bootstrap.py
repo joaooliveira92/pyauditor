@@ -39,3 +39,20 @@ def test_run_bootstrap_converts_unexpected_exception_to_error_result(tmp_path: P
     assert result.status == "error"
     assert result.error_message is not None
     assert "boom" in result.error_message
+
+
+def test_run_bootstrap_os_error_message_has_actionable_hint(tmp_path: Path) -> None:
+    # Ticket 11: PermissionError/lock não têm como ser distinguidos de forma
+    # confiável a partir da OSError, então a dica cobre as duas causas.
+    orgao_capa = tmp_path / "capa_MinC.csv"
+
+    with patch(
+        "pyauditor.cli.bootstrap.bootstrap_capa_csv",
+        side_effect=PermissionError("Permission denied"),
+    ):
+        result = run_bootstrap(orgao_capa, "MinC")
+
+    assert result.status == "error"
+    assert result.error_message is not None
+    assert "permiss" in result.error_message.lower()
+    assert "aberto em outro programa" in result.error_message

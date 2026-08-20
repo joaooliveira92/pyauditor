@@ -10,7 +10,9 @@ fields), so `SHEET_NAME`/`render_capa_sheet` survive; the file itself is CSV.
 
 from __future__ import annotations
 
+import calendar
 import csv
+from datetime import date, datetime
 from pathlib import Path
 from typing import Final
 
@@ -191,3 +193,76 @@ def read_capa_csv_fields(path: Path) -> dict[str, str]:
             "hand-edited em formato inesperado, corrija antes de continuar"
         )
     return fields
+
+
+_DATA_BR_FMT: Final = "%d/%m/%Y"
+
+_PERIODO_INICIAL_LABEL: Final = "Período inicial da aferição"
+_PERIODO_FINAL_LABEL: Final = "Período final da aferição"
+_COMPETENCIA_LABEL: Final = "Competência"
+
+
+def _parse_data_br(text: str) -> date | None:
+    """`DD/MM/AAAA` (ticket 10) → `date`; blank → `None`. Raises `ValueError`
+    for non-blank text that doesn't parse."""
+    if not text:
+        return None
+    return datetime.strptime(text, _DATA_BR_FMT).date()
+
+
+def _mes_bounds(competencia: str) -> tuple[date, date]:
+    ano, mes = (int(parte) for parte in competencia.split("-"))
+    ultimo_dia = calendar.monthrange(ano, mes)[1]
+    return date(ano, mes, 1), date(ano, mes, ultimo_dia)
+
+
+def validate_periodo_competencia(
+    capa_fields: dict[str, object], competencia: str
+) -> tuple[str, ...]:
+    """Ticket 10: avisos — nunca falha técnica (ticket 02: capa incorreta não
+    bloqueia processar) — quando a "Competência"/"Período inicial|final da
+    aferição" preenchidos à mão na capa divergem do argumento `--competência`
+    (já validado como `YYYY-MM` pelo chamador) ou do mês que ele implica.
+    Campo vazio não gera aviso aqui — isso é `missing_publication_fields`
+    (ticket 02, obrigatório para publicar).
+    """
+    warnings: list[str] = []
+
+    capa_competencia = str(capa_fields.get(_COMPETENCIA_LABEL, "")).strip()
+    if capa_competencia and capa_competencia != competencia:
+        warnings.append(
+            f"{_COMPETENCIA_LABEL} da capa ({capa_competencia}) diverge do "
+            f"argumento da CLI ({competencia})"
+        )
+
+    inicio_raw = str(capa_fields.get(_PERIODO_INICIAL_LABEL, "")).strip()
+    fim_raw = str(capa_fields.get(_PERIODO_FINAL_LABEL, "")).strip()
+    try:
+        inicio = _parse_data_br(inicio_raw)
+    except ValueError:
+        warnings.append(f"{_PERIODO_INICIAL_LABEL} ({inicio_raw!r}) não está no formato DD/MM/AAAA")
+        inicio = None
+    try:
+        fim = _parse_data_br(fim_raw)
+    except ValueError:
+        warnings.append(f"{_PERIODO_FINAL_LABEL} ({fim_raw!r}) não está no formato DD/MM/AAAA")
+        fim = None
+
+    if inicio is not None and fim is not None and inicio > fim:
+        warnings.append(
+            f"{_PERIODO_INICIAL_LABEL} ({inicio_raw}) é posterior ao "
+            f"{_PERIODO_FINAL_LABEL.lower()} ({fim_raw})"
+        )
+        return tuple(warnings)  # invertido — comparar contra o mês não ajuda aqui
+
+    mes_inicio, mes_fim = _mes_bounds(competencia)
+    if inicio is not None and not (mes_inicio <= inicio <= mes_fim):
+        warnings.append(
+            f"{_PERIODO_INICIAL_LABEL} ({inicio_raw}) fora dos limites da competência {competencia}"
+        )
+    if fim is not None and not (mes_inicio <= fim <= mes_fim):
+        warnings.append(
+            f"{_PERIODO_FINAL_LABEL} ({fim_raw}) fora dos limites da competência {competencia}"
+        )
+
+    return tuple(warnings)

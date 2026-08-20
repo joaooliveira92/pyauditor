@@ -96,6 +96,32 @@ def test_render_summary_shows_next_steps_for_pending_commands(tmp_path: Path) ->
     assert "measure" in output
 
 
+def test_render_summary_points_to_incomplete_orgao_after_isolated_failure(
+    tmp_path: Path,
+) -> None:
+    # Ticket 08 (Q3): quando um órgão fica incompleto (isolado por falha), o
+    # painel "Próximos passos" aponta o comando exato para completá-lo sozinho.
+    (tmp_path / "configs" / "MTur").mkdir(parents=True)
+    (tmp_path / "input" / "MTur" / "2026" / "06").mkdir(parents=True)
+    (tmp_path / "configs" / "MTur" / "inms-test.yaml").write_text(
+        _CONFIG_YAML.replace("orgao: MinC", "orgao: MTur"), encoding="utf-8"
+    )
+    (tmp_path / "input" / "MTur" / "2026" / "06" / "data.csv").write_text(
+        "Nº Solicitacao;DataHoraFim;No prazo\n1;;S\n2;;N\n", encoding="utf-8"  # hard failure
+    )
+    request = replace(_run(tmp_path), orgao="both")
+
+    run_result = execute_run(request, on_failure=lambda entry: "isolate")
+
+    buffer = StringIO()
+    render_summary(run_result, console=Console(file=buffer, force_terminal=False))
+
+    output = buffer.getvalue()
+    assert "Próximos passos" in output
+    assert "MTur: relatório não gerado" in output
+    assert "rode `pyauditor run 2026-06 --orgao MTur`" in output
+
+
 def test_render_summary_text_has_root_panel(tmp_path: Path) -> None:
     # Painel "Resultado" (Q3/Q9/Q10): status global + contagens + publicação.
     run_result = execute_run(_run(tmp_path))

@@ -125,13 +125,27 @@ def _artifact_line(entry: CommandStateEntry, result: object | None) -> str:
 
 
 def _next_steps(run_result: RunResult) -> list[str]:
+    """Ticket "08 - Transacionalidade do pipeline por órgão": além do motivo
+    técnico de dependência ausente, aponta explicitamente qual órgão ficou
+    incompleto (falhou ou foi pulado em cascata) e o comando exato para
+    completá-lo sozinho — sem reprocessar o órgão que já terminou."""
     steps: list[str] = []
+    incomplete_orgaos: set[str] = set()
     for entry in run_result.state.commands:
         if entry.status == "done":
             continue
         missing = dependency_missing(entry.command, entry.orgao, run_result.request)
         if missing:
             steps.append(f"{entry.command} ({entry.orgao or '—'}): {', '.join(missing)}")
+        if entry.orgao and entry.status in ("error", "skipped"):
+            incomplete_orgaos.add(entry.orgao)
+    for orgao in _orgaos_no_run(run_result):
+        if orgao in incomplete_orgaos:
+            steps.append(
+                f"{orgao}: relatório não gerado — rode "
+                f"`pyauditor run {run_result.competencia} --orgao {orgao}` "
+                "para completar apenas esse órgão"
+            )
     return steps
 
 

@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -133,6 +134,25 @@ def test_measure_exits_nonzero_on_hard_failure(tmp_path: Path) -> None:
     assert exit_code.status == "error"
     rom_path = output_dir / "2026-06" / "INMS-TEST.md"
     assert rom_path.exists()  # ROM still written so rejections are visible
+
+
+def test_measure_os_error_writing_rom_has_actionable_hint(tmp_path: Path) -> None:
+    # Ticket 11: falha ao gravar o ROM (permissão/lock) ganha dica acionável.
+    config_dir = tmp_path / "configs"
+    data_dir = tmp_path / "input"
+    output_dir = tmp_path / "roms"
+    _write_config_and_data(
+        config_dir, data_dir,
+        "Nº Solicitacao;DataHoraFim;No prazo\n1;2026-06-01;S\n2;2026-06-02;N\n",
+    )
+
+    with patch.object(Path, "write_text", side_effect=PermissionError("Permission denied")):
+        exit_code = run_measure("2026-06", config_dir, data_dir, output_dir)
+
+    assert exit_code.status == "error"
+    failing = next(i for i in exit_code.indicators if i.hard_failure)
+    assert failing.error is not None
+    assert "aberto em outro programa" in failing.error
 
 
 def _write_per_orgao_config_and_data(

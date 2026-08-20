@@ -2,11 +2,20 @@
 of bootstrap→measure→report→consolidate in one invocation (ticket "Run
 orchestrator and resume"). Thin wrapper: builds a `RunRequest` from the same
 flags `measure`/`report`/`consolidate` already use, calls `execute_run` with
-no-op callbacks, then renders the shared summary.
+an `isolate`-on-failure policy, then renders the shared summary.
 
-`run` always regenerates: it sets `force=True`, so the persisted run-state
-never suppresses re-running a Command that a previous attempt already marked
-done (unlike the interactive flow, which resumes where it left off).
+Ticket "08 - Transacionalidade do pipeline por órgão": `run` is transactional
+per órgão, not for the whole invocation — a failure in one órgão never
+aborts the other's still-pending steps (`on_failure=isolate_on_failure`, which
+cascades only within the failed órgão + the shared `consolidate`). `run`
+resumes by default: `force=False`, so a persisted `done` Command from a
+previous attempt is not re-run — matching the interactive flow — except
+`report`/`consolidate`, always re-dispatched (`force_commands`) since they're
+cheap to regenerate from already-materialized ROMs and the completion summary
+(ticket 04) needs a fresh `Result` to report accurate publicable/glosa status
+even for an órgão whose upstream steps were skipped this invocation. Pass
+`--force` to force a full reprocessing (e.g. after manually fixing
+`capa.csv`/`objetos.csv`).
 """
 
 from __future__ import annotations
@@ -14,7 +23,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Final
 
-from pyauditor.orchestration.run import RunRequest, execute_run
+from pyauditor.orchestration.run import RunRequest, execute_run, isolate_on_failure
 from pyauditor.orchestration.summary import OutputFormat, exit_code_for_run, render_summary
 
 _DEFAULT_RUNS_DIR: Final[Path] = Path(".pyauditor/runs")
@@ -32,6 +41,7 @@ def run_run(
     final_month: bool = False,
     runs_dir: Path = _DEFAULT_RUNS_DIR,
     output: OutputFormat = "text",
+    force: bool = False,
 ) -> int:
     request = RunRequest(
         competencia=competencia,
@@ -43,8 +53,9 @@ def run_run(
         capa_path=capa_path,
         final_month=final_month,
         runs_dir=runs_dir,
-        force=True,
+        force=force,
+        force_commands=frozenset({"report", "consolidate"}),
     )
-    run_result = execute_run(request)
+    run_result = execute_run(request, on_failure=isolate_on_failure)
     render_summary(run_result, output=output)
     return exit_code_for_run(run_result.state.commands, run_result.results)

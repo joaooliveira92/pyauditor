@@ -104,6 +104,26 @@ def test_run_consolidate_converts_unexpected_exception_to_error_result(tmp_path:
     assert "boom" in result.error_message
 
 
+def test_run_consolidate_os_error_message_has_actionable_hint(tmp_path: Path) -> None:
+    # Ticket 11: mensagem de falha de escrita ganha dica acionável.
+    _scaffold_capas(tmp_path)
+    _build_orgao_report(tmp_path, "MinC")
+    _build_orgao_report(tmp_path, "MTur")
+
+    with patch(
+        "pyauditor.cli.consolidate.atomic_write", side_effect=PermissionError("Permission denied")
+    ):
+        result = run_consolidate(
+            "2026-06", tmp_path / "reports", tmp_path / "roms",
+            tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx",
+            data_dir=tmp_path,
+        )
+
+    assert result.status == "error"
+    assert result.error_message is not None
+    assert "aberto em outro programa" in result.error_message
+
+
 def test_run_consolidate_fails_when_a_report_is_missing(tmp_path: Path) -> None:
     _scaffold_capas(tmp_path)
     _build_orgao_report(tmp_path, "MinC")
@@ -210,6 +230,120 @@ def test_run_consolidate_malformed_objetos_is_hard_failure(tmp_path: Path) -> No
     assert result.status == "error"
     assert result.error_message is not None
     assert "objetos.csv" in result.error_message
+
+
+def test_run_consolidate_fails_when_both_reports_are_missing(tmp_path: Path) -> None:
+    _scaffold_capas(tmp_path)
+    # Nenhum dos dois relatórios de órgão foi construído.
+
+    exit_code = run_consolidate(
+        "2026-06", tmp_path / "reports", tmp_path / "roms",
+        tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx",
+        data_dir=tmp_path,
+    )
+
+    assert exit_code.status == "error"
+    assert exit_code.error_message is not None
+    assert "MinC" in exit_code.error_message
+    assert "MTur" in exit_code.error_message
+    assert not (tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx").exists()
+
+
+def test_run_consolidate_succeeds_with_one_orgao_as_rascunho(tmp_path: Path) -> None:
+    # Ticket 08: `consolidate` só checa existência de arquivo, não
+    # `publicable` — um relatório rascunho (capa incompleta) ainda satisfaz
+    # `check_consolidate_ready` e entra na consolidação normalmente.
+    _scaffold_capas(tmp_path)
+    _build_orgao_report(tmp_path, "MinC")
+    _build_orgao_report(tmp_path, "MTur")
+    # MinC vira rascunho: capa_MinC.csv sem fiscais preenchidos — já é o caso
+    # (bootstrap_capa_csv deixa tudo em branco), então basta reler o result.
+    minc_result = run_report(
+        "2026-06", tmp_path / "capa.csv", tmp_path / "roms" / "MinC",
+        tmp_path / "reports" / "relatorio_2026-06_MinC.xlsx",
+        config_dir=tmp_path / "configs" / "MinC", expected_orgao="MinC", data_dir=tmp_path,
+    )
+    assert minc_result.publicable is False
+    output_path = tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx"
+
+    exit_code = run_consolidate(
+        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+    )
+
+    assert exit_code.status == "done"
+    assert output_path.exists()
+
+
+def test_run_consolidate_without_objetos_cells_are_none_not_zero(tmp_path: Path) -> None:
+    # Ticket 01 — a garantia central: "não calculada" nunca vira 0.00, nem no
+    # consolidado. Célula vazia (None), não numérica.
+    _scaffold_capas(tmp_path)
+    _build_orgao_report(tmp_path, "MinC")
+    _build_orgao_report(tmp_path, "MTur")
+    (tmp_path / "objetos.csv").unlink()
+    output_path = tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx"
+
+    exit_code = run_consolidate(
+        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+    )
+
+    assert exit_code.status == "done"
+    assert exit_code.glosa_calculada is False
+    workbook = load_workbook(output_path)
+    sheet = workbook[GLOSAS_SHEET]
+    for row in (2, 3):
+        valor_base = sheet.cell(row=row, column=10).value  # "Valor Base"
+        valor_glosa = sheet.cell(row=row, column=11).value  # "Valor Glosa"
+        assert valor_base is None
+        assert valor_glosa is None
+        assert valor_base != 0.0
+        assert valor_glosa != 0.0
+
+
+def test_run_consolidate_preserves_decision_despite_new_penalty_value(tmp_path: Path) -> None:
+    # "Conflito entre decisão anterior e nova apuração": a decisão do fiscal
+    # (coluna preservada) não é sobrescrita mesmo quando a apuração seguinte
+    # recalcula um Percentual de Ajuste/Valor Glosa diferente para a mesma
+    # ocorrência (indicador × órgão).
+    _scaffold_capas(tmp_path)
+    _build_orgao_report(tmp_path, "MinC")
+    _build_orgao_report(tmp_path, "MTur")
+    output_path = tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx"
+    run_consolidate(
+        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+    )
+
+    workbook = load_workbook(output_path)
+    sheet = workbook[GLOSAS_SHEET]
+    header = [cell.value for cell in sheet[1]]
+    decisao_col = header.index("Decisão Fiscal") + 1
+    ajuste_col = header.index("Percentual de Ajuste") + 1
+    sheet.cell(row=2, column=decisao_col, value="Aceita")
+    workbook.save(output_path)
+
+    # Nova apuração do MinC com penalidade diferente — o Percentual de
+    # Ajuste recalculado diverge do que existia quando a decisão foi tomada.
+    _write_summary(
+        tmp_path / "roms", "2026-06", "MinC", "INMS-1.6-MinC", "INMS 1.6",
+        penalty_points=250.0, conforms=False,
+    )
+    run_report(
+        "2026-06", tmp_path / "capa.csv", tmp_path / "roms" / "MinC",
+        tmp_path / "reports" / "relatorio_2026-06_MinC.xlsx",
+        config_dir=tmp_path / "configs" / "MinC", expected_orgao="MinC", data_dir=tmp_path,
+    )
+
+    run_consolidate(
+        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+    )
+
+    reread = load_workbook(output_path)
+    reread_sheet = reread[GLOSAS_SHEET]
+    ajustes = {reread_sheet.cell(row=r, column=ajuste_col).value for r in (2, 3)}
+    decisoes = {reread_sheet.cell(row=r, column=decisao_col).value for r in (2, 3)}
+    assert "Aceita" in decisoes  # decisão preservada apesar da nova apuração
+    # MinC recalculado diverge de MTur (inalterado) — não travou no valor antigo
+    assert len(ajustes) == 2
 
 
 def test_run_consolidate_corrupt_ever_output_is_error(tmp_path: Path) -> None:

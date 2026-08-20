@@ -9,7 +9,7 @@ capas .xlsx para CSV (ticket 07 Q2). `capa.csv` é compartilhado pelos dois
 from dataclasses import dataclass
 from pathlib import Path
 
-from pyauditor.cli.results import DependencyCheck, Status
+from pyauditor.cli.results import WRITE_FAILURE_HINT, DependencyCheck, Status
 from pyauditor.excel.capa import (
     COMMON_FIELD_LABELS,
     ORGAO_FIELD_LABELS,
@@ -50,7 +50,7 @@ def run_bootstrap(capa_path: Path, orgao: str) -> BootstrapResult:
         created_orgao = bootstrap_capa_csv(orgao_path, ORGAO_FIELD_LABELS)
         created |= created_orgao
     except OSError as exc:
-        message = f"falha ao criar capa em {data_dir}: {exc}"
+        message = f"falha ao criar capa em {data_dir}: {exc} — {WRITE_FAILURE_HINT}"
         logger.error(message)
         return BootstrapResult(
             status="error", orgao=orgao, capa_path=orgao_path, created=False,

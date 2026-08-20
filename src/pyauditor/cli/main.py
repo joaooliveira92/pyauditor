@@ -280,6 +280,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="último mês de vigência do contrato — desliga o rollover de glosa (item 35 do TR)",
     )
+    run_parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "reprocessa tudo, mesmo etapas já concluídas numa tentativa anterior "
+            "(default: retoma de onde parou, pulando o que já está 'done')"
+        ),
+    )
 
     return parser
 
@@ -507,6 +515,7 @@ def _dispatch_run(args: argparse.Namespace) -> int:
         capa_path=_extract_capa_path(args, data_dir=_require(args, "data_dir", Path)),
         final_month=bool(cast(object, getattr(args, "final_month", False))),
         output="json" if output_raw == "json" else "text",
+        force=bool(cast(object, getattr(args, "force", False))),
     )
 
 

@@ -13,6 +13,18 @@ from typing import Final, Literal, Protocol
 
 _COMPETENCIA_RE: Final = re.compile(r"^\d{4}-\d{2}$")
 
+# Ticket "11 - Tratamento de diretório sem permissão / arquivo bloqueado":
+# `PermissionError` (diretório sem escrita) e Excel aberto/bloqueado por
+# outro processo chegam ambos como `OSError`, indistinguíveis de forma
+# confiável a partir da exceção — a dica cobre as duas causas sem tentar
+# adivinhar qual é (`atomic_write` já garante que nada fica corrompido; isto
+# só melhora a mensagem). Cada chamador já monta sua própria mensagem
+# ("falha ao escrever X: exc") — só aponta esta dica no final.
+WRITE_FAILURE_HINT: Final = (
+    "verifique permissões do diretório ou se o arquivo está aberto em outro programa"
+)
+DIR_FAILURE_HINT: Final = "verifique as permissões do diretório"
+
 
 def validate_competencia(competencia: str) -> str | None:
     """`None` if *competencia* is `YYYY-MM`; otherwise an actionable error

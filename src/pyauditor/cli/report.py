@@ -6,7 +6,8 @@ Migração das capas para CSV (ticket 07): a capa é `capa.csv` (campos comuns)
 + `capa_{orgao}.csv` (campos por órgão), e o valor monetário vem de
 `objetos.csv`. A capa pode estar incompleta — processa e marca rascunho
 (ticket 02); `objetos.csv` ausente significa glosa não calculada (ticket 01),
-malformado é falha técnica (ticket 07 Q5).
+malformado é falha técnica (ticket 07 Q5). Competência/período divergentes
+ou fora do formato `DD/MM/AAAA` são WARNING, nunca falha técnica (ticket 10).
 """
 
 import json
@@ -14,9 +15,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
+from pyauditor.cli.results import WRITE_FAILURE_HINT, DependencyCheck, Status, validate_competencia
 from pyauditor.engine.pipeline import discover_configs
-from pyauditor.excel.capa import read_capa_csv_fields
+from pyauditor.excel.capa import read_capa_csv_fields, validate_periodo_competencia
 from pyauditor.excel.glosas import historico_entry, read_historico, write_historico
 from pyauditor.excel.objetos import OBJETOS_FILENAME, read_objetos
 from pyauditor.excel.report import build_report, compute_report_glosa
@@ -170,6 +171,7 @@ def run_report(
     warnings: list[str] = []
     capa_fields, capa_caveat = _load_capa_fields(capa_path, orgao, data_dir)
     warnings.extend(capa_caveat)
+    warnings.extend(validate_periodo_competencia(capa_fields, competencia))
     warnings_gerais: list[str] = []
 
     try:
@@ -214,7 +216,7 @@ def run_report(
             configs=configs or None, historico=historico,
         )
     except OSError as exc:
-        return _error(f"falha ao escrever {output_path}: {exc}")
+        return _error(f"falha ao escrever {output_path}: {exc} — {WRITE_FAILURE_HINT}")
     except Exception as exc:  # border: never leak a raw traceback past the CLI
         return _error(f"falha inesperada ao montar {output_path}: {exc}")
 
@@ -228,7 +230,9 @@ def run_report(
     try:
         write_historico(historico_path, historico)
     except OSError as exc:
-        warning = f"falha ao gravar histórico de glosa em {historico_path}: {exc}"
+        warning = (
+            f"falha ao gravar histórico de glosa em {historico_path}: {exc} — {WRITE_FAILURE_HINT}"
+        )
         logger.warning(warning)
         warnings.append(warning)
 

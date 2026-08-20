@@ -7,6 +7,7 @@ from pyauditor.excel.capa import (
     ORGAO_FIELD_LABELS,
     read_capa_csv_fields,
     bootstrap_capa_csv,
+    validate_periodo_competencia,
 )
 from pyauditor.excel.objetos import parse_brl_value
 
@@ -90,3 +91,63 @@ def test_parse_brl_value_accepts_ptbr_and_machine_shapes() -> None:
 def test_parse_brl_value_rejects_garbage() -> None:
     with pytest.raises(ValueError, match="inválido"):
         parse_brl_value("abc")
+
+
+def test_validate_periodo_competencia_empty_fields_no_warning() -> None:
+    # Ticket 10: campo vazio não é assunto deste validador (ticket 02 cuida
+    # disso via missing_publication_fields).
+    assert validate_periodo_competencia({}, "2026-06") == ()
+
+
+def test_validate_periodo_competencia_all_consistent_no_warning() -> None:
+    campos: dict[str, object] = {
+        "Competência": "2026-06",
+        "Período inicial da aferição": "01/06/2026",
+        "Período final da aferição": "30/06/2026",
+    }
+
+    assert validate_periodo_competencia(campos, "2026-06") == ()
+
+
+def test_validate_periodo_competencia_warns_on_competencia_divergente() -> None:
+    campos: dict[str, object] = {"Competência": "2026-05"}
+
+    warnings = validate_periodo_competencia(campos, "2026-06")
+
+    assert len(warnings) == 1
+    assert "2026-05" in warnings[0]
+    assert "2026-06" in warnings[0]
+
+
+def test_validate_periodo_competencia_warns_on_periodo_fora_do_mes() -> None:
+    campos: dict[str, object] = {
+        "Período inicial da aferição": "28/05/2026",
+        "Período final da aferição": "30/06/2026",
+    }
+
+    warnings = validate_periodo_competencia(campos, "2026-06")
+
+    assert len(warnings) == 1
+    assert "Período inicial da aferição" in warnings[0]
+    assert "fora dos limites" in warnings[0]
+
+
+def test_validate_periodo_competencia_warns_on_inicio_posterior_ao_fim() -> None:
+    campos: dict[str, object] = {
+        "Período inicial da aferição": "20/06/2026",
+        "Período final da aferição": "10/06/2026",
+    }
+
+    warnings = validate_periodo_competencia(campos, "2026-06")
+
+    assert len(warnings) == 1
+    assert "posterior ao" in warnings[0]
+
+
+def test_validate_periodo_competencia_warns_on_formato_invalido() -> None:
+    campos: dict[str, object] = {"Período inicial da aferição": "junho/2026"}
+
+    warnings = validate_periodo_competencia(campos, "2026-06")
+
+    assert len(warnings) == 1
+    assert "DD/MM/AAAA" in warnings[0]

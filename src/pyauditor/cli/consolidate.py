@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pyauditor.atomic_write import atomic_write
-from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
+from pyauditor.cli.results import WRITE_FAILURE_HINT, DependencyCheck, Status, validate_competencia
 from pyauditor.excel.capa import read_capa_csv_fields
 from pyauditor.excel.consolidate import build_consolidated_workbook, read_existing_decisions
 from pyauditor.excel.objetos import OBJETOS_FILENAME, read_objetos
@@ -168,7 +168,7 @@ def run_consolidate(
     try:
         atomic_write(output_path, result.workbook.save)
     except OSError as exc:
-        return _error(f"falha ao escrever {output_path}: {exc}")
+        return _error(f"falha ao escrever {output_path}: {exc} — {WRITE_FAILURE_HINT}")
     finally:
         result.workbook.close()
 

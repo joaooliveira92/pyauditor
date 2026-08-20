@@ -36,7 +36,7 @@ from pyauditor.orchestration.state import (
 )
 
 type CommandResult = BootstrapResult | MeasureResult | ReportResult | ConsolidateResult
-type FailureDecision = Literal["retry", "skip", "abort"]
+type FailureDecision = Literal["retry", "skip", "isolate", "abort"]
 
 _DEFAULT_CAPA_NAME: Final[str] = "capa.csv"
 _ALL_COMMANDS: Final[frozenset[str]] = frozenset({"bootstrap", "measure", "report", "consolidate"})
@@ -56,6 +56,12 @@ class RunRequest:
     commands: frozenset[str] = _ALL_COMMANDS
     runs_dir: Path = Path(".pyauditor/runs")
     force: bool = False  # re-run commands the persisted state already marked done/skipped
+    # ticket 08: resume still always re-dispatches these commands regardless of
+    # persisted done/skipped status — `run` (cli/run.py) sets {"report",
+    # "consolidate"}: cheap to regenerate from already-materialized ROMs, and
+    # the completion summary (ticket 04) needs a fresh Result to report
+    # accurate publicable/glosa status even for an órgão skipped this invocation
+    force_commands: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +79,19 @@ def _noop_state_change(_entry: CommandStateEntry) -> None:
 
 def _abort_on_failure(_entry: CommandStateEntry) -> FailureDecision:
     return "abort"
+
+
+def isolate_on_failure(_entry: CommandStateEntry) -> FailureDecision:
+    """Ticket "08 - Transacionalidade do pipeline por órgão": a política de
+    `on_failure` do `run` não-interativo. Diferente de `"skip"` (decisão de
+    um humano, que reclassifica o próprio comando falho para `skipped`),
+    `"isolate"` preserva `status="error"` no comando que de fato falhou —
+    para que `exit_code_for_run` continue enxergando a falha técnica (código
+    `1`, contrato do ticket 03) — e cascateia via `_cascade_skip`/`_downstream`
+    só as etapas posteriores do mesmo órgão + o `consolidate` compartilhado.
+    Uma falha no MTur nunca impede o loop de `execute_run` de seguir para as
+    etapas do MinC ainda pendentes."""
+    return "isolate"
 
 
 def _capa_path_for(capa_path: Path, orgao: str) -> Path:
@@ -234,10 +253,16 @@ def execute_run(
         *, started_at: str | None = None, finished_at: str | None = None,
     ) -> FailureDecision:
         """Build the `error` entry, persist+notify, ask `on_failure`, and — on
-        `"skip"` — build the `skipped` entry and cascade too. One seam for
+        `"skip"`/`"isolate"` — cascade the downstream steps too. One seam for
         both failure sites below (pre-dispatch dependency check, post-dispatch
         `Result.status == "error"`): they differ only in what triggered the
-        error, never in how retry/skip/abort is handled."""
+        error, never in how retry/skip/isolate/abort is handled.
+
+        `"skip"` (a human's call, interactive mode) reclassifies the failing
+        command itself to `skipped` — it's being waved off. `"isolate"` (the
+        automatic non-interactive policy, ticket 08) leaves it `error` so
+        `exit_code_for_run` still reports the technical failure (ticket 03),
+        cascading only what depends on it."""
         nonlocal state
         entry = CommandStateEntry(
             command=command, orgao=orgao, status="error",
@@ -252,6 +277,7 @@ def execute_run(
             state = _upsert(state, skipped_entry)
             save_state(path, state)
             on_state_change(skipped_entry)
+        if decision in ("skip", "isolate"):
             state = _cascade_skip(plan, command, orgao, state, path, on_state_change, skipped_steps)
         return decision
 
@@ -265,7 +291,12 @@ def execute_run(
             continue
 
         current = _find_entry(state, command, orgao)
-        if current is not None and current.status in ("done", "skipped") and not request.force:
+        if (
+            current is not None
+            and current.status in ("done", "skipped")
+            and not request.force
+            and command not in request.force_commands
+        ):
             continue
         if (command, orgao) in skipped_steps:
             continue
@@ -280,7 +311,7 @@ def execute_run(
                 decision = record_failure_and_decide(command, orgao, message)
                 if decision == "retry":
                     continue
-                if decision == "skip":
+                if decision in ("skip", "isolate"):
                     break
                 return RunResult(request.competencia, request.orgao, tuple(results), state, request)
 
@@ -310,7 +341,7 @@ def execute_run(
             )
             if decision == "retry":
                 continue
-            if decision == "skip":
+            if decision in ("skip", "isolate"):
                 break
             return RunResult(request.competencia, request.orgao, tuple(results), state, request)
 

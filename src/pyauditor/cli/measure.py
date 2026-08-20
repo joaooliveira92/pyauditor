@@ -17,7 +17,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, cast
 
-from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
+from pyauditor.cli.results import (
+    DIR_FAILURE_HINT,
+    WRITE_FAILURE_HINT,
+    DependencyCheck,
+    Status,
+    validate_competencia,
+)
 from pyauditor.config.manifest import DatasetManifest
 from pyauditor.engine.pipeline import (
     MeasurementResult,
@@ -126,7 +132,7 @@ def run_measure(
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        return _error(f"falha ao criar diretório {target_dir}: {exc}")
+        return _error(f"falha ao criar diretório {target_dir}: {exc} — {DIR_FAILURE_HINT}")
 
     # Identificação/Responsáveis in the ROM come from the capa — informational
     # only here (unlike `report`'s "Valor mensal vigente", nothing here blocks
@@ -185,7 +191,7 @@ def run_measure(
                 encoding="utf-8",
             )
         except OSError as exc:
-            message = f"falha ao escrever {rom_path}: {exc}"
+            message = f"falha ao escrever {rom_path}: {exc} — {WRITE_FAILURE_HINT}"
             logger.error(message)
             any_hard_failure = True
             outcomes.append(IndicatorOutcome(
@@ -303,4 +309,4 @@ def write_combined_roms(
                 encoding="utf-8",
             )
         except OSError as exc:
-            logger.error(f"falha ao escrever {combined_path}: {exc}")
+            logger.error(f"falha ao escrever {combined_path}: {exc} — {WRITE_FAILURE_HINT}")

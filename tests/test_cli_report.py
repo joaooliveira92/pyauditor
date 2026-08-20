@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from openpyxl import load_workbook
 
-from pyauditor.cli.report import run_report
+from pyauditor.cli.report import missing_publication_fields, run_report
 from pyauditor.excel.capa import COMMON_FIELD_LABELS, ORGAO_FIELD_LABELS, bootstrap_capa_csv
 from pyauditor.excel.report import GLOSAS_SHEET, INMS_BASE_SHEET
 
@@ -165,6 +165,25 @@ def test_run_report_converts_unexpected_exception_to_error_result(tmp_path: Path
     assert "boom" in result.error_message
 
 
+def test_run_report_os_error_message_has_actionable_hint(tmp_path: Path) -> None:
+    # Ticket 11: mensagem de falha de escrita ganha dica acionável.
+    comum = _scaffold_capas(tmp_path)
+    roms_dir = tmp_path / "roms"
+    _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
+
+    with patch(
+        "pyauditor.cli.report.build_report", side_effect=PermissionError("Permission denied")
+    ):
+        result = run_report(
+            "2026-06", comum, roms_dir, tmp_path / "reports" / "out.xlsx",
+            config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        )
+
+    assert result.status == "error"
+    assert result.error_message is not None
+    assert "aberto em outro programa" in result.error_message
+
+
 def test_run_report_fails_without_capa(tmp_path: Path) -> None:
     comum = tmp_path / "capa.csv"
     roms_dir = tmp_path / "roms"
@@ -302,3 +321,98 @@ def test_run_report_malformed_objetos_is_hard_failure(tmp_path: Path) -> None:
     assert result.status == "error"
     assert result.error_message is not None
     assert "objetos.csv" in result.error_message
+
+
+def test_missing_publication_fields_empty_capa_returns_all_fields() -> None:
+    assert len(missing_publication_fields({})) == 6
+
+
+def test_missing_publication_fields_complete_capa_returns_empty() -> None:
+    campos: dict[str, object] = {
+        "Período inicial da aferição": "2026-06-01",
+        "Período final da aferição": "2026-06-30",
+        "Fiscal técnico": "Fulano",
+        "Fiscal requisitante": "Beltrano",
+        "Fiscal administrativo": "Ciclano",
+        "Gestor do contrato": "Sicrano",
+    }
+
+    assert missing_publication_fields(campos) == ()
+
+
+def test_missing_publication_fields_reports_only_missing_ones() -> None:
+    campos: dict[str, object] = {
+        "Fiscal técnico": "Fulano", "Gestor do contrato": "",
+    }  # vazio conta como ausente
+
+    missing = missing_publication_fields(campos)
+
+    assert "Fiscal técnico" not in missing
+    assert "Gestor do contrato" in missing
+    assert "Fiscal requisitante" in missing
+
+
+def test_run_report_missing_fiscais_is_rascunho_nao_publicavel(tmp_path: Path) -> None:
+    # Ticket 02: fiscais ausentes na capa não impedem o processamento, mas
+    # marcam o relatório como rascunho — nunca publicável.
+    comum = _scaffold_capas(tmp_path)
+    roms_dir = tmp_path / "roms"
+    _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
+    output_path = tmp_path / "reports" / "relatorio.xlsx"
+
+    result = run_report(
+        "2026-06", comum, roms_dir, output_path, config_dir=tmp_path / "configs",
+        expected_orgao="MinC", data_dir=tmp_path,
+    )
+
+    assert result.status == "done"
+    assert result.publicable is False  # capa_MinC.csv recém-bootstrapped: fiscais vazios
+
+
+def test_run_report_warns_on_competencia_divergente_na_capa(tmp_path: Path) -> None:
+    # Ticket 10: capa preenchida com competência diferente do argumento CLI
+    # vira WARNING (nunca falha técnica) — processamento segue normalmente.
+    comum = _scaffold_capas(tmp_path)
+    (tmp_path / "capa_MinC.csv").write_text(
+        "Capa e controle do contrato;\n;\nCampo;Valor\nCompetência;2026-05\n",
+        encoding="utf-8-sig",
+    )
+    roms_dir = tmp_path / "roms"
+    _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
+    output_path = tmp_path / "reports" / "relatorio.xlsx"
+
+    result = run_report(
+        "2026-06", comum, roms_dir, output_path, config_dir=tmp_path / "configs",
+        expected_orgao="MinC", data_dir=tmp_path,
+    )
+
+    assert result.status == "done"
+    assert any("2026-05" in w and "2026-06" in w for w in result.warnings)
+
+
+def test_run_report_valor_mensal_zero_is_glosa_calculada(tmp_path: Path) -> None:
+    # Ticket 01: 0,00 é um valor legítimo — nunca confundido com "não
+    # calculada" (isso é reservado à ausência do arquivo objetos.csv inteiro).
+    comum = _scaffold_capas(tmp_path)
+    zerado = OBJETOS_CSV.replace('"R$ 461.063,58"', '"R$ 0,00"')
+    for item_valor in (
+        "148.205,54", "77.654,90", "43.888,89", "59.694,54", "21.035,21",
+        "16.145,94", "31.382,28", "34.143,44", "28.912,84",
+    ):
+        zerado = zerado.replace(f'"R$ {item_valor}"', '"R$ 0,00"')
+    zerado = zerado.replace('"R$ 5.532.762,96"', '"R$ 0,00"')
+    (tmp_path / "objetos.csv").write_text(zerado, encoding="utf-8-sig")
+    roms_dir = tmp_path / "roms"
+    _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
+    output_path = tmp_path / "reports" / "relatorio.xlsx"
+
+    result = run_report(
+        "2026-06", comum, roms_dir, output_path, config_dir=tmp_path / "configs",
+        expected_orgao="MinC", data_dir=tmp_path,
+    )
+
+    assert result.status == "done"
+    assert result.glosa_calculada is True  # valor_base=0.0, não None
+    workbook = load_workbook(output_path)
+    glosas_sheet = workbook[GLOSAS_SHEET]
+    assert glosas_sheet.cell(row=2, column=5).value == 0.0  # Valor-base — numérico, não vazio

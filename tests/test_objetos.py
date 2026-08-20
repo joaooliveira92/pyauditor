@@ -87,3 +87,35 @@ def test_rejects_wrong_header(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="cabeçalho esperado"):
         read_objetos(path)
+
+
+def test_zero_value_item_is_legitimate_not_malformed(tmp_path: Path) -> None:
+    # Ticket 01: 0,00 é um valor legítimo (ex.: item zerado no mês) — nunca
+    # confundido com "não calculada", que é a ausência do arquivo inteiro.
+    body = OBJETOS_CSV.replace('"R$ 148.205,54"', '"R$ 0,00"', 1)
+    body = body.replace('"R$ 461.063,58"', '"R$ 312.858,04"')  # soma sem o item 1
+    body = body.replace('"R$ 5.532.762,96"', '"R$ 3.754.296,48"')  # 312.858,04 x 12
+    path = _write(tmp_path / "objetos.csv", body)
+
+    objetos = read_objetos(path)
+
+    assert objetos.itens[0] == 0.0
+    assert objetos.warnings == ()  # soma bate — 0,00 não é divergência
+
+
+def test_rejects_empty_item_value(tmp_path: Path) -> None:
+    body = OBJETOS_CSV.replace('1;Central de Serviços;"R$ 148.205,54"', "1;Central de Serviços;")
+    path = _write(tmp_path / "objetos.csv", body)
+
+    with pytest.raises(ValueError, match="valor monetário inválido"):
+        read_objetos(path)
+
+
+def test_rejects_negative_item_value(tmp_path: Path) -> None:
+    body = OBJETOS_CSV.replace(
+        '1;Central de Serviços;"R$ 148.205,54"', '1;Central de Serviços;"-R$ 148.205,54"'
+    )
+    path = _write(tmp_path / "objetos.csv", body)
+
+    with pytest.raises(ValueError, match="valor monetário inválido"):
+        read_objetos(path)
