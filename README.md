@@ -23,8 +23,15 @@ uv sync
 
 ## Usage
 
-Four subcommands, meant to run separately so the fiscal técnico can re-run
-`measure` as new CSVs arrive without redoing the whole month.
+Run `pyauditor` with no arguments for a guided, interactive flow that walks
+through the whole competência (bootstrap → measure → report → consolidate),
+tracks progress live, and offers retry/skip/abort on failure. It requires a
+real terminal — piped/non-interactive input falls back to an error telling
+you to use a subcommand directly.
+
+Otherwise, four subcommands, meant to run separately so the fiscal técnico
+can re-run `measure` as new CSVs arrive without redoing the whole month —
+plus a fifth, `run`, that chains all four in one scriptable invocation.
 
 `bootstrap`, `measure` and `report` take `--orgao {MinC,MTur,both}` (default
 `MinC`); `both` runs each órgão sequentially, never crossing their data.
@@ -45,7 +52,16 @@ uv run pyauditor report 2026-06 --orgao both --roms-dir roms --output-dir report
 
 # fuse both órgãos' reports into the contract's financial workbook
 uv run pyauditor consolidate 2026-06 --report-dir reports --roms-dir roms
+
+# or, equivalently, chain all four steps in one non-interactive invocation
+uv run pyauditor run 2026-06 --orgao both
 ```
+
+`run` accepts the same `--orgao`/`--config-dir`/`--data-dir`/`--output-dir`/
+`--capa-path`/`--final-month` flags as the individual subcommands, and skips
+any step already `done` from a previous invocation — progress is tracked per
+`(competência, órgão)` in `.pyauditor/runs/`, so a failed or interrupted run
+can just be re-run to resume where it left off.
 
 `measure` writes one `<indicator.id>.md` ROM and one `<indicator.id>.json`
 summary per indicator config found in `--config-dir`. `report` reads the
