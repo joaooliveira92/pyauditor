@@ -21,3 +21,12 @@ def parse_decimal(raw: str) -> float:
         return float(value)
     except ValueError:
         return float("nan")
+
+
+def as_float(value: object) -> float | None:
+    """`None` unless *value* is a real number — `bool` is an `int` subclass
+    in Python, so it's excluded explicitly rather than silently coerced to
+    `1.0`/`0.0`."""
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return float(value)
+    return None

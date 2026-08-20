@@ -12,6 +12,7 @@ The authoritative per-category breakdown is in `memoria["categories"]`.
 
 from pyauditor.config.models import IndicatorConfig, SegmentedRatioCalculation
 from pyauditor.engine.strategies._filters import filter_rows
+from pyauditor.engine.strategies._numbers import as_float
 from pyauditor.engine.strategies._target import safe_pct, shortfall
 from pyauditor.engine.strategies.base import CalculationResult, narrow_calculation
 
@@ -60,3 +61,17 @@ class SegmentedRatioStrategy:
             penalty_points=total_penalty,
             memoria={"categories": categories},
         )
+
+    def pool_numerator_denominator(
+        self, memoria: dict[str, object]
+    ) -> tuple[float | None, float | None]:
+        categories = memoria.get("categories")
+        if not isinstance(categories, list):
+            return None, None
+        numerator = sum(
+            as_float(c.get("numerator")) or 0.0 for c in categories if isinstance(c, dict)
+        )
+        denominator = sum(
+            as_float(c.get("denominator")) or 0.0 for c in categories if isinstance(c, dict)
+        )
+        return numerator, denominator

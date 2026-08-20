@@ -7,6 +7,7 @@ Markdown.
 from dataclasses import asdict, dataclass, fields
 
 from pyauditor.engine.pipeline import MeasurementResult
+from pyauditor.engine.strategies import SHAPE_REGISTRY
 
 _STR_FIELDS: tuple[str, ...] = ("indicator_id", "contractual_id", "name", "orgao", "shape")
 _OPTIONAL_STR_FIELDS: tuple[str, ...] = ("asset", "target_operator")
@@ -107,26 +108,11 @@ def summarize(result: MeasurementResult) -> IndicatorSummary:
 def _pooled_numerator_denominator(
     shape: str, memoria: dict[str, object]
 ) -> tuple[float | None, float | None]:
-    if shape == "ratio":
-        return _as_float(memoria.get("numerator")), _as_float(memoria.get("denominator"))
-
-    if shape == "segmented_ratio":
-        categories = memoria.get("categories")
-        if not isinstance(categories, list):
-            return None, None
-        numerator = sum(_as_float(c.get("numerator")) or 0.0 for c in categories if isinstance(c, dict))
-        denominator = sum(_as_float(c.get("denominator")) or 0.0 for c in categories if isinstance(c, dict))
-        return numerator, denominator
-
-    if shape == "count_difference":
-        return _as_float(memoria.get("QCSI")), _as_float(memoria.get("QRC"))
-
-    # external_catalog_sum / precomputed_table: point/aggregated measures, not
-    # a ratio — no numerator/denominator at the indicator level.
-    return None, None
-
-
-def _as_float(value: object) -> float | None:
-    if isinstance(value, int | float) and not isinstance(value, bool):
-        return float(value)
-    return None
+    """Delegates to the shape's own strategy (`SHAPE_REGISTRY`, the same
+    registry `engine.pipeline.measure` dispatches on) instead of a second,
+    separately-maintained shape-keyed dispatch — one place to update when a
+    shape is added, not two."""
+    strategy = SHAPE_REGISTRY.get(shape)
+    if strategy is None:
+        return None, None
+    return strategy.pool_numerator_denominator(memoria)

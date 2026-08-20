@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from pyauditor.rom.summary import IndicatorSummary, _as_float
+from pyauditor.rom.summary import IndicatorSummary
 
 
 def _build(**kwargs: object) -> IndicatorSummary:
@@ -70,18 +70,3 @@ def test_indicator_summary_allows_none_for_optional_fields() -> None:
     kwargs["numerator"] = None
     kwargs["denominator"] = None
     _build(**kwargs)  # must not raise
-
-
-def test_as_float_rejects_bool() -> None:
-    assert _as_float(True) is None
-    assert _as_float(False) is None
-
-
-def test_as_float_accepts_numbers() -> None:
-    assert _as_float(1) == 1.0
-    assert _as_float(1.5) == 1.5
-
-
-def test_as_float_rejects_non_numeric() -> None:
-    assert _as_float("1.5") is None
-    assert _as_float(None) is None

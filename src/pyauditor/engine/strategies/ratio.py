@@ -8,7 +8,7 @@ from math import isnan
 
 from pyauditor.config.models import IndicatorConfig, RatioCalculation
 from pyauditor.engine.strategies._filters import filter_rows
-from pyauditor.engine.strategies._numbers import parse_decimal
+from pyauditor.engine.strategies._numbers import as_float, parse_decimal
 from pyauditor.engine.strategies._target import meets_target, safe_pct, shortfall
 from pyauditor.engine.strategies.base import CalculationResult, narrow_calculation
 
@@ -57,6 +57,11 @@ class RatioStrategy:
             penalty_points=penalty_points,
             memoria={"numerator": numerator, "denominator": denominator},
         )
+
+    def pool_numerator_denominator(
+        self, memoria: dict[str, object]
+    ) -> tuple[float | None, float | None]:
+        return as_float(memoria.get("numerator")), as_float(memoria.get("denominator"))
 
 
 def _aggregate(calculation: RatioCalculation, rows: list[dict[str, str]]) -> tuple[float, float]:

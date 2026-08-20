@@ -12,6 +12,7 @@ target), but the penalty itself is `CNI * penalty_per_unit`, not derived from
 
 from pyauditor.config.models import CountDifferenceCalculation, IndicatorConfig
 from pyauditor.engine.strategies._filters import filter_rows
+from pyauditor.engine.strategies._numbers import as_float
 from pyauditor.engine.strategies.base import CalculationResult, narrow_calculation
 
 
@@ -36,3 +37,10 @@ class CountDifferenceStrategy:
             penalty_points=penalty_points,
             memoria={"QRC": qrc, "QCSI": qcsi, "CNI": cni},
         )
+
+    def pool_numerator_denominator(
+        self, memoria: dict[str, object]
+    ) -> tuple[float | None, float | None]:
+        # Preserves the pooling convention already established in rom/summary.py:
+        # (QCSI, QRC) -> (numerator, denominator), not (QRC, QCSI).
+        return as_float(memoria.get("QCSI")), as_float(memoria.get("QRC"))
