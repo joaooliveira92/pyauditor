@@ -1,5 +1,5 @@
 Type: task
-Status: open
+Status: resolved
 
 ## Question
 
@@ -20,3 +20,5 @@ Qual (se algum) desses vale a pena implementar agora, versus aceitar como proces
 - Pré-validação da capa, sugestão automática de "situação geral" e relatório narrativo assinável — sem mudança, nenhum código encontrado.
 
 Segue aberto: decisão de prioridade ainda não tomada para nenhum dos quatro itens.
+
+**Decisão (2026-08-19)**: aceito como processo manual, permanentemente — nenhum dos quatro itens será implementado nesta rodada. Pré-validação da capa, CI real de teste/lint, sugestão automática de "situação geral" e relatório narrativo assinável seguem sendo trabalho manual do fiscal técnico. Reabrir só se houver pressão real (ex.: erro recorrente que a pré-validação evitaria, ou mais de uma pessoa tocando o repo justificando CI).

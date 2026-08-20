@@ -65,6 +65,7 @@ class ReportRequest:
     output_path: Path
     config_dir: Path
     orgao: Orgao
+    is_final_month: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +147,11 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument(
         "--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR
     )
+    report_parser.add_argument(
+        "--final-month",
+        action="store_true",
+        help="último mês de vigência do contrato — desliga o rollover de glosa (item 35 do TR)",
+    )
 
     consolidate_parser = subparsers.add_parser(
         _CMD_CONSOLIDATE,
@@ -210,6 +216,7 @@ def _extract_report_request(ns: argparse.Namespace) -> ReportRequest:
         output_path=output_dir / f"relatorio_{competencia}_{orgao}.xlsx",
         config_dir=_require(ns, "config_dir", Path),
         orgao=cast(Orgao, orgao),
+        is_final_month=bool(cast(object, getattr(ns, "final_month", False))),
     )
 
 
@@ -300,6 +307,7 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
                 output_path=output_path,
                 config_dir=report_request.config_dir / orgao,
                 expected_orgao=orgao,
+                is_final_month=report_request.is_final_month,
             )
         return code
     elif command == _CMD_CONSOLIDATE:
