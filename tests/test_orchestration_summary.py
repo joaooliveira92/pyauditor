@@ -53,7 +53,7 @@ def _run(tmp_path: Path) -> RunRequest:
         data_dir=tmp_path / "input",
         output_dir=tmp_path / "roms",
         report_dir=tmp_path / "reports",
-        capa_path=tmp_path / "capa.xlsx",
+        capa_path=tmp_path / "input" / "capa.csv",
         runs_dir=tmp_path / ".pyauditor" / "runs",
     )
 

@@ -5,7 +5,7 @@ from pyauditor.cli.consolidate import check_consolidate_ready
 from pyauditor.cli.dependencies import CHECKERS
 from pyauditor.cli.measure import check_measure_ready
 from pyauditor.cli.report import check_report_ready
-from pyauditor.excel.capa import bootstrap_capa
+from pyauditor.excel.capa import COMMON_FIELD_LABELS, ORGAO_FIELD_LABELS, bootstrap_capa_csv
 
 
 def test_registry_maps_every_command_to_its_checker() -> None:
@@ -20,19 +20,20 @@ def test_bootstrap_and_measure_have_no_dependencies() -> None:
     assert check_measure_ready().satisfied
 
 
-def test_report_ready_requires_capa_and_roms(tmp_path: Path) -> None:
-    capa_path = tmp_path / "capa.xlsx"
+def test_report_ready_requires_comum_and_orgao_capas_and_roms(tmp_path: Path) -> None:
+    comum = tmp_path / "capa.csv"
     roms_dir = tmp_path / "roms"
 
-    check = check_report_ready("2026-06", "MinC", capa_path, roms_dir)
+    check = check_report_ready("2026-06", "MinC", comum, roms_dir, data_dir=tmp_path)
 
     assert not check.satisfied
-    assert len(check.missing) == 2
+    assert len(check.missing) == 3  # capa comum + capa MinC + ROMs
 
-    bootstrap_capa(capa_path)
+    bootstrap_capa_csv(comum, COMMON_FIELD_LABELS)
+    bootstrap_capa_csv(tmp_path / "capa_MinC.csv", ORGAO_FIELD_LABELS)
     (roms_dir / "2026-06").mkdir(parents=True)
 
-    check = check_report_ready("2026-06", "MinC", capa_path, roms_dir)
+    check = check_report_ready("2026-06", "MinC", comum, roms_dir, data_dir=tmp_path)
     assert check.satisfied
     assert check.missing == ()
 

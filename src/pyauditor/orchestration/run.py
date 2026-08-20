@@ -38,7 +38,7 @@ from pyauditor.orchestration.state import (
 type CommandResult = BootstrapResult | MeasureResult | ReportResult | ConsolidateResult
 type FailureDecision = Literal["retry", "skip", "abort"]
 
-_DEFAULT_CAPA_NAME: Final[str] = "capa.xlsx"
+_DEFAULT_CAPA_NAME: Final[str] = "capa.csv"
 _ALL_COMMANDS: Final[frozenset[str]] = frozenset({"bootstrap", "measure", "report", "consolidate"})
 _PHASE_ORDER: Final[tuple[str, ...]] = ("bootstrap", "measure", "report", "consolidate")
 
@@ -76,9 +76,12 @@ def _abort_on_failure(_entry: CommandStateEntry) -> FailureDecision:
 
 
 def _capa_path_for(capa_path: Path, orgao: str) -> Path:
-    if capa_path.name != _DEFAULT_CAPA_NAME or orgao == "both":
+    """The per-órgão capa CSV beside the common `capa.csv` (ticket 07) — the
+    whole capa family lives in one directory; no separate per-órgão flag.
+    An explicit non-default `capa_path` (a `--capa-path` override) wins as-is."""
+    if capa_path.name != _DEFAULT_CAPA_NAME and orgao != "both":
         return capa_path
-    return capa_path.parent / f"capa_{orgao}.xlsx"
+    return capa_path.parent / f"capa_{orgao}.csv"
 
 
 def _plan(orgao_selector: str) -> tuple[tuple[str, str | None], ...]:
@@ -143,9 +146,11 @@ def dependency_missing(command: str, orgao: str | None, request: RunRequest) -> 
     case: a runtime string→checker lookup for the zero-arg case, where
     `command` is a loop variable, not statically known."""
     if command == "report":
-        capa_path = _capa_path_for(request.capa_path, orgao or "")
+        capa_path = request.capa_path
         roms_dir = request.output_dir / (orgao or "")
-        check = check_report_ready(request.competencia, orgao or "", capa_path, roms_dir)
+        check = check_report_ready(
+            request.competencia, orgao or "", capa_path, roms_dir, data_dir=request.data_dir
+        )
     elif command == "consolidate":
         check = check_consolidate_ready(request.competencia, request.report_dir, request.output_dir)
     else:
@@ -174,12 +179,13 @@ def _dispatch(command: str, orgao: str | None, request: RunRequest) -> CommandRe
         output_path = request.report_dir / f"relatorio_{request.competencia}_{orgao}.xlsx"
         return run_report(
             competencia=request.competencia,
-            capa_path=_capa_path_for(request.capa_path, orgao or ""),
+            capa_path=request.capa_path,
             roms_dir=request.output_dir / (orgao or ""),
             output_path=output_path,
             config_dir=request.config_dir / (orgao or ""),
             expected_orgao=orgao,
             is_final_month=request.final_month,
+            data_dir=request.data_dir,
         )
     output_path = request.report_dir / f"relatorio_{request.competencia}_consolidado.xlsx"
     return run_consolidate(
@@ -187,6 +193,7 @@ def _dispatch(command: str, orgao: str | None, request: RunRequest) -> CommandRe
         report_dir=request.report_dir,
         roms_dir=request.output_dir,
         output_path=output_path,
+        data_dir=request.data_dir,
     )
 
 

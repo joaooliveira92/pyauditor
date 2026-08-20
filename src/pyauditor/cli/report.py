@@ -1,6 +1,12 @@
 """`pyauditor report <competência>` — consolidate the ROMs `measure` wrote
-into the final Excel: `CADASTROS` + `INMS_BASE` + per-group tabs + `GLOSAS`
-(spec §6/§13).
+into the final Excel: `CAPA_E_CONTROLE` + `CADASTROS` + `INMS_BASE` +
+per-group tabs + `GLOSAS` (spec §6/§13).
+
+Migração das capas para CSV (ticket 07): a capa é `capa.csv` (campos comuns)
++ `capa_{orgao}.csv` (campos por órgão), e o valor monetário vem de
+`objetos.csv`. A capa pode estar incompleta — processa e marca rascunho
+(ticket 02); `objetos.csv` ausente significa glosa não calculada (ticket 01),
+malformado é falha técnica (ticket 07 Q5).
 """
 
 import json
@@ -10,8 +16,9 @@ from typing import Final
 
 from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
 from pyauditor.engine.pipeline import discover_configs
-from pyauditor.excel.capa import read_capa_fields
+from pyauditor.excel.capa import read_capa_csv_fields
 from pyauditor.excel.glosas import historico_entry, read_historico, write_historico
+from pyauditor.excel.objetos import OBJETOS_FILENAME, read_objetos
 from pyauditor.excel.report import build_report, compute_report_glosa
 from pyauditor.logging import log_event, logger
 from pyauditor.rom.summary import IndicatorSummary
@@ -56,13 +63,17 @@ class ReportResult:
 
 
 def check_report_ready(
-    competencia: str, orgao: str, capa_path: Path, roms_dir: Path
+    competencia: str, orgao: str, capa_path: Path, roms_dir: Path, data_dir: Path | None = None
 ) -> DependencyCheck:
-    """`report` needs bootstrap's capa and measure's ROMs for this
-    (competencia, orgao) — extracted from the ad-hoc checks below."""
+    """`report` precisa das capas CSV (comum + por órgão) e dos ROMs de
+    `measure`. `capa_path` é a capa comum (`capa.csv`); a do órgão fica ao
+    lado (`capa_{orgao}.csv`)."""
     missing: list[str] = []
     if not capa_path.exists():
-        missing.append(f"capa ({capa_path}) — rode `pyauditor bootstrap`")
+        missing.append(f"capa comum ({capa_path}) — rode `pyauditor bootstrap`")
+    orgao_capa = capa_path.parent / f"capa_{orgao}.csv"
+    if not orgao_capa.exists():
+        missing.append(f"capa de {orgao} ({orgao_capa}) — rode `pyauditor bootstrap`")
     if not (roms_dir / competencia).is_dir():
         missing.append(
             f"ROMs de {orgao}/{competencia} ({roms_dir / competencia}) — rode `pyauditor measure`"
@@ -81,6 +92,40 @@ def _load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
     return summaries
 
 
+def _load_capa_fields(capa_path: Path, orgao: str, data_dir: Path) -> tuple[dict[str, object], list[str]]:
+    """Carrega e funde as capas CSV (comum + órgão) num único dict de campos.
+    Capa ausente/comum vira rascunho (warnings), nunca falha técnica —
+    processar não exige capa (ticket 02)."""
+    warnings: list[str] = []
+    campos: dict[str, object] = {}
+
+    orgao_capa = data_dir / f"capa_{orgao}.csv"
+    for label, path in (("comum", capa_path), ("de " + orgao, orgao_capa)):
+        if not path.exists():
+            warnings.append(f"capa {label} não encontrada em {path} — campos a preencher")
+            continue
+        try:
+            campos.update(read_capa_csv_fields(path))
+        except (OSError, ValueError) as exc:
+            warnings.append(f"falha ao ler capa {label} ({path}): {exc} — campos a preencher")
+    return campos, warnings
+
+
+def _read_valor_base(data_dir: Path, warnings: list[str]) -> float | None:
+    """Valor mensal a partir de `objetos.csv`. Ausente → `None` (glosa não
+    calculada, ticket 01); malformado → `ValueError` (falha técnica, Q5)."""
+    path = data_dir / OBJETOS_FILENAME
+    try:
+        objetos = read_objetos(path)
+    except FileNotFoundError:
+        warnings.append(f"objetos.csv não encontrado em {data_dir} — glosa não calculada")
+        return None
+    except ValueError as exc:
+        raise ValueError(f"objetos.csv malformado em {path}: {exc}") from exc
+    warnings.extend(objetos.warnings)
+    return objetos.total_mensal
+
+
 def run_report(
     competencia: str,
     capa_path: Path,
@@ -90,8 +135,10 @@ def run_report(
     *,
     expected_orgao: str | None = None,
     is_final_month: bool = False,
+    data_dir: Path | None = None,
 ) -> ReportResult:
     orgao = expected_orgao or ""
+    data_dir = data_dir or capa_path.parent
 
     def _error(message: str) -> ReportResult:
         logger.error(message)
@@ -107,7 +154,7 @@ def run_report(
     # Defense-in-depth: same checker `cli_main`/the orchestrator call pre-dispatch
     # (ticket "Dependency enforcement") — direct callers that bypass dispatch
     # (tests, future code) still get it.
-    dependency_check = check_report_ready(competencia, orgao, capa_path, roms_dir)
+    dependency_check = check_report_ready(competencia, orgao, capa_path, roms_dir, data_dir=data_dir)
     if not dependency_check.satisfied:
         return _error("dependência não satisfeita: " + "; ".join(dependency_check.missing))
 
@@ -121,19 +168,26 @@ def run_report(
         return _error(f"nenhum sumário de medição (.json) encontrado em {competencia_dir}")
 
     warnings: list[str] = []
+    capa_fields, capa_caveat = _load_capa_fields(capa_path, orgao, data_dir)
+    warnings.extend(capa_caveat)
+    warnings_gerais: list[str] = []
+
     try:
-        capa_fields = read_capa_fields(capa_path)
-    except Exception as exc:  # boundary: corrupt/hand-edited workbook, never leak a raw traceback
-        return _error(f"falha ao ler capa em {capa_path}: {exc}")
-    valor_base_raw = capa_fields.get("Valor mensal vigente")
-    valor_base = float(valor_base_raw) if isinstance(valor_base_raw, int | float) else None
+        valor_base = _read_valor_base(data_dir, warnings_gerais)
+        warnings.extend(warnings_gerais)
+    except ValueError as exc:
+        return _error(str(exc))  # Q5: malformado é FALHA (exit 1)
+    except OSError as exc:
+        return _error(f"falha ao ler objetos (metric source) em {data_dir}: {exc}")
+    for warning in warnings:
+        logger.warning(warning)
     if valor_base is None:
         log_event(
             "glosa_nao_calculada",
             "glosa monetária não calculada",
             "WARNING",
             orgao=orgao,
-            motivo="valor mensal ausente na capa",
+            motivo="valor mensal ausente em objetos.csv",
         )
 
     try:
@@ -161,14 +215,14 @@ def run_report(
         )
     except OSError as exc:
         return _error(f"falha ao escrever {output_path}: {exc}")
-    except Exception as exc:  # boundary: never leak a raw traceback past the CLI
+    except Exception as exc:  # border: never leak a raw traceback past the CLI
         return _error(f"falha inesperada ao montar {output_path}: {exc}")
 
     try:
         glosa = compute_report_glosa(
             competencia, summaries, valor_base, is_final_month=is_final_month, historico=historico
         )
-    except Exception as exc:  # boundary: never leak a raw traceback past the CLI
+    except Exception as exc:  # border: never leak a raw traceback past the CLI
         return _error(f"falha inesperada ao calcular glosa de {competencia}: {exc}")
     historico[competencia] = historico_entry(competencia, glosa)
     try:

@@ -4,33 +4,37 @@ from unittest.mock import patch
 from pyauditor.cli.bootstrap import run_bootstrap
 
 
-def test_run_bootstrap_creates_capa_and_returns_0(tmp_path: Path) -> None:
-    capa_path = tmp_path / "capa.xlsx"
+def test_run_bootstrap_creates_common_and_orgao_capas(tmp_path: Path) -> None:
+    orgao_capa = tmp_path / "capa_MinC.csv"
 
-    result = run_bootstrap(capa_path, "MinC")
+    result = run_bootstrap(orgao_capa, "MinC")
 
     assert result.status == "done"
     assert result.created is True
-    assert capa_path.exists()
+    assert orgao_capa.exists()
+    assert (tmp_path / "capa.csv").exists()
 
 
-def test_run_bootstrap_is_a_noop_when_capa_exists(tmp_path: Path) -> None:
-    capa_path = tmp_path / "capa.xlsx"
-    run_bootstrap(capa_path, "MinC")
-    mtime_before = capa_path.stat().st_mtime_ns
+def test_run_bootstrap_is_a_noop_when_capas_exist(tmp_path: Path) -> None:
+    orgao_capa = tmp_path / "capa_MinC.csv"
+    run_bootstrap(orgao_capa, "MinC")
+    comum = tmp_path / "capa.csv"
+    mtime_orgao = orgao_capa.stat().st_mtime_ns
+    mtime_comum = comum.stat().st_mtime_ns
 
-    result = run_bootstrap(capa_path, "MinC")
+    result = run_bootstrap(orgao_capa, "MinC")
 
     assert result.status == "done"
     assert result.created is False
-    assert capa_path.stat().st_mtime_ns == mtime_before
+    assert orgao_capa.stat().st_mtime_ns == mtime_orgao
+    assert comum.stat().st_mtime_ns == mtime_comum
 
 
 def test_run_bootstrap_converts_unexpected_exception_to_error_result(tmp_path: Path) -> None:
-    capa_path = tmp_path / "capa.xlsx"
+    orgao_capa = tmp_path / "capa_MinC.csv"
 
-    with patch("pyauditor.cli.bootstrap.bootstrap_capa", side_effect=ValueError("boom")):
-        result = run_bootstrap(capa_path, "MinC")
+    with patch("pyauditor.cli.bootstrap.bootstrap_capa_csv", side_effect=ValueError("boom")):
+        result = run_bootstrap(orgao_capa, "MinC")
 
     assert result.status == "error"
     assert result.error_message is not None

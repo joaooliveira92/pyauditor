@@ -22,11 +22,11 @@ Contexto: review.md §5 e §"Prioridade 3: melhorar observabilidade" e §"Priori
 
 Fechado por grilling (Q1-Q9, todas aprovadas). Política de verbosidade e vocabulário de eventos decididos:
 
-1. **Evento por indicador (Q1/Q7)**: verbo + contexto estáble — `indicador apurado | orgao=MinC codigo=INMS-1.1 rom_path=... status=conforme` — no lugar de `INMS 1.1: roms\...`. O `rom_path` relativo (portabilidade no 06).
+1. **Evento por indicador (Q1/Q7)**: verbo + contexto estável — `indicador apurado | orgao=MinC codigo=INMS-1.1 rom_path=... status=conforme` — no lugar de `INMS 1.1: roms\...`. O `rom_path` relativo (portabilidade no 06).
 2. **Política de verbosidade (Q2/Q8/Q9)**: padrão (INFO) = etapas/pendências/resumo, **sem linha por indicador** (antes eram 28 linhas); `-v` (DEBUG) = um evento por indicador; `-vv` = detalhes; `--log-level` explícito prevalece sobre `-v`; `--log-format json` estrutura o stderr. Flags em **todos** os subcomandos.
 3. **Interface com 03/04 (Q3)**: `--log-format json` (logs, stderr/arquivo) é **separado** de `--output json` (resumo 04, stdout) — cada um controla sua superfície; coexistem.
-4. **JSON (Q4)**: `serialize=True` do loguru — uma linha JSON por registro com `record.extra` (evento + contexto). Filtro: o contexto que se passa a `log_event` é só operacional (o código não passa conteúdo de dados sensibles) — a tração está ao nível de quem emite.
-5. **Níveis (Q5/Q6)**: INFO = etapas/resumo; DEBUG = por indicador; WARNING = pendências; ERROR = falhas. O painel "Resultado" (04) **no muda** — o conciso `MinC: 14/14` é log, não painel.
+4. **JSON (Q4)**: `serialize=True` do loguru — uma linha JSON por registro com `record.extra` (evento + contexto). Filtro: o contexto que se passa a `log_event` é só operacional (o código não passa conteúdo de dados sensíveis) — a tração está ao nível de quem emite.
+5. **Níveis (Q5/Q6)**: INFO = etapas/resumo; DEBUG = por indicador; WARNING = pendências; ERROR = falhas. O painel "Resultado" (04) **não muda** — o conciso `MinC: 14/14` é log, não painel.
 
 **Implementado no código**:
 - `logging.py`: `log_event(event, verb, level, **context)` (texto chave=valor + `event` reservado p/ JSON); `resolve_log_level`; `setup_logging(..., verbose, log_level_explicit, json_format)` com `serialize=True`.
@@ -38,4 +38,4 @@ Fechado por grilling (Q1-Q9, todas aprovadas). Política de verbosidade e vocabu
 
 Testes: `tests/test_logging.py` (resolve_log_level, log_event texto/None omitido, `--log-format json` estrutra `record.extra`). Suíte 262 passed; mypy limpo; ruff sem violações novas (baseline de main.py mantido).
 
-Desbloquea o ticket 06. A névoa "Validação de indicadores" (nº esperado = 14) **no se decide aquí** — segue em Not yet specified.
+Desbloqueia o ticket 06. A névoa "Validação de indicadores" (nº esperado = 14) **não se decide aqui** — segue em aberto.

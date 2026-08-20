@@ -5,8 +5,9 @@ mensalmente por cada órgão contratante — **MinC** (Ministério da Cultura) e
 **MTur** (Ministério do Turismo) — conforme o Anexo D (Prazos e Níveis Mínimos de
 Serviço) do Termo de Referência.
 
-A partir de pares declarativos `inms-<n>.yaml` (config/schema) + `inms-<n>.csv`
-(dataset) por indicador e órgão, `pyauditor`:
+A partir de pares declarativos `inms-<nn>.yaml` (config/schema, zero‑padded:
+`inms-01.yaml`…`inms-14.yaml`) + `inms-<nn>.csv` (dataset) por indicador e
+órgão, `pyauditor`:
 
 1. executa os **14 indicadores** do contrato (INMS 1.1–1.14) através de **quality
    gates** que podem rejeitar linhas do dataset;
@@ -41,8 +42,8 @@ Documentação publicada: <https://joaooliveira92.github.io/pyauditor/>.
   (ex. INMS 1.14 File Server, WI-FI), sem colisão de nomes.
 - **Glosa fiscal** (`GLOSAS`): fórmula linear contínua do item 35 do TR
   (`min(30%, Σ Pontos × 0,001%) × valor mensal`) com teto e rollover.
-- **Idempotência e resume**: `bootstrap` nunca recria uma capa existente; `run`
-  retoma onde parou graças ao estado em `.pyauditor/runs/`.
+- **Idempotência**: `bootstrap` nunca recria uma capa existente; `run`
+  regenera sempre todos os artefactos (ROMs + Excel) desde zero.
 
 ---
 
@@ -107,9 +108,9 @@ uv run pyauditor run 2026-06 --orgao both
 ```
 
 `run` aceita os mesmos flags que os subcomandos individuais (`--config-dir`,
-`--data-dir`, `--output-dir`, `--capa-path`, `--final-month`) e omite qualquer
-passo já `done` de uma invocação anterior — o progresso é guardado por
-`(competência, órgão)` em `.pyauditor/runs/`.
+`--data-dir`, `--output-dir`, `--capa-path`, `--final-month`). Cada invocação
+regenera desde zero os ROMs e Excels; `bootstrap` segue idempotente (nunca
+recria uma capa existente).
 
 ---
 
@@ -145,7 +146,7 @@ src/pyauditor/
 ├── interactive/   # fluxo guiado (TTY)
 └── cli/           # bootstrap / measure / report / consolidate / run
 
-configs/<órgão>/            # inms-<n>.yaml + datasets.yaml, por órgão
+configs/<órgão>/            # inms-0N.yaml + datasets.yaml, por órgão
 input/<órgão>/<AAAA>/<MM>   # datasets CSV (git-ignored; contém PII real)
 roms/<órgão>/<competência>/ # ROMs .md + summary .json
 reports/                    # Excel de relatório por órgão + consolidado

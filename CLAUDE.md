@@ -12,6 +12,10 @@ The five canonical defaults: `needs-triage`, `needs-info`, `ready-for-agent`, `r
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
-### How you sould interact
+### How you should interact
 
 Use `docs/agents/unslop.md`
+
+### Language
+
+The user communicates in **Brazilian Portuguese (pt-BR)**. Write all replies, comments, and file contents in pt-BR. **Never** write in Spanish — not even by accident, not even a single word. Spanish in this repo's output is a hard error.

@@ -15,7 +15,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import Final, cast
 
 from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
 from pyauditor.config.manifest import DatasetManifest
@@ -24,7 +24,7 @@ from pyauditor.engine.pipeline import (
     discover_config_files,
     measure,
 )
-from pyauditor.excel.capa import read_capa_fields
+from pyauditor.excel.capa import read_capa_csv_fields
 from pyauditor.logging import log_event, logger
 from pyauditor.rom.render import render_combined_rom, render_rom
 from pyauditor.rom.summary import summarize
@@ -135,7 +135,16 @@ def run_measure(
     warnings: list[str] = []
     if capa_path is not None:
         if capa_path.exists():
-            capa_fields = read_capa_fields(capa_path)
+            try:
+                capa_fields = cast(dict[str, object], read_capa_csv_fields(capa_path))
+            except (OSError, ValueError) as exc:
+                warning = (
+                    f"falha ao ler capa em {capa_path}: {exc} — "
+                    "identificação/responsáveis do ROM ficam '[a preencher]'"
+                )
+                logger.warning(warning)
+                warnings.append(warning)
+                capa_fields = {}
             empty_fields = [f for f in _CAPA_ROM_FIELDS if not capa_fields.get(f)]
             if empty_fields:
                 warning = (

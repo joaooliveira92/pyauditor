@@ -9,6 +9,9 @@ it. Re-running `consolidate` over an already-decorated
 `relatorio_<comp>_consolidado.xlsx` merges: recomputed fields refresh, the
 fiscal's decision columns (Justificativa/Decisão Fiscal/Observação) are
 preserved (ticket 04 Q3).
+
+Migração das capas para CSV (ticket 07): os campos comuns vêm de `capa.csv`
+e o valor monetário de `objetos.csv` — a capa não carrega mais valores.
 """
 
 import json
@@ -17,8 +20,9 @@ from pathlib import Path
 
 from pyauditor.atomic_write import atomic_write
 from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
-from pyauditor.excel.capa import read_capa_fields
+from pyauditor.excel.capa import read_capa_csv_fields
 from pyauditor.excel.consolidate import build_consolidated_workbook, read_existing_decisions
+from pyauditor.excel.objetos import OBJETOS_FILENAME, read_objetos
 from pyauditor.logging import log_event, logger
 from pyauditor.rom.summary import IndicatorSummary
 
@@ -61,12 +65,45 @@ def _load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
     return summaries
 
 
+def _load_common_capa(data_dir: Path, warnings: list[str]) -> dict[str, object]:
+    """Campos comuns do contrato de `capa.csv` (ticket 07). Ausente/malformado
+    é dado incompleto — o consolidado é montado mesmo assim, com a capa
+    truncada (não bloqueia; a criticidade é do ticket 02/03)."""
+    path = data_dir / "capa.csv"
+    if not path.exists():
+        warnings.append(f"capa.csv não encontrado em {data_dir} — capa do consolidado sem campos comuns")
+        return {}
+    try:
+        return read_capa_csv_fields(path)  # type: ignore[return-value]
+    except (OSError, ValueError) as exc:
+        warnings.append(f"falha ao ler capa.csv em {data_dir}: {exc} — campos comuns ausentes")
+        return {}
+
+
+def _read_objetos(data_dir: Path, warnings: list[str]) -> tuple[float | None, tuple[float, ...]]:
+    """`objetos.csv` → (valor_base, itens). Ausente → `(None, ())` — glosa não
+    calculada (ticket 01); malformado → `ValueError` — falha técnica (Q5)."""
+    path = data_dir / OBJETOS_FILENAME
+    try:
+        objetos = read_objetos(path)
+    except FileNotFoundError:
+        warnings.append(f"objetos.csv não encontrado em {data_dir} — glosa monetária não calculada")
+        return None, ()
+    except ValueError as exc:
+        raise ValueError(f"objetos.csv malformado em {path}: {exc}") from exc
+    warnings.extend(objetos.warnings)
+    return objetos.total_mensal, objetos.itens
+
+
 def run_consolidate(
     competencia: str,
     report_dir: Path,
     roms_dir: Path,
     output_path: Path,
+    data_dir: Path | None = None,
 ) -> ConsolidateResult:
+    data_dir = data_dir or report_dir.parent
+
     def _error(message: str) -> ConsolidateResult:
         logger.error(message)
         return ConsolidateResult(
@@ -99,9 +136,14 @@ def run_consolidate(
     if not minc or not mtur:
         return _error("nenhum sumário de medição (.json) encontrado para um dos órgãos")
 
+    warnings: list[str] = []
+    capa = _load_common_capa(data_dir, warnings)
     try:
-        minc_capa = read_capa_fields(report_paths["MinC"])
-        mtur_capa = read_capa_fields(report_paths["MTur"])
+        valor_base, itens = _read_objetos(data_dir, warnings)
+    except ValueError as exc:
+        return _error(str(exc))  # Q5: malformado é FALHA (exit 1)
+
+    try:
         existing_decisions = read_existing_decisions(output_path)
     except Exception as exc:  # boundary: corrupt/hand-edited workbook, never leak a raw traceback
         return _error(f"falha ao ler workbook Excel: {exc}")
@@ -117,7 +159,8 @@ def run_consolidate(
 
     try:
         result = build_consolidated_workbook(
-            competencia, minc, mtur, minc_capa, mtur_capa, existing_decisions
+            competencia, minc, mtur, capa, existing_decisions,
+            valor_base=valor_base, itens=itens,
         )
     except Exception as exc:  # boundary: never leak a raw traceback past the CLI
         return _error(f"falha inesperada ao montar consolidado de {competencia}: {exc}")
@@ -139,7 +182,7 @@ def run_consolidate(
     )
     return ConsolidateResult(
         status="done", competencia=competencia, output_path=output_path,
-        decisions_preserved=len(existing_decisions), warnings=(), error_message=None,
+        decisions_preserved=len(existing_decisions), warnings=tuple(warnings), error_message=None,
         glosa_calculada=result.glosa_calculada,
         total_pontos=result.total_pontos,
     )

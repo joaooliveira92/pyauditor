@@ -57,7 +57,7 @@ def _scaffold(tmp_path: Path, *, csv_body: str) -> RunRequest:
         data_dir=data_dir,
         output_dir=tmp_path / "roms",
         report_dir=tmp_path / "reports",
-        capa_path=tmp_path / "capa.xlsx",
+        capa_path=data_dir / "capa.csv",
         runs_dir=tmp_path / ".pyauditor" / "runs",
     )
 
@@ -84,7 +84,7 @@ def _scaffold_both(tmp_path: Path, *, minc_csv: str, mtur_csv: str) -> RunReques
         data_dir=data_dir,
         output_dir=tmp_path / "roms",
         report_dir=tmp_path / "reports",
-        capa_path=tmp_path / "capa.xlsx",
+        capa_path=data_dir / "capa.csv",
         runs_dir=tmp_path / ".pyauditor" / "runs",
     )
 

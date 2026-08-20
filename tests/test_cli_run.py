@@ -49,10 +49,10 @@ def test_run_run_executes_pipeline_and_returns_4_for_unfilled_capa(tmp_path: Pat
         data_dir=tmp_path / "input",
         output_dir=tmp_path / "roms",
         report_dir=tmp_path / "reports",
-        capa_path=tmp_path / "capa.xlsx",
+        capa_path=tmp_path / "input" / "capa.csv",
         runs_dir=tmp_path / ".pyauditor" / "runs",
     )
-    # Capa em branco criada pelo bootstrap: relatório rascunho (3) + glosa não
-    # calculada (4) → 4 vence pela precedência; nunca 0.
+    # Capa criada pelo bootstrap sem objetos.csv: relatório rascunho (3) + glosa
+    # não calculada (4) → 4 vence pela precedência; nunca 0.
     assert exit_code == 4
     assert (tmp_path / "reports" / "relatorio_2026-06_MinC.xlsx").exists()

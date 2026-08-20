@@ -55,6 +55,13 @@ _DEFAULT_CAPA_PATH: Final[Path] = Path("capa.xlsx")
 _DEFAULT_REPORT_DIR: Final[Path] = Path("reports")
 _SINGLE_ORGAOS: Final[tuple[str, str]] = ("MinC", "MTur")
 
+# Migração das capas para CSV (ticket 07): o capa comum é `capa.csv`, as
+# capas por órgão são `capa_{orgao}.csv` e o monetário vive em `objetos.csv`,
+# todos sob `--data-dir` (default `input`). `--capa-path` sobrescreve apenas
+# o capa comum; os por-órgão nunca ganham flag própria (Q6/Q9).
+_CAPA_COMUM: Final[str] = "capa.csv"
+_OBJETOS_FILENAME: Final[str] = "objetos.csv"
+
 
 @dataclass(frozen=True, slots=True)
 class MeasureRequest:
@@ -74,7 +81,8 @@ class ReportRequest:
     """Validated, immutable request for `report`."""
 
     competencia: str
-    capa_path: Path
+    capa_path: Path  # capa.csv comum (ticket 07 Q6/Q9)
+    data_dir: Path  # onde vivem `capa_{orgao}.csv` e `objetos.csv`
     roms_dir: Path
     output_path: Path
     config_dir: Path
@@ -86,12 +94,14 @@ class ReportRequest:
 class ConsolidateRequest:
     """Validated, immutable request for `consolidate` — CLI agnostic of
     `--orgao`: it's the MinC+MTur fusion step by definition (ticket 04 Q2).
+    `data_dir` feeds `objetos.csv`, the monetary source (ticket 07).
     """
 
     competencia: str
     report_dir: Path
     roms_dir: Path
     output_path: Path
+    data_dir: Path
 
 
 def _is_command(value: str) -> TypeGuard[Command]:
@@ -194,10 +204,18 @@ def build_parser() -> argparse.ArgumentParser:
     _add_logging_arguments(measure_parser)
 
     bootstrap_parser = subparsers.add_parser(
-        _CMD_BOOTSTRAP, help="cria a capa Excel do contrato, se ainda não existir"
+        _CMD_BOOTSTRAP,
+        help="cria as capas CSV do contrato (comum + por órgão), se ainda não existirem",
     )
     _add_orgao_argument(bootstrap_parser)
-    bootstrap_parser.add_argument("--capa-path", type=Path, default=None)
+    bootstrap_parser.add_argument(
+        "--data-dir", type=Path, default=_DEFAULT_DATA_DIR,
+        help=f"onde criar capa.csv e capa_{{orgao}}.csv (default: {_DEFAULT_DATA_DIR})",
+    )
+    bootstrap_parser.add_argument(
+        "--capa-path", type=Path, default=None,
+        help="caminho do capa comum (cap.csv); default: <data-dir>/capa.csv",
+    )
     _add_logging_arguments(bootstrap_parser)
 
     report_parser = subparsers.add_parser(
@@ -205,7 +223,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     report_parser.add_argument("competencia", help='ex.: "2026-06"')
     _add_orgao_argument(report_parser)
-    report_parser.add_argument("--capa-path", type=Path, default=None)
+    report_parser.add_argument(
+        "--data-dir", type=Path, default=_DEFAULT_DATA_DIR,
+        help="onde vivem capa_{orgao}.csv e objetos.csv (default: input)",
+    )
+    report_parser.add_argument(
+        "--capa-path", type=Path, default=None,
+        help="caminho do capa comum capa.csv (default: <data-dir>/capa.csv)",
+    )
     report_parser.add_argument("--roms-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
     report_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_REPORT_DIR)
     report_parser.add_argument(
@@ -225,6 +250,10 @@ def build_parser() -> argparse.ArgumentParser:
     consolidate_parser.add_argument("competencia", help='ex.: "2026-06"')
     consolidate_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
     consolidate_parser.add_argument("--roms-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
+    consolidate_parser.add_argument(
+        "--data-dir", type=Path, default=_DEFAULT_DATA_DIR,
+        help="onde vive objetos.csv, a fonte do valor mensal (default: input)",
+    )
     _add_logging_arguments(consolidate_parser)
 
     run_parser = subparsers.add_parser(
@@ -257,6 +286,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _extract_measure_request(ns: argparse.Namespace) -> MeasureRequest:
     config_dir = _require(ns, "config_dir", Path)
+    data_dir = _require(ns, "data_dir", Path)
     orgao = _require(ns, "orgao", str)
     manifest_arg: object = cast(object, getattr(ns, "manifest", None))
     manifest_path = (
@@ -267,25 +297,28 @@ def _extract_measure_request(ns: argparse.Namespace) -> MeasureRequest:
     return MeasureRequest(
         competencia=_require(ns, "competencia", str),
         config_dir=config_dir,
-        data_dir=_require(ns, "data_dir", Path),
+        data_dir=data_dir,
         output_dir=_require(ns, "output_dir", Path),
         manifest_path=manifest_path,
         orgao=cast(Orgao, orgao),
-        capa_path=_extract_capa_path(ns),
+        capa_path=_extract_capa_path(ns, data_dir=data_dir),
     )
 
 
-def _extract_capa_path(ns: argparse.Namespace) -> Path:
+def _extract_capa_path(ns: argparse.Namespace, *, data_dir: Path | None = None) -> Path:
     capa_arg: object = cast(object, getattr(ns, "capa_path", None))
-    return capa_arg if isinstance(capa_arg, Path) else _DEFAULT_CAPA_PATH
+    if isinstance(capa_arg, Path):
+        return capa_arg
+    return (data_dir if data_dir is not None else _DEFAULT_DATA_DIR) / _CAPA_COMUM
 
 
 def _capa_path_for(capa_path: Path, orgao: Orgao) -> Path:
-    if capa_path != _DEFAULT_CAPA_PATH:
-        return capa_path
+    """The per-órgão capa CSV that sits beside the common `capa.csv`: the
+    whole capa family (capa.csv, capa_{orgao}.csv) lives in one directory
+    (ticket 07 Q6/Q9) — no separate flag for the per-órgão files."""
     if orgao == "both":
-        return _DEFAULT_CAPA_PATH
-    return Path(f"capa_{orgao}.xlsx")
+        return capa_path
+    return capa_path.parent / f"capa_{orgao}.csv"
 
 
 def _run_log_path(log_dir: Path, command: str, competencia: str | None = None) -> Path:
@@ -299,10 +332,12 @@ def _run_log_path(log_dir: Path, command: str, competencia: str | None = None) -
 def _extract_report_request(ns: argparse.Namespace) -> ReportRequest:
     competencia = _require(ns, "competencia", str)
     output_dir = _require(ns, "output_dir", Path)
+    data_dir = _require(ns, "data_dir", Path)
     orgao = _require(ns, "orgao", str)
     return ReportRequest(
         competencia=competencia,
-        capa_path=_extract_capa_path(ns),
+        capa_path=_extract_capa_path(ns, data_dir=data_dir),
+        data_dir=data_dir,
         roms_dir=_require(ns, "roms_dir", Path),
         output_path=output_dir / f"relatorio_{competencia}_{orgao}.xlsx",
         config_dir=_require(ns, "config_dir", Path),
@@ -319,6 +354,7 @@ def _extract_consolidate_request(ns: argparse.Namespace) -> ConsolidateRequest:
         report_dir=report_dir,
         roms_dir=_require(ns, "roms_dir", Path),
         output_path=report_dir / f"relatorio_{competencia}_consolidado.xlsx",
+        data_dir=_require(ns, "data_dir", Path),
     )
 
 
@@ -366,7 +402,8 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
 
 
 def _dispatch_bootstrap(args: argparse.Namespace) -> int:
-    capa_path = _extract_capa_path(args)
+    data_dir = _require(args, "data_dir", Path)
+    capa_path = _extract_capa_path(args, data_dir=data_dir)
     orgao = _require(args, "orgao", str)
     bootstrap_results = []
     for single_orgao in _each_single_orgao(orgao):
@@ -389,7 +426,6 @@ def _dispatch_report(args: argparse.Namespace) -> int:
     )
     report_results = []
     for orgao in _each_single_orgao(report_request.orgao):
-        per_orgao_capa = _capa_path_for(report_request.capa_path, cast(Orgao, orgao))
         output_path = (
             report_request.output_path.parent
             / f"relatorio_{report_request.competencia}_{orgao}.xlsx"
@@ -398,7 +434,8 @@ def _dispatch_report(args: argparse.Namespace) -> int:
         # calls internally — fast, actionable error before touching the pipeline.
         per_orgao_roms_dir = report_request.roms_dir / orgao
         dependency_check = check_report_ready(
-            report_request.competencia, orgao, per_orgao_capa, per_orgao_roms_dir
+            report_request.competencia, orgao, report_request.capa_path,
+            per_orgao_roms_dir, data_dir=report_request.data_dir,
         )
         if not dependency_check.satisfied:
             message = "dependência não satisfeita: " + "; ".join(dependency_check.missing)
@@ -410,12 +447,13 @@ def _dispatch_report(args: argparse.Namespace) -> int:
             continue
         report_results.append(run_report(
             competencia=report_request.competencia,
-            capa_path=per_orgao_capa,
+            capa_path=report_request.capa_path,
             roms_dir=per_orgao_roms_dir,
             output_path=output_path,
             config_dir=report_request.config_dir / orgao,
             expected_orgao=orgao,
             is_final_month=report_request.is_final_month,
+            data_dir=report_request.data_dir,
         ))
     return exit_code_for_results(report_results)
 
@@ -444,6 +482,7 @@ def _dispatch_consolidate(args: argparse.Namespace) -> int:
         report_dir=consolidate_request.report_dir,
         roms_dir=consolidate_request.roms_dir,
         output_path=consolidate_request.output_path,
+        data_dir=consolidate_request.data_dir,
     )
     return exit_code_for_results((consolidate_result,))
 
@@ -465,7 +504,7 @@ def _dispatch_run(args: argparse.Namespace) -> int:
         data_dir=_require(args, "data_dir", Path),
         output_dir=output_dir,
         report_dir=report_dir,
-        capa_path=_extract_capa_path(args),
+        capa_path=_extract_capa_path(args, data_dir=_require(args, "data_dir", Path)),
         final_month=bool(cast(object, getattr(args, "final_month", False))),
         output="json" if output_raw == "json" else "text",
     )

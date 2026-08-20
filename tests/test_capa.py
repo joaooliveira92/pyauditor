@@ -1,111 +1,92 @@
 from pathlib import Path
 
 import pytest
-from openpyxl import Workbook, load_workbook
 
 from pyauditor.excel.capa import (
-    FIELD_LABELS,
-    SHEET_NAME,
-    SITUACOES,
-    bootstrap_capa,
-    read_capa_fields,
-    read_valor_mensal_vigente,
+    COMMON_FIELD_LABELS,
+    ORGAO_FIELD_LABELS,
+    read_capa_csv_fields,
+    bootstrap_capa_csv,
 )
+from pyauditor.excel.objetos import parse_brl_value
 
 
-def test_bootstrap_creates_capa_with_expected_fields(tmp_path: Path) -> None:
-    capa_path = tmp_path / "capa.xlsx"
+def test_bootstrap_creates_capa_with_expected_common_fields(tmp_path: Path) -> None:
+    capa_path = tmp_path / "capa.csv"
 
-    created = bootstrap_capa(capa_path)
+    created = bootstrap_capa_csv(capa_path, COMMON_FIELD_LABELS)
 
     assert created is True
     assert capa_path.exists()
-
-    workbook = load_workbook(capa_path)
-    assert SHEET_NAME in workbook.sheetnames
-    sheet = workbook[SHEET_NAME]
-
-    labels_in_sheet = [sheet.cell(row=4 + i, column=1).value for i in range(len(FIELD_LABELS))]
-    assert labels_in_sheet == list(FIELD_LABELS)
+    fields = read_capa_csv_fields(capa_path)
+    assert set(fields) == set(COMMON_FIELD_LABELS)
+    assert all(v == "" for v in fields.values())
 
 
-def test_bootstrap_defaults_situacao_to_first_option(tmp_path: Path) -> None:
-    capa_path = tmp_path / "capa.xlsx"
-    bootstrap_capa(capa_path)
+def test_bootstrap_defaults_only_situacao_on_orgao_capa(tmp_path: Path) -> None:
+    capa_path = tmp_path / "capa_MinC.csv"
+    bootstrap_capa_csv(capa_path, ORGAO_FIELD_LABELS)
 
-    workbook = load_workbook(capa_path)
-    sheet = workbook[SHEET_NAME]
-
-    situacao_row = 4 + FIELD_LABELS.index("Situação geral da aferição")
-    assert sheet.cell(row=situacao_row, column=2).value == SITUACOES[0]
+    fields = read_capa_csv_fields(capa_path)
+    assert fields["Situação geral da aferição"] == "Em preenchimento"
+    assert fields["Fiscal técnico"] == ""
 
 
 def test_bootstrap_is_idempotent_never_overwrites(tmp_path: Path) -> None:
-    capa_path = tmp_path / "capa.xlsx"
-    bootstrap_capa(capa_path)
-
-    # Simulate a fiscal técnico having filled in real data.
-    workbook = load_workbook(capa_path)
-    sheet = workbook[SHEET_NAME]
-    sheet.cell(row=4, column=2, value="40/2022 - Ministério Cultura")
-    workbook.save(capa_path)
+    capa_path = tmp_path / "capa.csv"
+    bootstrap_capa_csv(capa_path, COMMON_FIELD_LABELS)
     mtime_before = capa_path.stat().st_mtime_ns
 
-    created_again = bootstrap_capa(capa_path)
+    created_again = bootstrap_capa_csv(capa_path, COMMON_FIELD_LABELS)
 
     assert created_again is False
     assert capa_path.stat().st_mtime_ns == mtime_before
-    workbook_after = load_workbook(capa_path)
-    assert workbook_after[SHEET_NAME].cell(row=4, column=2).value == "40/2022 - Ministério Cultura"
 
 
 def test_bootstrap_creates_parent_directories(tmp_path: Path) -> None:
-    capa_path = tmp_path / "nested" / "dir" / "capa.xlsx"
+    capa_path = tmp_path / "nested" / "dir" / "capa.csv"
 
-    created = bootstrap_capa(capa_path)
+    created = bootstrap_capa_csv(capa_path, COMMON_FIELD_LABELS)
 
     assert created is True
     assert capa_path.exists()
 
 
-def test_read_valor_mensal_vigente_none_when_blank(tmp_path: Path) -> None:
-    capa_path = tmp_path / "capa.xlsx"
-    bootstrap_capa(capa_path)
+def test_read_capa_csv_roundtrips_fiscal_filled_value(tmp_path: Path) -> None:
+    capa_path = tmp_path / "capa_MinC.csv"
+    bootstrap_capa_csv(capa_path, ORGAO_FIELD_LABELS)
 
-    assert read_valor_mensal_vigente(capa_path) is None
+    capa_path.write_text(
+        "Capa e controle do contrato;\n;\nCampo;Valor\n"
+        "Fiscal técnico;João Antônio\n"
+        "Situação geral da aferição;Em preenchimento\n",
+        encoding="utf-8-sig",
+    )
 
-
-def test_read_valor_mensal_vigente_reads_fiscal_filled_value(tmp_path: Path) -> None:
-    capa_path = tmp_path / "capa.xlsx"
-    bootstrap_capa(capa_path)
-
-    workbook = load_workbook(capa_path)
-    sheet = workbook[SHEET_NAME]
-    row = 4 + FIELD_LABELS.index("Valor mensal vigente")
-    sheet.cell(row=row, column=2, value=125_000.50)
-    workbook.save(capa_path)
-
-    assert read_valor_mensal_vigente(capa_path) == 125_000.50
+    fields = read_capa_csv_fields(capa_path)
+    assert fields["Fiscal técnico"] == "João Antônio"
 
 
-def test_read_valor_mensal_vigente_none_when_sheet_missing(tmp_path: Path) -> None:
-    capa_path = tmp_path / "capa.xlsx"
-    workbook = Workbook()
-    workbook.save(capa_path)
-
-    assert read_valor_mensal_vigente(capa_path) is None
-
-
-def test_read_capa_fields_rejects_duplicate_label(tmp_path: Path) -> None:
-    capa_path = tmp_path / "capa.xlsx"
-    bootstrap_capa(capa_path)
-
-    workbook = load_workbook(capa_path)
-    sheet = workbook[SHEET_NAME]
-    # Hand-edit: duplicate an existing label at a different row.
-    sheet.cell(row=4, column=1, value="Número do contrato")
-    sheet.cell(row=5, column=1, value="Número do contrato")
-    workbook.save(capa_path)
+def test_read_capa_csv_fields_rejects_duplicate_label(tmp_path: Path) -> None:
+    capa_path = tmp_path / "capa.csv"
+    capa_path.write_text(
+        "Capa e controle do contrato;\n;\nCampo;Valor\n"
+        "Número do contrato;40/2022\n"
+        "Número do contrato;OUTRO\n",
+        encoding="utf-8-sig",
+    )
 
     with pytest.raises(ValueError, match="duplicado"):
-        read_capa_fields(capa_path)
+        read_capa_csv_fields(capa_path)
+
+
+def test_parse_brl_value_accepts_ptbr_and_machine_shapes() -> None:
+    assert parse_brl_value("R$ 148.205,54") == 148205.54
+    assert parse_brl_value("461.063,58") == 461063.58
+    assert parse_brl_value("148205.54") == 148205.54
+    assert parse_brl_value("0") == 0.0
+
+
+def test_parse_brl_value_rejects_garbage() -> None:
+    with pytest.raises(ValueError, match="inválido"):
+        parse_brl_value("abc")

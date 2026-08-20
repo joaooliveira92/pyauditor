@@ -97,7 +97,7 @@ def collect_answers(provider: InteractionProvider) -> GuidedAnswers:
         data_dir = Path(provider.ask_text("Diretório de dados:", default="input"))
         output_dir = Path(provider.ask_text("Diretório de ROMs:", default="roms"))
         report_dir = Path(provider.ask_text("Diretório de relatórios:", default="reports"))
-        capa_path = Path(provider.ask_text("Caminho da capa:", default="capa.xlsx"))
+        capa_path = Path(provider.ask_text("Caminho do capa comum (capa.csv):", default="input/capa.csv"))
 
         answers = GuidedAnswers(
             competencia, orgao, config_dir, data_dir, output_dir, report_dir, capa_path

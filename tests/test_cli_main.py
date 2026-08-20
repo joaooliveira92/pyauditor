@@ -32,7 +32,7 @@ def test_measure_request_frozen_slots() -> None:
         output_dir=Path("roms"),
         manifest_path=Path("configs") / "MinC" / "datasets.yaml",
         orgao="MinC",
-        capa_path=Path("capa.xlsx"),
+        capa_path=Path("input") / "capa.csv",
     )
     assert_type(r.competencia, str)
     with pytest.raises(AttributeError):
@@ -71,15 +71,15 @@ def test_cli_main_measure_dispatches_with_capa_path(
             ]
         )
         assert code == 0
-        # default orgao MinC -> per-órgão split, same convention as bootstrap/report
-        assert m.call_args.kwargs["capa_path"] == Path("capa_MinC.xlsx")
+        # default orgao MinC -> per-órgão capa `capa_MinC.csv` junto do comum
+        assert m.call_args.kwargs["capa_path"] == data / "capa_MinC.csv"
 
 
 def test_cli_main_measure_dispatches_with_explicit_capa_path(tmp_path: Path) -> None:
     cfg, data, out = tmp_path / "c", tmp_path / "d", tmp_path / "o"
     for p in (cfg, data, out):
         p.mkdir()
-    capa_path = tmp_path / "capa.xlsx"
+    capa_path = tmp_path / "custom" / "capa.csv"
     with patch("pyauditor.cli.main.run_measure", return_value=SimpleNamespace(status="done")) as m:
         code = cli_main(
             [
@@ -89,17 +89,21 @@ def test_cli_main_measure_dispatches_with_explicit_capa_path(tmp_path: Path) -> 
             ]
         )
         assert code == 0
-        assert m.call_args.kwargs["capa_path"] == capa_path
+        # capa do órgão vive ao lado do capa comum (mesma família, ticket 07 Q9)
+        assert m.call_args.kwargs["capa_path"] == tmp_path / "custom" / "capa_MinC.csv"
 
 
 def test_cli_main_bootstrap_dispatches_with_capa_path(tmp_path: Path) -> None:
-    capa_path = tmp_path / "capa.xlsx"
+    data_dir = tmp_path / "data"
+    capa_path = data_dir / "capa.csv"
     with patch(
         "pyauditor.cli.main.run_bootstrap", return_value=SimpleNamespace(status="done")
     ) as m:
-        code = cli_main(["bootstrap", "--capa-path", str(capa_path)])
+        code = cli_main(
+            ["bootstrap", "--data-dir", str(data_dir), "--capa-path", str(capa_path)]
+        )
         assert code == 0
-        assert m.call_args.args[0] == capa_path
+        assert m.call_args.args[0] == capa_path.parent / "capa_MinC.csv"
 
 
 def test_cli_main_bootstrap_default_capa_path(
@@ -111,7 +115,7 @@ def test_cli_main_bootstrap_default_capa_path(
     ) as m:
         code = cli_main(["bootstrap"])
         assert code == 0
-        assert m.call_args.args[0] == Path("capa_MinC.xlsx")
+        assert m.call_args.args[0] == Path("input/capa_MinC.csv")
 
 
 def test_cli_main_measure_writes_a_traceable_run_log(tmp_path: Path) -> None:
@@ -221,14 +225,14 @@ def test_dispatch_measure_is_callable_directly_without_argparse(tmp_path: Path) 
 
 
 def test_dispatch_bootstrap_is_callable_directly_without_argparse(tmp_path: Path) -> None:
-    capa_path = tmp_path / "capa.xlsx"
+    capa_path = tmp_path / "capa.csv"
     args = build_parser().parse_args(["bootstrap", "--capa-path", str(capa_path)])
     with patch(
         "pyauditor.cli.main.run_bootstrap", return_value=SimpleNamespace(status="done")
     ) as m:
         code = _dispatch_bootstrap(args)
         assert code == 0
-        assert m.call_args.args[0] == capa_path
+        assert m.call_args.args[0] == capa_path.parent / "capa_MinC.csv"
 
 
 def test_cli_main_no_args_without_tty_exits_2(monkeypatch: pytest.MonkeyPatch) -> None:

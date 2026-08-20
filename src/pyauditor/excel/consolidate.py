@@ -191,13 +191,13 @@ def read_existing_decisions(path: Path) -> dict[RowKey, dict[str, object]]:
 def build_capa(
     wb: Workbook,
     competencia: str,
-    minc_capa: dict[str, object],
-    mtur_capa: dict[str, object],
+    capa: dict[str, object],
     warnings: list[str],
-) -> float | None:
-    """Embeds a consolidated CAPA_E_CONTROLE — the contract is shared, so
-    "Valor mensal vigente" should agree between the two órgão capas; MinC's
-    value wins if they disagree, with a warning (never silently pick one).
+    valor_base: float | None,
+) -> None:
+    """Embeds a consolidated CAPA_E_CONTROLE. The contract is shared, so the
+    common fields come from `capa.csv` (ticket 07); the monetary value comes
+    from `objetos.csv` (`valor_base`), never from a capa file.
     """
     ws = wb.create_sheet(CAPA_SHEET, 0)
     ws.sheet_view.showGridLines = False
@@ -213,19 +213,10 @@ def build_capa(
         cell.fill = HEADER_FILL
         cell.alignment = LEFT_ALIGN
 
-    valor_base = _as_float(minc_capa.get("Valor mensal vigente"))
-    mtur_valor = _as_float(mtur_capa.get("Valor mensal vigente"))
-    if valor_base is not None and mtur_valor is not None and abs(valor_base - mtur_valor) > 0.01:
-        warnings.append(
-            f"'Valor mensal vigente' diverge entre MinC ({valor_base}) e MTur ({mtur_valor}) — usando MinC"
-        )
-    if valor_base is None:
-        valor_base = mtur_valor
-
     campos: tuple[tuple[str, object], ...] = (
-        ("Número do contrato", minc_capa.get("Número do contrato")),
-        ("Processo SEI", minc_capa.get("Processo SEI")),
-        ("Empresa contratada", minc_capa.get("Empresa contratada")),
+        ("Número do contrato", capa.get("Número do contrato")),
+        ("Processo SEI", capa.get("Processo SEI")),
+        ("Empresa contratada", capa.get("Empresa contratada")),
         ("Órgãos contratantes", "Ministério da Cultura / Ministério do Turismo"),
         ("Competência", competencia),
         ("Valor mensal vigente", valor_base),
@@ -246,17 +237,22 @@ def build_capa(
 
     ws.column_dimensions["A"].width = 30
     ws.column_dimensions["B"].width = 42
-    return valor_base
 
 
-def build_servicos(wb: Workbook) -> None:
+def build_servicos(wb: Workbook, itens: tuple[float, ...] | None = None) -> None:
+    """SERVICOS_POR_ORGAO — os 9 serviços contratuais, agora com o valor
+    mensal de cada item vindo de `objetos.csv` (ticket 07 Q4), mapeado pelo
+    índice (os nomes divergem entre as fontes — o índice não)."""
     ws = _new_sheet(
         wb, SERVICOS_SHEET,
-        ("Item", "Serviço", "Prestado ao MinC?", "Prestado ao MTur?",
+        ("Item", "Serviço", "Valor Mensal (R$)", "Prestado ao MinC?", "Prestado ao MTur?",
          "Segregação Obrigatória?", "Critério de Rateio"),
     )
     for i, (nome, minc, mtur, seg) in enumerate(_SERVICOS, start=2):
-        _write(ws, i, (i - 1, nome, minc, mtur, seg, "Chamados, ativos ou valor definido"))
+        valor = itens[i - 2] if itens is not None and i - 2 < len(itens) else None
+        _write(ws, i, (i - 1, nome, valor, minc, mtur, seg, "Chamados, ativos ou valor definido"))
+        if valor is not None:
+            ws.cell(row=i, column=3).number_format = _CURRENCY_FMT
 
 
 _INMS_BASE_COLUMNS: Final[tuple[str, ...]] = (
@@ -478,27 +474,30 @@ def build_calculo(
                 value_cell.border = _TOP_BORDER
 
 
-def _as_float(value: object) -> float | None:
-    return float(value) if isinstance(value, int | float) else None
-
-
 def build_consolidated_workbook(
     competencia: str,
     minc: list[IndicatorSummary],
     mtur: list[IndicatorSummary],
-    minc_capa: dict[str, object],
-    mtur_capa: dict[str, object],
+    capa: dict[str, object],
     existing_decisions: dict[RowKey, dict[str, object]] | None = None,
+    *,
+    valor_base: float | None = None,
+    itens: tuple[float, ...] | None = None,
 ) -> ConsolidationResult:
-    """Pure, in-memory build of the 5-sheet consolidated workbook."""
+    """Pure, in-memory build of the 5-sheet consolidated workbook.
+
+    `capa` carries the contract-common fields (from `capa.csv`, ticket 07);
+    `valor_base` and `itens` come from `objetos.csv` — the monetary source.
+    `glosa_calculada` is `valor_base is not None` (ticket 01/03).
+    """
     warnings: list[str] = []
     wb = Workbook()
     default_sheet = wb.active
     assert default_sheet is not None
     wb.remove(default_sheet)
 
-    valor_base = build_capa(wb, competencia, minc_capa, mtur_capa, warnings)
-    build_servicos(wb)
+    build_capa(wb, competencia, capa, warnings, valor_base)
+    build_servicos(wb, itens)
     build_inms_base(wb, competencia, minc, mtur)
     total_pontos, glosa_final = build_glosas(
         wb, competencia, minc, mtur, valor_base, existing_decisions or {}, warnings
