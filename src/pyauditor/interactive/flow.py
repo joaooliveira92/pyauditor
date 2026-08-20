@@ -15,13 +15,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from pyauditor.interactive.provider import InteractionProvider
+from pyauditor.interactive.provider import InteractionCancelled, InteractionProvider
 from pyauditor.orchestration.run import FailureDecision, RunRequest, execute_run
 from pyauditor.orchestration.state import CommandStateEntry
 
 _COMPETENCIA_RE: Final = re.compile(r"^\d{4}-\d{2}$")
 _HELP_TOKEN: Final = "?"
 _ALL_COMMANDS: Final[tuple[str, ...]] = ("bootstrap", "measure", "report", "consolidate")
+_CANCELLED_EXIT_CODE: Final = 130  # Unix convention: 128 + SIGINT(2)
 
 _STATE_ICON: Final[dict[str, tuple[str, str]]] = {
     "pending": ("○", "dim"),
@@ -71,37 +72,40 @@ def show_opening(provider: InteractionProvider) -> None:
 
 
 def collect_answers(provider: InteractionProvider) -> GuidedAnswers:
-    competencia = _ask_with_help(
-        provider,
-        lambda: provider.ask_text("Competência (AAAA-MM):", validate=_validate_competencia),
-        "A competência é o mês de aferição — nomeia os arquivos de entrada e saída. "
-        "Ex.: '2026-06' para junho de 2026.",
-    )
+    # A `while` loop, not recursion — a declined confirmation re-collects any
+    # number of times without growing the call stack.
+    while True:
+        competencia = _ask_with_help(
+            provider,
+            lambda: provider.ask_text(
+                "Competência (AAAA-MM):", validate=_validate_competencia
+            ),
+            "A competência é o mês de aferição — nomeia os arquivos de entrada e saída. "
+            "Ex.: '2026-06' para junho de 2026.",
+        )
 
-    orgao_choice = _ask_with_help(
-        provider,
-        lambda: provider.ask_choice(
-            "Órgão:", ["MinC", "MTur", "both — os dois, sequencial"], default="MinC"
-        ),
-        "'both' roda a cadeia inteira para MinC e depois para MTur, sem cruzar dados.",
-    )
-    orgao = "both" if orgao_choice.startswith("both") else orgao_choice
+        orgao_choice = _ask_with_help(
+            provider,
+            lambda: provider.ask_choice(
+                "Órgão:", ["MinC", "MTur", "both — os dois, sequencial"], default="MinC"
+            ),
+            "'both' roda a cadeia inteira para MinC e depois para MTur, sem cruzar dados.",
+        )
+        orgao = "both" if orgao_choice.startswith("both") else orgao_choice
 
-    config_dir = Path(provider.ask_text("Diretório de configs:", default="configs"))
-    data_dir = Path(provider.ask_text("Diretório de dados:", default="input"))
-    output_dir = Path(provider.ask_text("Diretório de ROMs:", default="roms"))
-    report_dir = Path(provider.ask_text("Diretório de relatórios:", default="reports"))
-    capa_path = Path(provider.ask_text("Caminho da capa:", default="capa.xlsx"))
+        config_dir = Path(provider.ask_text("Diretório de configs:", default="configs"))
+        data_dir = Path(provider.ask_text("Diretório de dados:", default="input"))
+        output_dir = Path(provider.ask_text("Diretório de ROMs:", default="roms"))
+        report_dir = Path(provider.ask_text("Diretório de relatórios:", default="reports"))
+        capa_path = Path(provider.ask_text("Caminho da capa:", default="capa.xlsx"))
 
-    answers = GuidedAnswers(
-        competencia, orgao, config_dir, data_dir, output_dir, report_dir, capa_path
-    )
+        answers = GuidedAnswers(
+            competencia, orgao, config_dir, data_dir, output_dir, report_dir, capa_path
+        )
 
-    confirmed = provider.confirm("Está correto?", default=True)
-    if not confirmed:
+        if provider.confirm("Está correto?", default=True):
+            return answers
         provider.show_message("Vamos revisar.", style="yellow")
-        return collect_answers(provider)
-    return answers
 
 
 def select_commands(provider: InteractionProvider, orgao: str) -> frozenset[str]:
@@ -130,6 +134,18 @@ def _render_state_line(entry: CommandStateEntry) -> str:
 
 
 def run_guided_flow(provider: InteractionProvider) -> int:
+    try:
+        return _run_guided_flow(provider)
+    except InteractionCancelled:
+        provider.show_message(
+            "Encerrado — nada do que já foi preenchido/executado foi perdido; "
+            "a próxima execução retoma daqui.",
+            style="yellow",
+        )
+        return _CANCELLED_EXIT_CODE
+
+
+def _run_guided_flow(provider: InteractionProvider) -> int:
     show_opening(provider)
     answers = collect_answers(provider)
     commands = select_commands(provider, answers.orgao)

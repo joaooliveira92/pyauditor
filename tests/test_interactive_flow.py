@@ -2,7 +2,7 @@ from pathlib import Path
 
 from pyauditor.excel.capa import bootstrap_capa
 from pyauditor.interactive.flow import collect_answers, run_guided_flow, select_commands
-from tests.support.fake_interaction_provider import FakeInteractionProvider
+from tests.support.fake_interaction_provider import CANCEL, FakeInteractionProvider
 
 
 def test_collect_answers_returns_scripted_values() -> None:
@@ -40,6 +40,28 @@ def test_collect_answers_reentries_on_declined_confirmation() -> None:
 
     assert answers.competencia == "2026-07"
     assert answers.orgao == "MTur"
+
+
+def test_cancel_during_collect_answers_exits_cleanly_without_raising() -> None:
+    provider = FakeInteractionProvider(answers=["2026-06", CANCEL])
+
+    exit_code = run_guided_flow(provider)
+
+    assert exit_code == 130
+    assert any("Encerrado" in text for text, _ in provider.messages)
+
+
+def test_cancel_at_final_confirm_exits_instead_of_looping() -> None:
+    provider = FakeInteractionProvider(
+        answers=[
+            "2026-06", "MinC", "configs", "input", "roms", "reports", "capa.xlsx",
+            CANCEL,  # Ctrl+C at "Está correto?" — must exit, not loop as a fake "No"
+        ]
+    )
+
+    exit_code = run_guided_flow(provider)
+
+    assert exit_code == 130
 
 
 def test_select_commands_disables_consolidate_when_not_both_orgaos() -> None:

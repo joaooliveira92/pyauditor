@@ -18,6 +18,9 @@ input/
 /roms/
 /reports/
 
+# `pyauditor run`/interactive run-state (ticket "Run orchestrator and resume")
+/.pyauditor/
+
 # Per-run CLI log files (bootstrap can land one at the repo root)
 /pyauditor-*.log
 

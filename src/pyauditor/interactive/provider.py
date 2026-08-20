@@ -19,6 +19,14 @@ from pyauditor.orchestration.run import RunResult
 from pyauditor.orchestration.summary import exit_code_for_run, render_summary
 
 
+class InteractionCancelled(Exception):
+    """Raised by an `InteractionProvider` when the user cancels (Ctrl+C/EOF)
+    at a prompt — never silently coerced into an empty/false answer. Caught
+    once at the top of the guided flow (`flow.py::run_guided_flow`) to exit
+    cleanly instead of corrupting an in-progress answer (ticket "Interactive
+    layer architecture": "Ctrl+C encerra sem perder o preenchido")."""
+
+
 class InteractionProvider(Protocol):
     def ask_text(self, message: str, *, default: str = "", validate: object = None) -> str: ...
 
@@ -52,13 +60,17 @@ class RichQuestionaryProvider:
 
     def ask_text(self, message: str, *, default: str = "", validate: object = None) -> str:
         answer = questionary.text(message, default=default, validate=validate).ask()
-        return "" if answer is None else str(answer)
+        if answer is None:
+            raise InteractionCancelled
+        return str(answer)
 
     def ask_choice(
         self, message: str, choices: Sequence[str], *, default: str | None = None
     ) -> str:
         answer = questionary.select(message, choices=list(choices), default=default).ask()
-        return "" if answer is None else str(answer)
+        if answer is None:
+            raise InteractionCancelled
+        return str(answer)
 
     def ask_multi_choice(
         self, message: str, choices: Sequence[tuple[str, str, bool, str | None]]
@@ -68,10 +80,14 @@ class RichQuestionaryProvider:
             for label, value, checked, disabled_reason in choices
         ]
         answer = questionary.checkbox(message, choices=options).ask()
-        return list(answer) if answer else []
+        if answer is None:
+            raise InteractionCancelled
+        return list(answer)
 
     def confirm(self, message: str, *, default: bool = True) -> bool:
         answer = questionary.confirm(message, default=default).ask()
+        if answer is None:
+            raise InteractionCancelled
         return bool(answer)
 
     def show_message(self, text: str, *, style: str = "") -> None:
