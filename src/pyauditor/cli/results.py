@@ -6,9 +6,23 @@ Command state (pending/running/done/skipped/error) orchestration tracks.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final, Literal, Protocol
+
+_COMPETENCIA_RE: Final = re.compile(r"^\d{4}-\d{2}$")
+
+
+def validate_competencia(competencia: str) -> str | None:
+    """`None` if *competencia* is `YYYY-MM`; otherwise an actionable error
+    message. Every subcommand that turns `competencia` into a filesystem
+    path (`measure`/`report`/`consolidate`/`run`) must call this before
+    building any path from it."""
+    if not _COMPETENCIA_RE.match(competencia):
+        return f"competência inválida {competencia!r}: esperado YYYY-MM (ex.: 2026-06)"
+    return None
+
 
 type Status = Literal["done", "error"]
 

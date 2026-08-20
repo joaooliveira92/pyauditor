@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from openpyxl import load_workbook
 
@@ -56,6 +57,34 @@ def _build_orgao_report(tmp_path: Path, orgao: str, valor_mensal: float = 100_00
         config_dir=tmp_path / "configs" / orgao,
     )
     assert exit_code.status == "done"
+
+
+def test_run_consolidate_rejects_malformed_competencia(tmp_path: Path) -> None:
+    result = run_consolidate(
+        "../../etc", tmp_path / "reports", tmp_path / "roms",
+        tmp_path / "reports" / "out.xlsx",
+    )
+
+    assert result.status == "error"
+    assert result.error_message is not None
+    assert "competência inválida" in result.error_message
+
+
+def test_run_consolidate_converts_unexpected_exception_to_error_result(tmp_path: Path) -> None:
+    _build_orgao_report(tmp_path, "MinC")
+    _build_orgao_report(tmp_path, "MTur")
+
+    with patch(
+        "pyauditor.cli.consolidate.build_consolidated_workbook", side_effect=ValueError("boom")
+    ):
+        result = run_consolidate(
+            "2026-06", tmp_path / "reports", tmp_path / "roms",
+            tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx",
+        )
+
+    assert result.status == "error"
+    assert result.error_message is not None
+    assert "boom" in result.error_message
 
 
 def test_run_consolidate_fails_when_a_report_is_missing(tmp_path: Path) -> None:

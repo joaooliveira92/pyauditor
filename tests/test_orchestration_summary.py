@@ -1,3 +1,4 @@
+from dataclasses import replace
 from io import StringIO
 from pathlib import Path
 
@@ -65,6 +66,21 @@ def test_render_summary_prints_and_exit_code_is_0_when_all_done(tmp_path: Path) 
 
     assert exit_code_for_run(run_result.state.commands) == 0
     assert "report" in buffer.getvalue()
+
+
+def test_render_summary_shows_next_steps_for_pending_commands(tmp_path: Path) -> None:
+    # Selecting only bootstrap leaves measure/report pending, with a known,
+    # checkable reason ("rode `pyauditor measure`") for the "Próximos passos" panel.
+    request = replace(_run(tmp_path), commands=frozenset({"bootstrap"}))
+
+    run_result = execute_run(request)
+
+    buffer = StringIO()
+    render_summary(run_result, console=Console(file=buffer, force_terminal=False))
+
+    output = buffer.getvalue()
+    assert "Próximos passos" in output
+    assert "measure" in output
 
 
 def test_exit_code_for_run_is_1_iff_any_command_errored() -> None:

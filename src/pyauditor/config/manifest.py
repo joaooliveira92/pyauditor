@@ -9,16 +9,20 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Final, Mapping
+from typing import Annotated, Final, Mapping, TypeAlias
 
 import yaml
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
+
+from pyauditor.config._paths import reject_unsafe_relative_path
 
 __all__: Final[tuple[str, ...]] = (
     "DatasetEntry",
     "DatasetManifest",
     "load_manifest",
 )
+
+_SafeRelativePath: TypeAlias = Annotated[str, AfterValidator(reject_unsafe_relative_path)]
 
 
 class DatasetEntry(BaseModel):
@@ -31,13 +35,9 @@ class DatasetEntry(BaseModel):
         str_strip_whitespace=True,
     )
 
-    file: str
-    delimiter: str = ";"
-    encoding: str = "utf-8-sig"
-
-
-class _RawManifest(dict[str, object]):
-    """Typed wrapper for the raw YAML top-level mapping."""
+    file: _SafeRelativePath = Field(min_length=1)
+    delimiter: str = Field(default=";", min_length=1)
+    encoding: str = Field(default="utf-8-sig", min_length=1)
 
 
 class DatasetManifest:
@@ -72,7 +72,10 @@ class DatasetManifest:
 
 def _load_raw(path: Path) -> Mapping[str, DatasetEntry]:
     text = path.read_text(encoding="utf-8")
-    raw = yaml.safe_load(text)
+    try:
+        raw = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"malformed YAML in {path}: {exc}") from exc
     if not isinstance(raw, dict) or "datasets" not in raw:
         raise ValueError("manifest YAML must be a mapping with a 'datasets' key")
     raw_datasets = raw["datasets"]

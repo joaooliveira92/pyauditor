@@ -4,10 +4,25 @@ See docs/spec/inms-pipeline.md §2 and §7.1. All 3 `aggregation` variants are
 implemented: `count_distinct` (ticket 02), `sum` and `precomputed` (ticket 07).
 """
 
+from math import isnan
+
 from pyauditor.config.models import IndicatorConfig, RatioCalculation
 from pyauditor.engine.strategies._filters import filter_rows
+from pyauditor.engine.strategies._numbers import parse_decimal
 from pyauditor.engine.strategies._target import meets_target, safe_pct, shortfall
 from pyauditor.engine.strategies.base import CalculationResult, narrow_calculation
+
+
+def _sum_column(rows: list[dict[str, str]], column: str) -> float:
+    total = 0.0
+    for row in rows:
+        raw = row.get(column)
+        if not raw:
+            continue
+        value = parse_decimal(raw)
+        if not isnan(value):
+            total += value
+    return total
 
 
 class RatioStrategy:
@@ -57,25 +72,13 @@ def _aggregate(calculation: RatioCalculation, rows: list[dict[str, str]]) -> tup
         # summary row alongside per-agreement rows; selecting only that row
         # avoids double-counting the per-agreement breakdown underneath it.
         eligible_rows = filter_rows(rows, calculation.denominator_filter)
-        raw = sum(
-            float(row[calculation.sum_numerator_column])
-            for row in eligible_rows
-            if row.get(calculation.sum_numerator_column)
-        )
+        raw = _sum_column(eligible_rows, calculation.sum_numerator_column)
         if calculation.sum_denominator_extra_column is not None:
-            extra = sum(
-                float(row[calculation.sum_denominator_extra_column])
-                for row in eligible_rows
-                if row.get(calculation.sum_denominator_extra_column)
-            )
+            extra = _sum_column(eligible_rows, calculation.sum_denominator_extra_column)
             return raw, raw + extra
 
         assert calculation.sum_numerator_subtract_column is not None
-        subtract = sum(
-            float(row[calculation.sum_numerator_subtract_column])
-            for row in eligible_rows
-            if row.get(calculation.sum_numerator_subtract_column)
-        )
+        subtract = _sum_column(eligible_rows, calculation.sum_numerator_subtract_column)
         return raw - subtract, raw
 
     # precomputed: exactly one row per file (one YAML+CSV = one ativo/serviço

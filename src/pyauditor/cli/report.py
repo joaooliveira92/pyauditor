@@ -7,7 +7,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from pyauditor.cli.results import DependencyCheck, Status
+from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
 from pyauditor.engine.pipeline import discover_configs
 from pyauditor.excel.capa import read_capa_fields
 from pyauditor.excel.glosas import historico_entry, read_historico, write_historico
@@ -47,8 +47,11 @@ def check_report_ready(
 def _load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
     summaries = []
     for summary_path in sorted(roms_dir.glob("*.json")):
-        raw = json.loads(summary_path.read_text(encoding="utf-8"))
-        summaries.append(IndicatorSummary(**raw))
+        try:
+            raw = json.loads(summary_path.read_text(encoding="utf-8"))
+            summaries.append(IndicatorSummary(**raw))
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise ValueError(f"sumário inválido em {summary_path}: {exc}") from exc
     return summaries
 
 
@@ -71,6 +74,10 @@ def run_report(
             indicator_count=0, warnings=(), error_message=message,
         )
 
+    competencia_error = validate_competencia(competencia)
+    if competencia_error is not None:
+        return _error(competencia_error)
+
     # Defense-in-depth: same checker `cli_main`/the orchestrator call pre-dispatch
     # (ticket "Dependency enforcement") — direct callers that bypass dispatch
     # (tests, future code) still get it.
@@ -81,7 +88,7 @@ def run_report(
     competencia_dir = roms_dir / competencia
     try:
         summaries = _load_summaries(competencia_dir)
-    except (OSError, json.JSONDecodeError, TypeError) as exc:
+    except (OSError, ValueError) as exc:
         return _error(f"falha ao ler sumários de medição em {competencia_dir}: {exc}")
 
     if not summaries:
@@ -122,10 +129,15 @@ def run_report(
         )
     except OSError as exc:
         return _error(f"falha ao escrever {output_path}: {exc}")
+    except Exception as exc:  # boundary: never leak a raw traceback past the CLI
+        return _error(f"falha inesperada ao montar {output_path}: {exc}")
 
-    glosa = compute_report_glosa(
-        competencia, summaries, valor_base, is_final_month=is_final_month, historico=historico
-    )
+    try:
+        glosa = compute_report_glosa(
+            competencia, summaries, valor_base, is_final_month=is_final_month, historico=historico
+        )
+    except Exception as exc:  # boundary: never leak a raw traceback past the CLI
+        return _error(f"falha inesperada ao calcular glosa de {competencia}: {exc}")
     historico[competencia] = historico_entry(competencia, glosa)
     try:
         write_historico(historico_path, historico)

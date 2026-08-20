@@ -33,6 +33,13 @@ def run_bootstrap(capa_path: Path, orgao: str) -> BootstrapResult:
             status="error", orgao=orgao, capa_path=capa_path, created=False,
             warnings=(), error_message=message,
         )
+    except Exception as exc:  # boundary: never leak a raw traceback past the CLI
+        message = f"falha inesperada ao criar capa em {capa_path}: {exc}"
+        logger.error(message)
+        return BootstrapResult(
+            status="error", orgao=orgao, capa_path=capa_path, created=False,
+            warnings=(), error_message=message,
+        )
 
     if created:
         logger.info(f"capa criada: {capa_path}")

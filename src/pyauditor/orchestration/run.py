@@ -23,9 +23,11 @@ from pyauditor.cli.consolidate import ConsolidateResult, run_consolidate
 from pyauditor.cli.dependencies import CHECKERS
 from pyauditor.cli.measure import MeasureResult, run_measure
 from pyauditor.cli.report import ReportResult, run_report
+from pyauditor.logging import logger
 from pyauditor.orchestration.state import (
     CommandStateEntry,
     RunState,
+    RunStateCorrupted,
     load_state,
     reset_stale_running,
     save_state,
@@ -111,7 +113,11 @@ def _upsert(state: RunState, entry: CommandStateEntry) -> RunState:
 
 def _ensure_state(request: RunRequest, plan: tuple[tuple[str, str | None], ...]) -> RunState:
     path = state_path(request.competencia, request.orgao, request.runs_dir)
-    existing = load_state(path)
+    try:
+        existing = load_state(path)
+    except RunStateCorrupted as exc:
+        logger.warning(f"{exc} — starting this run from scratch")
+        existing = None
     if existing is None:
         commands = tuple(CommandStateEntry(command=c, orgao=o, status="pending") for c, o in plan)
         return RunState(
@@ -203,8 +209,31 @@ def execute_run(
     results: list[CommandResult] = []
     skipped_steps: set[tuple[str, str | None]] = set()
 
-    def cascade(command: str, orgao: str | None, state: RunState) -> RunState:
-        return _cascade_skip(plan, command, orgao, state, path, on_state_change, skipped_steps)
+    def record_failure_and_decide(
+        command: str, orgao: str | None, error_message: str | None,
+        *, started_at: str | None = None, finished_at: str | None = None,
+    ) -> FailureDecision:
+        """Build the `error` entry, persist+notify, ask `on_failure`, and — on
+        `"skip"` — build the `skipped` entry and cascade too. One seam for
+        both failure sites below (pre-dispatch dependency check, post-dispatch
+        `Result.status == "error"`): they differ only in what triggered the
+        error, never in how retry/skip/abort is handled."""
+        nonlocal state
+        entry = CommandStateEntry(
+            command=command, orgao=orgao, status="error",
+            started_at=started_at, finished_at=finished_at, error_message=error_message,
+        )
+        state = _upsert(state, entry)
+        save_state(path, state)
+        on_state_change(entry)
+        decision = on_failure(entry)
+        if decision == "skip":
+            skipped_entry = CommandStateEntry(command=command, orgao=orgao, status="skipped")
+            state = _upsert(state, skipped_entry)
+            save_state(path, state)
+            on_state_change(skipped_entry)
+            state = _cascade_skip(plan, command, orgao, state, path, on_state_change, skipped_steps)
+        return decision
 
     for command, orgao in plan:
         if command not in request.commands:
@@ -224,25 +253,14 @@ def execute_run(
         while True:
             missing = dependency_missing(command, orgao, request)
             if missing:
-                entry = CommandStateEntry(
-                    command=command, orgao=orgao, status="error",
-                    error_message="dependência não satisfeita: " + "; ".join(missing),
-                )
-                state = _upsert(state, entry)
-                save_state(path, state)
-                on_state_change(entry)
-                decision = on_failure(entry)
-                if decision == "skip" or decision == "retry":
-                    # Pre-dispatch failures are deterministic (ticket "Failure-handling
-                    # flow") — the real InteractionProvider never offers "retry" here,
-                    # it's only reachable if a caller insists, and just re-checks.
-                    if decision == "retry":
-                        continue
-                    entry = CommandStateEntry(command=command, orgao=orgao, status="skipped")
-                    state = _upsert(state, entry)
-                    save_state(path, state)
-                    on_state_change(entry)
-                    state = cascade(command, orgao, state)
+                message = "dependência não satisfeita: " + "; ".join(missing)
+                # Pre-dispatch failures are deterministic (ticket "Failure-handling
+                # flow") — the real InteractionProvider never offers "retry" here,
+                # it's only reachable if a caller insists, and just re-checks.
+                decision = record_failure_and_decide(command, orgao, message)
+                if decision == "retry":
+                    continue
+                if decision == "skip":
                     break
                 return RunResult(request.competencia, request.orgao, tuple(results), state, request)
 
@@ -266,23 +284,13 @@ def execute_run(
                 on_state_change(entry)
                 break
 
-            entry = CommandStateEntry(
-                command=command, orgao=orgao, status="error",
+            decision = record_failure_and_decide(
+                command, orgao, result.error_message,
                 started_at=running_entry.started_at, finished_at=_now(),
-                error_message=result.error_message,
             )
-            state = _upsert(state, entry)
-            save_state(path, state)
-            on_state_change(entry)
-            decision = on_failure(entry)
             if decision == "retry":
                 continue
             if decision == "skip":
-                entry = CommandStateEntry(command=command, orgao=orgao, status="skipped")
-                state = _upsert(state, entry)
-                save_state(path, state)
-                on_state_change(entry)
-                state = cascade(command, orgao, state)
                 break
             return RunResult(request.competencia, request.orgao, tuple(results), state, request)
 

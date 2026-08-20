@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from pyauditor.cli.results import DependencyCheck, Status
+from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
 from pyauditor.config.manifest import DatasetManifest
 from pyauditor.engine.pipeline import discover_config_files, measure
 from pyauditor.excel.capa import read_capa_fields
@@ -25,7 +25,6 @@ from pyauditor.logging import logger
 from pyauditor.rom.render import render_rom
 from pyauditor.rom.summary import summarize
 
-_COMPETENCIA_RE: Final = re.compile(r"^\d{4}-\d{2}$")
 _UNSAFE_ID_CHARS_RE: Final = re.compile(r"[^A-Za-z0-9._-]")
 
 
@@ -90,8 +89,9 @@ def run_measure(
             warnings=(), error_message=message,
         )
 
-    if not _COMPETENCIA_RE.match(competencia):
-        return _error(f"competência inválida {competencia!r}: esperado YYYY-MM (ex.: 2026-06)")
+    competencia_error = validate_competencia(competencia)
+    if competencia_error is not None:
+        return _error(competencia_error)
 
     # Datasets live under <data-dir>/<YYYY>/<MM> for this competência — never
     # at the data-dir root — so past aferições can coexist in the same project.
@@ -166,6 +166,10 @@ def run_measure(
                 hard_failure=True, error=message,
             ))
             continue
+        # Broad by design — isolates one indicator's failure so the rest of the
+        # batch still measures (bootstrap.py/report.py/consolidate.py catch
+        # broadly too, but abort the whole command — this one deliberately
+        # doesn't, since a batch of indicators shouldn't die together).
         except Exception as exc:
             message = f"{contractual_id}: exceção na medição: {exc}"
             logger.error(message)

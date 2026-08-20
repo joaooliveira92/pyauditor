@@ -4,13 +4,24 @@ by `report` (ticket 09) to build the consolidated Excel without re-parsing
 Markdown.
 """
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 
 from pyauditor.engine.pipeline import MeasurementResult
+
+_STR_FIELDS: tuple[str, ...] = ("indicator_id", "contractual_id", "name", "orgao", "shape")
+_OPTIONAL_STR_FIELDS: tuple[str, ...] = ("asset", "target_operator")
+_NUMERIC_FIELDS: tuple[str, ...] = ("result_pct", "penalty_points")
+_OPTIONAL_NUMERIC_FIELDS: tuple[str, ...] = ("target_value", "numerator", "denominator")
+_BOOL_FIELDS: tuple[str, ...] = ("conforms", "hard_failure")
 
 
 @dataclass(frozen=True)
 class IndicatorSummary:
+    """Round-trips through JSON (`to_dict()` / `IndicatorSummary(**raw)`) as
+    the sidecar `report`/`consolidate` read back — a stale or hand-edited
+    sidecar with a wrong-typed field is rejected here, at load time, rather
+    than crashing deep in `excel/report.py`/`excel/consolidate.py` arithmetic."""
+
     indicator_id: str
     contractual_id: str
     name: str
@@ -26,8 +37,46 @@ class IndicatorSummary:
     denominator: float | None
     hard_failure: bool
 
+    def __post_init__(self) -> None:
+        known_fields = {f.name for f in fields(self)}
+        for name in _STR_FIELDS:
+            assert name in known_fields
+            _require_str(self, name)
+        for name in _OPTIONAL_STR_FIELDS:
+            _require_str(self, name, optional=True)
+        for name in _NUMERIC_FIELDS:
+            _require_numeric(self, name)
+        for name in _OPTIONAL_NUMERIC_FIELDS:
+            _require_numeric(self, name, optional=True)
+        for name in _BOOL_FIELDS:
+            _require_bool(self, name)
+
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
+
+
+def _require_str(summary: "IndicatorSummary", name: str, *, optional: bool = False) -> None:
+    value: object = getattr(summary, name)
+    if optional and value is None:
+        return
+    if not isinstance(value, str):
+        raise TypeError(f"IndicatorSummary.{name} must be str, got {type(value).__name__}")
+
+
+def _require_numeric(summary: "IndicatorSummary", name: str, *, optional: bool = False) -> None:
+    value: object = getattr(summary, name)
+    if optional and value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise TypeError(
+            f"IndicatorSummary.{name} must be a number, got {type(value).__name__}"
+        )
+
+
+def _require_bool(summary: "IndicatorSummary", name: str) -> None:
+    value: object = getattr(summary, name)
+    if not isinstance(value, bool):
+        raise TypeError(f"IndicatorSummary.{name} must be bool, got {type(value).__name__}")
 
 
 def summarize(result: MeasurementResult) -> IndicatorSummary:
@@ -78,6 +127,6 @@ def _pooled_numerator_denominator(
 
 
 def _as_float(value: object) -> float | None:
-    if isinstance(value, int | float):
+    if isinstance(value, int | float) and not isinstance(value, bool):
         return float(value)
     return None

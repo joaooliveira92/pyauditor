@@ -4,6 +4,11 @@ orgao_selector)`, granularity per Command, reused/overwritten across
 attempts, never auto-deleted. The filesystem (ticket "Dependency
 enforcement") stays the source of truth for whether a Command *can* run —
 this file only caches what the orchestrator already decided, for resume.
+
+No file locking — two processes targeting the same `(competencia,
+orgao_selector)` concurrently is an accepted scope cut (design ticket "Run
+orchestrator and resume": single-user CLI, not built preventively for a
+concurrency profile this tool doesn't have).
 """
 
 from __future__ import annotations
@@ -15,7 +20,22 @@ from typing import Final, Literal
 
 type CommandState = Literal["pending", "running", "done", "skipped", "error"]
 
+_VALID_STATES: Final[frozenset[str]] = frozenset({"pending", "running", "done", "skipped", "error"})
+
 _DEFAULT_RUNS_DIR: Final[Path] = Path(".pyauditor/runs")
+
+
+class RunStateCorrupted(Exception):
+    """Raised by `load_state` when the run-state file at `path` is not the
+    shape this module wrote — hand-edited, truncated by a crash mid-write,
+    or from an incompatible version. Deleting the file starts the run over
+    from scratch (the filesystem, not this file, is the source of truth for
+    what actually ran — ticket "Dependency enforcement")."""
+
+    def __init__(self, path: Path, reason: str) -> None:
+        super().__init__(
+            f"run-state file {path} is corrupted ({reason}) — delete it to start over"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,8 +62,14 @@ def state_path(competencia: str, orgao_selector: str, runs_dir: Path = _DEFAULT_
 def load_state(path: Path) -> RunState | None:
     if not path.exists():
         return None
-    raw = json.loads(path.read_text(encoding="utf-8"))
-    commands = tuple(CommandStateEntry(**entry) for entry in raw["commands"])
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        commands = tuple(CommandStateEntry(**entry) for entry in raw["commands"])
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise RunStateCorrupted(path, str(exc)) from exc
+    for entry in commands:
+        if entry.status not in _VALID_STATES:
+            raise RunStateCorrupted(path, f"unknown Command state {entry.status!r}")
     return RunState(
         competencia=raw["competencia"], orgao_selector=raw["orgao_selector"], commands=commands
     )

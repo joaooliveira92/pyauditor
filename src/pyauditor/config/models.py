@@ -8,7 +8,11 @@ from __future__ import annotations
 
 from typing import Annotated, Final, Literal, Self, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
+
+from pyauditor.config._paths import reject_unsafe_relative_path
+
+_SafeRelativePath: TypeAlias = Annotated[str, AfterValidator(reject_unsafe_relative_path)]
 
 __all__: Final[tuple[str, ...]] = (
     "Calculation",
@@ -69,7 +73,7 @@ class Scope(BaseModel):
 class Source(BaseModel):
     model_config = _StrictFrozen
     dataset: str | None = Field(default=None, min_length=1)
-    csv: str | None = Field(default=None, min_length=1)
+    csv: _SafeRelativePath | None = Field(default=None, min_length=1)
     delimiter: str = Field(default=";", min_length=1)
     encoding: str = Field(default="utf-8-sig", min_length=1)
     id_column: str = Field(default="Nº Solicitacao", min_length=1)

@@ -15,7 +15,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from pyauditor.cli.results import DependencyCheck, Status
+from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
 from pyauditor.excel.capa import read_capa_fields
 from pyauditor.excel.consolidate import build_consolidated_workbook, read_existing_decisions
 from pyauditor.logging import logger
@@ -50,8 +50,11 @@ def check_consolidate_ready(competencia: str, report_dir: Path, roms_dir: Path) 
 def _load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
     summaries: list[IndicatorSummary] = []
     for summary_path in sorted(roms_dir.glob("*.json")):
-        raw = json.loads(summary_path.read_text(encoding="utf-8"))
-        summaries.append(IndicatorSummary(**raw))
+        try:
+            raw = json.loads(summary_path.read_text(encoding="utf-8"))
+            summaries.append(IndicatorSummary(**raw))
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise ValueError(f"sumário inválido em {summary_path}: {exc}") from exc
     return summaries
 
 
@@ -68,6 +71,10 @@ def run_consolidate(
             decisions_preserved=0, warnings=(), error_message=message,
         )
 
+    competencia_error = validate_competencia(competencia)
+    if competencia_error is not None:
+        return _error(competencia_error)
+
     # Defense-in-depth: same checker `cli_main`/the orchestrator call pre-dispatch
     # (ticket "Dependency enforcement") — direct callers that bypass dispatch
     # (tests, future code) still get it.
@@ -83,7 +90,7 @@ def run_consolidate(
     try:
         minc = _load_summaries(roms_dirs["MinC"])
         mtur = _load_summaries(roms_dirs["MTur"])
-    except (OSError, json.JSONDecodeError, TypeError) as exc:
+    except (OSError, ValueError) as exc:
         return _error(f"falha ao ler sumários de medição: {exc}")
 
     if not minc or not mtur:
@@ -98,9 +105,12 @@ def run_consolidate(
             f"{len(existing_decisions)} decisão(ões) do fiscal preservada(s) de {output_path}"
         )
 
-    result = build_consolidated_workbook(
-        competencia, minc, mtur, minc_capa, mtur_capa, existing_decisions
-    )
+    try:
+        result = build_consolidated_workbook(
+            competencia, minc, mtur, minc_capa, mtur_capa, existing_decisions
+        )
+    except Exception as exc:  # boundary: never leak a raw traceback past the CLI
+        return _error(f"falha inesperada ao montar consolidado de {competencia}: {exc}")
 
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -19,6 +19,14 @@ from pyauditor.engine.strategies.base import CalculationResult
 _CAPA_PLACEHOLDER = "[a preencher]"
 
 
+def _md_cell(value: object) -> str:
+    """Escape a value before it lands in a Markdown table cell — a stray
+    `|` or embedded newline from CSV-derived data would otherwise silently
+    shift the table's column alignment in what's meant to be a formal,
+    auditable record."""
+    return str(value).replace("|", "\\|").replace("\n", " ")
+
+
 def render_ratio_memoria(calculation: CalculationResult) -> str:
     numerator = calculation.memoria["numerator"]
     denominator = calculation.memoria["denominator"]
@@ -29,7 +37,8 @@ def render_segmented_ratio_memoria(calculation: CalculationResult) -> str:
     categories = calculation.memoria["categories"]
     assert isinstance(categories, list)
     lines = [
-        f"| {c['name']} | {c['numerator']} | {c['denominator']} | {c['result_pct']:.2f}% | {c['penalty_points']:.2f} |"
+        f"| {_md_cell(c['name'])} | {c['numerator']} | {c['denominator']} | "
+        f"{c['result_pct']:.2f}% | {c['penalty_points']:.2f} |"
         for c in categories
     ]
     table = "\n".join(lines)
@@ -55,7 +64,8 @@ def render_external_catalog_sum_memoria(calculation: CalculationResult) -> str:
         rows_markdown = "| — | — | nenhuma ocorrência | — |"
     else:
         rows_markdown = "\n".join(
-            f"| {o['occurrence_id']} | {o['catalog_id']} | {o['descricao']} | {o['pontos']} |"
+            f"| {_md_cell(o['occurrence_id'])} | {_md_cell(o['catalog_id'])} | "
+            f"{_md_cell(o['descricao'])} | {o['pontos']} |"
             for o in occurrences
         )
     return (
@@ -73,7 +83,7 @@ def render_precomputed_table_memoria(calculation: CalculationResult) -> str:
         rows_markdown = "| — | — | nenhuma linha |"
     else:
         rows_markdown = "\n".join(
-            f"| {c['name']} | {c['result_pct']:.2f}% | {c['penalty_points']:.2f} |"
+            f"| {_md_cell(c['name'])} | {c['result_pct']:.2f}% | {c['penalty_points']:.2f} |"
             for c in categories
         )
     return (
@@ -97,7 +107,9 @@ def _capa_value(capa_fields: dict[str, object], label: str) -> str:
     value = capa_fields.get(label)
     if value in (None, ""):
         return _CAPA_PLACEHOLDER
-    return str(value)
+    # Free-text capa field — strip embedded newlines so it can't fake a
+    # heading/bullet in the rendered Markdown.
+    return str(value).replace("\n", " ")
 
 
 def _render_identificacao(
@@ -204,7 +216,7 @@ def render_rom(result: MeasurementResult, capa_fields: dict[str, object] | None 
     provenance = result.provenance
 
     rejected_table = "\n".join(
-        f"| {row.row_id} | {row.reason} |" for row in gate_report.rejected
+        f"| {_md_cell(row.row_id)} | {_md_cell(row.reason)} |" for row in gate_report.rejected
     ) or "| — | nenhuma rejeição |"
 
     memoria_renderer = _MEMORIA_RENDERERS[config.calculation.shape]

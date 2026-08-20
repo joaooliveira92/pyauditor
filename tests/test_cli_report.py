@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from openpyxl import load_workbook
 
@@ -110,6 +111,34 @@ def test_run_report_final_month_does_not_roll_over(tmp_path: Path) -> None:
     assert historico["2026-06"]["saldo_rolado_pct"] == 0.0
 
 
+def test_run_report_rejects_malformed_competencia(tmp_path: Path) -> None:
+    result = run_report(
+        "../../etc", tmp_path / "capa.xlsx", tmp_path / "roms",
+        tmp_path / "reports" / "out.xlsx", config_dir=tmp_path / "configs",
+    )
+
+    assert result.status == "error"
+    assert result.error_message is not None
+    assert "competência inválida" in result.error_message
+
+
+def test_run_report_converts_unexpected_exception_to_error_result(tmp_path: Path) -> None:
+    capa_path = tmp_path / "capa.xlsx"
+    bootstrap_capa(capa_path)
+    roms_dir = tmp_path / "roms"
+    _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
+
+    with patch("pyauditor.cli.report.build_report", side_effect=ValueError("boom")):
+        result = run_report(
+            "2026-06", capa_path, roms_dir, tmp_path / "reports" / "out.xlsx",
+            config_dir=tmp_path / "configs",
+        )
+
+    assert result.status == "error"
+    assert result.error_message is not None
+    assert "boom" in result.error_message
+
+
 def test_run_report_fails_without_capa(tmp_path: Path) -> None:
     capa_path = tmp_path / "capa.xlsx"
     roms_dir = tmp_path / "roms"
@@ -129,6 +158,23 @@ def test_run_report_fails_without_roms(tmp_path: Path) -> None:
     exit_code = run_report("2026-06", capa_path, roms_dir, tmp_path / "reports" / "out.xlsx", config_dir=tmp_path / "configs")
 
     assert exit_code.status == "error"
+
+
+def test_run_report_names_the_offending_file_for_a_malformed_summary(tmp_path: Path) -> None:
+    capa_path = tmp_path / "capa.xlsx"
+    bootstrap_capa(capa_path)
+    roms_dir = tmp_path / "roms"
+    _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
+    (roms_dir / "2026-06" / "INMS-1.1.json").write_text("not json", encoding="utf-8")
+
+    result = run_report(
+        "2026-06", capa_path, roms_dir, tmp_path / "reports" / "out.xlsx",
+        config_dir=tmp_path / "configs",
+    )
+
+    assert result.status == "error"
+    assert result.error_message is not None
+    assert "INMS-1.1.json" in result.error_message
 
 
 def test_run_report_builds_workbook_from_summaries(tmp_path: Path) -> None:

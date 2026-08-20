@@ -71,8 +71,11 @@ def _read_catalog_text() -> str:
 
 def _load_raw() -> _RawCatalog:
     text: str = _read_catalog_text()
-    # yaml.safe_load has no stubs → Any. Isolate Any to one line.
-    raw_any: object = cast(object, yaml.safe_load(text))
+    try:
+        # yaml.safe_load has no stubs → Any. Isolate Any to one line.
+        raw_any: object = cast(object, yaml.safe_load(text))
+    except yaml.YAMLError as exc:
+        raise ValueError(f"malformed YAML in packaged catalog {_CATALOG_NAME}: {exc}") from exc
     if not _is_raw_catalog(raw_any):
         raise ValueError("catalog YAML must be mapping with 'items: list'")
     return raw_any
@@ -88,8 +91,9 @@ def load_anexo_e_catalog() -> Mapping[str, CatalogItem]:
 
     Raises:
         RuntimeError: if packaged YAML is missing/unreadable.
-        ValueError: if YAML shape is invalid.
-        ValidationError: if any item fails Pydantic validation.
+        ValueError: if YAML shape is invalid, malformed, or an item fails
+            Pydantic validation (`ValidationError` is caught and re-raised
+            as `ValueError` with the offending index).
     """
     raw: _RawCatalog = _load_raw()
     # raw["items"] is list[_RawItem] per TypeGuard, but each element is still
