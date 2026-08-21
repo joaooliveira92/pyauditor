@@ -247,18 +247,15 @@ def _errors_count(run_result: RunResult) -> int:
 
 
 def _duracao_ms(run_result: RunResult) -> int:
-    """Duração da execução pelo relógio de parede do estado: do menor
-    `started_at` ao maior `finished_at` entre os Commands. `0` se o estado
-    não tiver timestamps (ex.: resultados sintéticos de teste)."""
-    stamps: list[datetime] = []
-    for entry in run_result.state.commands:
-        if entry.started_at is not None:
-            stamps.append(datetime.fromisoformat(entry.started_at))
-        if entry.finished_at is not None:
-            stamps.append(datetime.fromisoformat(entry.finished_at))
-    if len(stamps) < 2:
-        return 0
-    return max(0, int((max(stamps) - min(stamps)).total_seconds() * 1000))
+    """Duração desta chamada de `execute_run`, pelo relógio de parede de
+    `RunResult.started_at`/`finished_at` — carimbados no início/fim da própria
+    invocação, não derivados dos timestamps persistidos no estado (que
+    sobrevivem entre tentativas: um `bootstrap` já `done` de uma sessão
+    anterior não deve inflar a duração de um resume que só rodou os passos
+    seguintes)."""
+    inicio = datetime.fromisoformat(run_result.started_at)
+    fim = datetime.fromisoformat(run_result.finished_at)
+    return max(0, int((fim - inicio).total_seconds() * 1000))
 
 
 def summary_json(run_result: RunResult, exit_code: int) -> dict[str, Any]:

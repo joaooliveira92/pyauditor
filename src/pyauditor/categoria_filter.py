@@ -41,6 +41,22 @@ def base_config_stem(inms_key: str) -> str:
     return f"inms-{int(match.group(1)):02d}"
 
 
+_GRUPO_EXECUTOR_ALIAS: Final[str] = GRUPO_EXECUTOR_COLUMN.replace("_", " ")
+
+
+def _normalize_grupo_executor_header(fieldnames: list[str]) -> list[str]:
+    """Alguns exports usam `"Grupo executor"` (espaço) em vez do `"Grupo_executor"`
+    (underscore) que todo o resto do pipeline convenciona — confirmado em produção
+    (INMS 1.7, 2026-06: MinC e MTur exportam com espaço, diferente de 1.1-1.3).
+    Normaliza para o nome canônico na leitura, uma vez, para que nenhum chamador
+    precise conhecer as duas variantes."""
+    if GRUPO_EXECUTOR_COLUMN in fieldnames or _GRUPO_EXECUTOR_ALIAS not in fieldnames:
+        return fieldnames
+    return [
+        GRUPO_EXECUTOR_COLUMN if name == _GRUPO_EXECUTOR_ALIAS else name for name in fieldnames
+    ]
+
+
 def read_raw_csv(
     path: Path, delimiter: str, encoding: str
 ) -> tuple[list[str], list[dict[str, str]]]:
@@ -53,10 +69,13 @@ def read_raw_csv(
         reader = csv.DictReader(handle, delimiter=delimiter)
         if reader.fieldnames is None:
             raise ValueError(f"{path}: CSV vazio ou sem linha de cabeçalho")
-        fieldnames = [name.strip() for name in reader.fieldnames]
-        reader.fieldnames = fieldnames
+        raw_fieldnames = [name.strip() for name in reader.fieldnames]
+        fieldnames = _normalize_grupo_executor_header(raw_fieldnames)
+        rename = dict(zip(raw_fieldnames, fieldnames, strict=True))
+        reader.fieldnames = raw_fieldnames
         rows = [
-            {name: (row.get(name) or "").strip() for name in fieldnames} for row in reader
+            {rename[name]: (row.get(name) or "").strip() for name in raw_fieldnames}
+            for row in reader
         ]
     return fieldnames, rows
 

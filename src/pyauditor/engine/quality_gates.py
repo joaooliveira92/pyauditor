@@ -35,6 +35,11 @@ class QualityGateRunner:
             if reason is None:
                 accepted.append(row)
             else:
+                if self._id_column not in row:
+                    raise ValueError(
+                        f"id_column {self._id_column!r} não existe no header do CSV "
+                        "— corrija source.id_column na config do indicador"
+                    )
                 rejected.append(RejectedRow(row_id=row[self._id_column], reason=reason))
         return QualityGateReport(accepted=accepted, rejected=rejected)
 

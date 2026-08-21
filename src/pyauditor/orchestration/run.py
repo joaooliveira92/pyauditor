@@ -76,6 +76,8 @@ class RunResult:
     results: tuple[CommandResult, ...]
     state: RunState
     request: RunRequest
+    started_at: str
+    finished_at: str
 
 
 def _noop_state_change(_entry: CommandStateEntry) -> None:
@@ -134,7 +136,8 @@ def _upsert(state: RunState, entry: CommandStateEntry) -> RunState:
         e for e in state.commands if not (e.command == entry.command and e.orgao == entry.orgao)
     )
     return RunState(
-        competencia=state.competencia, orgao_selector=state.orgao_selector,
+        competencia=state.competencia,
+        orgao_selector=state.orgao_selector,
         commands=(*remaining, entry),
     )
 
@@ -255,6 +258,7 @@ def execute_run(
     on_state_change: Callable[[CommandStateEntry], None] = _noop_state_change,
     on_failure: Callable[[CommandStateEntry], FailureDecision] = _abort_on_failure,
 ) -> RunResult:
+    session_started_at = _now()
     plan = _plan(request.orgao)
     state = _ensure_state(request, plan)
     path = state_path(request.competencia, request.orgao, request.runs_dir)
@@ -266,8 +270,12 @@ def execute_run(
     skipped_steps: set[tuple[str, str | None]] = set()
 
     def record_failure_and_decide(
-        command: str, orgao: str | None, error_message: str | None,
-        *, started_at: str | None = None, finished_at: str | None = None,
+        command: str,
+        orgao: str | None,
+        error_message: str | None,
+        *,
+        started_at: str | None = None,
+        finished_at: str | None = None,
     ) -> FailureDecision:
         """Build the `error` entry, persist+notify, ask `on_failure`, and — on
         `"skip"`/`"isolate"` — cascade the downstream steps too. One seam for
@@ -282,8 +290,12 @@ def execute_run(
         cascading only what depends on it."""
         nonlocal state
         entry = CommandStateEntry(
-            command=command, orgao=orgao, status="error",
-            started_at=started_at, finished_at=finished_at, error_message=error_message,
+            command=command,
+            orgao=orgao,
+            status="error",
+            started_at=started_at,
+            finished_at=finished_at,
+            error_message=error_message,
         )
         state = _upsert(state, entry)
         save_state(path, state)
@@ -330,10 +342,21 @@ def execute_run(
                     continue
                 if decision in ("skip", "isolate"):
                     break
-                return RunResult(request.competencia, request.orgao, tuple(results), state, request)
+                return RunResult(
+                    request.competencia,
+                    request.orgao,
+                    tuple(results),
+                    state,
+                    request,
+                    session_started_at,
+                    _now(),
+                )
 
             running_entry = CommandStateEntry(
-                command=command, orgao=orgao, status="running", started_at=_now(),
+                command=command,
+                orgao=orgao,
+                status="running",
+                started_at=_now(),
             )
             state = _upsert(state, running_entry)
             save_state(path, state)
@@ -344,8 +367,11 @@ def execute_run(
 
             if result.status == "done":
                 entry = CommandStateEntry(
-                    command=command, orgao=orgao, status="done",
-                    started_at=running_entry.started_at, finished_at=_now(),
+                    command=command,
+                    orgao=orgao,
+                    status="done",
+                    started_at=running_entry.started_at,
+                    finished_at=_now(),
                 )
                 state = _upsert(state, entry)
                 save_state(path, state)
@@ -353,16 +379,35 @@ def execute_run(
                 break
 
             decision = record_failure_and_decide(
-                command, orgao, result.error_message,
-                started_at=running_entry.started_at, finished_at=_now(),
+                command,
+                orgao,
+                result.error_message,
+                started_at=running_entry.started_at,
+                finished_at=_now(),
             )
             if decision == "retry":
                 continue
             if decision in ("skip", "isolate"):
                 break
-            return RunResult(request.competencia, request.orgao, tuple(results), state, request)
+            return RunResult(
+                request.competencia,
+                request.orgao,
+                tuple(results),
+                state,
+                request,
+                session_started_at,
+                _now(),
+            )
 
-    return RunResult(request.competencia, request.orgao, tuple(results), state, request)
+    return RunResult(
+        request.competencia,
+        request.orgao,
+        tuple(results),
+        state,
+        request,
+        session_started_at,
+        _now(),
+    )
 
 
 def _cascade_skip(

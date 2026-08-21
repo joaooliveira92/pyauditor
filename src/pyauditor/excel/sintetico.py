@@ -449,7 +449,12 @@ def write_sintetico_workbook(
         gate_runner = QualityGateRunner(
             base_config.quality_gates.checks, id_column=base_config.source.id_column
         )
-        gate_report = gate_runner.run(rows)
+        try:
+            gate_report = gate_runner.run(rows)
+        except ValueError as exc:
+            warning = f"sintetico.xlsx: INMS {inms_key}: falha ao aplicar quality gates: {exc}"
+            warnings.append(warning)
+            continue
         accepted_ids = {id(row) for row in gate_report.accepted}
 
         whole_indicator_entries = [

@@ -18,6 +18,9 @@ from pyauditor.config.models import Filter, IndicatorConfig
 from pyauditor.engine.quality_gates import QualityGateReport, QualityGateRunner
 from pyauditor.engine.strategies import SHAPE_REGISTRY
 from pyauditor.engine.strategies.base import CalculationResult
+from pyauditor.logging import logger
+
+_DELIMITER_CANDIDATES: tuple[str, ...] = (",", ";")
 
 
 @dataclass(frozen=True)
@@ -172,6 +175,33 @@ def load_rows(source_path: Path, delimiter: str, encoding: str) -> list[dict[str
         return [{name: (row.get(name) or "").strip() for name in fieldnames} for row in reader]
 
 
+def _detect_delimiter(csv_path: Path, encoding: str, configured: str) -> str:
+    """O manifest/config declara um delimiter fixo por dataset, mas exports
+    mensais às vezes divergem por arquivo (confirmado em produção, 2026-06:
+    `datasets.yaml` da MTur declara `;` para todos os 14 datasets, mas 3
+    arquivos daquele mês vieram com `,`). Lê só a linha de cabeçalho e troca
+    para o delimiter mais provável quando o configurado não aparece nela —
+    nunca lança: se o arquivo não existe ou não pode ser lido, o erro real
+    aparece no ponto de leitura de verdade (`load_rows`/`read_raw_csv`)."""
+    if configured not in _DELIMITER_CANDIDATES:
+        return configured  # delimiter incomum e explícito — respeita, não tenta adivinhar
+    try:
+        with csv_path.open(encoding=encoding, newline="") as handle:
+            header = handle.readline()
+    except OSError:
+        return configured
+    if configured in header:
+        return configured
+    detected = next((c for c in _DELIMITER_CANDIDATES if c != configured and c in header), None)
+    if detected is None:
+        return configured
+    logger.warning(
+        f"{csv_path}: delimiter configurado {configured!r} não aparece no cabeçalho, "
+        f"usando {detected!r} (detectado) — corrija o manifest/config se isso persistir"
+    )
+    return detected
+
+
 def resolve_source(
     config: IndicatorConfig,
     data_dir: Path,
@@ -194,11 +224,13 @@ def resolve_source(
             )
         entry = manifest.resolve(source.dataset)
         csv_path = data_dir / entry.file
-        return csv_path, entry.delimiter, entry.encoding
+        delimiter = _detect_delimiter(csv_path, entry.encoding, entry.delimiter)
+        return csv_path, delimiter, entry.encoding
     # Legacy: direct csv filename
     assert source.csv is not None  # guaranteed by Source model validator
     csv_path = data_dir / source.csv
-    return csv_path, source.delimiter, source.encoding
+    delimiter = _detect_delimiter(csv_path, source.encoding, source.delimiter)
+    return csv_path, delimiter, source.encoding
 
 
 def discover_config_files(
