@@ -494,7 +494,7 @@ WARNING: INMS 1.1 (MinC/2026-06), categoria outros: 3 linha(s) não classificada
 
 ### 14.4 Relatório xlsx sintético
 
-Um `sintetico.xlsx` por órgão/competência (proposto: `roms/<orgao>/<ano>/<mes>/`, geração proposta
+Um `sintetico.xlsx` por órgão/competência (proposto: `reports/<orgao>/<ano>/<mes>/`, geração proposta
 para `split` — não contestado nesta rodada, revisar no ticket de implementação se necessário), uma
 aba por INMS com entrada em `categorias.yaml` (exclui 1.8/1.10). Contagens são
 **brutas, pré-quality-gate** — conferência rápida, não substitui o ROM oficial da categoria.

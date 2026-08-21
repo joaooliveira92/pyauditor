@@ -85,10 +85,12 @@ todos em uma invocação scriptable:
 | `run <comp>` | encadeia `bootstrap→measure→report→consolidate` |
 
 `bootstrap`, `measure` e `report` aceitam `--orgao {MinC,MTur,both}` (default
-`MinC`). Configs por órgão em `configs/<órgão>/`, dados em
+`MinC`). Configs canônicos em `configs/_shared/` (14 `inms-0N.yaml` + `datasets.yaml`);
+`categorias.yaml` por órgão em `configs/<órgão>/`; dados em
 `input/<órgão>/<AAAA>/<MM>`, ROMs em `roms/<órgão>/<competência>/`, e cada
 órgão obtém sua própria capa (`capa_<órgão>.xlsx`) e relatório
-(`reports/relatorio_<competência>_<órgão>.xlsx`).
+(`reports/relatorio_<competência>_<órgão>.xlsx`). `measure` filtra categorias
+`Grupo_executor` em memória — `input/_split` não é mais pré-requisito.
 
 ```bash
 # Cria a capa de cada órgão (idempotente — omite arquivos existentes)
@@ -146,7 +148,8 @@ src/pyauditor/
 ├── interactive/   # fluxo guiado (TTY)
 └── cli/           # bootstrap / measure / report / consolidate / run
 
-configs/<órgão>/            # inms-0N.yaml + datasets.yaml, por órgão
+configs/_shared/            # 14 inms-0N.yaml + datasets.yaml (single-source)
+configs/<órgão>/            # categorias.yaml (por órgão; datasets.yaml fallback)
 input/<órgão>/<AAAA>/<MM>   # datasets CSV (git-ignored; contém PII real)
 roms/<órgão>/<competência>/ # ROMs .md + summary .json
 reports/                    # Excel de relatório por órgão + consolidado
