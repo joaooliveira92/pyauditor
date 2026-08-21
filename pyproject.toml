@@ -55,11 +55,13 @@ docs = [
 [tool.mypy]
 strict = true
 files = ["src", "tests"]
+exclude = "\\.scratch"
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
+extend-exclude = [".scratch", ".agents"]
 
 [tool.ruff.lint]
 select = [
