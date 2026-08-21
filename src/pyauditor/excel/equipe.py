@@ -4,8 +4,9 @@
 A capa perdeu os 4 responsáveis; `input/equipe.csv` é a única fonte: uma
 linha por função (`FUNÇÃO,NOME,SIAPE`). O mapeamento normaliza caixa e
 acento — "Gestor do Contrato", "GESTOR DO CONTRATO" e "gestor do contrato"
-caem todos em "Gestor do contrato". Linhas com o sufixo "- Substituto"
-ficam no CSV (histórico/consulta) mas nunca alimentam planilha nem ROM.
+caem todos em "Gestor do contrato". Linhas com o sufixo "Substituto" (com ou
+sem hífen — "- Substituto" e "Substituto" são equivalentes) ficam no CSV
+(histórico/consulta) mas nunca alimentam planilha nem ROM.
 
 Malformado (cabeçalho errado, linha sem nome, função duplicada) é falha
 técnica → `ValueError`; arquivo *ausente* é dado incompleto — decisão do
@@ -36,7 +37,7 @@ RESPONSAVEL_LABELS: Final[tuple[str, ...]] = (
     "Gestor do contrato",
 )
 
-_SUBSTITUTO_SUFFIX: Final = "- substituto"
+_SUBSTITUTO_RE: Final = re.compile(r"\s*-?\s*substituto$")
 
 
 def _normalize(texto: str) -> str:
@@ -113,8 +114,9 @@ def read_equipe(path: Path) -> Equipe:
         chave = _normalize(funcao_raw)
         if chave in membros:
             raise ValueError(f"{path}: função duplicada: {funcao_raw!r}")
-        eh_substituto = chave.endswith(_SUBSTITUTO_SUFFIX)
-        base_chave = chave[: -len(_SUBSTITUTO_SUFFIX)].strip() if eh_substituto else chave
+        substituto_match = _SUBSTITUTO_RE.search(chave)
+        eh_substituto = substituto_match is not None
+        base_chave = chave[: substituto_match.start()].strip() if substituto_match else chave
         if not eh_substituto and base_chave not in _FUNCAO_BY_NORMALIZED:
             warnings.append(
                 f"função desconhecida {funcao_raw!r} — não mapeada para nenhum campo da capa"

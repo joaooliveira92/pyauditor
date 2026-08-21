@@ -34,7 +34,7 @@ datasets:
 
   chamados_reabertos:
     file: inms-06.csv
-    delimiter: ";"
+    delimiter: ","
     encoding: utf-8-sig
 
   satisfacao:

@@ -72,6 +72,20 @@ class TestReadEquipe:
         # substituto fica no CSV (mapeamento interno) mas nunca sai dele
         assert any("substituto" in chave for chave in equipe.membros)
 
+    def test_substituto_sem_hifen_tambem_reconhecido(self, tmp_path: Path) -> None:
+        # dados reais usam as duas convenções ("- Substituto" e "Substituto"
+        # sem hífen) para funções diferentes no mesmo arquivo — nenhuma das
+        # duas deve virar "função desconhecida".
+        path = _escreve(
+            tmp_path,
+            f"{_CABECALHO}\n"
+            "Fiscal técnico,Titular Um,1\n"
+            "Fiscal Técnico Substituto,Substituto Dois,2\n",
+        )
+        equipe = read_equipe(path)
+        assert equipe.responsaveis_fields()["Fiscal técnico"] == "Titular Um (1)"
+        assert not any("desconhecida" in w for w in equipe.warnings)
+
     def test_bom_utf8_sig_lido_corretamente(self, tmp_path: Path) -> None:
         path = _escreve(
             tmp_path, f"{_CABECALHO}\nFiscal Técnico,Maria Souza,1\n", encoding="utf-8-sig"
