@@ -4,6 +4,7 @@ indicator:
   name: Taxa de implantação de controles de segurança
 source:
   dataset: controles_seguranca
+  period_column: "competencia"
 quality_gates:
   checks: []
 calculation:

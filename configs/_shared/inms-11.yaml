@@ -4,6 +4,7 @@ indicator:
   name: Índice de chamadas telefônicas abandonadas
 source:
   dataset: telefonemas
+  period_column: "Data e Hora Início"
 quality_gates:
   checks: []
 calculation:

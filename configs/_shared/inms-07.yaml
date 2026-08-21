@@ -5,6 +5,7 @@ indicator:
 source:
   dataset: satisfacao
   id_column: Nº Ticket
+  period_column: "Data da Solicitação"
 quality_gates:
   checks:
   - type: in_set

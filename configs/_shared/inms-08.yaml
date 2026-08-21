@@ -4,6 +4,7 @@ indicator:
   name: Ocorrências de Desconformidade Técnica
 source:
   dataset: desconformidade_tecnica
+  period_column: "competencia"
 quality_gates:
   checks: []
 calculation:

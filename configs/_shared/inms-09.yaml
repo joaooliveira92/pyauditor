@@ -4,6 +4,7 @@ indicator:
   name: Tempo médio de implementação de uma mudança
 source:
   dataset: mudancas
+  period_column: "competencia"
 quality_gates:
   checks: []
 calculation:

@@ -454,7 +454,7 @@ def write_sintetico_workbook(
         # bruto coube ao split); `period_column` ausente é erro acionável
         # (spec §2 ponto 1, issue 01 item 5) — degrada esta aba como os
         # demais erros do loop, não filtra "de graça".
-        if periodo is not None:
+        if periodo is not None and not base_config.source.unfilterable:
             try:
                 period_column = require_period_column(
                     base_config.source.period_column,

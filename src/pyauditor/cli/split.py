@@ -245,7 +245,7 @@ def run_split(
         # Filtro de período (§2 ponto 1): logo após read_raw_csv, ANTES de
         # computar categorias — row_count/outros/warnings refletem o
         # pós-filtro. WARN de janela vazia: 1x por (órgão, arquivo bruto).
-        if periodo is not None:
+        if periodo is not None and not base_config.source.unfilterable:
             try:
                 period_column = require_period_column(
                     base_config.source.period_column, config_path=base_config_path

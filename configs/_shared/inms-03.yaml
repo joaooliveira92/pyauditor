@@ -4,6 +4,7 @@ indicator:
   name: Projetos atendidos dentro do prazo
 source:
   dataset: projetos
+  period_column: "DataHoraSolicitacao"
 quality_gates:
   checks: []
 calculation:

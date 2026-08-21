@@ -4,6 +4,7 @@ indicator:
   name: Requisições atendidas dentro do prazo
 source:
   dataset: requisicoes
+  period_column: "DataHoraSolicitacao"
 quality_gates:
   checks:
   - type: in_set

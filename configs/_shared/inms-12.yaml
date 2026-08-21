@@ -4,6 +4,7 @@ indicator:
   name: Índice de chamadas telefônicas atendidas em até 20 segundos
 source:
   dataset: chamadas_telefonicas
+  period_column: "Data e Hora Início"
 quality_gates:
   checks: []
 calculation:

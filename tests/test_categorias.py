@@ -154,19 +154,13 @@ def test_real_categorias_yaml_loads_and_covers_expected_inms(orgao: str) -> None
         "OPERACAO_N3",
         "MONITORAMENTO_NOC_SOC",
     }
-    # 1.6 não tem Grupo_executor no MinC: conta só em OPERACAO_N3, sem
-    # duplicar em N1/N2 (regra de não-duplicação do ticket 02).
-    has_1_6_em_n1_n2 = orgao == "MTur"
+    # 1.6 não tem Grupo_executor em nenhum dos dois órgãos (dataset SLA
+    # pré-agregado): conta só em OPERACAO_N3, sem duplicar em N1/N2 (regra
+    # de não-duplicação do ticket 02).
     n1 = result.categorias["ATENDIMENTO_N1"]
-    esperado_n1 = {"1.1", "1.2", "1.7", "1.11", "1.12", "1.13"}
-    if has_1_6_em_n1_n2:
-        esperado_n1.add("1.6")
-    assert set(n1.inms) == esperado_n1
+    assert set(n1.inms) == {"1.1", "1.2", "1.7", "1.11", "1.12", "1.13"}
     n2 = result.categorias["ATENDIMENTO_N2"]
-    esperado_n2 = {"1.1", "1.2", "1.7"}
-    if has_1_6_em_n1_n2:
-        esperado_n2.add("1.6")
-    assert set(n2.inms) == esperado_n2
+    assert set(n2.inms) == {"1.1", "1.2", "1.7"}
     n3 = result.categorias["OPERACAO_N3"]
     assert set(n3.inms) == {"1.1", "1.2", "1.3", "1.6", "1.7", "1.9", "1.14"}
     noc_soc = result.categorias["MONITORAMENTO_NOC_SOC"]
@@ -188,12 +182,13 @@ def test_minc_1_6_is_whole_indicator_only_in_operacao_n3() -> None:
     assert isinstance(entry, WholeIndicatorMode)
 
 
-def test_mtur_1_6_uses_grupo_executor_in_all_three_categorias() -> None:
+def test_mtur_1_6_is_whole_indicator_only_in_operacao_n3() -> None:
     load_categorias.cache_clear()
     path = Path(__file__).parent.parent / "configs" / "MTur" / "categorias.yaml"
 
     result = load_categorias(path)
 
-    for chave in ("ATENDIMENTO_N1", "ATENDIMENTO_N2", "OPERACAO_N3"):
-        entry = result.categorias[chave].inms["1.6"]
-        assert isinstance(entry, GrupoExecutorMode)
+    assert "1.6" not in result.categorias["ATENDIMENTO_N1"].inms
+    assert "1.6" not in result.categorias["ATENDIMENTO_N2"].inms
+    entry = result.categorias["OPERACAO_N3"].inms["1.6"]
+    assert isinstance(entry, WholeIndicatorMode)

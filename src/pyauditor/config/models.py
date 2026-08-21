@@ -83,6 +83,10 @@ class Source(BaseModel):
     # competencia-cli-equipe). Obrigatoria na execucao: todo fluxo real passa
     # um PeriodoAfericao, e aí a ausência vira erro acionável (periodo.py).
     period_column: str | None = Field(default=None, min_length=1)
+    # Datasets do fornecedor sem nenhuma coluna de data (ex.: resumo agregado
+    # já recortado por competência antes de chegar ao pipeline) declaram isso
+    # para pular o filtro de período em vez de errar por period_column ausente.
+    unfilterable: bool = False
 
     @model_validator(mode="after")
     def _check_csv_or_dataset(self) -> Self:

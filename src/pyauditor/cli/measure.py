@@ -413,20 +413,20 @@ def run_measure(
             # as categorias derivadas. Sem WARN/INFO aqui — o único emissor
             # por dataset bruto é engine.measure() (caminho single), e este
             # dataset não passa por lá.
-            try:
-                period_column = require_period_column(
-                    config.source.period_column, config_path=config_path
-                )
-            except ValueError as exc:
-                _hard_fail_todas_categorias(
-                    f"{contractual_id}: exceção na medição: {exc}",
-                    entries=entries,
-                    indicator_id=config.indicator.id,
-                    contractual_id=contractual_id,
-                    target_dir=target_dir,
-                )
-                continue
-            if periodo is not None:
+            if periodo is not None and not config.source.unfilterable:
+                try:
+                    period_column = require_period_column(
+                        config.source.period_column, config_path=config_path
+                    )
+                except ValueError as exc:
+                    _hard_fail_todas_categorias(
+                        f"{contractual_id}: exceção na medição: {exc}",
+                        entries=entries,
+                        indicator_id=config.indicator.id,
+                        contractual_id=contractual_id,
+                        target_dir=target_dir,
+                    )
+                    continue
                 if period_column not in fieldnames:
                     _hard_fail_todas_categorias(
                         f"{config_path}: source.period_column {period_column!r} não existe "

@@ -368,7 +368,7 @@ def measure(
     # no resultado; quem loga é o chamador (WARN só para whole_indicator).
     dropped_out_of_period: int | None = None
     undated_dropped: int | None = None
-    if periodo is not None:
+    if periodo is not None and not config.source.unfilterable:
         period_column = require_period_column(
             config.source.period_column, config_path=config_path
         )

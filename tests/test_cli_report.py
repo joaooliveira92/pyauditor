@@ -10,18 +10,16 @@ from pyauditor.excel.capa import SHEET_NAME as CAPA_SHEET_NAME
 from pyauditor.excel.equipe import RESPONSAVEL_LABELS
 from pyauditor.excel.report import GLOSAS_SHEET, INMS_BASE_SHEET
 
-OBJETOS_CSV = """Item;Categoria;Valor Mensal do Contrato 40/2022
-1;Central de ServiÃ§os;"R$ 148.205,54"
-2;GT dos Projetos e OperaÃ§Ãµes;"R$ 77.654,90"
-3;Banco de Dados;"R$ 43.888,89"
-4;"AplicaÃ§Ãµes, virtualizaÃ§Ã£o";"R$ 59.694,54"
-5;ServiÃ§os Corporativos;"R$ 21.035,21"
-6;Armazenamento e Backup;"R$ 16.145,94"
-7;Redes;"R$ 31.382,28"
-8;"SeguranÃ§a da InformaÃ§Ã£o";"R$ 34.143,44"
-9;DevOps;"R$ 28.912,84"
-TOTAL MENSAL;;"R$ 461.063,58"
-TOTAL ANUAL;;"R$ 5.532.762,96"
+OBJETOS_CSV = """Item,Categoria,Valor
+1,Central de ServiÃ§os,"R$ 148.205,54"
+2,GT dos Projetos e OperaÃ§Ãµes,"R$ 77.654,90"
+3,Banco de Dados,"R$ 43.888,89"
+4,"AplicaÃ§Ãµes, virtualizaÃ§Ã£o","R$ 59.694,54"
+5,ServiÃ§os Corporativos,"R$ 21.035,21"
+6,Armazenamento e Backup,"R$ 16.145,94"
+7,Redes,"R$ 31.382,28"
+8,"SeguranÃ§a da InformaÃ§Ã£o","R$ 34.143,44"
+9,DevOps,"R$ 28.912,84"
 """
 
 
@@ -456,13 +454,12 @@ def test_run_report_valor_mensal_zero_is_glosa_calculada(tmp_path: Path) -> None
     # Ticket 01: 0,00 é um valor legítimo — nunca confundido com "não
     # calculada" (isso é reservado à ausência do arquivo objetos.csv inteiro).
     comum = _scaffold_capas(tmp_path)
-    zerado = OBJETOS_CSV.replace('"R$ 461.063,58"', '"R$ 0,00"')
+    zerado = OBJETOS_CSV
     for item_valor in (
         "148.205,54", "77.654,90", "43.888,89", "59.694,54", "21.035,21",
         "16.145,94", "31.382,28", "34.143,44", "28.912,84",
     ):
         zerado = zerado.replace(f'"R$ {item_valor}"', '"R$ 0,00"')
-    zerado = zerado.replace('"R$ 5.532.762,96"', '"R$ 0,00"')
     (tmp_path / "objetos.csv").write_text(zerado, encoding="utf-8-sig")
     roms_dir = tmp_path / "roms"
     _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")

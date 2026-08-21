@@ -4,6 +4,7 @@ indicator:
   name: Disponibilidade de sistema/serviço crítico
 source:
   dataset: disponibilidade_sistema_critico
+  period_column: "competencia"
 quality_gates:
   checks: []
 calculation:

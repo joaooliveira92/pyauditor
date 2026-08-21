@@ -4,6 +4,7 @@ indicator:
   name: Índice de disponibilidade de serviços de infraestrutura
 source:
   dataset: disponibilidade_infra
+  period_column: "competencia"
 quality_gates:
   checks: []
 calculation:

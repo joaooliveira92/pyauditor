@@ -4,6 +4,7 @@ indicator:
   name: Incidentes atendidos dentro do prazo
 source:
   dataset: incidentes
+  period_column: "DataHoraSolicitacao"
 quality_gates:
   checks:
   - type: not_null

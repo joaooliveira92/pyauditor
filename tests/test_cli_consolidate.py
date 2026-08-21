@@ -11,18 +11,16 @@ from pyauditor.excel.consolidate import CAPA_SHEET as CAPA_E_CONTROLE_SHEET
 from pyauditor.excel.consolidate import GLOSAS_SHEET
 from pyauditor.excel.equipe import RESPONSAVEL_LABELS
 
-OBJETOS_CSV = """Item;Categoria;Valor Mensal do Contrato 40/2022
-1;Central de Serviços;"R$ 148.205,54"
-2;GT dos Projetos e Operações;"R$ 77.654,90"
-3;Banco de Dados;"R$ 43.888,89"
-4;"Aplicações, virtualização";"R$ 59.694,54"
-5;Serviços Corporativos;"R$ 21.035,21"
-6;Armazenamento e Backup;"R$ 16.145,94"
-7;Redes;"R$ 31.382,28"
-8;"Segurança da Informação";"R$ 34.143,44"
-9;DevOps;"R$ 28.912,84"
-TOTAL MENSAL;;"R$ 461.063,58"
-TOTAL ANUAL;;"R$ 5.532.762,96"
+OBJETOS_CSV = """Item,Categoria,Valor
+1,Central de Serviços,"R$ 148.205,54"
+2,GT dos Projetos e Operações,"R$ 77.654,90"
+3,Banco de Dados,"R$ 43.888,89"
+4,"Aplicações, virtualização","R$ 59.694,54"
+5,Serviços Corporativos,"R$ 21.035,21"
+6,Armazenamento e Backup,"R$ 16.145,94"
+7,Redes,"R$ 31.382,28"
+8,"Segurança da Informação","R$ 34.143,44"
+9,DevOps,"R$ 28.912,84"
 """
 
 

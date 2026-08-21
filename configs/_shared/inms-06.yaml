@@ -4,6 +4,9 @@ indicator:
   name: Eficácia no tratamento de chamados
 source:
   dataset: chamados_reabertos
+  # Resumo agregado do fornecedor sem coluna de data (já recortado por
+  # competência antes de chegar ao pipeline) — sem filtro de período.
+  unfilterable: true
 quality_gates:
   checks: []
 calculation:

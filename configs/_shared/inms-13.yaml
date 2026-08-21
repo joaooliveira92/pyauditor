@@ -4,6 +4,7 @@ indicator:
   name: Índice de chamados atendidos no Nível I
 source:
   dataset: chamados_grupo_executor
+  period_column: "competencia"
 quality_gates:
   checks: []
 calculation:
