@@ -77,21 +77,24 @@ def test_inms_base_and_group_tab_show_one_row_per_asset(tmp_path: Path) -> None:
 
     base_sheet = workbook[INMS_BASE_SHEET]
     base_rows = [
-        (base_sheet.cell(row=r, column=5).value, base_sheet.cell(row=r, column=3).value)  # Código INMS, Serviço
+        # Código INMS, Serviço
+        (base_sheet.cell(row=r, column=5).value, base_sheet.cell(row=r, column=3).value)
         for r in range(2, base_sheet.max_row + 1)
     ]
     assert sorted(base_rows) == [("INMS 1.14", "File Server"), ("INMS 1.14", "WI-FI")]
 
     noc_soc_sheet = workbook["MONITORAMENTO_NOC_SOC"]
     group_rows = [
-        (noc_soc_sheet.cell(row=r, column=1).value, noc_soc_sheet.cell(row=r, column=3).value)  # Código, Serviço
+        # Código, Serviço
+        (noc_soc_sheet.cell(row=r, column=1).value, noc_soc_sheet.cell(row=r, column=3).value)
         for r in range(2, noc_soc_sheet.max_row + 1)
     ]
     assert sorted(group_rows) == [("INMS 1.14", "File Server"), ("INMS 1.14", "WI-FI")]
 
     # each asset kept its own computed result, not collapsed into one
     results = {
-        base_sheet.cell(row=r, column=3).value: base_sheet.cell(row=r, column=12).value  # Serviço -> Resultado
+        # Serviço -> Resultado
+        base_sheet.cell(row=r, column=3).value: base_sheet.cell(row=r, column=12).value
         for r in range(2, base_sheet.max_row + 1)
     }
     assert results["File Server"] == pytest.approx(99.80)

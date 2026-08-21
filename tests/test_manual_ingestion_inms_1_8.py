@@ -24,7 +24,8 @@ def test_schema_round_trips_through_measure() -> None:
     assert [row.row_id for row in result.quality_gate_report.rejected] == ["OC-2026-004"]
     assert len(result.quality_gate_report.accepted) == 4
 
-    # OD-52=100, max(OD-10=500, OD-20=50)=500 (multi-código, maior pontuação vence), OD-30=500, OD-60=200
+    # OD-52=100, max(OD-10=500, OD-20=50)=500 (multi-código, maior pontuação
+    # vence), OD-30=500, OD-60=200
     assert result.calculation.memoria["total_points"] == 1300
     assert result.calculation.penalty_points == 1300.0
     assert result.calculation.conforms is False

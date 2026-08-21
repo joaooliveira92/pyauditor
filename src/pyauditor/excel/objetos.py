@@ -78,7 +78,8 @@ def read_objetos(path: Path) -> Objetos:
         fieldnames = [name.strip() for name in reader.fieldnames]
         if set(fieldnames) != {_ITEM_HEADER, _CATEGORIA_HEADER, _VALOR_HEADER}:
             raise ValueError(
-                f"{path}: cabeçalho esperado '{';'.join((_ITEM_HEADER, _CATEGORIA_HEADER, _VALOR_HEADER))}'"
+                f"{path}: cabeçalho esperado "
+                f"'{';'.join((_ITEM_HEADER, _CATEGORIA_HEADER, _VALOR_HEADER))}'"
             )
         rows = list(reader)
 
@@ -122,7 +123,8 @@ def read_objetos(path: Path) -> Objetos:
     esperado_anual = total_mensal * 12
     if abs(esperado_anual - total_anual) > 0.01:
         warnings.append(
-            f"'{_TOTAL_ANUAL_ROW}' ({total_anual:,.2f}) diverge de '{_TOTAL_MENSAL_ROW}' × 12 ({esperado_anual:,.2f})"
+            f"'{_TOTAL_ANUAL_ROW}' ({total_anual:,.2f}) diverge de '{_TOTAL_MENSAL_ROW}' x 12 "
+            f"({esperado_anual:,.2f})"
         )
 
     return Objetos(

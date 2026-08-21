@@ -55,7 +55,7 @@ def test_warns_when_total_anual_diverges_from_12x_mensal(tmp_path: Path) -> None
     objetos = read_objetos(path)
 
     assert len(objetos.warnings) >= 1
-    assert any("diverge de 'TOTAL MENSAL' × 12" in w for w in objetos.warnings)
+    assert any("diverge de 'TOTAL MENSAL' x 12" in w for w in objetos.warnings)
 
 
 def test_rejects_missing_total_mensal(tmp_path: Path) -> None:

@@ -34,7 +34,10 @@ class PrecomputedTableStrategy:
         calculation = narrow_calculation(config, PrecomputedTableCalculation)
         assert config.target is not None
 
-        weighted = calculation.numerator_column is not None and calculation.denominator_column is not None
+        weighted = (
+            calculation.numerator_column is not None
+            and calculation.denominator_column is not None
+        )
         numerator_sum = 0.0
         denominator_sum = 0.0
         percents: list[float] = []
@@ -71,7 +74,10 @@ class PrecomputedTableStrategy:
             percents.append(result_pct)
             total_penalty += penalty
 
-            if calculation.numerator_column is not None and calculation.denominator_column is not None:
+            if (
+                calculation.numerator_column is not None
+                and calculation.denominator_column is not None
+            ):
                 numerador = parse_decimal(row.get(calculation.numerator_column, "") or "")
                 base = parse_decimal(row.get(calculation.denominator_column, "") or "")
                 if not isnan(numerador) and not isnan(base):

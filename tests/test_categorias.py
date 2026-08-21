@@ -138,7 +138,7 @@ def test_categoria_rejects_empty_inms_map() -> None:
 def test_grupo_executor_mode_is_frozen() -> None:
     entry = GrupoExecutorMode(mode="grupo_executor", in_values=["a"])
     with pytest.raises(ValidationError):
-        entry.in_values = ["b"]  # type: ignore[misc]
+        entry.in_values = ["b"]
 
 
 @pytest.mark.parametrize("orgao", ["MinC", "MTur"])

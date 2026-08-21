@@ -28,7 +28,9 @@ def _summary(
         shape=shape,
         target_operator=target_operator,
         target_value=target_value,
-        result_pct=(numerator / denominator * 100) if numerator is not None and denominator else 0.0,
+        result_pct=(
+            (numerator / denominator * 100) if numerator is not None and denominator else 0.0
+        ),
         conforms=False,
         penalty_points=penalty_points,
         numerator=numerator,
@@ -104,8 +106,12 @@ def test_per_asset_indicators_are_excluded() -> None:
 
 def test_external_catalog_sum_is_not_consolidated() -> None:
     # No numerator/denominator to blend for a point sum (spec §11.2).
-    minc = _summary("INMS 1.8", "MinC", shape="external_catalog_sum", numerator=None, denominator=None)
-    mtur = _summary("INMS 1.8", "MTur", shape="external_catalog_sum", numerator=None, denominator=None)
+    minc = _summary(
+        "INMS 1.8", "MinC", shape="external_catalog_sum", numerator=None, denominator=None
+    )
+    mtur = _summary(
+        "INMS 1.8", "MTur", shape="external_catalog_sum", numerator=None, denominator=None
+    )
 
     rows = with_orgao_consolidation([minc, mtur])
 
@@ -132,8 +138,12 @@ def test_consolidated_row_gets_a_distinct_indicator_id() -> None:
 
 def test_multi_asset_pairs_are_consolidated_independently_per_asset() -> None:
     # Two assets of the same indicator, each with its own MinC/MTur pair.
-    file_server_minc = _summary("INMS 1.1", "MinC", asset="File Server", numerator=90, denominator=100)
-    file_server_mtur = _summary("INMS 1.1", "MTur", asset="File Server", numerator=10, denominator=100)
+    file_server_minc = _summary(
+        "INMS 1.1", "MinC", asset="File Server", numerator=90, denominator=100
+    )
+    file_server_mtur = _summary(
+        "INMS 1.1", "MTur", asset="File Server", numerator=10, denominator=100
+    )
     wifi_minc = _summary("INMS 1.1", "MinC", asset="WI-FI", numerator=50, denominator=100)
     wifi_mtur = _summary("INMS 1.1", "MTur", asset="WI-FI", numerator=50, denominator=100)
 

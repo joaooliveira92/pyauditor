@@ -38,8 +38,12 @@ def test_inms_1_2_matches_acceptance_test() -> None:
         assert actual_category["name"] == expected_category.name
         assert actual_category["numerator"] == expected_category.numerator
         assert actual_category["denominator"] == expected_category.denominator
-        assert actual_category["result_pct"] == pytest.approx(expected_category.result_pct, abs=0.01)
-        assert actual_category["penalty_points"] == pytest.approx(expected_category.penalty_points, abs=0.01)
+        assert actual_category["result_pct"] == pytest.approx(
+            expected_category.result_pct, abs=0.01
+        )
+        assert actual_category["penalty_points"] == pytest.approx(
+            expected_category.penalty_points, abs=0.01
+        )
 
 
 @pytest.mark.skipif(

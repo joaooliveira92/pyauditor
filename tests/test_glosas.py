@@ -1,6 +1,7 @@
 import pytest
 
 from pyauditor.excel.glosas import (
+    Historico,
     competencia_anterior,
     compute_glosa,
     historico_entry,
@@ -95,13 +96,13 @@ def test_saldo_anterior_pct_de_no_history() -> None:
 
 
 def test_saldo_anterior_pct_de_reads_prior_month() -> None:
-    historico = {"2026-05": {"saldo_rolado_pct": 7.5}}
+    historico: Historico = {"2026-05": {"saldo_rolado_pct": 7.5}}
 
     assert saldo_anterior_pct_de(historico, "2026-06") == pytest.approx(7.5)
 
 
 def test_houve_reincidencia_below_threshold() -> None:
-    historico = {
+    historico: Historico = {
         "2026-04": {"teto_atingido": True},
         "2026-05": {"teto_atingido": False},
     }
@@ -110,7 +111,7 @@ def test_houve_reincidencia_below_threshold() -> None:
 
 
 def test_houve_reincidencia_three_times_in_six_months() -> None:
-    historico = {
+    historico: Historico = {
         "2026-04": {"teto_atingido": True},
         "2026-05": {"teto_atingido": True},
     }
@@ -119,7 +120,7 @@ def test_houve_reincidencia_three_times_in_six_months() -> None:
 
 
 def test_houve_reincidencia_ignores_occurrences_outside_window() -> None:
-    historico = {
+    historico: Historico = {
         "2025-12": {"teto_atingido": True},  # 7 meses antes de 2026-06, fora da janela
         "2026-04": {"teto_atingido": True},
     }

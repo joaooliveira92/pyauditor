@@ -1,7 +1,7 @@
 """Shared contract every calculation strategy implements."""
 
 from dataclasses import dataclass
-from typing import Protocol, TypeVar
+from typing import Protocol
 
 from pyauditor.config.models import Calculation, IndicatorConfig
 
@@ -15,7 +15,9 @@ class CalculationResult:
 
 
 class CalculationStrategy(Protocol):
-    def calculate(self, config: IndicatorConfig, rows: list[dict[str, str]]) -> CalculationResult: ...
+    def calculate(
+        self, config: IndicatorConfig, rows: list[dict[str, str]]
+    ) -> CalculationResult: ...
 
     def pool_numerator_denominator(
         self, memoria: dict[str, object]
@@ -33,10 +35,7 @@ def no_pooled_numerator_denominator(_memoria: dict[str, object]) -> tuple[None, 
     return None, None
 
 
-_C = TypeVar("_C", bound=Calculation)
-
-
-def narrow_calculation(config: IndicatorConfig, shape: type[_C]) -> _C:
+def narrow_calculation[C: Calculation](config: IndicatorConfig, shape: type[C]) -> C:
     """Every strategy is only ever invoked for its own `shape` (dispatched via
     `SHAPE_REGISTRY`), so this narrowing always succeeds — it exists to give
     mypy the concrete `XCalculation` type instead of the `Calculation` union.

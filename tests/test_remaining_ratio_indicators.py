@@ -52,7 +52,7 @@ def test_indicator_matches_acceptance_test(config_file: str, csv_file: str) -> N
 
 
 def test_sum_aggregation_computes_dpe_over_dpe_plus_da(tmp_path: Path) -> None:
-    """INMS 1.3's shape: ΣDPE / (ΣDPE + ΣDA) × 100. Real data is empty (see
+    """INMS 1.3's shape: ΣDPE / (ΣDPE + ΣDA) x 100. Real data is empty (see
     module docstring), so this proves the `sum` math directly.
     """
     config_yaml = """
@@ -153,7 +153,7 @@ penalty:
 
 
 def test_sum_aggregation_subtracts_and_excludes_a_totals_row(tmp_path: Path) -> None:
-    """INMS 1.6's shape: (ΣCA − ΣCR) / ΣCA × 100, with a "TOTAIS" row that
+    """INMS 1.6's shape: (ΣCA - ΣCR) / ΣCA x 100, with a "TOTAIS" row that
     must be excluded (via `denominator_filter` reused as the eligible-rows
     filter) — summing it alongside the per-agreement rows would double-count,
     and the real CSV's "TOTAIS" row formats its counts with a thousands

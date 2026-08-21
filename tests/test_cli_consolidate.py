@@ -304,7 +304,7 @@ def test_run_consolidate_preserves_decision_despite_new_penalty_value(tmp_path: 
     # "Conflito entre decisão anterior e nova apuração": a decisão do fiscal
     # (coluna preservada) não é sobrescrita mesmo quando a apuração seguinte
     # recalcula um Percentual de Ajuste/Valor Glosa diferente para a mesma
-    # ocorrência (indicador × órgão).
+    # ocorrência (indicador x órgão).
     _scaffold_capas(tmp_path)
     _build_orgao_report(tmp_path, "MinC")
     _build_orgao_report(tmp_path, "MTur")

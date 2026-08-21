@@ -38,7 +38,10 @@ def _md_cell(value: object) -> str:
 def render_ratio_memoria(calculation: CalculationResult) -> str:
     numerator = calculation.memoria["numerator"]
     denominator = calculation.memoria["denominator"]
-    return f"- Numerador: {numerator}\n- Denominador: {denominator}\n- Resultado: {calculation.result_pct:.2f}%"
+    return (
+        f"- Numerador: {numerator}\n- Denominador: {denominator}\n"
+        f"- Resultado: {calculation.result_pct:.2f}%"
+    )
 
 
 def render_segmented_ratio_memoria(calculation: CalculationResult) -> str:
@@ -61,7 +64,7 @@ def render_count_difference_memoria(calculation: CalculationResult) -> str:
     qrc = calculation.memoria["QRC"]
     qcsi = calculation.memoria["QCSI"]
     cni = calculation.memoria["CNI"]
-    return f"- QRC (recomendados): {qrc}\n- QCSI (implantados): {qcsi}\n- CNI = QRC − QCSI = {cni}"
+    return f"- QRC (recomendados): {qrc}\n- QCSI (implantados): {qcsi}\n- CNI = QRC - QCSI = {cni}"
 
 
 def render_external_catalog_sum_memoria(calculation: CalculationResult) -> str:
@@ -170,9 +173,9 @@ def _render_ressalva_interpretativa(
     floor_points = base + math.floor(steps) * step_points
     ceil_points = base + math.ceil(steps) * step_points
 
-    formula_linear = "base + (déficit / passo) × pontos_degrau"
-    formula_floor = "base + ⌊déficit / passo⌋ × pontos_degrau"
-    formula_ceil = "base + ⌈déficit / passo⌉ × pontos_degrau"
+    formula_linear = "base + (déficit / passo) x pontos_degrau"
+    formula_floor = "base + ⌊déficit / passo⌋ x pontos_degrau"
+    formula_ceil = "base + ⌈déficit / passo⌉ x pontos_degrau"
     return (
         "| Leitura | Fórmula | Pontuação apurada |\n"
         "|---|---|---|\n"
@@ -208,7 +211,9 @@ def _render_resultado_vs_meta(
         )
     else:
         # `external_catalog_sum`: Anexo E is a linear point sum, no percentage meta.
-        resultado_vs_meta = f"- Meta: não aplicável (soma de pontos, ver Anexo E) — **{conformidade}**"
+        resultado_vs_meta = (
+            f"- Meta: não aplicável (soma de pontos, ver Anexo E) — **{conformidade}**"
+        )
 
     return (
         f"{h} Resultado vs meta\n{resultado_vs_meta}\n"

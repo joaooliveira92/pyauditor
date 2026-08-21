@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Final, TypeAlias
+from typing import Annotated, Final
 
 import yaml
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
@@ -23,7 +23,7 @@ __all__: Final[tuple[str, ...]] = (
     "load_manifest",
 )
 
-_SafeRelativePath: TypeAlias = Annotated[str, AfterValidator(reject_unsafe_relative_path)]
+type _SafeRelativePath = Annotated[str, AfterValidator(reject_unsafe_relative_path)]
 
 
 class DatasetEntry(BaseModel):

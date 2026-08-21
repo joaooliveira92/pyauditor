@@ -63,7 +63,9 @@ def test_build_report_workbook_has_inms_base_and_all_group_tabs() -> None:
 
 
 def test_inms_base_row_matches_summary_and_leaves_fiscal_columns_blank() -> None:
-    summaries = [_summary("INMS-1.1", "INMS 1.1", result_pct=97.71, conforms=False, penalty_points=222.14)]
+    summaries = [
+        _summary("INMS-1.1", "INMS 1.1", result_pct=97.71, conforms=False, penalty_points=222.14)
+    ]
 
     workbook = build_report_workbook("2026-06", summaries)
     sheet = workbook[INMS_BASE_SHEET]
@@ -96,12 +98,19 @@ def test_group_tabs_only_contain_their_indicators() -> None:
     assert "INMS 1.04" not in n1_codes
 
     noc_soc_sheet = workbook["MONITORAMENTO_NOC_SOC"]
-    noc_soc_codes = [noc_soc_sheet.cell(row=r, column=1).value for r in range(2, noc_soc_sheet.max_row + 1)]
+    noc_soc_codes = [
+        noc_soc_sheet.cell(row=r, column=1).value for r in range(2, noc_soc_sheet.max_row + 1)
+    ]
     assert "INMS 1.04" in noc_soc_codes
 
 
 def test_indicator_outside_group_tabs_only_appears_in_inms_base() -> None:
-    summaries = [_summary("INMS-1.8", "INMS 1.8", shape="external_catalog_sum", numerator=None, denominator=None, target_operator=None, target_value=None)]
+    summaries = [
+        _summary(
+            "INMS-1.8", "INMS 1.8", shape="external_catalog_sum",
+            numerator=None, denominator=None, target_operator=None, target_value=None,
+        )
+    ]
 
     workbook = build_report_workbook("2026-06", summaries)
 
@@ -147,7 +156,9 @@ def test_glosas_sheet_sums_penalty_points_across_all_indicators() -> None:
 
 def test_glosas_sheet_caps_at_30_percent_and_reports_rollover() -> None:
     # 40000 pontos -> 40% bruto, capado em 30%, 10 p.p. de excedente
-    summaries = [_summary("INMS-1.8", "INMS 1.8", shape="external_catalog_sum", penalty_points=40_000.0)]
+    summaries = [
+        _summary("INMS-1.8", "INMS 1.8", shape="external_catalog_sum", penalty_points=40_000.0)
+    ]
 
     workbook = build_report_workbook("2026-06", summaries, valor_base=100_000.0)
     sheet = workbook[GLOSAS_SHEET]
@@ -180,16 +191,20 @@ def test_inms_base_never_synthesizes_a_consolidado_row() -> None:
     # map) — pooling MinC+MTur lives in `consolidate` (excel/consolidate.py),
     # not here, even if a caller passes mixed-órgão summaries directly.
     minc = _summary(
-        "INMS-1.1-MINC", "INMS 1.1", orgao="MinC", numerator=90, denominator=100, penalty_points=100.0
+        "INMS-1.1-MINC", "INMS 1.1", orgao="MinC",
+        numerator=90, denominator=100, penalty_points=100.0,
     )
     mtur = _summary(
-        "INMS-1.1-MTUR", "INMS 1.1", orgao="MTur", numerator=10, denominator=100, penalty_points=50.0
+        "INMS-1.1-MTUR", "INMS 1.1", orgao="MTur",
+        numerator=10, denominator=100, penalty_points=50.0,
     )
 
     workbook = build_report_workbook("2026-06", [minc, mtur])
 
     base_sheet = workbook[INMS_BASE_SHEET]
-    orgaos_in_base = [str(base_sheet.cell(row=r, column=7).value) for r in range(2, base_sheet.max_row + 1)]
+    orgaos_in_base = [
+        str(base_sheet.cell(row=r, column=7).value) for r in range(2, base_sheet.max_row + 1)
+    ]
     assert set(orgaos_in_base) == {"MinC", "MTur"}
 
     glosas_sheet = workbook[GLOSAS_SHEET]
@@ -214,7 +229,10 @@ def test_cadastros_sheet_populated_from_configs() -> None:
 
     configs = [
         IndicatorConfig(
-            indicator=Indicator(id="INMS-1.1", contractual_id="INMS 1.1", name="Incidentes atendidos dentro do prazo"),
+            indicator=Indicator(
+                id="INMS-1.1", contractual_id="INMS 1.1",
+                name="Incidentes atendidos dentro do prazo",
+            ),
             scope=Scope(contract="40/2022"),
             source=Source(csv="inms-001-01.csv"),
             quality_gates=QualityGates(),
@@ -226,7 +244,10 @@ def test_cadastros_sheet_populated_from_configs() -> None:
             penalty=Penalty(base_points=165, step_points=20, step_size_pct=0.1),
         ),
         IndicatorConfig(
-            indicator=Indicator(id="INMS-1.8", contractual_id="INMS 1.8", name="Ocorrências de Desconformidade Técnica"),
+            indicator=Indicator(
+                id="INMS-1.8", contractual_id="INMS 1.8",
+                name="Ocorrências de Desconformidade Técnica",
+            ),
             scope=Scope(contract="40/2022"),
             source=Source(csv="inms-001-08.csv"),
             quality_gates=QualityGates(),
@@ -279,7 +300,10 @@ def test_evidencias_sheet_populated_from_configs() -> None:
 
     configs = [
         IndicatorConfig(
-            indicator=Indicator(id="INMS-1.1", contractual_id="INMS 1.1", name="Incidentes atendidos dentro do prazo"),
+            indicator=Indicator(
+                id="INMS-1.1", contractual_id="INMS 1.1",
+                name="Incidentes atendidos dentro do prazo",
+            ),
             scope=Scope(contract="40/2022"),
             source=Source(csv="inms-001-01.csv"),
             quality_gates=QualityGates(),
@@ -291,7 +315,10 @@ def test_evidencias_sheet_populated_from_configs() -> None:
             penalty=Penalty(base_points=165, step_points=20, step_size_pct=0.1),
         ),
         IndicatorConfig(
-            indicator=Indicator(id="INMS-1.8", contractual_id="INMS 1.8", name="Ocorrências de Desconformidade Técnica"),
+            indicator=Indicator(
+                id="INMS-1.8", contractual_id="INMS 1.8",
+                name="Ocorrências de Desconformidade Técnica",
+            ),
             scope=Scope(contract="40/2022"),
             source=Source(csv="inms-001-08.csv"),
             quality_gates=QualityGates(),

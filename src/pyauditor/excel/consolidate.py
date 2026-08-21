@@ -10,7 +10,7 @@
 que são o mesmo artefato já computado que ``report.py`` consumiu.
 A aba ``INMS_BASE`` do report deixa colunas de glosa em branco por
 indicador (spec §12: glosa é agregado mensal lá), então não serviria para
-o detalhe por-(indicador×órgão) que ``GLOSAS`` precisa.
+o detalhe por-(indicador x órgão) que ``GLOSAS`` precisa.
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ _TOP_BORDER: Final = Border(top=Side(style="thin", color="1F2937"))
 # ocorrência sai da base de pontos) ou não aceita (glosa mantida). Ticket 02.
 _DECISAO_ACEITA: Final = "aceita"
 
-# GLOSAS: uma linha por (indicador × órgão) + resumo agregado (ticket 02).
+# GLOSAS: uma linha por (indicador x órgão) + resumo agregado (ticket 02).
 _GLOSAS_COLUMNS: Final[tuple[str, ...]] = (
     "Competência", "Órgão", "Item Contratual", "Serviço", "Indicador",
     "Resultado", "Meta", "Faixa de Descumprimento", "Percentual de Ajuste",
@@ -86,11 +86,11 @@ _DECISION_TEXT_COLUMNS: Final[tuple[int, ...]] = tuple(
 _CALCULO_COLUMNS: Final[tuple[str, ...]] = ("Componente", "MinC", "MTur", "Consolidado")
 _CALCULO_LINHAS: Final[tuple[str, ...]] = (
     "Percentual de rateio",
-    "Valor bruto (= mensal × rateio)",
+    "Valor bruto (= mensal x rateio)",
     "Pontos de glosa",
-    "Valor da glosa (= MIN(pontos×0,001, 30%)/100 × bruto)",
+    "Valor da glosa (= MIN(pontos x 0,001, 30%)/100 x bruto)",
     "Outros ajustes",
-    "Valor recomendado (= max(0, bruto − glosa − outros))",
+    "Valor recomendado (= max(0, bruto - glosa - outros))",
 )
 
 # docs spreadsheet.md's SERVICOS_POR_ORGAO — 9 serviços contratuais fixos
@@ -149,8 +149,9 @@ def _check_no_duplicate_headers(path: Path, header_row: Sequence[object]) -> Non
             (duplicates if name in seen else seen).add(name)
     if duplicates:
         raise ValueError(
-            f"{path}: coluna(s) duplicada(s) em {GLOSAS_SHEET!r}: {', '.join(sorted(duplicates))} — "
-            "planilha hand-edited em formato inesperado, corrija antes de rodar consolidate de novo"
+            f"{path}: coluna(s) duplicada(s) em {GLOSAS_SHEET!r}: "
+            f"{', '.join(sorted(duplicates))} — planilha hand-edited em formato inesperado, "
+            "corrija antes de rodar consolidate de novo"
         )
 
 
@@ -379,7 +380,7 @@ def build_glosas(
     historico: Historico | None = None,
     is_final_month: bool = False,
 ) -> tuple[float, float]:
-    """GLOSAS — uma linha por (indicador × órgão) com ocorrência de glosa,
+    """GLOSAS — uma linha por (indicador x órgão) com ocorrência de glosa,
     mais o resumo agregado. Decisão do fiscal ('Aceita' = anistia) tira a
     ocorrência da base de pontos; colunas de decisão são preservadas do
     workbook anterior, nunca recalculadas (ticket 02/04 Q3).
@@ -405,7 +406,9 @@ def build_glosas(
         key: RowKey = (format_inms_code(summary.contractual_id), summary.orgao)
         seen_keys.add(key)
         decision = existing_decisions.get(key, {})
-        is_amnestied = str(decision.get("Decisão Fiscal") or "").strip().lower().startswith(_DECISAO_ACEITA)
+        is_amnestied = (
+            str(decision.get("Decisão Fiscal") or "").strip().lower().startswith(_DECISAO_ACEITA)
+        )
 
         pontos = summary.penalty_points
         if not is_amnestied:
@@ -418,7 +421,8 @@ def build_glosas(
             round(summary.result_pct, 2), summary.target_value, _faixa(summary),
             round(pct, 4), valor_base, 0.0 if is_amnestied else valor_glosa,
             _decision_value(decision, "Reincidência"), _decision_value(decision, "Justificativa"),
-            _decision_value(decision, "Número da Ocorrência"), _decision_value(decision, "Decisão Fiscal"),
+            _decision_value(decision, "Número da Ocorrência"),
+            _decision_value(decision, "Decisão Fiscal"),
             _decision_value(decision, "Observação do Gestor"),
         ))
         ws.cell(row=row, column=6).number_format = _PERCENT_FMT_SCALED
@@ -431,10 +435,11 @@ def build_glosas(
             ws.cell(row=row, column=column).number_format = "@"
         row += 1
 
-    for key, decision in existing_decisions.items():
+    for key in existing_decisions:
         if key not in seen_keys:
             warnings.append(
-                f"decisão registrada para {key[0]}/{key[1]} mas a ocorrência não existe mais nesta rodada — preservada apenas no histórico, não reescrita"
+                f"decisão registrada para {key[0]}/{key[1]} mas a ocorrência não existe mais "
+                "nesta rodada — preservada apenas no histórico, não reescrita"
             )
 
     # Agregado por-órgão via compute_glosa (com saldo_anterior e is_final_month)
@@ -472,7 +477,7 @@ def build_glosas(
     r = row + 2
     for label, value in (
         ("Total de Pontos", round(total_pontos, 2)),
-        ("Fórmula (pontos × 0,001)", f"{pct_bruto:.4f}%"),
+        ("Fórmula (pontos x 0,001)", f"{pct_bruto:.4f}%"),
         ("Limite", f"{LIMITE_PCT:.1f}%"),
         ("Percentual Aplicado", f"{aplicado:.2f}%"),
         ("Valor Glosa", round(glosa_final, 2) if valor_base is not None else None),
@@ -525,7 +530,11 @@ def build_calculo(
         cell.fill = HEADER_FILL
     ws.column_dimensions["A"].width = 58
 
-    colunas = (("MinC", rateio_minc, 0.0), ("MTur", rateio_mtur, 0.0), ("Consolidado", 1.0, total_pontos))
+    colunas = (
+        ("MinC", rateio_minc, 0.0),
+        ("MTur", rateio_mtur, 0.0),
+        ("Consolidado", 1.0, total_pontos),
+    )
     total_row_idx = len(_CALCULO_LINHAS) - 1
 
     for idx, label in enumerate(_CALCULO_LINHAS):
@@ -538,9 +547,13 @@ def build_calculo(
         fmt: str | None = None
         if label.startswith("Percentual de rateio"):
             fmt = _PERCENT_FMT_FRACTION
-        elif label.startswith(("Valor bruto", "Valor da glosa", "Outros ajustes", "Valor recomendado")):
+        elif label.startswith(
+            ("Valor bruto", "Valor da glosa", "Outros ajustes", "Valor recomendado")
+        ):
             fmt = _CURRENCY_FMT
-        for col, (_nome, rateio, pontos) in zip(range(2, len(_CALCULO_COLUMNS) + 2), colunas):
+        for col, (_nome, rateio, pontos) in zip(
+            range(2, len(_CALCULO_COLUMNS) + 1), colunas, strict=True
+        ):
             if label.startswith("Percentual de rateio"):
                 value: object = rateio
             elif label.startswith("Valor bruto"):
@@ -548,7 +561,11 @@ def build_calculo(
             elif label.startswith("Pontos de glosa"):
                 value = round(pontos, 2)
             elif label.startswith("Valor da glosa"):
-                value = round(min(pontos * 0.001, LIMITE_PCT) / 100 * base * rateio, 2) if pontos else 0.0
+                value = (
+                    round(min(pontos * 0.001, LIMITE_PCT) / 100 * base * rateio, 2)
+                    if pontos
+                    else 0.0
+                )
             elif label.startswith("Outros ajustes"):
                 value = 0
             else:

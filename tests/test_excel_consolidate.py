@@ -11,7 +11,7 @@ from pyauditor.excel.consolidate import (
 )
 from pyauditor.rom.summary import IndicatorSummary
 
-CAPA = {"Número do contrato": "40/2022"}
+CAPA: dict[str, object] = {"Número do contrato": "40/2022"}
 
 
 def _summary(
@@ -132,7 +132,10 @@ def test_servicos_carries_item_values_by_index() -> None:
     sheet = result.workbook[SERVICOS_SHEET]
     header = [cell.value for cell in sheet[1]]
     valor_col = header.index("Valor Mensal (R$)") + 1
-    valores = {sheet.cell(row=r, column=1).value: sheet.cell(row=r, column=valor_col).value for r in range(2, 5)}
+    valores = {
+        sheet.cell(row=r, column=1).value: sheet.cell(row=r, column=valor_col).value
+        for r in range(2, 5)
+    }
     assert valores == {1: 1.0, 2: 2.0, 3: 3.0}
 
 
@@ -210,7 +213,7 @@ def test_glosas_summary_only_bolds_total_and_valor_glosa_rows() -> None:
     }
     assert labels_bold["Total de Pontos"] is True
     assert labels_bold["Valor Glosa"] is True
-    assert labels_bold["Fórmula (pontos × 0,001)"] is not True
+    assert labels_bold["Fórmula (pontos x 0,001)"] is not True
     assert labels_bold["Limite"] is not True
     assert labels_bold["Percentual Aplicado"] is not True
 
@@ -233,7 +236,7 @@ def test_non_latin1_free_text_is_preserved_unmangled() -> None:
     """Regression: fiscal free text used to round-trip through cp1252,
     silently replacing any character outside that codepage with '?'."""
     minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
-    decisao: dict[str, object] = {"Observação do Gestor": "aprovado ✔ — café não é cafe’"}
+    decisao: dict[str, object] = {"Observação do Gestor": "aprovado ✔ — café não é cafe’"}  # noqa: RUF001
     result = build_consolidated_workbook(
         "2026-06", minc, [], {}, existing_decisions={("INMS 1.06", "MinC"): decisao},
         valor_base=100000.0,
@@ -242,7 +245,7 @@ def test_non_latin1_free_text_is_preserved_unmangled() -> None:
     sheet = result.workbook[GLOSAS_SHEET]
     header = [sheet.cell(row=1, column=c).value for c in range(1, 17)]
     col = header.index("Observação do Gestor") + 1
-    assert sheet.cell(row=2, column=col).value == "aprovado ✔ — café não é cafe’"
+    assert sheet.cell(row=2, column=col).value == "aprovado ✔ — café não é cafe’"  # noqa: RUF001
 
 
 def test_read_existing_decisions_rejects_duplicate_indicador_header(tmp_path) -> None:  # type: ignore[no-untyped-def]

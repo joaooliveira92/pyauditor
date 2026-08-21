@@ -16,10 +16,8 @@ from typing import (
     Final,
     Literal,
     NoReturn,
-    TypeAlias,
     TypedDict,
     TypeGuard,
-    TypeVar,
     assert_never,
     cast,
 )
@@ -46,9 +44,9 @@ _CMD_CONSOLIDATE: Final[Literal["consolidate"]] = "consolidate"
 _CMD_SPLIT: Final[Literal["split"]] = "split"
 _CMD_RUN: Final[Literal["run"]] = "run"
 
-Command: TypeAlias = Literal["measure", "bootstrap", "report", "consolidate", "split", "run"]
+type Command = Literal["measure", "bootstrap", "report", "consolidate", "split", "run"]
 
-Orgao: TypeAlias = Literal["MinC", "MTur", "both"]
+type Orgao = Literal["MinC", "MTur", "both"]
 
 _DEFAULT_CONFIG_DIR: Final[Path] = Path("configs")
 _DEFAULT_DATA_DIR: Final[Path] = Path("input")
@@ -124,10 +122,7 @@ def _is_command(value: str) -> TypeGuard[Command]:
     )
 
 
-_T = TypeVar("_T")
-
-
-def _require(ns: argparse.Namespace, name: str, expected: type[_T]) -> _T:
+def _require[T](ns: argparse.Namespace, name: str, expected: type[T]) -> T:
     """Namespace attributes are `Any` by design — cast to `object` then
     narrow with isinstance. Confined to this boundary, argparse guarantees
     the attribute exists and has the type its `add_argument` declared.
@@ -572,7 +567,9 @@ def _dispatch_consolidate(args: argparse.Namespace) -> int:
         return 2
     setup_logging(
         log_path=_run_log_path(
-            consolidate_request.output_path.parent, _CMD_CONSOLIDATE, consolidate_request.competencia
+            consolidate_request.output_path.parent,
+            _CMD_CONSOLIDATE,
+            consolidate_request.competencia,
         ),
         **_logging_kwargs(args),
     )

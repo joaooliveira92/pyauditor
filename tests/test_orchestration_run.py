@@ -159,7 +159,8 @@ def test_execute_run_force_reruns_commands_marked_done(tmp_path: Path) -> None:
     execute_run(replace(request, force=True), on_state_change=lambda e: calls.append(e.command))
 
     assert calls != []  # force re-runs what the persisted state already marked done
-    assert all(entry.status == "done" for entry in execute_run(replace(request, force=True)).state.commands)
+    rerun_state = execute_run(replace(request, force=True)).state
+    assert all(entry.status == "done" for entry in rerun_state.commands)
 
 
 def test_execute_run_cascades_skip_to_downstream_commands(tmp_path: Path) -> None:

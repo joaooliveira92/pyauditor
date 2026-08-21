@@ -1,6 +1,6 @@
 """Glosa monetária: item 35 do Termo de Referência, per docs/spec/inms-pipeline.md
-§12. `Ajuste_NMS(%) = min(30%, Σ Pontos_NMS × 0,001%)`, valor da glosa =
-percentual × valor-base, teto de 30% com rollover do excedente para o mês
+§12. `Ajuste_NMS(%) = min(30%, Σ Pontos_NMS x 0,001%)`, valor da glosa =
+percentual x valor-base, teto de 30% com rollover do excedente para o mês
 seguinte (exceto no último mês de vigência do contrato).
 
 Rollover e reincidência (`.scratch/framework-audit/issues/11-estado-persistente-
@@ -101,7 +101,9 @@ def saldo_anterior_pct_de(historico: Historico, competencia: str) -> float:
     return float(value) if isinstance(value, int | float) else 0.0
 
 
-def houve_reincidencia(historico: Historico, competencia: str, teto_atingido_mes_atual: bool) -> bool:
+def houve_reincidencia(
+    historico: Historico, competencia: str, teto_atingido_mes_atual: bool
+) -> bool:
     """Item 35 do TR: teto de 30% estourado 3+ vezes em 6 meses caracteriza
     inexecução parcial do contrato — flag de compliance, não altera o valor
     da glosa (ver `.scratch/framework-audit/issues/03-reincidencia-nao-

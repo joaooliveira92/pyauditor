@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from functools import cache
 from pathlib import Path
-from typing import Annotated, Final, Literal, Self, TypeAlias
+from typing import Annotated, Final, Literal, Self
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -60,7 +60,7 @@ class WholeIndicatorMode(BaseModel):
     mode: Literal["whole_indicator"]
 
 
-CategoriaGrupoExecutor: TypeAlias = Annotated[
+type CategoriaGrupoExecutor = Annotated[
     GrupoExecutorMode | WholeIndicatorMode, Field(discriminator="mode")
 ]
 

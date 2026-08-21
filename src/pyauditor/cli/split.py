@@ -242,7 +242,8 @@ def run_split(
                 elif unmatched:
                     warning = (
                         f"INMS {inms_key} ({orgao}/{competencia}), categoria {categoria_key}: "
-                        f"in_values {unmatched!r} sem correspondência — valores não encontrados no CSV"
+                        f"in_values {unmatched!r} sem correspondência — "
+                        "valores não encontrados no CSV"
                     )
                     logger.warning(warning)
                     warnings.append(warning)

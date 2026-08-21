@@ -26,10 +26,15 @@ GROUP_TABS: Final[tuple[str, ...]] = (
 
 # docs/spreadsheet.md §Abas 5-8, in tab order — first match wins (see module docstring).
 _GROUP_MEMBERSHIP: Final[dict[str, tuple[str, ...]]] = {
-    ATENDIMENTO_N1: ("INMS 1.1", "INMS 1.2", "INMS 1.6", "INMS 1.7", "INMS 1.11", "INMS 1.12", "INMS 1.13"),
+    ATENDIMENTO_N1: (
+        "INMS 1.1", "INMS 1.2", "INMS 1.6", "INMS 1.7", "INMS 1.11", "INMS 1.12", "INMS 1.13",
+    ),
     MONITORAMENTO_NOC_SOC: ("INMS 1.4", "INMS 1.5", "INMS 1.14"),
     ATENDIMENTO_N2: ("INMS 1.1", "INMS 1.2", "INMS 1.6", "INMS 1.7", "INMS 1.9"),
-    OPERACAO_N3: ("INMS 1.1", "INMS 1.2", "INMS 1.3", "INMS 1.6", "INMS 1.7", "INMS 1.9", "INMS 1.10", "INMS 1.14"),
+    OPERACAO_N3: (
+        "INMS 1.1", "INMS 1.2", "INMS 1.3", "INMS 1.6", "INMS 1.7", "INMS 1.9", "INMS 1.10",
+        "INMS 1.14",
+    ),
 }
 
 
@@ -37,7 +42,9 @@ _GROUP_MEMBERSHIP: Final[dict[str, tuple[str, ...]]] = {
 # MONITORAMENTO_NOC_SOC's membership — exposed here so other modules (e.g.
 # excel/orgao_consolidation.py's MinC/MTur exception) don't hardcode a
 # second copy of this list and risk drifting from it.
-PER_ASSET_CONTRACTUAL_IDS: Final[frozenset[str]] = frozenset(_GROUP_MEMBERSHIP[MONITORAMENTO_NOC_SOC])
+PER_ASSET_CONTRACTUAL_IDS: Final[frozenset[str]] = frozenset(
+    _GROUP_MEMBERSHIP[MONITORAMENTO_NOC_SOC]
+)
 
 
 def primary_group(contractual_id: str) -> str | None:

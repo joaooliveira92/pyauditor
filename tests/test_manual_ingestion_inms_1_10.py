@@ -42,4 +42,4 @@ def test_schema_produces_a_valid_rom_and_lists_rejection_reason() -> None:
     assert "fora do conjunto permitido" in rom
     assert "QRC (recomendados): 5" in rom
     assert "QCSI (implantados): 3" in rom
-    assert "CNI = QRC − QCSI = 2" in rom
+    assert "CNI = QRC - QCSI = 2" in rom

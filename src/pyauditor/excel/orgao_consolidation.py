@@ -1,12 +1,13 @@
 """MinC/MTur consolidation for `INMS_BASE`, per docs/spreadsheet.md:
 
-    Resultado consolidado = (Numerador MinC + Numerador MTur) / (Denominador MinC + Denominador MTur)
+    Resultado consolidado =
+        (Numerador MinC + Numerador MTur) / (Denominador MinC + Denominador MTur)
 
 Used by `excel/consolidate.py`'s `consolidate` subcommand (2.1), which is the
 only place MinC and MTur summaries are ever combined — `report.py` is
 per-órgão by construction and never calls this (.scratch/multi-org-pipeline
 ticket 02). Only affects `INMS_BASE`'s view — `consolidate.py`'s GLOSAS keeps
-one row per (indicador × órgão), so this never double-counts penalty points.
+one row per (indicador x órgão), so this never double-counts penalty points.
 
 Scope: `docs/spreadsheet.md` calls out an exception for per-asset
 disponibilidade indicators (1.4/1.5/1.14) — "o consolidado deverá seguir a
@@ -21,7 +22,9 @@ from typing import Final
 from pyauditor.excel.groups import PER_ASSET_CONTRACTUAL_IDS
 from pyauditor.rom.summary import IndicatorSummary
 
-_CONSOLIDATABLE_SHAPES: Final[frozenset[str]] = frozenset({"ratio", "segmented_ratio", "count_difference"})
+_CONSOLIDATABLE_SHAPES: Final[frozenset[str]] = frozenset(
+    {"ratio", "segmented_ratio", "count_difference"}
+)
 
 # Mirrors engine/strategies/_target.py's tolerance. Duplicated rather than
 # imported: that module is package-private (leading underscore) to

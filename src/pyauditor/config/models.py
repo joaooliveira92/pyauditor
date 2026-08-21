@@ -6,13 +6,13 @@ All 4 shapes from docs/spec/inms-pipeline.md §2/§3 are modeled: `ratio`
 """
 from __future__ import annotations
 
-from typing import Annotated, Final, Literal, Self, TypeAlias
+from typing import Annotated, Final, Literal, Self
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from pyauditor.config._paths import reject_unsafe_relative_path
 
-_SafeRelativePath: TypeAlias = Annotated[str, AfterValidator(reject_unsafe_relative_path)]
+type _SafeRelativePath = Annotated[str, AfterValidator(reject_unsafe_relative_path)]
 
 __all__: Final[tuple[str, ...]] = (
     "Calculation",
@@ -102,7 +102,7 @@ class InSetCheck(BaseModel):
     values: list[str] = Field(min_length=1)
 
 
-QualityGateCheck: TypeAlias = Annotated[
+type QualityGateCheck = Annotated[
     NotNullCheck | InSetCheck, Field(discriminator="type")
 ]
 
@@ -137,7 +137,8 @@ class ColumnIn(BaseModel):
 
 
 class DurationAtMost(BaseModel):
-    """Matches rows where an `H:MM:SS` (or `D:HH:MM:SS`) duration column is at most `max_seconds`."""
+    """Matches rows where an `H:MM:SS` (or `D:HH:MM:SS`) duration column is
+    at most `max_seconds`."""
 
     model_config = _StrictFrozen
     column: str = Field(min_length=1)
@@ -145,7 +146,7 @@ class DurationAtMost(BaseModel):
 
 
 # Smart union — members distinguished by distinct field names, no discriminator
-Filter: TypeAlias = ColumnEquals | ColumnNotEquals | ColumnContains | ColumnIn | DurationAtMost
+type Filter = ColumnEquals | ColumnNotEquals | ColumnContains | ColumnIn | DurationAtMost
 
 
 class RatioCalculation(BaseModel):
@@ -157,8 +158,8 @@ class RatioCalculation(BaseModel):
     sum_numerator_column: str | None = Field(default=None, min_length=1)
     # Mutually exclusive: `sum_denominator_extra_column` for ΣX/(ΣX+ΣY)
     # (denominator = numerator + extra); `sum_numerator_subtract_column` for
-    # (ΣX−ΣY)/ΣX (denominator = the raw column sum, numerator = that minus
-    # the subtracted column — e.g. INMS 1.6 (ΣCA−ΣCR)/ΣCA).
+    # (ΣX-ΣY)/ΣX (denominator = the raw column sum, numerator = that minus
+    # the subtracted column — e.g. INMS 1.6 (ΣCA-ΣCR)/ΣCA).
     sum_denominator_extra_column: str | None = Field(default=None, min_length=1)
     sum_numerator_subtract_column: str | None = Field(default=None, min_length=1)
     precomputed_result_column: str | None = Field(default=None, min_length=1)
@@ -232,7 +233,7 @@ class PrecomputedTableCalculation(BaseModel):
     penalty_column: str | None = Field(default=None, min_length=1)
 
 
-Calculation: TypeAlias = Annotated[
+type Calculation = Annotated[
     RatioCalculation
     | SegmentedRatioCalculation
     | CountDifferenceCalculation
@@ -319,7 +320,7 @@ class PrecomputedTableAcceptanceExpected(BaseModel):
     penalty_points: float = Field(ge=0)
 
 
-AcceptanceTestExpected: TypeAlias = Annotated[
+type AcceptanceTestExpected = Annotated[
     RatioAcceptanceExpected
     | SegmentedRatioAcceptanceExpected
     | CountDifferenceAcceptanceExpected

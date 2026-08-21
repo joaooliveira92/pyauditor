@@ -177,8 +177,6 @@ def _build_evidencias_sheet(
     for row_idx, config in enumerate(sorted_configs, start=2):
         _write_row(sheet, row_idx, _evidencias_row(competencia, config))
 
-    tipo_col = 3  # "Tipo de evidência"
-    status_col = 8  # "Status"
     max_row = len(sorted_configs) + 1
 
     tipo_validation = DataValidation(
@@ -221,7 +219,8 @@ def _inms_base_row(competencia: str, summary: IndicatorSummary) -> tuple[CellVal
         None,  # Resultado esperado — fiscal-manual
         "Conforme" if summary.conforms else "Não conforme",
         round(diferenca_para_meta, 2) if diferenca_para_meta is not None else None,
-        None,  # Ocorrência de glosa — glosa é um agregado mensal (GLOSAS), não por indicador (spec §12)
+        # Ocorrência de glosa — glosa é um agregado mensal (GLOSAS), não por indicador (spec §12)
+        None,
         None,  # Percentual de glosa — idem
         None,  # Valor-base — idem
         None,  # Valor da glosa — idem
@@ -323,7 +322,9 @@ def build_report_workbook(
 
     if configs:
         cadastros_sheet = _new_sheet(workbook, CADASTROS_SHEET, _CADASTROS_COLUMNS, width=28)
-        for row_idx, config in enumerate(sorted(configs, key=lambda c: c.indicator.contractual_id), start=2):
+        for row_idx, config in enumerate(
+            sorted(configs, key=lambda c: c.indicator.contractual_id), start=2
+        ):
             _write_row(cadastros_sheet, row_idx, _cadastros_row(config))
 
     # MinC/MTur pooling lives in `consolidate` (2.1), not here — this report

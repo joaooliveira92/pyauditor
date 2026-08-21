@@ -90,7 +90,9 @@ def _load_common_capa(data_dir: Path, warnings: list[str]) -> dict[str, object]:
     truncada (não bloqueia; a criticidade é do ticket 02/03)."""
     path = data_dir / "capa.csv"
     if not path.exists():
-        warnings.append(f"capa.csv não encontrado em {data_dir} — capa do consolidado sem campos comuns")
+        warnings.append(
+            f"capa.csv não encontrado em {data_dir} — capa do consolidado sem campos comuns"
+        )
         return {}
     try:
         return read_capa_csv_fields(path)  # type: ignore[return-value]

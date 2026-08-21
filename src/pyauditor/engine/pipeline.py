@@ -14,7 +14,7 @@ from pathlib import Path
 import yaml
 
 from pyauditor.config.manifest import DatasetManifest
-from pyauditor.config.models import IndicatorConfig
+from pyauditor.config.models import Filter, IndicatorConfig
 from pyauditor.engine.quality_gates import QualityGateReport, QualityGateRunner
 from pyauditor.engine.strategies import SHAPE_REGISTRY
 from pyauditor.engine.strategies.base import CalculationResult
@@ -93,10 +93,9 @@ def _collect_config_columns(config: IndicatorConfig) -> set[str]:
     cols: set[str] = set()
     for check in config.quality_gates.checks:
         cols.add(check.column)
-    # helper for Filter union — every variant has `column`
-    def _filter_col(f: object | None) -> None:
+    def _filter_col(f: Filter | None) -> None:
         if f is not None:
-            cols.add(getattr(f, "column"))
+            cols.add(f.column)
 
     calc = config.calculation
     # shape-specific columns (only those that are column names)
@@ -142,7 +141,11 @@ def load_config(config_path: Path) -> IndicatorConfig:
     if isinstance(raw, dict) and "indicator" not in raw:
         # Detect typo like `indicador:` — instead of silently skipping later
         for key in raw:
-            if isinstance(key, str) and key.strip().lower() in ("indicador", "indicators", "indicatior"):
+            if isinstance(key, str) and key.strip().lower() in (
+                "indicador",
+                "indicators",
+                "indicatior",
+            ):
                 raise ValueError(
                     f"{config_path}: chave {key!r} encontrada, esperado 'indicator:' — "
                     "typo no YAML, corrija a chave"
@@ -150,7 +153,8 @@ def load_config(config_path: Path) -> IndicatorConfig:
         # also check if file looks like an indicator config (inms-*.yaml) but missing key
         if config_path.name.startswith("inms-"):
             raise ValueError(
-                f"{config_path}: chave 'indicator:' ausente — arquivo não é config válida de indicador"
+                f"{config_path}: chave 'indicator:' ausente — "
+                "arquivo não é config válida de indicador"
             )
     return IndicatorConfig.model_validate(raw)
 
@@ -222,7 +226,8 @@ def discover_config_files(
                         )
                 if path.name.startswith("inms-"):
                     raise ValueError(
-                        f"{path}: chave 'indicator:' ausente — arquivo não é config válida de indicador"
+                        f"{path}: chave 'indicator:' ausente — "
+                        "arquivo não é config válida de indicador"
                     )
             # Not an indicator config (e.g. `datasets.yaml`, the manifest that
             # now lives alongside the indicators) — skip it.

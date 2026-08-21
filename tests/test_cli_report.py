@@ -23,7 +23,9 @@ TOTAL ANUAL;;"R$ 5.532.762,96"
 """
 
 
-def _write_summary(roms_dir: Path, competencia: str, indicator_id: str, contractual_id: str) -> None:
+def _write_summary(
+    roms_dir: Path, competencia: str, indicator_id: str, contractual_id: str
+) -> None:
     target_dir = roms_dir / competencia
     target_dir.mkdir(parents=True, exist_ok=True)
     summary = {
@@ -111,7 +113,8 @@ def test_run_report_next_competencia_consumes_rollover(tmp_path: Path) -> None:
     _write_summary_with_points(roms_dir, "2026-07", "INMS-1.1", "INMS 1.1", 0.0)
     output_path = tmp_path / "reports" / "relatorio_2026-07.xlsx"
     exit_code = run_report(
-        "2026-07", comum, roms_dir, output_path, config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-07", comum, roms_dir, output_path,
+        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -233,7 +236,8 @@ def test_run_report_builds_workbook_from_summaries(tmp_path: Path) -> None:
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
     exit_code = run_report(
-        "2026-06", comum, roms_dir, output_path, config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06", comum, roms_dir, output_path,
+        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -252,7 +256,8 @@ def test_run_report_is_regenerated_not_cumulative(tmp_path: Path) -> None:
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
     run_report(
-        "2026-06", comum, roms_dir, output_path, config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06", comum, roms_dir, output_path,
+        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
     )
     first_size = output_path.stat().st_size
 
@@ -260,7 +265,8 @@ def test_run_report_is_regenerated_not_cumulative(tmp_path: Path) -> None:
     # exactly the current ROMs, not append to the previous run's workbook.
     _write_summary(roms_dir, "2026-06", "INMS-1.2", "INMS 1.2")
     run_report(
-        "2026-06", comum, roms_dir, output_path, config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06", comum, roms_dir, output_path,
+        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
     )
 
     workbook = load_workbook(output_path)
@@ -277,7 +283,8 @@ def test_run_report_reads_valor_base_from_objetos_for_glosas(tmp_path: Path) -> 
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
     exit_code = run_report(
-        "2026-06", comum, roms_dir, output_path, config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06", comum, roms_dir, output_path,
+        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -296,7 +303,8 @@ def test_run_report_without_objetos_marks_glosa_nao_calculada(tmp_path: Path) ->
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
     exit_code = run_report(
-        "2026-06", comum, roms_dir, output_path, config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06", comum, roms_dir, output_path,
+        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"

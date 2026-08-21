@@ -101,7 +101,9 @@ target:
     assert result.calculation.result_pct == pytest.approx(60.0)
 
 
-def test_count_difference_conforms_when_all_recommended_controls_implemented(tmp_path: Path) -> None:
+def test_count_difference_conforms_when_all_recommended_controls_implemented(
+    tmp_path: Path,
+) -> None:
     config_yaml = """
 indicator:
   id: INMS-TEST-1.10-CONFORME

@@ -16,9 +16,12 @@ def _loaded(id_: str, contractual: str) -> tuple[Path, str, SimpleNamespace]:
 
 
 def test_happy_path(tmp_path: Path) -> None:
-    cfg_dir = tmp_path / "configs"; cfg_dir.mkdir()
-    data_dir = tmp_path / "input"; data_dir.mkdir()
-    out_dir = tmp_path / "roms"; out_dir.mkdir()
+    cfg_dir = tmp_path / "configs"
+    cfg_dir.mkdir()
+    data_dir = tmp_path / "input"
+    data_dir.mkdir()
+    out_dir = tmp_path / "roms"
+    out_dir.mkdir()
     configs = [_loaded("ind_a", "C-A"), _loaded("ind_b", "C-B")]
     result_ok = SimpleNamespace(hard_failure=False)
     result_fail = SimpleNamespace(hard_failure=True)
@@ -91,12 +94,14 @@ def test_missing_capa_warns_but_does_not_fail(tmp_path: Path) -> None:
 def test_capa_missing_fields_warn_once_per_run(tmp_path: Path) -> None:
     loaded = [_loaded("a", "C-A"), _loaded("b", "C-B")]
     fields = {"Fiscal técnico": "Fulano de Tal"}  # everything else left blank
-    with patch("pyauditor.cli.measure.discover_config_files", return_value=loaded), \
-         patch("pyauditor.cli.measure.measure", return_value=SimpleNamespace(hard_failure=False)), \
-         patch("pyauditor.cli.measure.render_rom", return_value="x"), \
-         patch("pyauditor.cli.measure.summarize", return_value=SimpleNamespace(to_dict=lambda: {})), \
-         patch("pyauditor.cli.measure.read_capa_csv_fields", return_value=fields), \
-         patch("pyauditor.cli.measure.logger") as logger_mock:
+    with (
+        patch("pyauditor.cli.measure.discover_config_files", return_value=loaded),
+        patch("pyauditor.cli.measure.measure", return_value=SimpleNamespace(hard_failure=False)),
+        patch("pyauditor.cli.measure.render_rom", return_value="x"),
+        patch("pyauditor.cli.measure.summarize", return_value=SimpleNamespace(to_dict=lambda: {})),
+        patch("pyauditor.cli.measure.read_capa_csv_fields", return_value=fields),
+        patch("pyauditor.cli.measure.logger") as logger_mock,
+    ):
         capa_path = tmp_path / "capa_MinC.csv"
         capa_path.write_bytes(b"")
         code = run_measure("2026-06", tmp_path, tmp_path, tmp_path, capa_path=capa_path)
@@ -117,7 +122,8 @@ def test_capa_fields_reach_render_rom(tmp_path: Path) -> None:
          patch("pyauditor.cli.measure.summarize", return_value=summarize_result), \
          patch("pyauditor.cli.measure.read_capa_csv_fields", return_value=fields):
         capa_path = tmp_path / "capa_MinC.csv"
-        capa_path.write_bytes(b"")  # only existence is checked before read_capa_csv_fields is called
+        # only existence is checked before read_capa_csv_fields is called
+        capa_path.write_bytes(b"")
         code = run_measure("2026-06", tmp_path, tmp_path, tmp_path, capa_path=capa_path)
         assert code.status == "done"
         assert render_mock.call_args.kwargs["capa_fields"] == fields

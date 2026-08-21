@@ -103,7 +103,9 @@ def _load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
     return summaries
 
 
-def _load_capa_fields(capa_path: Path, orgao: str, data_dir: Path) -> tuple[dict[str, object], list[str]]:
+def _load_capa_fields(
+    capa_path: Path, orgao: str, data_dir: Path
+) -> tuple[dict[str, object], list[str]]:
     """Carrega e funde as capas CSV (comum + órgão) num único dict de campos.
     Capa ausente/comum vira rascunho (warnings), nunca falha técnica —
     processar não exige capa (ticket 02)."""
@@ -165,7 +167,9 @@ def run_report(
     # Defense-in-depth: same checker `cli_main`/the orchestrator call pre-dispatch
     # (ticket "Dependency enforcement") — direct callers that bypass dispatch
     # (tests, future code) still get it.
-    dependency_check = check_report_ready(competencia, orgao, capa_path, roms_dir, data_dir=data_dir)
+    dependency_check = check_report_ready(
+        competencia, orgao, capa_path, roms_dir, data_dir=data_dir
+    )
     if not dependency_check.satisfied:
         return _error("dependência não satisfeita: " + "; ".join(dependency_check.missing))
 
