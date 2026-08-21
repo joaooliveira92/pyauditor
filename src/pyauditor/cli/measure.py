@@ -45,6 +45,10 @@ class IndicatorOutcome:
     summary_path: Path
     hard_failure: bool
     error: str | None
+    # Dataset ausente para a competência (spec §14.1) — não é falha, mas
+    # também não é "medido com população zero" (report/xlsx precisam
+    # distinguir os dois estados: ticket 02 do tracker inms-categoria-split).
+    not_activated: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,19 +188,19 @@ def run_measure(
                 config_path=config_path,
                 config_hash=config_hash,
             )
-            rom_path.write_text(render_rom(result, capa_fields=capa_fields), encoding="utf-8")
-            summary = summarize(result)
-            summary_path.write_text(
-                json.dumps(summary.to_dict(), ensure_ascii=False, indent=2),
-                encoding="utf-8",
+        # Dataset ausente na competência (spec §14.1): não é falha de quality
+        # gate nem erro — o elemento contratual não foi demandado/ativado no
+        # período. Vale para os 14 indicadores, não só os de categoria.
+        except FileNotFoundError:
+            warning = (
+                f"{contractual_id} ({config.scope.orgao}/{competencia}): não ativado — "
+                "dataset ausente (serviço não requisitado no período)"
             )
-        except OSError as exc:
-            message = f"falha ao escrever {rom_path}: {exc} — {WRITE_FAILURE_HINT}"
-            logger.error(message)
-            any_hard_failure = True
+            logger.warning(warning)
+            warnings.append(warning)
             outcomes.append(IndicatorOutcome(
                 contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
-                hard_failure=True, error=message,
+                hard_failure=False, error=None, not_activated=True,
             ))
             continue
         # Broad by design — isolates one indicator's failure so the rest of the
@@ -205,6 +209,23 @@ def run_measure(
         # doesn't, since a batch of indicators shouldn't die together).
         except Exception as exc:
             message = f"{contractual_id}: exceção na medição: {exc}"
+            logger.error(message)
+            any_hard_failure = True
+            outcomes.append(IndicatorOutcome(
+                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
+                hard_failure=True, error=message,
+            ))
+            continue
+
+        try:
+            rom_path.write_text(render_rom(result, capa_fields=capa_fields), encoding="utf-8")
+            summary = summarize(result)
+            summary_path.write_text(
+                json.dumps(summary.to_dict(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            message = f"falha ao escrever {rom_path}: {exc} — {WRITE_FAILURE_HINT}"
             logger.error(message)
             any_hard_failure = True
             outcomes.append(IndicatorOutcome(

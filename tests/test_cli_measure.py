@@ -155,6 +155,35 @@ def test_measure_os_error_writing_rom_has_actionable_hint(tmp_path: Path) -> Non
     assert "aberto em outro programa" in failing.error
 
 
+def test_measure_missing_dataset_is_not_activated_not_a_failure(tmp_path: Path) -> None:
+    """Spec §14.1: um CSV ausente na competência não é falha de medição — o
+    elemento contratual não foi demandado/ativado no período. `measure` deve
+    completar com sucesso, emitir o WARNING e marcar o indicador como
+    `not_activated`, sem escrever ROM/JSON para ele."""
+    config_dir = tmp_path / "configs"
+    data_dir = tmp_path / "input"
+    output_dir = tmp_path / "roms"
+    config_dir.mkdir(parents=True)
+    (data_dir / "2026" / "06").mkdir(parents=True)
+    (config_dir / "inms-test.yaml").write_text(
+        CONFIG_YAML.replace("csv: data.csv", "csv: missing.csv"), encoding="utf-8"
+    )
+
+    exit_code = run_measure("2026-06", config_dir, data_dir, output_dir)
+
+    assert exit_code.status == "done"
+    outcome = exit_code.indicators[0]
+    assert outcome.not_activated is True
+    assert outcome.hard_failure is False
+    assert not outcome.rom_path.exists()
+    assert not outcome.summary_path.exists()
+    assert any(
+        "INMS TEST (MinC/2026-06): não ativado — dataset ausente "
+        "(serviço não requisitado no período)" in warning
+        for warning in exit_code.warnings
+    )
+
+
 def _write_per_orgao_config_and_data(
     tmp_path: Path, orgao: str, contract: str, csv_body: str
 ) -> None:
