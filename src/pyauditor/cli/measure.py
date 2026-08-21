@@ -27,6 +27,7 @@ from typing import Final
 
 from pyauditor.categoria_filter import (
     GRUPO_EXECUTOR_COLUMN,
+    base_config_stem,
     compute_categoria_values,
     read_raw_csv,
 )
@@ -202,6 +203,20 @@ def run_measure(
             except (OSError, ValueError) as exc:
                 logger.warning(f"falha ao carregar categorias {categorias_path}: {exc}")
 
+    # ADR 0002 (compat retroativa): configs por categoria que o `split`
+    # materializa em disco (`inms-NN.<categoria>.yaml`, mesmo diretório) são
+    # descartadas silenciosamente da descoberta — o caminho de fato usado
+    # hoje é a expansão em memória logo abaixo (Ticket 04), a partir do
+    # config base; reprocessar a config derivada recria a mesma expansão
+    # sobre um CSV já filtrado, gerando ids compostos espúrios (bug real).
+    derived_config_stems: set[str] = set()
+    for categoria_inms_key, categoria_entries in per_inms.items():
+        try:
+            stem = base_config_stem(categoria_inms_key)
+        except ValueError:
+            continue
+        derived_config_stems.update(f"{stem}.{cat_key}" for cat_key, _entry in categoria_entries)
+
     any_hard_failure = False
     outcomes: list[IndicatorOutcome] = []
 
@@ -312,6 +327,8 @@ def run_measure(
             ))
 
     for config_path, config_hash, config in configs:
+        if config_path.stem in derived_config_stems:
+            continue
         contractual_id = config.indicator.contractual_id
         inms_key: str | None = _inms_key_from_contractual_id(contractual_id)
         entries = per_inms.get(inms_key) if inms_key is not None else None

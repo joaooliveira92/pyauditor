@@ -5,6 +5,7 @@ import pytest
 
 from pyauditor.cli.main import cli_main
 from pyauditor.cli.measure import run_measure
+from pyauditor.cli.split import run_split
 
 CONFIG_YAML = """\
 indicator:
@@ -245,3 +246,91 @@ def test_measure_both_writes_per_orgao_and_combined_roms(
     assert combined_content.count("### Resultado vs meta") == 2
     assert "- Órgão: MinC" in combined_content
     assert "- Órgão: MTur" in combined_content
+
+
+_CATEGORIA_CONFIG_YAML = """\
+indicator:
+  id: INMS-01
+  contractual_id: "INMS 1.1"
+  name: Incidentes atendidos dentro do prazo
+
+scope:
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-01.csv
+  delimiter: ";"
+  encoding: utf-8
+  period_column: "DataHoraFim"
+
+quality_gates:
+  checks:
+    - type: not_null
+      column: "DataHoraFim"
+
+calculation:
+  shape: ratio
+  aggregation: count_distinct
+  numerator_filter:
+    column: "No prazo"
+    equals: "S"
+
+target:
+  operator: ">="
+  value: 98.0
+
+penalty:
+  base_points: 165
+  step_points: 20
+  step_size_pct: 0.1
+"""
+
+_CATEGORIAS_YAML = """\
+categorias:
+  ATENDIMENTO_N1:
+    label: "Atendimento Remoto aos Usuários"
+    inms:
+      "1.1": {mode: grupo_executor, in_values: ["N1"]}
+  OPERACAO_N3:
+    label: "Operação e Sustentação da Infraestrutura de TI"
+    inms:
+      "1.1": {mode: grupo_executor, catch_all_contains: "(CIT)"}
+"""
+
+_CATEGORIA_RAW_CSV = (
+    "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n"
+    "1;2026-06-01;S;N1\n"
+    "2;2026-06-02;S;N1\n"
+    "3;2026-06-03;S;(CIT) - Infra\n"
+)
+
+
+def test_run_measure_ignores_split_derived_configs_on_disk(tmp_path: Path) -> None:
+    """Regressão: `split` materializa `inms-01.<categoria>.yaml` no mesmo
+    diretório do config base (ADR 0002). `run_measure` já expande as
+    categorias em memória a partir do config base (Ticket 04) — se também
+    redescobrir os YAMLs derivados pelo glob, reprocessa cada categoria de
+    novo a partir do CSV já filtrado, produzindo ids compostos espúrios
+    (`INMS-01.ATENDIMENTO_N1.ATENDIMENTO_N1` etc.)."""
+    config_dir = tmp_path / "configs"
+    data_dir = tmp_path / "input"
+    output_dir = tmp_path / "roms"
+    competencia_data_dir = data_dir / "2026" / "06"
+    competencia_data_dir.mkdir(parents=True)
+    config_dir.mkdir(parents=True)
+    (config_dir / "inms-01.yaml").write_text(_CATEGORIA_CONFIG_YAML, encoding="utf-8")
+    (config_dir / "categorias.yaml").write_text(_CATEGORIAS_YAML, encoding="utf-8")
+    (competencia_data_dir / "inms-01.csv").write_text(_CATEGORIA_RAW_CSV, encoding="utf-8")
+
+    split_result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    assert split_result.status == "done"
+    assert (config_dir / "inms-01.ATENDIMENTO_N1.yaml").exists()
+    assert (config_dir / "inms-01.OPERACAO_N3.yaml").exists()
+
+    result = run_measure("2026-06", config_dir, data_dir, output_dir, expected_orgao="MinC")
+
+    assert result.status == "done"
+    assert len(result.indicators) == 2
+    written = {p.stem for p in (output_dir / "2026-06").glob("*.md")}
+    assert written == {"INMS-01.ATENDIMENTO_N1", "INMS-01.OPERACAO_N3"}
