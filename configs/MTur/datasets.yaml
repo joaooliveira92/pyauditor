@@ -39,7 +39,7 @@ datasets:
 
   satisfacao:
     file: inms-07.csv
-    delimiter: ";"
+    delimiter: ","
     encoding: utf-8-sig
 
   desconformidade_tecnica:
@@ -59,12 +59,12 @@ datasets:
 
   telefonemas:
     file: inms-11.csv
-    delimiter: ";"
+    delimiter: ","
     encoding: utf-8-sig
 
   chamadas_telefonicas:
     file: inms-12.csv
-    delimiter: ";"
+    delimiter: ","
     encoding: utf-8-sig
 
   chamados_grupo_executor:

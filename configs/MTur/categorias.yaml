@@ -28,22 +28,18 @@ categorias:
         mode: grupo_executor
         in_values:
           - "CIT - 2º Nível"
-          - "CIT - 2º Nível/Anexo"
       "1.2":
         mode: grupo_executor
         in_values:
           - "CIT - 2º Nível"
-          - "CIT - 2º Nível/Anexo"
       "1.6":
         mode: grupo_executor
         in_values:
           - "CIT - 2º Nível"
-          - "CIT - 2º Nível/Anexo"
       "1.7":
         mode: grupo_executor
         in_values:
           - "CIT - 2º Nível"
-          - "CIT - 2º Nível/Anexo"
       # 1.9 não tem Grupo_executor no MTur — conta só em OPERACAO_N3.
   OPERACAO_N3:
     label: "Operação e Sustentação da Infraestrutura de TI"
