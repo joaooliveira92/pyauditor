@@ -88,12 +88,15 @@ def load_rows(source_path: Path, delimiter: str, encoding: str) -> list[dict[str
         return [{name: (row.get(name) or "").strip() for name in fieldnames} for row in reader]
 
 
-def _resolve_source(
+def resolve_source(
     config: IndicatorConfig,
     data_dir: Path,
     manifest: DatasetManifest | None,
 ) -> tuple[Path, str, str]:
     """Resolve the CSV path + parsing options from the indicator's source config.
+
+    Public (not `measure()`-only) — `cli/split.py` also resolves a base
+    indicator's raw source before filtering it per Categoria.
 
     Returns:
         (csv_path, delimiter, encoding)
@@ -168,7 +171,7 @@ def measure(
     path (`discover_config_files` -> `cli/measure.py`) always supplies both,
     reusing the text it already read, so this fallback only fires for direct
     callers that skip `discover_config_files`."""
-    csv_path, delimiter, encoding = _resolve_source(config, data_dir, manifest)
+    csv_path, delimiter, encoding = resolve_source(config, data_dir, manifest)
     rows = load_rows(csv_path, delimiter, encoding)
 
     gate_runner = QualityGateRunner(config.quality_gates.checks, id_column=config.source.id_column)

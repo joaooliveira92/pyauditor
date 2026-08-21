@@ -18,6 +18,11 @@ input/
 /roms/
 /reports/
 
+# `split` derived per-Categoria configs (regenerated from categorias.yaml +
+# the raw CSV each run — ticket 03, ADR 0002). Extra dot vs. the base
+# `inms-<n>.yaml` is the reserved naming convention that makes this glob safe.
+configs/*/inms-*.*.yaml
+
 # `pyauditor run`/interactive run-state (ticket "Run orchestrator and resume")
 /.pyauditor/
 

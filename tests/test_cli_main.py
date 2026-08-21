@@ -56,6 +56,20 @@ def test_cli_main_happy_path(tmp_path: Path) -> None:
         assert m.call_args.kwargs["expected_orgao"] == "MinC"
 
 
+def test_cli_main_split_dispatches(tmp_path: Path) -> None:
+    cfg, data = tmp_path / "c", tmp_path / "d"
+    for p in (cfg, data):
+        p.mkdir()
+    with patch("pyauditor.cli.main.run_split", return_value=SimpleNamespace(status="done")) as m:
+        code = cli_main(
+            ["split", "2026-06", "--config-dir", str(cfg), "--data-dir", str(data)]
+        )
+        assert code == 0
+        assert m.call_args.kwargs["competencia"] == "2026-06"
+        assert m.call_args.kwargs["config_dir"] == cfg / "MinC"
+        assert m.call_args.kwargs["expected_orgao"] == "MinC"
+
+
 def test_cli_main_measure_dispatches_with_capa_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

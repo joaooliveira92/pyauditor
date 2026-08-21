@@ -30,6 +30,7 @@ from pyauditor.cli.measure import _MeasuredIndicator, run_measure, write_combine
 from pyauditor.cli.report import ReportResult, check_report_ready, run_report
 from pyauditor.cli.results import exit_code_for, exit_code_for_results
 from pyauditor.cli.run import run_run
+from pyauditor.cli.split import run_split
 from pyauditor.config.manifest import load_manifest
 from pyauditor.logging import logger, setup_logging
 
@@ -42,9 +43,10 @@ _CMD_MEASURE: Final[Literal["measure"]] = "measure"
 _CMD_BOOTSTRAP: Final[Literal["bootstrap"]] = "bootstrap"
 _CMD_REPORT: Final[Literal["report"]] = "report"
 _CMD_CONSOLIDATE: Final[Literal["consolidate"]] = "consolidate"
+_CMD_SPLIT: Final[Literal["split"]] = "split"
 _CMD_RUN: Final[Literal["run"]] = "run"
 
-Command: TypeAlias = Literal["measure", "bootstrap", "report", "consolidate", "run"]
+Command: TypeAlias = Literal["measure", "bootstrap", "report", "consolidate", "split", "run"]
 
 Orgao: TypeAlias = Literal["MinC", "MTur", "both"]
 
@@ -91,6 +93,17 @@ class ReportRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class SplitRequest:
+    """Validated, immutable request for `split`."""
+
+    competencia: str
+    config_dir: Path
+    data_dir: Path
+    manifest_path: Path
+    orgao: Orgao
+
+
+@dataclass(frozen=True, slots=True)
 class ConsolidateRequest:
     """Validated, immutable request for `consolidate` — CLI agnostic of
     `--orgao`: it's the MinC+MTur fusion step by definition (ticket 04 Q2).
@@ -105,7 +118,9 @@ class ConsolidateRequest:
 
 
 def _is_command(value: str) -> TypeGuard[Command]:
-    return value in (_CMD_MEASURE, _CMD_BOOTSTRAP, _CMD_REPORT, _CMD_CONSOLIDATE, _CMD_RUN)
+    return value in (
+        _CMD_MEASURE, _CMD_BOOTSTRAP, _CMD_REPORT, _CMD_CONSOLIDATE, _CMD_SPLIT, _CMD_RUN,
+    )
 
 
 _T = TypeVar("_T")
@@ -256,6 +271,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_logging_arguments(consolidate_parser)
 
+    split_parser = subparsers.add_parser(
+        _CMD_SPLIT,
+        help="gera CSVs filtrados + configs derivadas por Categoria (spec §14.3)",
+    )
+    split_parser.add_argument("competencia", help='ex.: "2026-06"')
+    _add_orgao_argument(split_parser)
+    split_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
+    split_parser.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA_DIR)
+    split_parser.add_argument(
+        "--manifest", type=Path, default=None,
+        help="caminho para datasets.yaml (default: <config-dir>/<órgão>/datasets.yaml)"
+    )
+    _add_logging_arguments(split_parser)
+
     run_parser = subparsers.add_parser(
         _CMD_RUN,
         help="encadeia bootstrap→measure→report→consolidate numa invocação scriptável",
@@ -310,6 +339,24 @@ def _extract_measure_request(ns: argparse.Namespace) -> MeasureRequest:
         manifest_path=manifest_path,
         orgao=cast(Orgao, orgao),
         capa_path=_extract_capa_path(ns, data_dir=data_dir),
+    )
+
+
+def _extract_split_request(ns: argparse.Namespace) -> SplitRequest:
+    config_dir = _require(ns, "config_dir", Path)
+    orgao = _require(ns, "orgao", str)
+    manifest_arg: object = cast(object, getattr(ns, "manifest", None))
+    manifest_path = (
+        config_dir / orgao / "datasets.yaml"
+        if manifest_arg is None
+        else _require(ns, "manifest", Path)
+    )
+    return SplitRequest(
+        competencia=_require(ns, "competencia", str),
+        config_dir=config_dir,
+        data_dir=_require(ns, "data_dir", Path),
+        manifest_path=manifest_path,
+        orgao=cast(Orgao, orgao),
     )
 
 
@@ -407,6 +454,33 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
         # per-orgão ROMs (roms/MinC/..., roms/MTur/...).
         write_combined_roms(per_orgao, request.competencia, request.output_dir)
     return exit_code_for_results(measure_results)
+
+
+def _dispatch_split(args: argparse.Namespace) -> int:
+    request = _extract_split_request(args)
+    setup_logging(
+        log_path=_run_log_path(
+            request.data_dir / request.orgao / request.competencia,
+            _CMD_SPLIT, request.competencia,
+        ),
+        **_logging_kwargs(args),
+    )
+    split_results = []
+    for orgao in _each_single_orgao(request.orgao):
+        per_orgao_config_dir = request.config_dir / orgao
+        per_orgao_data_dir = request.data_dir / orgao
+        per_orgao_manifest_path = request.config_dir / orgao / "datasets.yaml"
+        manifest = None
+        if per_orgao_manifest_path.exists():
+            manifest = load_manifest(per_orgao_manifest_path)
+        split_results.append(run_split(
+            competencia=request.competencia,
+            config_dir=per_orgao_config_dir,
+            data_dir=per_orgao_data_dir,
+            expected_orgao=orgao,
+            manifest=manifest,
+        ))
+    return exit_code_for_results(split_results)
 
 
 def _dispatch_bootstrap(args: argparse.Namespace) -> int:
@@ -559,6 +633,8 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
         return _dispatch_report(args)
     elif command == _CMD_CONSOLIDATE:
         return _dispatch_consolidate(args)
+    elif command == _CMD_SPLIT:
+        return _dispatch_split(args)
     elif command == _CMD_RUN:
         return _dispatch_run(args)
     else:
