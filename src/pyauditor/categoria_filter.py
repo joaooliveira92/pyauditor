@@ -1,0 +1,91 @@
+"""Helpers compartilhados de filtragem Categoria/`Grupo_executor` (spec
+§14.1-§14.3): resolve as entradas `in_values`/`catch_all_contains` de
+`categorias.yaml` contra os literais reais de `Grupo_executor` do CSV bruto,
+incluindo o resto `outros`. `cli/split.py` (grava os CSVs filtrados) e
+`excel/sintetico.py` (o relatório sintetico.xlsx, só leitura, sobre as
+mesmas regras — ticket 05) precisam do mesmo cálculo de `outros` — este é o
+único lugar que mantém os dois comportamentos idênticos.
+
+Vive fora de `cli/` para que `excel/` (que nunca depende de `cli/`) também
+possa importar.
+"""
+
+from __future__ import annotations
+
+import csv
+import re
+from pathlib import Path
+from typing import Final
+
+from pyauditor.config.categorias import GrupoExecutorMode
+
+__all__: Final[tuple[str, ...]] = (
+    "GRUPO_EXECUTOR_COLUMN",
+    "base_config_stem",
+    "compute_categoria_values",
+    "read_raw_csv",
+)
+
+GRUPO_EXECUTOR_COLUMN: Final[str] = "Grupo_executor"
+_INMS_KEY_RE: Final = re.compile(r"^1\.(\d+)$")
+
+
+def base_config_stem(inms_key: str) -> str:
+    """`"1.7"` -> `"inms-07"` — mesma convenção dos configs base
+    `inms-NN.yaml` já descobertos por `measure`."""
+    match = _INMS_KEY_RE.match(inms_key)
+    if match is None:
+        raise ValueError(
+            f"chave INMS inesperada em categorias.yaml: {inms_key!r} (esperado '1.<n>')"
+        )
+    return f"inms-{int(match.group(1)):02d}"
+
+
+def read_raw_csv(
+    path: Path, delimiter: str, encoding: str
+) -> tuple[list[str], list[dict[str, str]]]:
+    """Como `engine.pipeline.load_rows`, mas também devolve os nomes de
+    coluna — os chamadores precisam deles pra gravar `outros.csv` com
+    cabeçalho mesmo quando o CSV bruto não tem nenhuma linha, e pra checar
+    quais colunas opcionais (`No prazo`, `DataHoraSolicitacao`/
+    `DataHoraFim`) estão de fato presentes."""
+    with path.open(encoding=encoding, newline="") as handle:
+        reader = csv.DictReader(handle, delimiter=delimiter)
+        if reader.fieldnames is None:
+            raise ValueError(f"{path}: CSV vazio ou sem linha de cabeçalho")
+        fieldnames = [name.strip() for name in reader.fieldnames]
+        reader.fieldnames = fieldnames
+        rows = [
+            {name: (row.get(name) or "").strip() for name in fieldnames} for row in reader
+        ]
+    return fieldnames, rows
+
+
+def compute_categoria_values(
+    entries: list[tuple[str, GrupoExecutorMode]], real_values: set[str]
+) -> tuple[dict[str, set[str]], set[str]]:
+    """Resolve o conjunto efetivo de literais `Grupo_executor` de cada
+    categoria contra *real_values*, mais o resto `outros` (spec
+    §14.1/§14.3): `catch_all_contains` exclui o que `in_values` já
+    reivindicou dentro do mesmo INMS. Devolve `(per_categoria,
+    outros_values)`, `per_categoria` na ordem de *entries*."""
+    in_values_claimed: set[str] = set()
+    for _categoria_key, entry in entries:
+        if entry.in_values is not None:
+            in_values_claimed.update(entry.in_values)
+
+    claimed_overall: set[str] = set()
+    per_categoria: dict[str, set[str]] = {}
+    for categoria_key, entry in entries:
+        if entry.in_values is not None:
+            effective_values = set(entry.in_values)
+        else:
+            assert entry.catch_all_contains is not None
+            effective_values = {
+                v for v in real_values if entry.catch_all_contains in v
+            } - in_values_claimed
+        claimed_overall |= effective_values
+        per_categoria[categoria_key] = effective_values
+
+    outros_values = real_values - claimed_overall
+    return per_categoria, outros_values

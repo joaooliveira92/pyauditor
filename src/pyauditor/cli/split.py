@@ -15,12 +15,16 @@ For each INMS with at least one `grupo_executor` entry:
 `inms-<n>.yaml` measures the whole dataset directly. `split` always
 overwrites on rerun (idempotent by regeneration); the raw CSV is never
 touched.
+
+When *output_dir* (a ROMs base dir, `roms/<orgao>`) is given, `run_split`
+also (re)writes `<output_dir>/<competencia>/sintetico.xlsx` (spec §14.4,
+ticket 05) — see `excel/sintetico.py` for that report's own INMS-mode
+coverage, which spans both `grupo_executor` and `whole_indicator`.
 """
 
 from __future__ import annotations
 
 import csv
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -28,11 +32,18 @@ from typing import Final
 import yaml
 
 from pyauditor.atomic_write import atomic_write
+from pyauditor.categoria_filter import (
+    GRUPO_EXECUTOR_COLUMN,
+    base_config_stem,
+    compute_categoria_values,
+    read_raw_csv,
+)
 from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
 from pyauditor.config.categorias import GrupoExecutorMode, load_categorias
 from pyauditor.config.manifest import DatasetManifest
 from pyauditor.config.models import IndicatorConfig, Source
 from pyauditor.engine.pipeline import load_config, resolve_source
+from pyauditor.excel.sintetico import write_sintetico_workbook
 from pyauditor.logging import log_event, logger
 
 __all__: Final[tuple[str, ...]] = (
@@ -44,8 +55,7 @@ __all__: Final[tuple[str, ...]] = (
 
 _SPLIT_DIRNAME: Final[str] = "_split"
 _OUTROS_NAME: Final[str] = "outros"
-_GRUPO_EXECUTOR_COLUMN: Final[str] = "Grupo_executor"
-_INMS_KEY_RE: Final = re.compile(r"^1\.(\d+)$")
+_SINTETICO_FILENAME: Final[str] = "sintetico.xlsx"
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,35 +81,6 @@ def check_split_ready(*_args: object, **_kwargs: object) -> DependencyCheck:
     """`split` só precisa de `categorias.yaml` + CSVs brutos, ambos entradas
     externas que ele mesmo valida — sem dependência de outro Command."""
     return DependencyCheck(satisfied=True, missing=())
-
-
-def _base_config_stem(inms_key: str) -> str:
-    """`"1.7"` -> `"inms-07"` — mesma convenção de `inms-<n>.yaml` já usada
-    pelos configs base (`configs/<orgao>/inms-NN.yaml`)."""
-    match = _INMS_KEY_RE.match(inms_key)
-    if match is None:
-        raise ValueError(
-            f"chave INMS inesperada em categorias.yaml: {inms_key!r} (esperado '1.<n>')"
-        )
-    return f"inms-{int(match.group(1)):02d}"
-
-
-def _read_raw_csv(
-    path: Path, delimiter: str, encoding: str
-) -> tuple[list[str], list[dict[str, str]]]:
-    """Como `engine.pipeline.load_rows`, mas também devolve os nomes de
-    coluna — `split` precisa deles pra gravar `outros.csv` com cabeçalho
-    mesmo quando o CSV bruto não tem nenhuma linha."""
-    with path.open(encoding=encoding, newline="") as handle:
-        reader = csv.DictReader(handle, delimiter=delimiter)
-        if reader.fieldnames is None:
-            raise ValueError(f"{path}: CSV vazio ou sem linha de cabeçalho")
-        fieldnames = [name.strip() for name in reader.fieldnames]
-        reader.fieldnames = fieldnames
-        rows = [
-            {name: (row.get(name) or "").strip() for name in fieldnames} for row in reader
-        ]
-    return fieldnames, rows
 
 
 def _write_filtered_csv(
@@ -158,6 +139,7 @@ def run_split(
     *,
     expected_orgao: str,
     manifest: DatasetManifest | None = None,
+    output_dir: Path | None = None,
 ) -> SplitResult:
     orgao = expected_orgao
 
@@ -198,7 +180,7 @@ def run_split(
     for inms_key in sorted(per_inms):
         entries = per_inms[inms_key]
         try:
-            base_stem = _base_config_stem(inms_key)
+            base_stem = base_config_stem(inms_key)
         except ValueError as exc:
             logger.error(str(exc))
             any_error = True
@@ -227,7 +209,7 @@ def run_split(
             continue
 
         try:
-            fieldnames, rows = _read_raw_csv(raw_csv_path, delimiter, encoding)
+            fieldnames, rows = read_raw_csv(raw_csv_path, delimiter, encoding)
         except (OSError, ValueError) as exc:
             logger.error(
                 f"INMS {inms_key} ({orgao}/{competencia}): falha ao ler {raw_csv_path}: {exc}"
@@ -235,35 +217,22 @@ def run_split(
             any_error = True
             continue
 
-        if _GRUPO_EXECUTOR_COLUMN not in fieldnames:
+        if GRUPO_EXECUTOR_COLUMN not in fieldnames:
             logger.error(
                 f"INMS {inms_key} ({orgao}/{competencia}): {raw_csv_path} não tem coluna "
-                f"'{_GRUPO_EXECUTOR_COLUMN}' — declarado mode: grupo_executor em categorias.yaml"
+                f"'{GRUPO_EXECUTOR_COLUMN}' — declarado mode: grupo_executor em categorias.yaml"
             )
             any_error = True
             continue
 
-        real_values = {row[_GRUPO_EXECUTOR_COLUMN] for row in rows}
-        in_values_claimed: set[str] = set()
-        for _categoria_key, entry in entries:
-            if entry.in_values is not None:
-                in_values_claimed.update(entry.in_values)
+        real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
+        per_categoria_values, outros_values = compute_categoria_values(entries, real_values)
 
         split_dir = competencia_data_dir / _SPLIT_DIRNAME / inms_key
-        claimed_overall: set[str] = set()
 
-        for categoria_key, entry in entries:
-            if entry.in_values is not None:
-                effective_values = set(entry.in_values)
-            else:
-                assert entry.catch_all_contains is not None
-                effective_values = {
-                    v for v in real_values if entry.catch_all_contains in v
-                } - in_values_claimed
-            claimed_overall |= effective_values
-
+        for categoria_key, effective_values in per_categoria_values.items():
             filtered_rows = [
-                row for row in rows if row[_GRUPO_EXECUTOR_COLUMN] in effective_values
+                row for row in rows if row[GRUPO_EXECUTOR_COLUMN] in effective_values
             ]
             csv_path = split_dir / f"{categoria_key}.csv"
             try:
@@ -288,8 +257,7 @@ def run_split(
                 config_path=config_path, row_count=len(filtered_rows),
             ))
 
-        outros_values = real_values - claimed_overall
-        outros_rows = [row for row in rows if row[_GRUPO_EXECUTOR_COLUMN] in outros_values]
+        outros_rows = [row for row in rows if row[GRUPO_EXECUTOR_COLUMN] in outros_values]
         outros_path = split_dir / f"{_OUTROS_NAME}.csv"
         try:
             _write_filtered_csv(outros_path, fieldnames, outros_rows, delimiter)
@@ -308,6 +276,24 @@ def run_split(
                 f"{len(outros_rows)} linha(s) não classificada(s) em nenhuma categoria — "
                 "revisar categorias.yaml"
             )
+            logger.warning(warning)
+            warnings.append(warning)
+
+    # sintetico.xlsx (spec §14.4, ticket 05): uma aba por INMS com entrada em
+    # categorias.yaml, para os dois modes — cobre bem mais INMS do que o
+    # laço acima (que só materializa artefatos para `grupo_executor`).
+    # `output_dir` é opcional (`None` pula a geração) para não obrigar todo
+    # chamador existente de `run_split` a passar um diretório de ROMs.
+    if output_dir is not None:
+        sintetico_path = output_dir / competencia / _SINTETICO_FILENAME
+        try:
+            sintetico_warnings = write_sintetico_workbook(
+                categorias_file, config_dir, competencia_data_dir, sintetico_path,
+                manifest=manifest,
+            )
+            warnings.extend(sintetico_warnings)
+        except OSError as exc:
+            warning = f"falha ao escrever {sintetico_path}: {exc}"
             logger.warning(warning)
             warnings.append(warning)
 

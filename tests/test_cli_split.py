@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import yaml
+from openpyxl import load_workbook
 
 from pyauditor.cli.split import check_split_ready, run_split
 from pyauditor.engine.pipeline import discover_config_files, load_rows, measure
@@ -210,6 +211,30 @@ def test_measure_discovers_derived_config_after_split(tmp_path: Path) -> None:
     competencia_data_dir = data_dir / "2026" / "06"
     result = measure(derived, data_dir=competencia_data_dir)
     assert result.calculation.result_pct == 100.0
+
+
+def test_run_split_writes_sintetico_xlsx_when_output_dir_given(tmp_path: Path) -> None:
+    config_dir, data_dir = _write_fixture(tmp_path)
+    output_dir = tmp_path / "roms"
+
+    result = run_split(
+        "2026-06", config_dir, data_dir, expected_orgao="MinC", output_dir=output_dir
+    )
+
+    assert result.status == "done"
+    sintetico_path = output_dir / "2026-06" / "sintetico.xlsx"
+    assert sintetico_path.exists()
+    wb = load_workbook(sintetico_path)
+    assert set(wb.sheetnames) == {"INMS 1.1"}
+
+
+def test_run_split_skips_sintetico_xlsx_when_output_dir_omitted(tmp_path: Path) -> None:
+    config_dir, data_dir = _write_fixture(tmp_path)
+
+    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+
+    assert result.status == "done"
+    assert not (tmp_path / "roms").exists()
 
 
 def test_check_split_ready_always_satisfied() -> None:

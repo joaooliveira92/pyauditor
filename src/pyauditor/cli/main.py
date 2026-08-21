@@ -100,6 +100,7 @@ class SplitRequest:
     config_dir: Path
     data_dir: Path
     manifest_path: Path
+    output_dir: Path
     orgao: Orgao
 
 
@@ -279,6 +280,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_orgao_argument(split_parser)
     split_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
     split_parser.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA_DIR)
+    split_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
     split_parser.add_argument(
         "--manifest", type=Path, default=None,
         help="caminho para datasets.yaml (default: <config-dir>/<órgão>/datasets.yaml)"
@@ -356,6 +358,7 @@ def _extract_split_request(ns: argparse.Namespace) -> SplitRequest:
         config_dir=config_dir,
         data_dir=_require(ns, "data_dir", Path),
         manifest_path=manifest_path,
+        output_dir=_require(ns, "output_dir", Path),
         orgao=cast(Orgao, orgao),
     )
 
@@ -479,6 +482,7 @@ def _dispatch_split(args: argparse.Namespace) -> int:
             data_dir=per_orgao_data_dir,
             expected_orgao=orgao,
             manifest=manifest,
+            output_dir=request.output_dir / orgao,
         ))
     return exit_code_for_results(split_results)
 

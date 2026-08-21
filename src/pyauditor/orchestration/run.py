@@ -199,6 +199,7 @@ def _dispatch(command: str, orgao: str | None, request: RunRequest) -> CommandRe
             request.data_dir / (orgao or ""),
             expected_orgao=orgao or "",
             manifest=_manifest_for(per_orgao_config_dir),
+            output_dir=request.output_dir / (orgao or ""),
         )
     if command == "measure":
         per_orgao_config_dir = request.config_dir / (orgao or "")
