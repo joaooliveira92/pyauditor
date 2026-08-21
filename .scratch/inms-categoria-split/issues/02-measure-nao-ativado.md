@@ -21,17 +21,17 @@ motivo curto ao final.
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Quando o CSV de um indicador configurado não existe no diretório de dados da competência,
+- [x] Quando o CSV de um indicador configurado não existe no diretório de dados da competência,
       `measure` emite o `WARNING` acima (com o `contractual_id`/órgão/competência reais) em vez de
       propagar um erro
-- [ ] O indicador "não ativado" não gera ROM/JSON de falha — é pulado, mas o resultado geral de
+- [x] O indicador "não ativado" não gera ROM/JSON de falha — é pulado, mas o resultado geral de
       `measure` (`MeasureResult`/summary) precisa registrar esse estado de forma que `report` e o
       xlsx sintético (ticket 05 deste tracker) consigam distinguir "não ativado" de "medido com
       população zero" (população zero = CSV existe mas não tem linhas que batam num filtro — isso já
       é tratado por outro caminho e não muda)
-- [ ] Teste cobrindo: indicador com `source.csv` apontando pra um arquivo inexistente → `measure`
+- [x] Teste cobrindo: indicador com `source.csv` apontando pra um arquivo inexistente → `measure`
       completa com sucesso, emite o `WARNING`, e o indicador aparece marcado como não ativado no
       resultado/summary
-- [ ] `uv run mypy --strict src` e `uv run pytest` verdes
+- [x] `uv run mypy --strict src` e `uv run pytest` verdes
