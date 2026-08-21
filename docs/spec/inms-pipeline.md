@@ -367,6 +367,181 @@ sustentada pelos dados reais de produção hoje (ver §10 e fog abaixo).
   as medições por órgão sem combiná-las.
 - **`GLOSAS`** é preenchida pela fórmula do §12.
 
+## 14. Segmentação por Categoria/Grupo executor
+
+Addendum que estende esta spec (nenhuma decisão abaixo invalida as anteriores) — origem:
+`.scratch/inms-segmentacao-categoria/` (mapa e tickets 01–08). Cobre: o modelo de segmentação de
+INMS em Categorias derivadas da coluna `Grupo_executor` do CSV bruto do fornecedor, a nova etapa
+`split` que materializa CSVs filtrados antes do `measure` (que fica 100% inalterado), o novo
+relatório xlsx "sintético" por INMS, e a composição com o fog de multi-ativo (§ acima, item 3 da
+lista atualizada) e de ingestão manual (§2.2, §11.3).
+
+### 14.1 Modelo — Categoria como filtro pré-engine
+
+`Categoria` (ver `CONTEXT.md`) é um agrupamento de negócio de um INMS definido por um filtro sobre
+`Grupo_executor`, aplicado **antes** do `measure`: o CSV bruto do fornecedor (já filtrado por
+período+INMS) é recortado em N CSVs, um por categoria, cada um alimentando o `measure` existente
+sem nenhuma mudança de shape ou de meta contratual — a meta continua a mesma do Anexo D.
+
+- Um INMS pode pertencer a N categorias; cada categoria de um INMS gera **uma medição
+  independente** (seu próprio ROM) — N categorias = N ROMs para aquele INMS/competência.
+- **`Operação e Sustentação da Infraestrutura de TI`** (`OPERACAO_N3`) é catch-all por regra
+  literal: captura todo `Grupo_executor` que contém a substring `(CIT)` e não está reivindicado
+  pelas listas explícitas das outras categorias daquele INMS/órgão.
+- **`outros`** é uma 4ª categoria automática e contábil: captura linhas que não batem em nenhuma
+  categoria substantiva declarada. É contada (inclusive no xlsx sintético, §14.4) mas não entra no
+  cálculo de conformidade/meta — existe para que nenhuma linha do dataset do fornecedor desapareça
+  sem explicação.
+- Categoria sem linhas no período é normal: gera medição com população zero, mesmo tratamento do
+  quality gate de zero-atividade já existente — não trava o pipeline.
+- **Ausência de dataset de entrada para um INMS numa competência = "não ativado", não erro** —
+  regra geral do engine (vale para qualquer um dos 14 indicadores, não uma lista fechada; 1.3, 1.8 e
+  1.10 são os candidatos mais prováveis na prática, por serem "sob demanda"). Fica explícito em dois
+  lugares: no log do CLI (só `measure`, que é quem descobre a ausência — ver §14.4) e no xlsx
+  sintético (§14.4).
+- **Literais de `Grupo_executor` novos, não previstos em `categorias.yaml`**, caem em `outros`
+  (contábil) e disparam um `WARNING` proativo no log de `split` — não há processo de revisão
+  periódica separado; a revisão é atrelada à cadência mensal já existente do pipeline (ver §14.4
+  para o texto exato).
+
+### 14.2 Mapeamento declarativo — `configs/<orgao>/categorias.yaml`
+
+Um arquivo por órgão (`configs/MinC/categorias.yaml`, `configs/MTur/categorias.yaml`), ao lado do
+manifesto já existente `configs/<orgao>/datasets.yaml` — os literais de `Grupo_executor` diferem
+entre MinC e MTur, então um arquivo por órgão é obrigatório, não estilístico. Chaves de topo por
+categoria; cada entrada INMS-dentro-de-categoria tem um campo discriminador `mode`:
+
+```yaml
+categorias:
+  ATENDIMENTO_N1:
+    label: "Atendimento Remoto aos Usuários"
+    inms:
+      "1.1": {mode: grupo_executor, in_values: ["(CIT/MINC) - 1º Nível"]}
+      "1.11": {mode: whole_indicator}
+  OPERACAO_N3:
+    label: "Operação e Sustentação da Infraestrutura de TI"
+    inms:
+      "1.1": {mode: grupo_executor, catch_all_contains: "(CIT)"}
+      "1.9": {mode: whole_indicator}
+  MONITORAMENTO_NOC_SOC:
+    label: "Monitoramento de Ambiente (NOC/SOC)"
+    inms:
+      "1.4": {mode: whole_indicator}
+      "1.14": {mode: whole_indicator}
+```
+
+- **`mode: grupo_executor`** com `in_values` (lista explícita, reaproveita o tipo `ColumnIn` já
+  existente em `src/pyauditor/config/models.py`, usado hoje em `SegmentedCategory`) ou
+  `catch_all_contains` (não é uma lista fechada —
+  a exclusão dos grupos já reivindicados por outras categorias do mesmo INMS/órgão é **computada em
+  tempo de execução por `split`**, não hardcoded no YAML).
+- **`mode: whole_indicator`**: sem filtro — o dataset inteiro do INMS naquela competência conta
+  como a categoria, sem passar por `split`. Cobre tanto indicadores pré-agregados sem a coluna
+  `Grupo_executor` (o trio NOC/SOC — 1.4, 1.5, 1.14) quanto INMS que deveriam ter a coluna mas cujo
+  CSV real não tem (1.11, 1.12, 1.13, 1.9, e 1.6 especificamente no MinC — no MTur 1.6 tem a coluna
+  real e usa `grupo_executor` normalmente). Quando um INMS sem coluna pertenceria a várias
+  categorias nominalmente, a regra é **não duplicar**: conta só na categoria de infraestrutura
+  (`OPERACAO_N3`) — exceto 1.14, duplicado intencionalmente entre `MONITORAMENTO_NOC_SOC` e
+  `OPERACAO_N3` (mesmo resultado pré-agregado rotulado sob as duas).
+- `outros` e "INMS sem categoria" (1.8, 1.10) não têm entrada no arquivo — implícitos.
+
+Mapeamento INMS↔categoria completo:
+
+| Categoria | INMS |
+|---|---|
+| Atendimento Remoto aos Usuários (`ATENDIMENTO_N1`) | 1.1, 1.2, 1.6, 1.7, 1.11, 1.12, 1.13 |
+| Atendimento Presencial aos Usuários (`ATENDIMENTO_N2`) | 1.1, 1.2, 1.6, 1.7, 1.9 |
+| Operação e Sustentação da Infraestrutura de TI (`OPERACAO_N3`) | 1.1, 1.2, 1.3, 1.6, 1.7, 1.9, 1.14 |
+| Monitoramento de Ambiente — NOC/SOC (`MONITORAMENTO_NOC_SOC`) | 1.4, 1.5, 1.14 |
+
+1.8 e 1.10 não têm categoria — seus schemas de ingestão manual (§2.2, §11.3) são estruturalmente
+incompatíveis com `Grupo_executor` (registros de ocorrência/checklist, não solicitações de
+atendimento).
+
+### 14.3 Etapa `split`
+
+`measure` permanece 100% inalterado. `pyauditor split <competência>` é um quinto comando standalone
+(mesmo padrão de `bootstrap`/`measure`/`report`/`consolidate`); em `run`, entra **entre `bootstrap`
+e `measure`**, transacional por órgão como os demais.
+
+Para cada par (INMS, categoria) em `mode: grupo_executor`, `split` gera:
+
+- **CSV filtrado**: `input/<orgao>/<ano>/<mes>/_split/<inms>/<categoria>.csv`.
+- **Config de indicador derivada**: `configs/<orgao>/inms-<n>.<categoria>.yaml` — copia
+  `quality_gates`/`calculation`/`target`/`penalty` do `inms-<n>.yaml` base, muda só `id` e
+  `source.csv` (nunca `source.dataset` — `split` não toca em `datasets.yaml`). O ponto extra no nome (`inms-<n>.<categoria>.yaml`, nunca
+  presente no arquivo base) deixa a config gitignored e ainda assim descoberta automaticamente pelo
+  glob não-recursivo já existente de `measure` — nenhuma mudança em `measure` é necessária. Ver ADR
+  [0002](../adr/0002-config-por-categoria-gerada-pelo-split.md) para o porquê de gerar em vez de
+  escrever à mão.
+
+`outros` só gera o CSV filtrado (auditoria), sem config derivada — não entra no cálculo. `split`
+sempre sobrescreve ao rerodar (idempotência por regeneração; o CSV bruto original nunca é tocado).
+`catch_all_contains` é resolvido em tempo de `split`: lê os valores literais de `Grupo_executor`
+realmente presentes no CSV bruto daquela competência/órgão, subtrai os já reivindicados por
+`in_values` de outras categorias do mesmo INMS/órgão, e o resto vira o filtro efetivo.
+
+INMS em `mode: whole_indicator` pulam `split` inteiramente — nem CSV filtrado, nem config derivada;
+a medição da categoria é a medição do `inms-<n>.yaml` base direto.
+
+**Log de `outros`**: sempre que uma categoria `outros` tiver linhas (literal de `Grupo_executor`
+novo, não previsto em `categorias.yaml` — §14.1), `split` emite um `WARNING` (não um `INFO` de
+contagem), pra não depender de alguém abrir o xlsx sintético pra notar:
+
+```
+WARNING: INMS 1.1 (MinC/2026-06), categoria outros: 3 linha(s) não classificada(s) em nenhuma categoria — revisar categorias.yaml
+```
+
+### 14.4 Relatório xlsx sintético
+
+Um `sintetico.xlsx` por órgão/competência (proposto: `roms/<orgao>/<ano>/<mes>/`, geração proposta
+para `split` — não contestado nesta rodada, revisar no ticket de implementação se necessário), uma
+aba por INMS com entrada em `categorias.yaml` (exclui 1.8/1.10). Contagens são
+**brutas, pré-quality-gate** — conferência rápida, não substitui o ROM oficial da categoria.
+
+Colunas (uma linha por par categoria × valor de `Grupo_executor`, para INMS em `mode:
+grupo_executor`): `Categoria` | `Nível` | `Grupo executor` | `Linhas` | `Dentro do prazo` | `Fora do
+prazo` | `% bruto` | `Tempo médio criação→resolução` (de `DataHoraFim − DataHoraSolicitacao`, sobre
+as linhas aprovadas pelo quality gate daquela linha). `Nível` deriva da categoria:
+`ATENDIMENTO_N1`→N1, `ATENDIMENTO_N2`→N2, `OPERACAO_N3`→N3, `MONITORAMENTO_NOC_SOC`→N3; `outros`
+não tem Nível. Abaixo da tabela, um bloco de subtotais por Nível (soma de `Linhas`/`Dentro do
+prazo`/`Fora do prazo`, `% bruto` e tempo médio agregados).
+
+INMS em `mode: whole_indicator`: linha única, `Grupo executor` = `"(indicador inteiro)"`, sem bloco
+de subtotais (não há granularidade pra subtotalizar numa aba de uma linha só).
+
+"Não ativado" (dataset ausente na competência, §14.1): linha única mesclada com a frase `"Esse
+serviço não foi requisitado no período selecionado."` no lugar da tabela. No log do CLI, uma forma
+telegráfica distinta (não a mesma frase em prosa) — públicos diferentes, operador no terminal vs.
+leitor do relatório final —, emitida só por `measure` (é quem descobre a ausência; `split` não
+duplica a mensagem, já que `run` executa os dois em sequência):
+
+```
+WARNING: INMS 1.8 (MinC/2026-06): não ativado — dataset ausente (serviço não requisitado no período)
+```
+
+### 14.5 Composição com multi-ativo (INMS 1.14)
+
+Quando um INMS é medido tanto por Categoria quanto por Ativo (ver item "multi-ativo" na lista de fog
+resolvido acima, e o termo `Ativo` em `CONTEXT.md`), a composição é **produto cartesiano por
+ativo**: cada Ativo é medido sob cada Categoria à qual o INMS pertence. O único caso hoje é o INMS
+1.14 — 2 categorias (`MONITORAMENTO_NOC_SOC`, `OPERACAO_N3`, ambas `whole_indicator`) × 6 ativos
+nomeados no Anexo D (File Server, Telefonia, Mensageria, Servidores de impressão, WI-FI, Rede) = 12
+medições independentes, cada uma seu próprio ROM. `whole_indicator` aqui significa apenas "sem
+filtro de `Grupo_executor`" — não colapsa os ativos, que já são medições separadas por razão
+distinta (definição do próprio Anexo D).
+
+No xlsx sintético, a aba do INMS 1.14 troca a coluna `Grupo executor` por **`Ativo`** e mostra as 12
+linhas agrupadas e subtotalizadas por categoria (bloco NOC/SOC, depois bloco Operação N3) — mesmo
+padrão de linhas agrupadas com subtotal do §14.4, sem estrutura de aba nova.
+
+Nenhum INMS com `Grupo_executor` real (1.1, 1.2, 1.3, 1.6, 1.7, 1.9) é multi-ativo hoje, e isso é
+estrutural ao Anexo D: multi-ativo cobre monitoramento de infraestrutura nomeada (NOC/SOC), enquanto
+`Grupo_executor` existe em indicadores de fila de atendimento/chamado — categorias de indicador
+diferentes no próprio contrato. O caso geral (produto cartesiano com `Grupo_executor` real, `split`
+rodando de fato por ativo) é **fora do escopo** deste addendum — se surgir no futuro, é uma extensão
+do modelo, tratada como novo esforço.
+
 ### Fog remanescente, explicitamente fora do destino desta versão da spec
 
 1. **Schema do dataset de origem/ingestão de ocorrências do INMS 1.8** (§11.3) e **de controles de

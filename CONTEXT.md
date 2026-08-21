@@ -27,7 +27,7 @@ _Avoid_: perdoar, dispensar
 **Rateio MinC/MTur**: Parâmetro fiscal (hoje provisório 0.5/0.5) que divide o pagamento entre os dois órgãos. Entrada do fiscal, não calculada pelo pipeline.
 _Avoid_: proporção, divisão
 
-**ROM**: Relatório de Ocorrências e Medição — o markdown por indicador×competência que documenta a memória de cálculo de um INMS. Insumo para a Glosa por ocorrência, não a decisão em si.
+**ROM**: Relatório de Ocorrências e Medição — o markdown por indicador×competência (ou indicador×categoria×competência, para INMS segmentados por Categoria) que documenta a memória de cálculo de uma medição. Insumo para a Glosa por ocorrência, não a decisão em si.
 
 **Pontuação apurada**: Os pontos de INMS/IMR calculados pela regra contratual do indicador (base + degraus abaixo da meta). Entra como insumo em `%Ajuste`/Glosa por ocorrência; não é, por si só, sanção administrativa.
 _Avoid_: penalidade, multa, sanção
@@ -36,3 +36,13 @@ _Avoid_: penalidade, multa, sanção
 
 **Linhas aprovadas pelo quality gate**: As linhas do CSV que passaram nos `quality_gates` do indicador. Não equivale a população contratual (ex.: um incidente sem `DataHoraFim` pode ser rejeitado pelo gate mas ainda pertencer à população de incidentes abertos no período) — distinção que o ROM precisa declarar, não apenas o pipeline.
 _Avoid_: população, linhas aceitas (sem qualificação)
+
+**Grupo executor**: Coluna já existente no CSV bruto do fornecedor, identificando qual equipe atendeu o incidente (ex.: `(CIT/MINC) - 2º Nível`, `(CIT/MINC) - 2º Nível/RJ`, `Executores CODIN/SEI`). Fonte de verdade para derivar a Categoria; não é escrita nem inferida pelo pipeline.
+
+**Categoria**: Agrupamento de negócio de um INMS (ex.: "Atendimento Remoto aos Usuários") definido por um filtro sobre Grupo executor. Um INMS pode pertencer a mais de uma categoria, e o subconjunto de categorias válidas varia por INMS — não é fixo para todos os indicadores. Cada categoria de um INMS gera uma medição independente (seu próprio ROM), sobre o mesmo shape de cálculo e a mesma meta do Anexo D do indicador — o que muda é o subconjunto de linhas de entrada, não o contrato do indicador. Quando o INMS também é medido por Ativo (ex.: INMS 1.14), Categoria e Ativo compõem: cada Ativo gera uma medição independente sob cada Categoria à qual o INMS pertence.
+
+**Ativo**: Um dos serviços de infraestrutura nomeados no Anexo D de um INMS medido "por ativo" (ex.: INMS 1.14: File Server, Telefonia, Mensageria, Servidores de impressão, WI-FI, Rede). Cada Ativo tem seu próprio par YAML+CSV e gera uma medição independente (seu próprio ROM), com o mesmo `contractual_id` do indicador. Dimensão de segmentação distinta de Categoria: Ativo nomeia um serviço de infraestrutura monitorado, Categoria filtra por Grupo executor — não se sobrepõem, mas compõem quando ambas se aplicam ao mesmo INMS.
+_Avoid_: serviço (sem qualificação — ambíguo com "serviço de atendimento")
+
+**Categoria "outros"**: Categoria catch-all contábil de um INMS: captura as linhas cujo Grupo executor não bate com nenhuma categoria substantiva do indicador. É contada mas não entra no cálculo de conformidade/meta — existe só para que nenhuma linha do dataset do fornecedor desapareça sem explicação.
+_Avoid_: linhas rejeitadas, fora de escopo (essas linhas não falharam quality gate — só não pertencem a nenhuma categoria substantiva)
