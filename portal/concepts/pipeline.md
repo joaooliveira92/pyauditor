@@ -6,28 +6,37 @@ config** (`inms-<n>.yaml`). Um único engine atende os 14 indicadores: o campo
 
 ## Visão geral do fluxo
 
-```text
-bootstrap ──► capa_<orgao>.xlsx (Excel de capa, idempotente)
-                 │
-measure  ──► para cada config em configs/<orgao>/:
-                 │  1. descobre e valida os configs (Pydantic)
-                 │  2. resolve o CSV (via manifest datasets.yaml ou csv direto)
-                 │  3. lê o CSV (<data-dir>/<orgao>/<ano>/<mês>/)
-                 │  4. roda quality gates (Qualidade de Dados)
-                 │  5. strategy de cálculo pelo shape
-                 │  6. escreve <id>.md (ROM) + <id>.json (sumário)
-                 ▼
-report   ──► lê os .json dos ROMs + capa + configs (por órgão)
-                 ▼
-           relatorio_<competencia>_<orgao>.xlsx (INMS_BASE + grupos + GLOSAS + ...)
-                 ▼
-consolidate ──► relatorio_<competencia>_consolidado.xlsx (funde MinC + MTur)
+```mermaid
+flowchart TD
+    B["bootstrap<br/>cria capa_&lt;orgao&gt;.xlsx (idempotente)"] --> S
+
+    subgraph S["split (não-materializado em `run`)"]
+        direction TB
+        S1["valida categorias.yaml + CSVs brutos"] --> S2["escreve sintetico.xlsx"]
+    end
+
+    S --> M
+
+    subgraph M["measure — para cada config em configs/&lt;orgao&gt;/"]
+        direction TB
+        M1["1. descobre e valida configs (Pydantic)"] --> M2["2. resolve o CSV via manifest datasets.yaml"]
+        M2 --> M3["3. lê o CSV em &lt;data-dir&gt;/&lt;orgao&gt;/&lt;ano&gt;/&lt;mês&gt;/"]
+        M3 --> M4["4. roda quality gates"]
+        M4 --> M5["5. aplica strategy de cálculo pelo shape"]
+        M5 --> M6["6. escreve &lt;id&gt;.md (ROM) + &lt;id&gt;.json (sumário)"]
+    end
+
+    M --> R["report<br/>lê os .json dos ROMs + capa + configs<br/>→ relatorio_&lt;competencia&gt;_&lt;orgao&gt;.xlsx"]
+    R --> C["consolidate<br/>funde os relatórios MinC + MTur<br/>→ relatorio_&lt;competencia&gt;_consolidado.xlsx"]
 ```
 
-As quatro fases (`bootstrap`, `measure`, `report`, `consolidate`) rodam em
-sequência por órgão (`--orgao MinC|MTur|both`); `consolidate` só roda quando os
-dois relatórios existem (com `--orgao both`, ele é a última fase). O `run`
-encadeia as quatro fases numa única invocação.
+As cinco fases (`bootstrap`, `split`, `measure`, `report`, `consolidate`) rodam
+em sequência por órgão (`--orgao MinC|MTur|both`); `consolidate` só roda quando
+os dois relatórios existem (com `--orgao both`, ele é a última fase). Dentro do
+`run`, `split` roda em modo não-materializado (Ticket 04): não escreve
+`_split/*` (CSVs filtrados + configs por Categoria), só o `sintetico.xlsx` —
+`measure` filtra `Grupo_executor` em memória. O `run` encadeia as cinco fases
+numa única invocação.
 
 Detalhes por camada:
 

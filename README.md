@@ -23,6 +23,23 @@ competência mensal do contrato.
 Especificação completa: [`docs/spec/inms-pipeline.md`](docs/spec/inms-pipeline.md).
 Documentação publicada: <https://joaooliveira92.github.io/pyauditor/>.
 
+```mermaid
+flowchart LR
+    subgraph MinC
+        B1[bootstrap] --> S1[split] --> M1[measure] --> R1[report]
+    end
+    subgraph MTur
+        B2[bootstrap] --> S2[split] --> M2[measure] --> R2[report]
+    end
+    R1 --> C[consolidate]
+    R2 --> C
+    C --> W[(workbook financeiro<br/>glosa + pagamento)]
+```
+
+`run` encadeia as cinco fases numa única invocação, por órgão. Detalhe camada
+por camada (quality gates, resolução de dataset, shapes de cálculo):
+[Como o pipeline funciona](portal/concepts/pipeline.md).
+
 ---
 
 ## Funcionalidades
@@ -79,10 +96,11 @@ todos em uma invocação scriptable:
 | Comando | Responsabilidade |
 |---|---|
 | `bootstrap` | cria a capa Excel do contrato; **idempotente** |
+| `split <comp>` | valida `categorias.yaml`+CSVs brutos e escreve `sintetico.xlsx` (uma aba por INMS); dentro de `run` roda em modo não-materializado, sem gerar `_split/*` |
 | `measure <comp>` | apura os indicadores da competência, gera um ROM por indicador |
 | `report <comp>` | consolida os ROMs no Excel de relatório do órgão |
 | `consolidate <comp>` | funde os relatórios MinC+MTur no workbook financeiro |
-| `run <comp>` | encadeia `bootstrap→measure→report→consolidate` |
+| `run <comp>` | encadeia `bootstrap→split→measure→report→consolidate` |
 
 `bootstrap`, `measure` e `report` aceitam `--orgao {MinC,MTur,both}` (default
 `MinC`). Configs canônicos em `configs/_shared/` (14 `inms-0N.yaml` + `datasets.yaml`);
@@ -112,7 +130,9 @@ uv run pyauditor run 2026-06 --orgao both
 `run` aceita os mesmos flags que os subcomandos individuais (`--config-dir`,
 `--data-dir`, `--output-dir`, `--capa-path`, `--final-month`). Cada invocação
 regenera desde zero os ROMs e Excels; `bootstrap` segue idempotente (nunca
-recria uma capa existente).
+recria uma capa existente). `split` também pode ser executado isoladamente
+(`--manifest` aponta para um `datasets.yaml` alternativo) para materializar
+`_split/*` (CSVs filtrados + configs por Categoria) e o `sintetico.xlsx`.
 
 ---
 
