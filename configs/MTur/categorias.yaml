@@ -1,0 +1,63 @@
+# Mapeamento declarativo categoria -> Grupo_executor -> INMS (spec §14.2).
+# Literais de Grupo_executor verificados contra input/MTur/2026/06/*.csv —
+# diferem dos do MinC (ver
+# .scratch/inms-segmentacao-categoria/issues/02-mapeamento-declarativo.md).
+#
+# catch_all_contains usa "CIT" (sem parênteses) neste arquivo, ao contrário
+# de "(CIT)" no MinC: os grupos de infraestrutura reais do MTur misturam os
+# dois formatos ("(CIT) Automação" e "CIT - Aplicações Web", por exemplo) —
+# um substring "(CIT)" sozinho deixaria a maioria dos grupos de infra caindo
+# em "outros" por engano. "CIT" também casa com "CIT - 1º/2º Nível", mas
+# split já subtrai em tempo de execução os grupos reivindicados pelas
+# categorias de atendimento do mesmo INMS/órgão (spec §14.2/§14.3).
+categorias:
+  ATENDIMENTO_N1:
+    label: "Atendimento Remoto aos Usuários"
+    inms:
+      "1.1": {mode: grupo_executor, in_values: ["CIT - 1º Nível"]}
+      "1.2": {mode: grupo_executor, in_values: ["CIT - 1º Nível"]}
+      "1.6": {mode: grupo_executor, in_values: ["CIT - 1º Nível"]}
+      "1.7": {mode: grupo_executor, in_values: ["CIT - 1º Nível"]}
+      "1.11": {mode: whole_indicator}
+      "1.12": {mode: whole_indicator}
+      "1.13": {mode: whole_indicator}
+  ATENDIMENTO_N2:
+    label: "Atendimento Presencial aos Usuários"
+    inms:
+      "1.1":
+        mode: grupo_executor
+        in_values:
+          - "CIT - 2º Nível"
+          - "CIT - 2º Nível/Anexo"
+      "1.2":
+        mode: grupo_executor
+        in_values:
+          - "CIT - 2º Nível"
+          - "CIT - 2º Nível/Anexo"
+      "1.6":
+        mode: grupo_executor
+        in_values:
+          - "CIT - 2º Nível"
+          - "CIT - 2º Nível/Anexo"
+      "1.7":
+        mode: grupo_executor
+        in_values:
+          - "CIT - 2º Nível"
+          - "CIT - 2º Nível/Anexo"
+      # 1.9 não tem Grupo_executor no MTur — conta só em OPERACAO_N3.
+  OPERACAO_N3:
+    label: "Operação e Sustentação da Infraestrutura de TI"
+    inms:
+      "1.1": {mode: grupo_executor, catch_all_contains: "CIT"}
+      "1.2": {mode: grupo_executor, catch_all_contains: "CIT"}
+      "1.3": {mode: grupo_executor, catch_all_contains: "CIT"}
+      "1.6": {mode: grupo_executor, catch_all_contains: "CIT"}
+      "1.7": {mode: grupo_executor, catch_all_contains: "CIT"}
+      "1.9": {mode: whole_indicator}
+      "1.14": {mode: whole_indicator}
+  MONITORAMENTO_NOC_SOC:
+    label: "Monitoramento de Ambiente (NOC/SOC)"
+    inms:
+      "1.4": {mode: whole_indicator}
+      "1.5": {mode: whole_indicator}
+      "1.14": {mode: whole_indicator}

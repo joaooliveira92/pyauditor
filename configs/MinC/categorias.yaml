@@ -1,0 +1,53 @@
+# Mapeamento declarativo categoria -> Grupo_executor -> INMS (spec §14.2).
+# Literais de Grupo_executor verificados contra input/MinC/2026/06/*.csv
+# (ver .scratch/inms-segmentacao-categoria/issues/02-mapeamento-declarativo.md).
+categorias:
+  ATENDIMENTO_N1:
+    label: "Atendimento Remoto aos Usuários"
+    inms:
+      "1.1": {mode: grupo_executor, in_values: ["(CIT/MINC) - 1º Nível"]}
+      "1.2": {mode: grupo_executor, in_values: ["(CIT/MINC) - 1º Nível"]}
+      # 1.6 no MinC não tem Grupo_executor (dataset SLA pré-agregado) — conta
+      # só em OPERACAO_N3, sem duplicar (achado factual do ticket 02).
+      "1.7": {mode: grupo_executor, in_values: ["(CIT/MINC) - 1º Nível"]}
+      "1.11": {mode: whole_indicator}
+      "1.12": {mode: whole_indicator}
+      "1.13": {mode: whole_indicator}
+  ATENDIMENTO_N2:
+    label: "Atendimento Presencial aos Usuários"
+    inms:
+      "1.1":
+        mode: grupo_executor
+        in_values:
+          - "(CIT/MINC) - 2º Nível"
+          - "(CIT/MINC) - 2º Nível/RJ"
+          - "(CIT/MINC) - 2º Nível/BDB"
+      "1.2":
+        mode: grupo_executor
+        in_values:
+          - "(CIT/MINC) - 2º Nível"
+          - "(CIT/MINC) - 2º Nível/RJ"
+          - "(CIT/MINC) - 2º Nível/BDB"
+      "1.7":
+        mode: grupo_executor
+        in_values:
+          - "(CIT/MINC) - 2º Nível"
+          - "(CIT/MINC) - 2º Nível/RJ"
+          - "(CIT/MINC) - 2º Nível/BDB"
+      # 1.9 não tem Grupo_executor no MinC — conta só em OPERACAO_N3.
+  OPERACAO_N3:
+    label: "Operação e Sustentação da Infraestrutura de TI"
+    inms:
+      "1.1": {mode: grupo_executor, catch_all_contains: "(CIT)"}
+      "1.2": {mode: grupo_executor, catch_all_contains: "(CIT)"}
+      "1.3": {mode: grupo_executor, catch_all_contains: "(CIT)"}
+      "1.6": {mode: whole_indicator}
+      "1.7": {mode: grupo_executor, catch_all_contains: "(CIT)"}
+      "1.9": {mode: whole_indicator}
+      "1.14": {mode: whole_indicator}
+  MONITORAMENTO_NOC_SOC:
+    label: "Monitoramento de Ambiente (NOC/SOC)"
+    inms:
+      "1.4": {mode: whole_indicator}
+      "1.5": {mode: whole_indicator}
+      "1.14": {mode: whole_indicator}
