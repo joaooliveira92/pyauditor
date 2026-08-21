@@ -199,27 +199,75 @@ Junho/2026 + Atendimento Remoto N1 + INMS 1.2 + MTur
 
 Apresentará os resultados do atendimento remoto nos blocos **MinC**, **MTur**, **Consolidado** e **Análise do fiscal**.
 
-Indicadores previstos: INMS 1.1, 1.2, 1.6, 1.7, 1.11, 1.12 e 1.13.
+
+| Item | Indicadores | Meta | Glosa | Aferição da empresa conforme Relatório | Aferição dos fiscais* | Resultado | Pontuação de Penalidade |
+|---|---|---|---|---|---|---|---|
+| INMS 1.1 | Quantidade de incidentes atendidos dentro do prazo | >= 98% | (Total de incidentes atendidos dentro do prazo / Total de incidentes abertos no período) x 100 | 165 pontos (mensalmente em caso de índice abaixo de 98%) + (20 pontos a cada 0,1% abaixo da meta). | N/A | N/A | Alcançado 0 |
+| INMS 1.2 | Quantidade de requisições atendidos dentro do prazo | >= 95% | (Total de requisições atendidas dentro do prazo conforme tipo de prioridade) / Total de requisições abertas no período conforme tipo de prioridade) x 100 | Prioridade Alta: 20 pontos a cada 0,1% abaixo da meta Prioridade Média: 15 pontos a cada 0,1% abaixo da meta Prioridade Baixa: 10 pontos a cada 0,1% abaixo da meta | 98,46% | 98,65% | Alcançado 0 |
+| INMS 1.6 | Eficácia no tratamento de chamados (requisições e incidentes) | >= 97% | Total de chamados atendidos - Total de chamados reabertos) / Total de chamados atendidos | 200 pontos a cada 0,5% abaixo da meta | 98,48% | 100% | Alcançado 0 |
+| INMS 1.7 | Satisfação dos usuários | >= 80% | (Total de Avaliações Positivas - "Satisfeitos" e "Muito Satisfeitos") / Quantidade total | 250 pontos a cada 1% abaixo da meta | 100% | 100% | Alcançado 0 |
+| INMS 1.11 | Índice de chamadas telefônicas abandonadas | <=5% | (Total de chamadas telefônicas abandonadas / Total de chamadas telefônicas) | 50 pontos a cada 1% acima da meta | 2,49% | 1,89% | Alcançado 0 |
+| INMS 1.12 | Índice de chamadas telefônicas atendidas em até 20 (vinte) segundos | >=95% | (Total de chamadas telefônicas atendidas em até 20 segundos / Total de chamadas telefônicas) | 25 pontos a cada 0,1% abaixo da meta | 95,35% | 95,49% | Alcançado 0 |
+| INMS 1.13 | Índice de chamados atendidos no Nível I (Apurar a porcentagem de chamados que são atendidos diretamente pelo nível I) | Será acordado com a CONTRATADA uma taxa a ser aferida de acordo com o que é ideal conforme preconizado pelo ITIL. A revisão do indicador ocorrerá trimestralmente, no intuito de aumentar a quantidade de chamados atendidos em nível I | 50 pontos a cada 1% abaixo da meta acordada. | 100% | 100% | Alcançado | 0 |
+| PONTUAÇÃO TOTAL | | | | | | | 0 |
+
+------------------------------
 
 Os indicadores telefônicos deverão informar se a central é compartilhada e se os dados podem ser segregados por órgão. Se a fonte não fornecer a separação, a limitação será registrada expressamente, sem misturar o resultado compartilhado com os resultados exclusivos.
 
 ### Aba 5: `MONITORAMENTO_NOC_SOC`
 
-Destinada aos indicadores INMS 1.4, 1.5 e 1.14.
+
+| Item | Indicadores | Meta | Glosa | Aferição da empresa conforme Relatório | Aferição dos fiscais | Resultado | Pontuação de Penalidade |
+|---|---|---|---|---|---|---|---|
+| INMS 1.4 | Disponibilidade de sistema/serviço crítico | >=99,50% | Apurar a disponibilidade do sistema ou serviço durante o período | 1000 pontos a cada 0,1% abaixo da meta | 99,47% | 99,47% | Não Alcançado |
+| INMS 1.5 | Disponibilidade de sistema/serviço não-crítico | >=99% | Apurar a disponibilidade do sistema ou serviço durante o período especificado. | 250 pontos a cada 0,1% abaixo da meta | 99,65% | 99,93% | Alcançado |
+| INMS 1.14 | Índice de disponibilidade de serviços de infraestrutura | >=99,50% | Apurar a porcentagem de disponibilidade dos serviços de infraestrutura (a) File Server, (b) Telefonia, (c) Mensageria, (d) Servidores de impressão, (e) WI-FI; e (f) Rede. | 250 pontos a cada 0,1% abaixo da meta | 97,50% | 98,35% | Não Alcançado |
+| PONTUAÇÃO TOTAL | | | | | | | - |
+
+------------------------------
+
+
 
 Além do resumo por órgão, haverá uma tabela detalhada com órgão, sistema ou serviço, criticidade, período previsto, indisponibilidade programada, indisponibilidade não programada, disponibilidade apurada, meta, conformidade e evidência.
 
 ### Aba 6: `ATENDIMENTO_N2`
 
-Destinada ao atendimento presencial, inicialmente com os indicadores INMS 1.1, 1.2, 1.6, 1.7 e 1.9.
+
+
+| Item | Indicadores | Meta | Glosa | Aferição da empresa conforme Relatório | Aferição dos fiscais* | Resultado | Pontuação de Penalidade |
+|---|---|---|---|---|---|---|---|
+| INMS 1.1 | Quantidade de incidentes atendidos dentro do prazo | >= 98% | (Total de incidentes atendidos dentro do prazo / Total de incidentes abertos no período) x 100 | 165 pontos (mensalmente em caso de índice abaixo de 98%) + (20 pontos a cada 0,1% abaixo da meta). | 100% | 100% | Alcançado 0 |
+| INMS 1.2 | Quantidade de requisições atendidos dentro do prazo | >= 95% | (Total de requisições atendidas dentro do prazo conforme tipo de prioridade) / Total de requisições abertas no período conforme tipo de prioridade) x 100 | Prioridade Alta: 20 pontos a cada 0,1% abaixo da meta Prioridade Média: 15 pontos a cada 0,1% abaixo da meta Prioridade Baixa: 10 pontos a cada 0,1% abaixo da meta | 100% | 99,56% | Alcançado 0 |
+| INMS 1.6 | Eficácia no tratamento de chamados (requisições e incidentes) | >= 97% | Total de chamados atendidos – Total de chamados reabertos) / Total de chamados atendidos | 200 pontos a cada 0,5% abaixo da meta | 99,90% | 99,87% | Alcançado 0 |
+| INMS 1.7 | Satisfação dos usuários | >= 80% | (Total de Avaliações Positivas – “Satisfeitos” e “Muito Satisfeitos”) / Quantidade total de avaliações | 250 pontos a cada 1% abaixo da meta | 87,09% | 100% | Alcançado 0 |
+| INMS 1.9 | Tempo médio de implementação de uma mudança | ≥90% das mudanças realizadas no prazo acordado | 200 pontos a cada 1% abaixo da meta (ex.: 88%, 2 x 200) | N/A | N/A | Não foram realizadas mudanças no ambiente no período | 0 |
+| PONTUAÇÃO TOTAL | | | | | | | 0 |
+
+------------------------------
 
 A ausência de mudança no período será registrada como **Não aplicável no período**, e não como zero, evitando interpretar ausência de demanda como descumprimento.
 
 ### Aba 7: `OPERACAO_N3`
 
-Destinada à operação e sustentação da infraestrutura, com os indicadores INMS 1.1, 1.2, 1.3, 1.6, 1.7, 1.9, 1.10 e 1.14.
 
-O INMS 1.14 poderá utilizar os dados da aba `MONITORAMENTO_NOC_SOC`, evitando duplicação de digitação.
+
+| Item | Indicadores | Meta | Glosa | Aferição da empresa conforme Relatório | Aferição dos fiscais* | Resultado | Pontuação de Penalidade |
+|---|---|---|---|---|---|---|---|
+| INMS 1.1 | Quantidade de incidentes atendidos dentro do prazo | >= 98% | (Total de incidentes atendidos dentro do prazo / Total de incidentes abertos no período) x 100 | 165 pontos (mensalmente em caso de índice abaixo de 98%) + (20 pontos a cada 0,1% abaixo da meta). | 99,55% | 99,62% | Alcançado 0 |
+| INMS 1.2 | Quantidade de requisições atendidos dentro do prazo | >= 95% | (Total de requisições atendidas dentro do prazo conforme tipo de prioridade) / Total de requisições abertas no período conforme tipo de prioridade) x 100 | Prioridade Alta: 20 pontos a cada 0,1% abaixo da meta Prioridade Média: 15 pontos a cada 0,1% abaixo da meta Prioridade Baixa: 10 pontos a cada 0,1% abaixo da meta | 98,86% | 98,69% | Alcançado 0 |
+| INMS 1.3 | Quantidade de projetos atendidos dentro do prazo | 100% | (Total de dias dos projetos conforme foram definidos) / (Total de dias de projetos conforme foram definitivos + somatórios dos dias de atraso) | 200 pontos a cada 1% abaixo da meta | N/A | N/A | Alcançado 0 |
+| INMS 1.6 | Eficácia no tratamento de chamados (requisições e incidentes) | >= 97% | Total de chamados atendidos - Total de chamados reabertos) / Total de chamados atendidos | 200 pontos a cada 0,5% abaixo da meta | 99,71% | 99,68% | Alcançado 0 |
+| INMS 1.7 | Satisfação dos usuários | >= 80% | (Total de Avaliações Positivas - "Satisfeitos" e "Muito Satisfeitos") / Quantidade total de avaliações | 250 pontos a cada 1% abaixo da meta | 90% | 100% | Alcançado 0 |
+| INMS 1.9 | Tempo médio de implementação de uma mudança | ≥90% das mudanças realizadas no prazo acordado | 200 pontos a cada 1% abaixo da meta (ex.: 88%, 2 x 200). | 100% | 100% | Alcançado 0 | |
+| INMS 1.10 | Taxa de implantação de controles de segurança | Será acordado com a CONTRATADA o framework de segurança a ser utilizado ou atividades que deverão ser executadas para implementação de controles de segurança. = 100% | 1000 pontos a cada controle não implementado | 100% | 100% | Alcançado 0 | |
+| INMS 1.14 | Índice de disponibilidade de serviços de infraestrutura | >=99,50% | Apurar a porcentagem de disponibilidade dos serviços de infraestrutura (a) File Server, (b) Telefonia, (c) Mensageria, (d) Servidores de impressão, (e) WIFI; e (f) Rede. | 250 pontos a cada 0,1% abaixo da meta | 97,50% | | Não Alcançado |
+| PONTUAÇÃO TOTAL | | | | | | | 00,00 |
+
+------------------------------
+
+
+
 
 ### Aba 8: `EVIDENCIAS`
 
