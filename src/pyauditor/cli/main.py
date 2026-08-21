@@ -97,7 +97,7 @@ class SplitRequest:
     config_dir: Path
     data_dir: Path
     manifest_path: Path
-    output_dir: Path
+    report_dir: Path
     orgao: Orgao
 
 
@@ -274,7 +274,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_orgao_argument(split_parser)
     split_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
     split_parser.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA_DIR)
-    split_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
+    split_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
     split_parser.add_argument(
         "--manifest", type=Path, default=None,
         help="caminho para datasets.yaml (default: <config-dir>/<órgão>/datasets.yaml)"
@@ -352,7 +352,7 @@ def _extract_split_request(ns: argparse.Namespace) -> SplitRequest:
         config_dir=config_dir,
         data_dir=_require(ns, "data_dir", Path),
         manifest_path=manifest_path,
-        output_dir=_require(ns, "output_dir", Path),
+        report_dir=_require(ns, "report_dir", Path),
         orgao=cast(Orgao, orgao),
     )
 
@@ -415,6 +415,21 @@ def _extract_consolidate_request(ns: argparse.Namespace) -> ConsolidateRequest:
     )
 
 
+def _resolve_config_dir(base: Path, orgao: str) -> Path:
+    """Single-source: se `base/_shared` existe, usa o canônico; senão fallback per-órgão."""
+    shared = base / "_shared"
+    if shared.is_dir():
+        return shared
+    return base / orgao
+
+
+def _resolve_manifest_path(base: Path, orgao: str) -> Path:
+    shared = base / "_shared" / "datasets.yaml"
+    if shared.exists():
+        return shared
+    return base / orgao / "datasets.yaml"
+
+
 def _each_single_orgao(orgao: str) -> tuple[str, ...]:
     return _SINGLE_ORGAOS if orgao == "both" else (orgao,)
 
@@ -436,10 +451,10 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
     measure_results = []
     per_orgao: dict[str, list[_MeasuredIndicator]] = {}
     for orgao in _each_single_orgao(request.orgao):
-        per_orgao_config_dir = request.config_dir / orgao
+        per_orgao_config_dir = _resolve_config_dir(request.config_dir, orgao)
         per_orgao_data_dir = request.data_dir / orgao
         per_orgao_output_dir = request.output_dir / orgao
-        per_orgao_manifest_path = request.config_dir / orgao / "datasets.yaml"
+        per_orgao_manifest_path = _resolve_manifest_path(request.config_dir, orgao)
         per_orgao_capa = _capa_path_for(request.capa_path, cast(Orgao, orgao))
         manifest = None
         if per_orgao_manifest_path.exists():
@@ -483,9 +498,9 @@ def _dispatch_split(args: argparse.Namespace) -> int:
             ),
             **_logging_kwargs(args),
         )
-        per_orgao_config_dir = request.config_dir / orgao
+        per_orgao_config_dir = _resolve_config_dir(request.config_dir, orgao)
         per_orgao_data_dir = request.data_dir / orgao
-        per_orgao_manifest_path = request.config_dir / orgao / "datasets.yaml"
+        per_orgao_manifest_path = _resolve_manifest_path(request.config_dir, orgao)
         manifest = None
         if per_orgao_manifest_path.exists():
             manifest = load_manifest(per_orgao_manifest_path)
@@ -495,7 +510,7 @@ def _dispatch_split(args: argparse.Namespace) -> int:
             data_dir=per_orgao_data_dir,
             expected_orgao=orgao,
             manifest=manifest,
-            output_dir=request.output_dir / orgao,
+            report_dir=request.report_dir / orgao,
         ))
     return exit_code_for_results(split_results)
 
@@ -555,7 +570,7 @@ def _dispatch_report(args: argparse.Namespace) -> int:
             capa_path=report_request.capa_path,
             roms_dir=per_orgao_roms_dir,
             output_path=output_path,
-            config_dir=report_request.config_dir / orgao,
+            config_dir=_resolve_config_dir(report_request.config_dir, orgao),
             expected_orgao=orgao,
             is_final_month=report_request.is_final_month,
             data_dir=report_request.data_dir,

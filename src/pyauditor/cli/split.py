@@ -16,8 +16,8 @@ For each INMS with at least one `grupo_executor` entry:
 overwrites on rerun (idempotent by regeneration); the raw CSV is never
 touched.
 
-When *output_dir* (a ROMs base dir, `roms/<orgao>`) is given, `run_split`
-also (re)writes `<output_dir>/<competencia>/sintetico.xlsx` (spec §14.4,
+When *report_dir* (a reports base dir, `reports/<orgao>`) is given, `run_split`
+also (re)writes `<report_dir>/<competencia>/sintetico.xlsx` (spec §14.4,
 ticket 05) — see `excel/sintetico.py` for that report's own INMS-mode
 coverage, which spans both `grupo_executor` and `whole_indicator`.
 """
@@ -139,7 +139,8 @@ def run_split(
     *,
     expected_orgao: str,
     manifest: DatasetManifest | None = None,
-    output_dir: Path | None = None,
+    report_dir: Path | None = None,
+    materialize: bool = True,
 ) -> SplitResult:
     orgao = expected_orgao
 
@@ -159,7 +160,13 @@ def run_split(
     year, month = competencia.split("-")
     competencia_data_dir = data_dir / year / month
 
+    # Single-source: `config_dir` pode ser `_shared` (sem categorias.yaml);
+    # fallback para `config_dir.parent/<orgao>/categorias.yaml`.
     categorias_path = config_dir / "categorias.yaml"
+    if not categorias_path.exists() and config_dir.name == "_shared":
+        fallback = config_dir.parent / expected_orgao / "categorias.yaml"
+        if fallback.exists():
+            categorias_path = fallback
     try:
         categorias_file = load_categorias(categorias_path)
     except (OSError, ValueError) as exc:
@@ -256,36 +263,51 @@ def run_split(
                 row for row in rows if row[GRUPO_EXECUTOR_COLUMN] in effective_values
             ]
             csv_path = split_dir / f"{categoria_key}.csv"
-            try:
-                _write_filtered_csv(csv_path, fieldnames, filtered_rows, delimiter)
-            except OSError as exc:
-                logger.error(f"falha ao escrever {csv_path}: {exc}")
-                any_error = True
-                continue
+            if materialize:
+                try:
+                    _write_filtered_csv(csv_path, fieldnames, filtered_rows, delimiter)
+                except OSError as exc:
+                    logger.error(f"falha ao escrever {csv_path}: {exc}")
+                    any_error = True
+                    continue
 
             csv_relpath = f"{_SPLIT_DIRNAME}/{inms_key}/{categoria_key}.csv"
             derived_config = _derive_config(base_config, categoria_key, csv_relpath, delimiter)
-            config_path = config_dir / f"{base_stem}.{categoria_key}.yaml"
-            try:
-                _write_derived_config(config_path, derived_config)
-            except OSError as exc:
-                logger.error(f"falha ao escrever {config_path}: {exc}")
-                any_error = True
-                continue
+            # Single-source: derivados vivem no dir per-órgão, não em _shared
+            derived_dir = config_dir
+            if config_dir.name == "_shared":
+                derived_dir = config_dir.parent / expected_orgao
+            config_path = derived_dir / f"{base_stem}.{categoria_key}.yaml"
+            if materialize:
+                try:
+                    _write_derived_config(config_path, derived_config)
+                except OSError as exc:
+                    logger.error(f"falha ao escrever {config_path}: {exc}")
+                    any_error = True
+                    continue
+            else:
+                # Sem materialização: config_path fica None semanticamente,
+                # mas mantemos o path para rastreabilidade no outcome.
+                config_path = None  # type: ignore[assignment]
 
             outcomes.append(SplitCategoriaOutcome(
                 inms=inms_key, categoria=categoria_key, csv_path=csv_path,
-                config_path=config_path, row_count=len(filtered_rows),
+                config_path=config_path,
+                row_count=len(filtered_rows),
             ))
 
         outros_rows = [row for row in rows if row[GRUPO_EXECUTOR_COLUMN] in outros_values]
         outros_path = split_dir / f"{_OUTROS_NAME}.csv"
-        try:
-            _write_filtered_csv(outros_path, fieldnames, outros_rows, delimiter)
-        except OSError as exc:
-            logger.error(f"falha ao escrever {outros_path}: {exc}")
-            any_error = True
-            continue
+        if materialize:
+            try:
+                _write_filtered_csv(outros_path, fieldnames, outros_rows, delimiter)
+            except OSError as exc:
+                logger.error(f"falha ao escrever {outros_path}: {exc}")
+                any_error = True
+                continue
+        else:
+            # Sem materialização: ainda conta para warning, mas não escreve
+            pass
 
         outcomes.append(SplitCategoriaOutcome(
             inms=inms_key, categoria=_OUTROS_NAME, csv_path=outros_path,
@@ -303,10 +325,10 @@ def run_split(
     # sintetico.xlsx (spec §14.4, ticket 05): uma aba por INMS com entrada em
     # categorias.yaml, para os dois modes — cobre bem mais INMS do que o
     # laço acima (que só materializa artefatos para `grupo_executor`).
-    # `output_dir` é opcional (`None` pula a geração) para não obrigar todo
-    # chamador existente de `run_split` a passar um diretório de ROMs.
-    if output_dir is not None:
-        sintetico_path = output_dir / competencia / _SINTETICO_FILENAME
+    # `report_dir` é opcional (`None` pula a geração) para não obrigar todo
+    # chamador existente de `run_split` a passar um diretório de relatórios.
+    if report_dir is not None:
+        sintetico_path = report_dir / competencia / _SINTETICO_FILENAME
         try:
             sintetico_warnings = write_sintetico_workbook(
                 categorias_file, config_dir, competencia_data_dir, sintetico_path,

@@ -11,12 +11,19 @@ from the data-dir root). Keeping each competência in its own folder lets one
 project hold the data of every past aferição side by side.
 """
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Final, cast
 
+from pyauditor.categoria_filter import (
+    GRUPO_EXECUTOR_COLUMN,
+    compute_categoria_values,
+    read_raw_csv,
+)
 from pyauditor.cli.results import (
     DIR_FAILURE_HINT,
     WRITE_FAILURE_HINT,
@@ -24,12 +31,18 @@ from pyauditor.cli.results import (
     Status,
     validate_competencia,
 )
+from pyauditor.config.categorias import GrupoExecutorMode, load_categorias
 from pyauditor.config.manifest import DatasetManifest
 from pyauditor.engine.pipeline import (
+    MeasurementProvenance,
     MeasurementResult,
+    _pipeline_version,
     discover_config_files,
     measure,
+    resolve_source,
 )
+from pyauditor.engine.quality_gates import QualityGateRunner
+from pyauditor.engine.strategies import SHAPE_REGISTRY
 from pyauditor.excel.capa import read_capa_csv_fields
 from pyauditor.logging import log_event, logger
 from pyauditor.rom.render import render_combined_rom, render_rom
@@ -88,6 +101,18 @@ _CAPA_ROM_FIELDS: Final[tuple[str, ...]] = (
     "Fiscal administrativo",
     "Gestor do contrato",
 )
+
+
+def _inms_key_from_contractual_id(contractual_id: str) -> str | None:
+    """`INMS 1.1` -> `1.1` — chave usada em `categorias.yaml`."""
+    parts = contractual_id.strip().split()
+    if not parts:
+        return None
+    last = parts[-1]
+    # Valida formato 1.N
+    if "." not in last:
+        return None
+    return last
 
 
 def _sanitize_indicator_id(raw: str) -> str:
@@ -171,52 +196,39 @@ def run_measure(
             logger.warning(warning)
             warnings.append(warning)
 
+    # Single-source categorias: carrega uma vez por execução (fallback para
+    # parent/<orgao>/categorias.yaml quando config_dir é _shared).
+    categorias_file = None
+    per_inms: dict[str, list[tuple[str, GrupoExecutorMode]]] = {}
+    if expected_orgao is not None:
+        categorias_path = config_dir / "categorias.yaml"
+        if not categorias_path.exists() and config_dir.name == "_shared":
+            fallback = config_dir.parent / expected_orgao / "categorias.yaml"
+            if fallback.exists():
+                categorias_path = fallback
+        if categorias_path.exists():
+            try:
+                categorias_file = load_categorias(categorias_path)
+                for cat_key, cat in categorias_file.categorias.items():
+                    for cat_inms_key, entry in cat.inms.items():
+                        if isinstance(entry, GrupoExecutorMode):
+                            per_inms.setdefault(cat_inms_key, []).append((cat_key, entry))
+            except (OSError, ValueError) as exc:
+                logger.warning(f"falha ao carregar categorias {categorias_path}: {exc}")
+
     any_hard_failure = False
     outcomes: list[IndicatorOutcome] = []
 
-    for config_path, config_hash, config in configs:
-        contractual_id = config.indicator.contractual_id
-        safe_id = _sanitize_indicator_id(config.indicator.id)
-        rom_path = target_dir / f"{safe_id}.md"
-        summary_path = target_dir / f"{safe_id}.json"
-
-        try:
-            result = measure(
-                config,
-                data_dir=competencia_data_dir,
-                manifest=manifest,
-                config_path=config_path,
-                config_hash=config_hash,
-            )
-        # Dataset ausente na competência (spec §14.1): não é falha de quality
-        # gate nem erro — o elemento contratual não foi demandado/ativado no
-        # período. Vale para os 14 indicadores, não só os de categoria.
-        except FileNotFoundError:
-            warning = (
-                f"{contractual_id} ({config.scope.orgao}/{competencia}): não ativado — "
-                "dataset ausente (serviço não requisitado no período)"
-            )
-            logger.warning(warning)
-            warnings.append(warning)
-            outcomes.append(IndicatorOutcome(
-                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
-                hard_failure=False, error=None, not_activated=True,
-            ))
-            continue
-        # Broad by design — isolates one indicator's failure so the rest of the
-        # batch still measures (bootstrap.py/report.py/consolidate.py catch
-        # broadly too, but abort the whole command — this one deliberately
-        # doesn't, since a batch of indicators shouldn't die together).
-        except Exception as exc:
-            message = f"{contractual_id}: exceção na medição: {exc}"
-            logger.error(message)
-            any_hard_failure = True
-            outcomes.append(IndicatorOutcome(
-                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
-                hard_failure=True, error=message,
-            ))
-            continue
-
+    def _handle_result(
+        result: MeasurementResult,
+        safe_id: str,
+        rom_path: Path,
+        summary_path: Path,
+        contractual_id: str,
+        indicator_id: str,
+        scope_orgao: str,
+    ) -> None:
+        nonlocal any_hard_failure
         try:
             rom_path.write_text(render_rom(result, capa_fields=capa_fields), encoding="utf-8")
             summary = summarize(result)
@@ -232,8 +244,7 @@ def run_measure(
                 contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
                 hard_failure=True, error=message,
             ))
-            continue
-
+            return
         if result.hard_failure:
             any_hard_failure = True
             error = (
@@ -247,19 +258,17 @@ def run_measure(
             ))
         elif getattr(result, "systematic_failure", False):
             any_hard_failure = True
-            error = (
+            error2 = (
                 f"{contractual_id}: não-conformidade sistemática — "
                 f"resultado {summary.result_pct:.2f}% sempre não-conforme, "
                 f"possível bug de cálculo ({rom_path})"
             )
-            logger.error(error)
+            logger.error(error2)
             outcomes.append(IndicatorOutcome(
                 contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
-                hard_failure=True, error=error,
+                hard_failure=True, error=error2,
             ))
         else:
-            # Observabilidade (ticket 05, Q2/Q7): sem linha por indicador no
-            # padrão (INFO); com `-v`/`-vv` (DEBUG) um evento por indicador.
             status_label = "conforme" if getattr(summary, "conforms", True) else "nao_conforme"
             if getattr(summary, "systematic_failure", False):
                 status_label = "nao_conforme_sistematica"
@@ -276,15 +285,204 @@ def run_measure(
                 contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
                 hard_failure=False, error=None,
             ))
-
         if collect is not None:
             collect.append(_MeasuredIndicator(
-                indicator_id=config.indicator.id,
+                indicator_id=indicator_id,
                 safe_id=safe_id,
-                orgao=config.scope.orgao,
+                orgao=scope_orgao,
                 result=result,
                 capa_fields=capa_fields,
             ))
+
+    for config_path, config_hash, config in configs:
+        contractual_id = config.indicator.contractual_id
+        inms_key: str | None = _inms_key_from_contractual_id(contractual_id)
+        entries = per_inms.get(inms_key) if inms_key is not None else None
+
+        # Ticket 04 — filtro em memória: quando há categorias grupo_executor
+        # para este INMS, expande em N medições filtradas sem materializar
+        # _split/*. O caminho single (abaixo) só roda para whole_indicator.
+        if entries is not None and categorias_file is not None:
+            # Tenta resolver fonte bruta uma vez para todas as categorias
+            try:
+                raw_csv_path, delimiter, encoding = resolve_source(
+                    config, competencia_data_dir, manifest
+                )
+            except FileNotFoundError:
+                for cat_key, _ in entries:
+                    derived_id = f"{config.indicator.id}.{cat_key}"
+                    safe_id = _sanitize_indicator_id(derived_id)
+                    rom_path = target_dir / f"{safe_id}.md"
+                    summary_path = target_dir / f"{safe_id}.json"
+                    warning = (
+                        f"{contractual_id} ({config.scope.orgao}/{competencia}, {cat_key}): "
+                        "não ativado — dataset ausente"
+                    )
+                    logger.warning(warning)
+                    warnings.append(warning)
+                    outcomes.append(IndicatorOutcome(
+                        contractual_id=contractual_id, rom_path=rom_path,
+                        summary_path=summary_path, hard_failure=False, error=None,
+                        not_activated=True,
+                    ))
+                continue
+            except Exception as exc:
+                message = f"{contractual_id}: exceção na medição: {exc}"
+                logger.error(message)
+                any_hard_failure = True
+                for cat_key, _ in entries:
+                    derived_id = f"{config.indicator.id}.{cat_key}"
+                    safe_id = _sanitize_indicator_id(derived_id)
+                    rom_path = target_dir / f"{safe_id}.md"
+                    summary_path = target_dir / f"{safe_id}.json"
+                    outcomes.append(IndicatorOutcome(
+                        contractual_id=contractual_id, rom_path=rom_path,
+                        summary_path=summary_path, hard_failure=True, error=message,
+                    ))
+                continue
+            try:
+                fieldnames, rows = read_raw_csv(raw_csv_path, delimiter, encoding)
+            except (OSError, ValueError) as exc:
+                message = f"{contractual_id}: exceção na medição: {exc}"
+                logger.error(message)
+                any_hard_failure = True
+                for cat_key, _ in entries:
+                    derived_id = f"{config.indicator.id}.{cat_key}"
+                    safe_id = _sanitize_indicator_id(derived_id)
+                    rom_path = target_dir / f"{safe_id}.md"
+                    summary_path = target_dir / f"{safe_id}.json"
+                    outcomes.append(IndicatorOutcome(
+                        contractual_id=contractual_id, rom_path=rom_path,
+                        summary_path=summary_path, hard_failure=True, error=message,
+                    ))
+                continue
+            if GRUPO_EXECUTOR_COLUMN not in fieldnames:
+                message = (
+                    f"{contractual_id}: exceção na medição: {raw_csv_path} não tem coluna "
+                    f"'{GRUPO_EXECUTOR_COLUMN}' — declarado mode: grupo_executor em categorias.yaml"
+                )
+                logger.error(message)
+                any_hard_failure = True
+                for cat_key, _ in entries:
+                    derived_id = f"{config.indicator.id}.{cat_key}"
+                    safe_id = _sanitize_indicator_id(derived_id)
+                    rom_path = target_dir / f"{safe_id}.md"
+                    summary_path = target_dir / f"{safe_id}.json"
+                    outcomes.append(IndicatorOutcome(
+                        contractual_id=contractual_id, rom_path=rom_path,
+                        summary_path=summary_path, hard_failure=True, error=message,
+                    ))
+                continue
+            real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
+            for cat_key, entry in entries:
+                if entry.in_values is not None:
+                    unmatched = [v for v in entry.in_values if v not in real_values]
+                    if unmatched and not (set(entry.in_values) & real_values):
+                        w = (
+                            f"INMS {inms_key} ({config.scope.orgao}/{competencia}), categoria {cat_key}: "
+                            f"in_values {unmatched!r} sem correspondência em Grupo_executor do CSV "
+                            f"({raw_csv_path}) — possível typo/renomeação, categoria ficará sem linhas"
+                        )
+                        logger.warning(w)
+                        warnings.append(w)
+                    elif unmatched:
+                        w = (
+                            f"INMS {inms_key} ({config.scope.orgao}/{competencia}), categoria {cat_key}: "
+                            f"in_values {unmatched!r} sem correspondência — valores não encontrados no CSV"
+                        )
+                        logger.warning(w)
+                        warnings.append(w)
+            per_categoria_values, outros_values = compute_categoria_values(entries, real_values)
+            # mede cada categoria filtrada em memória
+            for cat_key, effective_values in per_categoria_values.items():
+                filtered_rows = [r for r in rows if r[GRUPO_EXECUTOR_COLUMN] in effective_values]
+                derived_indicator = config.indicator.model_copy(update={"id": f"{config.indicator.id}.{cat_key}"})
+                derived_config = config.model_copy(update={"indicator": derived_indicator, "acceptance_test": None})
+                derived_safe_id = _sanitize_indicator_id(derived_config.indicator.id)
+                rom_path = target_dir / f"{derived_safe_id}.md"
+                summary_path = target_dir / f"{derived_safe_id}.json"
+                # quality gates + estratégia sobre linhas filtradas
+                try:
+                    gate_runner = QualityGateRunner(derived_config.quality_gates.checks, id_column=derived_config.source.id_column)
+                    gate_report = gate_runner.run(filtered_rows)
+                    strategy = SHAPE_REGISTRY[derived_config.calculation.shape]
+                    calculation = strategy.calculate(derived_config, gate_report.accepted)
+                    csv_hash = hashlib.sha256(raw_csv_path.read_bytes()).hexdigest()
+                    derived_hash = hashlib.sha256(
+                        json.dumps(derived_config.model_dump(mode="json"), sort_keys=True).encode()
+                    ).hexdigest()
+                    provenance = MeasurementProvenance(
+                        config_path=config_path,
+                        config_hash=derived_hash,
+                        csv_path=raw_csv_path,
+                        csv_hash=csv_hash,
+                        delimiter=delimiter,
+                        encoding=encoding,
+                        processed_at=datetime.now(),
+                        pipeline_version=_pipeline_version(),
+                    )
+                    result = MeasurementResult(
+                        config=derived_config, quality_gate_report=gate_report,
+                        calculation=calculation, provenance=provenance,
+                    )
+                except Exception as exc:
+                    message = f"{contractual_id}.{cat_key}: exceção na medição: {exc}"
+                    logger.error(message)
+                    any_hard_failure = True
+                    outcomes.append(IndicatorOutcome(
+                        contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
+                        hard_failure=True, error=message,
+                    ))
+                    continue
+                _handle_result(result, derived_safe_id, rom_path, summary_path, contractual_id, derived_config.indicator.id, derived_config.scope.orgao)
+            # outros contábil — warning se houver linhas não classificadas
+            outros_rows = [r for r in rows if r[GRUPO_EXECUTOR_COLUMN] in outros_values]
+            if outros_rows:
+                w = (
+                    f"INMS {inms_key} ({config.scope.orgao}/{competencia}), categoria outros: "
+                    f"{len(outros_rows)} linha(s) não classificada(s) em nenhuma categoria — revisar categorias.yaml"
+                )
+                logger.warning(w)
+                warnings.append(w)
+            continue
+
+        # Caminho single — whole_indicator ou INMS sem categoria grupo_executor
+        safe_id = _sanitize_indicator_id(config.indicator.id)
+        rom_path = target_dir / f"{safe_id}.md"
+        summary_path = target_dir / f"{safe_id}.json"
+
+        try:
+            result = measure(
+                config,
+                data_dir=competencia_data_dir,
+                manifest=manifest,
+                config_path=config_path,
+                config_hash=config_hash,
+            )
+        except FileNotFoundError:
+            _orgao_warn = getattr(getattr(config, "scope", None), "orgao", orgao)
+            warning = (
+                f"{contractual_id} ({_orgao_warn}/{competencia}): não ativado — "
+                "dataset ausente (serviço não requisitado no período)"
+            )
+            logger.warning(warning)
+            warnings.append(warning)
+            outcomes.append(IndicatorOutcome(
+                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
+                hard_failure=False, error=None, not_activated=True,
+            ))
+            continue
+        except Exception as exc:
+            message = f"{contractual_id}: exceção na medição: {exc}"
+            logger.error(message)
+            any_hard_failure = True
+            outcomes.append(IndicatorOutcome(
+                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
+                hard_failure=True, error=message,
+            ))
+            continue
+
+        _handle_result(result, safe_id, rom_path, summary_path, contractual_id, config.indicator.id, getattr(getattr(config, "scope", None), "orgao", orgao))
 
     # Resumo conciso por órgão (INFO) — no lugar das N linhas repetidas.
     total = len(outcomes)

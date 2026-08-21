@@ -64,7 +64,9 @@ class Indicator(BaseModel):
 
 class Scope(BaseModel):
     model_config = _StrictFrozen
-    contract: str = Field(min_length=1)
+    # Default contract é o do MinC — o loader injeta o contrato correto
+    # por órgão quando o YAML vem de `configs/_shared/` (single-source).
+    contract: str = Field(default="40/2022 - Ministério da Cultura", min_length=1)
     # "MTur" per docs/spreadsheet.md's MinC/MTur segregation — see
     # excel/report.py's consolidation step (spec §13).
     orgao: Literal["MinC", "MTur"] = "MinC"
@@ -338,7 +340,7 @@ class AcceptanceTest(BaseModel):
 class IndicatorConfig(BaseModel):
     model_config = _StrictFrozen
     indicator: Indicator
-    scope: Scope
+    scope: Scope = Field(default_factory=Scope)
     source: Source
     quality_gates: QualityGates
     calculation: Calculation

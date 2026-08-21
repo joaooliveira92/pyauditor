@@ -184,9 +184,22 @@ def dependency_missing(command: str, orgao: str | None, request: RunRequest) -> 
     return check.missing
 
 
+def _resolve_shared_config_dir(base: Path) -> Path:
+    shared = base / "_shared"
+    return shared if shared.is_dir() else base
+
+
 def _manifest_for(per_orgao_config_dir: Path) -> DatasetManifest | None:
+    # Prefer per-órgão manifest quando existe (permite delimiter por órgão:
+    # MTur usa ',' em inms-07/11/12 enquanto MinC usa ';' em inms-07).
+    # Fallback para _shared quando o órgão não tem manifest próprio.
     manifest_path = per_orgao_config_dir / "datasets.yaml"
-    return load_manifest(manifest_path) if manifest_path.exists() else None
+    if manifest_path.exists():
+        return load_manifest(manifest_path)
+    shared_manifest = per_orgao_config_dir.parent / "_shared" / "datasets.yaml"
+    if shared_manifest.exists():
+        return load_manifest(shared_manifest)
+    return None
 
 
 def _dispatch(command: str, orgao: str | None, request: RunRequest) -> CommandResult:
@@ -194,34 +207,50 @@ def _dispatch(command: str, orgao: str | None, request: RunRequest) -> CommandRe
         capa_path = _capa_path_for(request.capa_path, orgao or "")
         return run_bootstrap(capa_path, orgao or "")
     if command == "split":
-        per_orgao_config_dir = request.config_dir / (orgao or "")
+        base = request.config_dir
+        shared = base / "_shared"
+        per_orgao_config_dir = shared if shared.is_dir() else base / (orgao or "")
+        # Manifest por órgão (datasets.yaml) tem precedência sobre _shared
+        # para permitir delimiter divergente (MTur ',' vs MinC ';').
+        per_orgao_manifest_dir = base / (orgao or "") if orgao else per_orgao_config_dir
+        manifest = _manifest_for(per_orgao_manifest_dir) or _manifest_for(per_orgao_config_dir)
+        # Ticket 04 — desmaterializado: split não gera _split/* em `run` normal,
+        # apenas sintetico.xlsx; medida filtra em memória.
         return run_split(
             request.competencia,
             per_orgao_config_dir,
             request.data_dir / (orgao or ""),
             expected_orgao=orgao or "",
-            manifest=_manifest_for(per_orgao_config_dir),
-            output_dir=request.output_dir / (orgao or ""),
+            manifest=manifest,
+            report_dir=request.report_dir / (orgao or ""),
+            materialize=False,
         )
     if command == "measure":
-        per_orgao_config_dir = request.config_dir / (orgao or "")
+        base = request.config_dir
+        shared = base / "_shared"
+        per_orgao_config_dir = shared if shared.is_dir() else base / (orgao or "")
+        per_orgao_manifest_dir = base / (orgao or "") if orgao else per_orgao_config_dir
+        manifest = _manifest_for(per_orgao_manifest_dir) or _manifest_for(per_orgao_config_dir)
         return run_measure(
             competencia=request.competencia,
             config_dir=per_orgao_config_dir,
             data_dir=request.data_dir / (orgao or ""),
             output_dir=request.output_dir / (orgao or ""),
-            manifest=_manifest_for(per_orgao_config_dir),
+            manifest=manifest,
             expected_orgao=orgao,
             capa_path=_capa_path_for(request.capa_path, orgao or ""),
         )
     if command == "report":
         output_path = request.report_dir / f"relatorio_{request.competencia}_{orgao}.xlsx"
+        base = request.config_dir
+        shared = base / "_shared"
+        per_orgao_config_dir = shared if shared.is_dir() else base / (orgao or "")
         return run_report(
             competencia=request.competencia,
             capa_path=request.capa_path,
             roms_dir=request.output_dir / (orgao or ""),
             output_path=output_path,
-            config_dir=request.config_dir / (orgao or ""),
+            config_dir=per_orgao_config_dir,
             expected_orgao=orgao,
             is_final_month=request.final_month,
             data_dir=request.data_dir,
