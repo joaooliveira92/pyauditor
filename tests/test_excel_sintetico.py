@@ -429,10 +429,11 @@ def test_nao_ativado_when_raw_csv_missing(tmp_path: Path) -> None:
     )
 
 
-def test_periodo_filtra_antes_dos_gates_e_degrada_sem_period_column(tmp_path: Path) -> None:
-    """Spec competencia-cli-equipe §2 — sintetico aplica a mesma janela do
-    split: linha de maio some das contagens; config sem `period_column`
-    vira warning 'dataset sem filtro' em vez de derrubar o workbook."""
+def test_periodo_filtra_antes_dos_gates_e_falha_sem_period_column(tmp_path: Path) -> None:
+    """Spec competencia-cli-equipe §2/§ issue 01 item 5 — sintetico aplica a
+    mesma janela do split: linha de maio some das contagens; config sem
+    `period_column` é erro acionável, aba daquele INMS é pulada (mesmo
+    tratamento dos demais erros do loop) em vez do workbook inteiro cair."""
     from datetime import date
 
     from pyauditor.periodo import PeriodoAfericao
@@ -453,9 +454,14 @@ def test_periodo_filtra_antes_dos_gates_e_degrada_sem_period_column(tmp_path: Pa
         periodo=PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30)),
     )
 
-    # INMS 1.9/1.4 não declaram period_column → dataset sem filtro, aba normal.
-    assert any("INMS 1.9" in w and "sem filtro" in w for w in warnings)
+    # INMS 1.9/1.4 não declaram period_column → erro acionável, aba pulada.
+    assert any(
+        "INMS 1.9" in w and "period_column" in w and "não declarado" in w
+        for w in warnings
+    )
     wb = load_workbook(output_path)
+    assert "INMS 1.9" not in wb.sheetnames
+    assert "INMS 1.4" not in wb.sheetnames
     sheet = wb["INMS 1.1"]
     rows_by_grupo = {row[2].value: row for row in sheet.iter_rows(min_row=2)}
     n1 = [c.value for c in rows_by_grupo["N1"]]

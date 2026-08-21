@@ -49,7 +49,7 @@ from pyauditor.engine.pipeline import (
 )
 from pyauditor.engine.quality_gates import QualityGateRunner
 from pyauditor.engine.strategies import SHAPE_REGISTRY
-from pyauditor.excel.equipe import RESPONSAVEL_LABELS, ler_responsaveis
+from pyauditor.excel.equipe import RESPONSAVEL_LABELS, read_responsaveis
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import PeriodoAfericao, filter_periodo, require_period_column
 from pyauditor.rom.render import render_combined_rom, render_rom
@@ -168,7 +168,7 @@ def run_measure(
     capa_fields: dict[str, object] = {}
     warnings: list[str] = []
     if equipe_path is not None:
-        campos_equipe, avisos_equipe = ler_responsaveis(equipe_path)
+        campos_equipe, avisos_equipe = read_responsaveis(equipe_path)
         capa_fields.update(campos_equipe)
         for warning in avisos_equipe:
             logger.warning(warning)

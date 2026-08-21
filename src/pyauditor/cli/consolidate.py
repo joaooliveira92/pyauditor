@@ -24,10 +24,10 @@ from pyauditor.atomic_write import atomic_write
 from pyauditor.cli.results import WRITE_FAILURE_HINT, DependencyCheck, Status, validate_competencia
 from pyauditor.excel.capa import read_capa_csv_fields
 from pyauditor.excel.consolidate import build_consolidated_workbook, read_existing_decisions
-from pyauditor.excel.equipe import EQUIPE_FILENAME, ler_responsaveis
+from pyauditor.excel.equipe import EQUIPE_FILENAME, read_responsaveis
 from pyauditor.excel.objetos import OBJETOS_FILENAME, read_objetos
 from pyauditor.logging import log_event, logger
-from pyauditor.periodo import mes_bounds
+from pyauditor.periodo import month_bounds
 from pyauditor.rom.summary import IndicatorSummary
 
 _ORGAOS: tuple[str, str] = ("MinC", "MTur")
@@ -167,8 +167,8 @@ def run_consolidate(
 
     # §4/§6 — períodos derivados da CLI; responsáveis de equipe.csv com
     # degrade para warning (dado incompleto nunca bloqueia o consolidado).
-    periodo = mes_bounds(competencia)
-    responsaveis, avisos_equipe = ler_responsaveis(data_dir / EQUIPE_FILENAME)
+    periodo = month_bounds(competencia)
+    responsaveis, avisos_equipe = read_responsaveis(data_dir / EQUIPE_FILENAME)
     warnings.extend(avisos_equipe)
 
     try:

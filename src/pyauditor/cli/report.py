@@ -20,12 +20,12 @@ from typing import Final
 from pyauditor.cli.results import WRITE_FAILURE_HINT, DependencyCheck, Status, validate_competencia
 from pyauditor.engine.pipeline import discover_configs
 from pyauditor.excel.capa import DERIVED_FIELD_LABELS, EQUIPE_FIELD_LABELS, read_capa_csv_fields
-from pyauditor.excel.equipe import EQUIPE_FILENAME, ler_responsaveis
+from pyauditor.excel.equipe import EQUIPE_FILENAME, read_responsaveis
 from pyauditor.excel.glosas import historico_entry, read_historico, write_historico
 from pyauditor.excel.objetos import OBJETOS_FILENAME, read_objetos
 from pyauditor.excel.report import build_report, compute_report_glosa
 from pyauditor.logging import log_event, logger
-from pyauditor.periodo import formatar_data_br, mes_bounds
+from pyauditor.periodo import format_date_br, month_bounds
 from pyauditor.rom.summary import IndicatorSummary
 
 HISTORICO_FILENAME = "glosa_historico.json"
@@ -196,11 +196,11 @@ def run_report(
     # campos órfãos descartados; os valores vêm da CLI + equipe.csv.
     for label in (*DERIVED_FIELD_LABELS, *EQUIPE_FIELD_LABELS):
         capa_fields.pop(label, None)
-    periodo = mes_bounds(competencia)
+    periodo = month_bounds(competencia)
     capa_fields["Competência"] = competencia
-    capa_fields["Período inicial da aferição"] = formatar_data_br(periodo.inicio)
-    capa_fields["Período final da aferição"] = formatar_data_br(periodo.fim)
-    campos_equipe, avisos_equipe = ler_responsaveis(data_dir / EQUIPE_FILENAME)
+    capa_fields["Período inicial da aferição"] = format_date_br(periodo.inicio)
+    capa_fields["Período final da aferição"] = format_date_br(periodo.fim)
+    campos_equipe, avisos_equipe = read_responsaveis(data_dir / EQUIPE_FILENAME)
     warnings.extend(avisos_equipe)
     capa_fields.update(campos_equipe)
     warnings_gerais: list[str] = []

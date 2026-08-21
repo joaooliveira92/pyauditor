@@ -67,7 +67,7 @@ ORGAO_FIELD_LABELS: Final[tuple[str, ...]] = (
 )
 
 # Rótulos derivados da CLI — exibidos nas planilhas com valores sempre do
-# argumento `--competência` (pyauditor.periodo.mes_bounds), nunca hand-fill.
+# argumento `--competência` (pyauditor.periodo.month_bounds), nunca hand-fill.
 DERIVED_FIELD_LABELS: Final[tuple[str, ...]] = (
     "Competência",
     "Período inicial da aferição",

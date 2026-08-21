@@ -451,30 +451,28 @@ def write_sintetico_workbook(
 
         # Filtro de período (§2 ponto 3): após read_raw_csv, antes dos gates.
         # Sintetico nunca emite WARN de janela vazia (a mesma passada do
-        # bruto coube ao split) e configuração ausente degrada a warning em
-        # vez de derrubar o workbook (conferência best-effort).
+        # bruto coube ao split); `period_column` ausente é erro acionável
+        # (spec §2 ponto 1, issue 01 item 5) — degrada esta aba como os
+        # demais erros do loop, não filtra "de graça".
         if periodo is not None:
-            period_column: str | None = None
             try:
                 period_column = require_period_column(
                     base_config.source.period_column,
                     config_path=config_dir / f"{base_stem}.yaml",
                 )
             except ValueError as exc:
-                warnings.append(
-                    f"sintetico.xlsx: INMS {inms_key}: {exc} — dataset sem filtro"
+                warnings.append(f"sintetico.xlsx: INMS {inms_key}: {exc}")
+                continue
+            if period_column in fieldnames:
+                filtro = filter_periodo(
+                    rows, period_column=period_column, periodo=periodo, strict=strict
                 )
-            if period_column is not None:
-                if period_column in fieldnames:
-                    filtro = filter_periodo(
-                        rows, period_column=period_column, periodo=periodo, strict=strict
-                    )
-                    rows = filtro.linhas_na_janela
-                else:
-                    warnings.append(
-                        f"sintetico.xlsx: INMS {inms_key}: coluna {period_column!r} não "
-                        f"existe em {raw_csv_path.name} — dataset sem filtro"
-                    )
+                rows = filtro.linhas_na_janela
+            else:
+                warnings.append(
+                    f"sintetico.xlsx: INMS {inms_key}: coluna {period_column!r} não "
+                    f"existe em {raw_csv_path.name} — dataset sem filtro"
+                )
 
         gate_runner = QualityGateRunner(
             base_config.quality_gates.checks, id_column=base_config.source.id_column

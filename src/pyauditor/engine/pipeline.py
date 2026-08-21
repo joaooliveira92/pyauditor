@@ -21,9 +21,9 @@ from pyauditor.engine.strategies.base import CalculationResult
 from pyauditor.logging import logger
 from pyauditor.periodo import (
     PeriodoAfericao,
+    discard_message,
+    empty_window_message,
     filter_periodo,
-    mensagem_descarte,
-    mensagem_janela_vazia,
     require_period_column,
 )
 
@@ -389,8 +389,8 @@ def measure(
         # dataset whole_indicator que processa — configs derivadas `_split`
         # não passam por measure() (o bruto já avisou no split).
         if total_bruto > 0 and not rows:
-            logger.warning(f"{csv_path}: {mensagem_janela_vazia(periodo)}")
-        info_descarte = mensagem_descarte(dropped_out_of_period or 0, undated_dropped or 0, strict)
+            logger.warning(f"{csv_path}: {empty_window_message(periodo)}")
+        info_descarte = discard_message(dropped_out_of_period or 0, undated_dropped or 0, strict)
         if info_descarte is not None:
             logger.info(f"{csv_path}: {info_descarte}")
 

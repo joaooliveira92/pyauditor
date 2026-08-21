@@ -39,15 +39,15 @@ RESPONSAVEL_LABELS: Final[tuple[str, ...]] = (
 _SUBSTITUTO_SUFFIX: Final = "- substituto"
 
 
-def _normaliza(texto: str) -> str:
+def _normalize(texto: str) -> str:
     """Caixa/acento/espaço-insensível: 'FISCAL Técnico' ≡ 'fiscal tecnico'."""
     decomposto = unicodedata.normalize("NFD", texto.strip().casefold())
     sem_acento = "".join(ch for ch in decomposto if not unicodedata.combining(ch))
     return re.sub(r"\s+", " ", sem_acento)
 
 
-_FUNCAO_POR_NORMALIZADA: Final[dict[str, str]] = {
-    _normaliza(label): label for label in RESPONSAVEL_LABELS
+_FUNCAO_BY_NORMALIZED: Final[dict[str, str]] = {
+    _normalize(label): label for label in RESPONSAVEL_LABELS
 }
 
 
@@ -58,19 +58,19 @@ class Equipe:
     membros: dict[str, tuple[str, str]]
     warnings: tuple[str, ...]
 
-    def celula(self, funcao_canonica: str) -> str:
+    def cell(self, funcao_canonica: str) -> str:
         """Célula `Nome (SIAPE)` para um rótulo canônico; '' quando ausente."""
-        par = self.membros.get(_normaliza(funcao_canonica))
+        par = self.membros.get(_normalize(funcao_canonica))
         if par is None:
             return ""
         nome, siape = par
         return f"{nome} ({siape})" if siape else nome
 
-    def campos_responsaveis(self) -> dict[str, str]:
+    def responsaveis_fields(self) -> dict[str, str]:
         """Rótulos canônicos presentes → célula 'Nome (SIAPE)'."""
         campos: dict[str, str] = {}
         for label in RESPONSAVEL_LABELS:
-            valor = self.celula(label)
+            valor = self.cell(label)
             if valor:
                 campos[label] = valor
         return campos
@@ -110,25 +110,25 @@ def read_equipe(path: Path) -> Equipe:
             raise ValueError(f"{path}: linha sem função (nome {nome!r} sem FUNÇÃO)")
         if not nome:
             raise ValueError(f"{path}: linha sem nome para a função {funcao_raw!r}")
-        chave = _normaliza(funcao_raw)
+        chave = _normalize(funcao_raw)
         if chave in membros:
             raise ValueError(f"{path}: função duplicada: {funcao_raw!r}")
         eh_substituto = chave.endswith(_SUBSTITUTO_SUFFIX)
         base_chave = chave[: -len(_SUBSTITUTO_SUFFIX)].strip() if eh_substituto else chave
-        if not eh_substituto and base_chave not in _FUNCAO_POR_NORMALIZADA:
+        if not eh_substituto and base_chave not in _FUNCAO_BY_NORMALIZED:
             warnings.append(
                 f"função desconhecida {funcao_raw!r} — não mapeada para nenhum campo da capa"
             )
         membros[chave] = (nome, siape)
 
     for label in RESPONSAVEL_LABELS:
-        if _normaliza(label) not in membros:
+        if _normalize(label) not in membros:
             warnings.append(f"sem linha para '{label}' — campo fica vazio")
 
     return Equipe(membros=membros, warnings=tuple(warnings))
 
 
-def ler_responsaveis(equipe_path: Path) -> tuple[dict[str, str], tuple[str, ...]]:
+def read_responsaveis(equipe_path: Path) -> tuple[dict[str, str], tuple[str, ...]]:
     """Conveniência para os chamadores do pipeline (`measure`/`report`/
     `consolidate`) que tratam equipe ausente/malformada como dado incompleto —
     nunca falha técnica: devolve `(campos, warnings)`, com `campos` vazio e
@@ -143,4 +143,4 @@ def ler_responsaveis(equipe_path: Path) -> tuple[dict[str, str], tuple[str, ...]
     except ValueError as exc:
         return {}, (f"falha ao ler {equipe_path}: {exc} — responsáveis ficam '[a preencher]'",)
     prefixo = f"{equipe_path.name}: "
-    return equipe.campos_responsaveis(), tuple(prefixo + w for w in equipe.warnings)
+    return equipe.responsaveis_fields(), tuple(prefixo + w for w in equipe.warnings)

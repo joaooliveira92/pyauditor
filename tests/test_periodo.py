@@ -8,12 +8,12 @@ import pytest
 
 from pyauditor.periodo import (
     PeriodoAfericao,
+    discard_message,
+    empty_window_message,
     filter_periodo,
-    formatar_data_br,
-    formatar_periodo_br,
-    mensagem_descarte,
-    mensagem_janela_vazia,
-    mes_bounds,
+    format_date_br,
+    format_period_br,
+    month_bounds,
     require_period_column,
 )
 
@@ -26,16 +26,16 @@ def _linha(valor: str) -> dict[str, str]:
 
 class TestMesBounds:
     def test_mes_simples(self) -> None:
-        assert mes_bounds("2026-06") == PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
+        assert month_bounds("2026-06") == PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
 
     def test_dezembro_fecha_no_ultimo_dia_do_ano(self) -> None:
-        assert mes_bounds("2025-12") == PeriodoAfericao(date(2025, 12, 1), date(2025, 12, 31))
+        assert month_bounds("2025-12") == PeriodoAfericao(date(2025, 12, 1), date(2025, 12, 31))
 
     def test_fevereiro_bissexto(self) -> None:
-        assert mes_bounds("2024-02").fim == date(2024, 2, 29)
+        assert month_bounds("2024-02").fim == date(2024, 2, 29)
 
     def test_fevereiro_nao_bissexto(self) -> None:
-        assert mes_bounds("2025-02").fim == date(2025, 2, 28)
+        assert month_bounds("2025-02").fim == date(2025, 2, 28)
 
     @pytest.mark.parametrize(
         "competencia",
@@ -43,10 +43,10 @@ class TestMesBounds:
     )
     def test_formatos_invalidos_erro_acionavel(self, competencia: str) -> None:
         with pytest.raises(ValueError, match="AAAA-MM"):
-            mes_bounds(competencia)
+            month_bounds(competencia)
 
     def test_periodo_imutavel(self) -> None:
-        periodo = mes_bounds("2026-06")
+        periodo = month_bounds("2026-06")
         with pytest.raises(FrozenInstanceError):
             periodo.inicio = date(2026, 7, 1)  # type: ignore[misc]
 
@@ -141,28 +141,28 @@ class TestRequirePeriodColumn:
 class TestMensagens:
     JUNHO = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
 
-    def test_formatar_data_br_preenche_zero(self) -> None:
-        assert formatar_data_br(date(2026, 6, 1)) == "01/06/2026"
+    def test_format_date_br_preenche_zero(self) -> None:
+        assert format_date_br(date(2026, 6, 1)) == "01/06/2026"
 
-    def test_formatar_periodo_br(self) -> None:
-        assert formatar_periodo_br(self.JUNHO) == "01/06/2026 a 30/06/2026"
+    def test_format_period_br(self) -> None:
+        assert format_period_br(self.JUNHO) == "01/06/2026 a 30/06/2026"
 
-    def test_mensagem_janela_vazia(self) -> None:
-        assert mensagem_janela_vazia(self.JUNHO) == (
+    def test_empty_window_message(self) -> None:
+        assert empty_window_message(self.JUNHO) == (
             "nenhuma linha no período 01/06/2026–30/06/2026 — o arquivo corresponde à competência?"
         )
 
-    def test_mensagem_descarte_somente_fora(self) -> None:
-        assert mensagem_descarte(3, 0, strict=False) == "3 linha(s) fora do período descartada(s)"
+    def test_discard_message_somente_fora(self) -> None:
+        assert discard_message(3, 0, strict=False) == "3 linha(s) fora do período descartada(s)"
 
-    def test_mensagem_descarte_fora_e_sem_data_sob_strict(self) -> None:
-        assert mensagem_descarte(5, 2, strict=True) == (
+    def test_discard_message_fora_e_sem_data_sob_strict(self) -> None:
+        assert discard_message(5, 2, strict=True) == (
             "5 linha(s) fora do período descartada(s) e 2 sem data legível"
         )
 
-    def test_mensagem_descarte_so_sem_data_sob_strict(self) -> None:
-        assert mensagem_descarte(0, 4, strict=True) == "4 linha(s) sem data legível descartada(s)"
+    def test_discard_message_so_sem_data_sob_strict(self) -> None:
+        assert discard_message(0, 4, strict=True) == "4 linha(s) sem data legível descartada(s)"
 
-    def test_mensagem_descarte_nada_a_relatar(self) -> None:
-        assert mensagem_descarte(0, 0, strict=False) is None
-        assert mensagem_descarte(0, 3, strict=False) is None
+    def test_discard_message_nada_a_relatar(self) -> None:
+        assert discard_message(0, 0, strict=False) is None
+        assert discard_message(0, 3, strict=False) is None

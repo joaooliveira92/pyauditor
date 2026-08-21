@@ -36,7 +36,7 @@ from pyauditor.orchestration.state import (
     save_state,
     state_path,
 )
-from pyauditor.periodo import PeriodoAfericao, mes_bounds
+from pyauditor.periodo import PeriodoAfericao, month_bounds
 
 type CommandResult = (
     BootstrapResult | SplitResult | MeasureResult | ReportResult | ConsolidateResult
@@ -117,7 +117,7 @@ def _capa_path_for(capa_path: Path, orgao: str) -> Path:
 def _periodo(request: RunRequest) -> PeriodoAfericao:
     """Janela da competência (§2), derivada do argumento já validado pelos
     despachantes — competência inválida aqui é bug de chamador, então levanta."""
-    return mes_bounds(request.competencia)
+    return month_bounds(request.competencia)
 
 
 def _plan(orgao_selector: str) -> tuple[tuple[str, str | None], ...]:

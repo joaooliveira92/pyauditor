@@ -29,7 +29,7 @@ class TestReadEquipe:
         )
         equipe = read_equipe(path)
         assert equipe.warnings == ()
-        campos = equipe.campos_responsaveis()
+        campos = equipe.responsaveis_fields()
         assert set(campos) == {
             "Gestor do contrato",
             "Fiscal técnico",
@@ -46,19 +46,19 @@ class TestReadEquipe:
             f"{_CABECALHO}\n  Gestor   do contrato ,Maria Souza,1111111\n",
         )
         equipe = read_equipe(path)
-        assert equipe.celula("gestor DO contrato") == "Maria Souza (1111111)"
+        assert equipe.cell("gestor DO contrato") == "Maria Souza (1111111)"
 
     def test_celula_formato_nome_siape(self, tmp_path: Path) -> None:
         path = _escreve(tmp_path, f"{_CABECALHO}\nFiscal técnico,Maria Souza,1111111\n")
-        assert read_equipe(path).celula("Fiscal técnico") == "Maria Souza (1111111)"
+        assert read_equipe(path).cell("Fiscal técnico") == "Maria Souza (1111111)"
 
     def test_siape_vazio_celula_fica_so_o_nome(self, tmp_path: Path) -> None:
         path = _escreve(tmp_path, f"{_CABECALHO}\nFiscal técnico,Maria Souza,\n")
-        assert read_equipe(path).celula("Fiscal técnico") == "Maria Souza"
+        assert read_equipe(path).cell("Fiscal técnico") == "Maria Souza"
 
     def test_celula_de_campo_ausente_e_vazia(self, tmp_path: Path) -> None:
         path = _escreve(tmp_path, f"{_CABECALHO}\nFiscal técnico,Maria Souza,1111111\n")
-        assert read_equipe(path).celula("Gestor do contrato") == ""
+        assert read_equipe(path).cell("Gestor do contrato") == ""
 
     def test_substituto_nao_mapeia_para_campo_da_capa(self, tmp_path: Path) -> None:
         path = _escreve(
@@ -68,7 +68,7 @@ class TestReadEquipe:
             "Gestor do contrato - Substituto,Substituto Dois,2\n",
         )
         equipe = read_equipe(path)
-        assert equipe.campos_responsaveis()["Gestor do contrato"] == "Titular Um (1)"
+        assert equipe.responsaveis_fields()["Gestor do contrato"] == "Titular Um (1)"
         # substituto fica no CSV (mapeamento interno) mas nunca sai dele
         assert any("substituto" in chave for chave in equipe.membros)
 
@@ -76,7 +76,7 @@ class TestReadEquipe:
         path = _escreve(
             tmp_path, f"{_CABECALHO}\nFiscal Técnico,Maria Souza,1\n", encoding="utf-8-sig"
         )
-        assert read_equipe(path).campos_responsaveis()["Fiscal técnico"] == "Maria Souza (1)"
+        assert read_equipe(path).responsaveis_fields()["Fiscal técnico"] == "Maria Souza (1)"
 
     def test_linha_totalmente_vazia_e_ignorada(self, tmp_path: Path) -> None:
         path = _escreve(tmp_path, f"{_CABECALHO}\n,,\nFiscal técnico,Maria Souza,1\n")
@@ -131,7 +131,7 @@ class TestWarnings:
         equipe = read_equipe(path)
         assert any("Gerente do contrato" in w for w in equipe.warnings)
 
-    def test_campos_responsaveis_devolve_so_presentes(self, tmp_path: Path) -> None:
+    def test_responsaveis_fields_devolve_so_presentes(self, tmp_path: Path) -> None:
         path = _escreve(tmp_path, f"{_CABECALHO}\nFiscal técnico,Maria Souza,1\n")
-        campos = read_equipe(path).campos_responsaveis()
+        campos = read_equipe(path).responsaveis_fields()
         assert campos == {"Fiscal técnico": "Maria Souza (1)"}

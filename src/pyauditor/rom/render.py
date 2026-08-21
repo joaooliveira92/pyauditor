@@ -17,7 +17,7 @@ from pyauditor.engine.pipeline import MeasurementProvenance, MeasurementResult
 from pyauditor.engine.quality_gates import QualityGateReport
 from pyauditor.engine.strategies._target import shortfall
 from pyauditor.engine.strategies.base import CalculationResult
-from pyauditor.periodo import PeriodoAfericao, formatar_periodo_br
+from pyauditor.periodo import PeriodoAfericao, format_period_br
 
 _CAPA_PLACEHOLDER = "[a preencher]"
 
@@ -132,7 +132,7 @@ def _render_identificacao(
     """Competência/Período vêm exclusivamente dos argumentos da CLI (spec
     competencia-cli-equipe §5) — nunca da capa. Sem período (chamador
     legado), placeholder."""
-    periodo_texto = formatar_periodo_br(periodo) if periodo is not None else _CAPA_PLACEHOLDER
+    periodo_texto = format_period_br(periodo) if periodo is not None else _CAPA_PLACEHOLDER
     return (
         f"{h} Identificação\n"
         f"- Contrato: {config.scope.contract}\n"

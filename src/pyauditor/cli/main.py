@@ -31,7 +31,7 @@ from pyauditor.cli.split import run_split
 from pyauditor.config.manifest import load_manifest
 from pyauditor.excel.equipe import EQUIPE_FILENAME
 from pyauditor.logging import logger, setup_logging
-from pyauditor.periodo import PeriodoAfericao, mes_bounds
+from pyauditor.periodo import PeriodoAfericao, month_bounds
 
 __all__: Final[tuple[str, ...]] = (
     "ConsolidateRequest", "MeasureRequest", "ReportRequest", "build_parser", "cli_main",
@@ -464,7 +464,7 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
     # §2 — a janela da competência é derivada uma vez do argumento validado e
     # repassada a todos os órgãos; equipe.csv vive na raiz de --data-dir (§6),
     # não no diretório por órgão dos datasets.
-    periodo: PeriodoAfericao = mes_bounds(request.competencia)
+    periodo: PeriodoAfericao = month_bounds(request.competencia)
     equipe_path = request.data_dir / EQUIPE_FILENAME
     setup_logging(
         log_path=_run_log_path(
@@ -516,7 +516,7 @@ def _dispatch_split(args: argparse.Namespace) -> int:
     # Log fica junto dos artefatos _split (issue 11), não em data_dir/<orgao>/<competencia>
     # e sem pasta órfã "both"
     year, month = request.competencia.split("-")
-    periodo: PeriodoAfericao = mes_bounds(request.competencia)
+    periodo: PeriodoAfericao = month_bounds(request.competencia)
     split_results = []
     for orgao in _each_single_orgao(request.orgao):
         # setup por órgão dentro do loop para evitar pasta both/ órfã

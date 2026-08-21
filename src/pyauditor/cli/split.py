@@ -47,9 +47,9 @@ from pyauditor.excel.sintetico import write_sintetico_workbook
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import (
     PeriodoAfericao,
+    discard_message,
+    empty_window_message,
     filter_periodo,
-    mensagem_descarte,
-    mensagem_janela_vazia,
     require_period_column,
 )
 
@@ -262,7 +262,7 @@ def run_split(
             if total_bruto > 0 and not rows:
                 aviso_vazio = (
                     f"INMS {inms_key} ({orgao}/{competencia}): "
-                    f"{mensagem_janela_vazia(periodo)}"
+                    f"{empty_window_message(periodo)}"
                 )
                 log_event(
                     "periodo_janela_vazia",
@@ -274,7 +274,7 @@ def run_split(
                     arquivo=str(raw_csv_path),
                 )
                 warnings.append(aviso_vazio)
-            info_descarte = mensagem_descarte(
+            info_descarte = discard_message(
                 filtro.dropped_out_of_period, filtro.undated_dropped, strict
             )
             if info_descarte is not None:

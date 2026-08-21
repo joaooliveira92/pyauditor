@@ -33,7 +33,7 @@ class PeriodColumnMissingError(ValueError):
     """YAML sem `source.period_column` num fluxo que passou um período."""
 
 
-def mes_bounds(competencia: str) -> PeriodoAfericao:
+def month_bounds(competencia: str) -> PeriodoAfericao:
     """`'2026-06'` → 01/06/2026..30/06/2026; `'2025-12'` fecha em 31/12."""
     if not _COMPETENCIA_RE.fullmatch(competencia):
         raise ValueError(
@@ -62,7 +62,7 @@ def require_period_column(
     )
 
 
-def _intervalo_da_celula(valor_celula: str | None) -> tuple[date, date] | None:
+def _cell_interval(valor_celula: str | None) -> tuple[date, date] | None:
     """Inferência entre os dois formatos conhecidos → intervalo coberto pela
     célula; `None` quando vazia/ilegível (linha "sem data")."""
     texto = (valor_celula or "").strip()
@@ -105,7 +105,7 @@ def filter_periodo(
     dropped_out_of_period = 0
     undated_dropped = 0
     for linha in linhas:
-        intervalo = _intervalo_da_celula(linha.get(period_column))
+        intervalo = _cell_interval(linha.get(period_column))
         if intervalo is None:
             if strict:
                 undated_dropped += 1
@@ -120,24 +120,24 @@ def filter_periodo(
     return PeriodFilterResult(na_janela, dropped_out_of_period, undated_dropped)
 
 
-def formatar_data_br(data: date) -> str:
+def format_date_br(data: date) -> str:
     return f"{data.day:02d}/{data.month:02d}/{data.year}"
 
 
-def formatar_periodo_br(periodo: PeriodoAfericao) -> str:
+def format_period_br(periodo: PeriodoAfericao) -> str:
     """Formato canônico de exibição: `01/06/2026 a 30/06/2026`."""
-    return f"{formatar_data_br(periodo.inicio)} a {formatar_data_br(periodo.fim)}"
+    return f"{format_date_br(periodo.inicio)} a {format_date_br(periodo.fim)}"
 
 
-def mensagem_janela_vazia(periodo: PeriodoAfericao) -> str:
+def empty_window_message(periodo: PeriodoAfericao) -> str:
     """Texto aprovado no spec §3 — verbatim, incluindo o en-dash."""
     return (
-        f"nenhuma linha no período {formatar_data_br(periodo.inicio)}–"
-        f"{formatar_data_br(periodo.fim)} — o arquivo corresponde à competência?"
+        f"nenhuma linha no período {format_date_br(periodo.inicio)}–"
+        f"{format_date_br(periodo.fim)} — o arquivo corresponde à competência?"
     )
 
 
-def mensagem_descarte(dropped_out_of_period: int, undated_dropped: int, strict: bool) -> str | None:
+def discard_message(dropped_out_of_period: int, undated_dropped: int, strict: bool) -> str | None:
     """INFO de dataset misto (§3); `None` quando nada há a relatar."""
     partes: list[str] = []
     if dropped_out_of_period > 0:

@@ -41,7 +41,7 @@ from pyauditor.excel.equipe import RESPONSAVEL_LABELS
 from pyauditor.excel.glosas import Historico, compute_glosa, saldo_anterior_pct_de
 from pyauditor.excel.orgao_consolidation import with_orgao_consolidation
 from pyauditor.logging import logger
-from pyauditor.periodo import PeriodoAfericao, formatar_data_br
+from pyauditor.periodo import PeriodoAfericao, format_date_br
 from pyauditor.rom.summary import IndicatorSummary
 
 CAPA_SHEET: Final = "CAPA_E_CONTROLE"
@@ -259,8 +259,8 @@ def build_capa(
 
     linhas_periodo: tuple[tuple[str, object], ...] = (
         (
-            ("Período inicial da aferição", formatar_data_br(periodo.inicio)),
-            ("Período final da aferição", formatar_data_br(periodo.fim)),
+            ("Período inicial da aferição", format_date_br(periodo.inicio)),
+            ("Período final da aferição", format_date_br(periodo.fim)),
         )
         if periodo is not None
         else ()
