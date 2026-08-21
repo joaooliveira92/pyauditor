@@ -35,16 +35,16 @@ tocado).
 
 **Status:** resolved
 
-- [ ] `pyauditor split <competência> --orgao <MinC|MTur>` roda como comando standalone (ainda não
+- [x] `pyauditor split <competência> --orgao <MinC|MTur>` roda como comando standalone (ainda não
       precisa estar em `run` — isso é o próximo ticket)
-- [ ] Para cada INMS/categoria em `mode: grupo_executor`, gera o CSV filtrado e a config derivada nos
+- [x] Para cada INMS/categoria em `mode: grupo_executor`, gera o CSV filtrado e a config derivada nos
       caminhos exatos acima
-- [ ] `catch_all_contains` resolvido corretamente contra os literais reais do CSV bruto, excluindo os
+- [x] `catch_all_contains` resolvido corretamente contra os literais reais do CSV bruto, excluindo os
       já reivindicados por outras categorias do mesmo INMS
-- [ ] `outros.csv` sempre gerado (mesmo vazio), sem config derivada correspondente
-- [ ] `WARNING` de `outros > 0` emitido com o texto exato acima
-- [ ] `mode: whole_indicator` não produz nenhum artefato de `split`
-- [ ] Rerodar `split` sobre o mesmo bruto sobrescreve sem erro (idempotência)
-- [ ] Depois de `split`, `measure` (sem nenhuma mudança de código) descobre e mede as configs
+- [x] `outros.csv` sempre gerado (mesmo vazio), sem config derivada correspondente
+- [x] `WARNING` de `outros > 0` emitido com o texto exato acima
+- [x] `mode: whole_indicator` não produz nenhum artefato de `split`
+- [x] Rerodar `split` sobre o mesmo bruto sobrescreve sem erro (idempotência)
+- [x] Depois de `split`, `measure` (sem nenhuma mudança de código) descobre e mede as configs
       derivadas via o glob já existente
-- [ ] `uv run mypy --strict src` e `uv run pytest` verdes
+- [x] `uv run mypy --strict src` e `uv run pytest` verdes

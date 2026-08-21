@@ -15,15 +15,15 @@ novo em `_PHASE_ORDER`.
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `pyauditor run <competência>` executa `bootstrap` → `split` → `measure` → `report` →
+- [x] `pyauditor run <competência>` executa `bootstrap` → `split` → `measure` → `report` →
       `consolidate` na ordem certa, por órgão
-- [ ] `split` registra estado (`pending`/`running`/`done`/`error`/`skipped`) no
+- [x] `split` registra estado (`pending`/`running`/`done`/`error`/`skipped`) no
       `RunState` igual aos demais comandos, incluindo resume (`--force` e retomada após falha)
-- [ ] Uma falha em `split` do MinC isola só `measure`/`report` do MinC (via `isolate_on_failure`) e
+- [x] Uma falha em `split` do MinC isola só `measure`/`report` do MinC (via `isolate_on_failure`) e
       não impede `bootstrap`/`split`/`measure` do MTur de rodar
-- [ ] `pyauditor split` continua funcionando como comando standalone (ticket 03), sem regressão
-- [ ] Teste de integração cobrindo um `execute_run` completo com `split` no meio, incluindo o caso de
+- [x] `pyauditor split` continua funcionando como comando standalone (ticket 03), sem regressão
+- [x] Teste de integração cobrindo um `execute_run` completo com `split` no meio, incluindo o caso de
       falha isolada por órgão
-- [ ] `uv run mypy --strict src` e `uv run pytest` verdes
+- [x] `uv run mypy --strict src` e `uv run pytest` verdes

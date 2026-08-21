@@ -1,8 +1,8 @@
 """Run orchestrator (ticket "Run orchestrator and resume", homed here per
 ticket "Interactive layer architecture" — sequencing that `pyauditor run`
 and the interactive layer need identically). Phase-major: bootstrap for
-every órgão, then measure for every órgão, then report for every órgão,
-then one órgão-agnostic consolidate.
+every órgão, then split, then measure for every órgão, then report for
+every órgão, then one órgão-agnostic consolidate.
 
 `cli/run.py` calls `execute_run` with no-op callbacks; `interactive/flow.py`
 calls the same function, wiring its `InteractionProvider` as
@@ -23,7 +23,8 @@ from pyauditor.cli.consolidate import ConsolidateResult, check_consolidate_ready
 from pyauditor.cli.dependencies import CHECKERS
 from pyauditor.cli.measure import MeasureResult, run_measure
 from pyauditor.cli.report import ReportResult, check_report_ready, run_report
-from pyauditor.config.manifest import load_manifest
+from pyauditor.cli.split import SplitResult, run_split
+from pyauditor.config.manifest import DatasetManifest, load_manifest
 from pyauditor.logging import logger
 from pyauditor.orchestration.state import (
     CommandStateEntry,
@@ -35,12 +36,16 @@ from pyauditor.orchestration.state import (
     state_path,
 )
 
-type CommandResult = BootstrapResult | MeasureResult | ReportResult | ConsolidateResult
+type CommandResult = (
+    BootstrapResult | SplitResult | MeasureResult | ReportResult | ConsolidateResult
+)
 type FailureDecision = Literal["retry", "skip", "isolate", "abort"]
 
 _DEFAULT_CAPA_NAME: Final[str] = "capa.csv"
-_ALL_COMMANDS: Final[frozenset[str]] = frozenset({"bootstrap", "measure", "report", "consolidate"})
-_PHASE_ORDER: Final[tuple[str, ...]] = ("bootstrap", "measure", "report", "consolidate")
+_ALL_COMMANDS: Final[frozenset[str]] = frozenset(
+    {"bootstrap", "split", "measure", "report", "consolidate"}
+)
+_PHASE_ORDER: Final[tuple[str, ...]] = ("bootstrap", "split", "measure", "report", "consolidate")
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,7 +111,7 @@ def _capa_path_for(capa_path: Path, orgao: str) -> Path:
 def _plan(orgao_selector: str) -> tuple[tuple[str, str | None], ...]:
     orgaos = ("MinC", "MTur") if orgao_selector == "both" else (orgao_selector,)
     steps: list[tuple[str, str | None]] = []
-    for command in ("bootstrap", "measure", "report"):
+    for command in ("bootstrap", "split", "measure", "report"):
         for orgao in orgaos:
             steps.append((command, orgao))
     if orgao_selector == "both":
@@ -177,20 +182,32 @@ def dependency_missing(command: str, orgao: str | None, request: RunRequest) -> 
     return check.missing
 
 
+def _manifest_for(per_orgao_config_dir: Path) -> DatasetManifest | None:
+    manifest_path = per_orgao_config_dir / "datasets.yaml"
+    return load_manifest(manifest_path) if manifest_path.exists() else None
+
+
 def _dispatch(command: str, orgao: str | None, request: RunRequest) -> CommandResult:
     if command == "bootstrap":
         capa_path = _capa_path_for(request.capa_path, orgao or "")
         return run_bootstrap(capa_path, orgao or "")
+    if command == "split":
+        per_orgao_config_dir = request.config_dir / (orgao or "")
+        return run_split(
+            request.competencia,
+            per_orgao_config_dir,
+            request.data_dir / (orgao or ""),
+            expected_orgao=orgao or "",
+            manifest=_manifest_for(per_orgao_config_dir),
+        )
     if command == "measure":
         per_orgao_config_dir = request.config_dir / (orgao or "")
-        manifest_path = per_orgao_config_dir / "datasets.yaml"
-        manifest = load_manifest(manifest_path) if manifest_path.exists() else None
         return run_measure(
             competencia=request.competencia,
             config_dir=per_orgao_config_dir,
             data_dir=request.data_dir / (orgao or ""),
             output_dir=request.output_dir / (orgao or ""),
-            manifest=manifest,
+            manifest=_manifest_for(per_orgao_config_dir),
             expected_orgao=orgao,
             capa_path=_capa_path_for(request.capa_path, orgao or ""),
         )
@@ -225,7 +242,7 @@ def _downstream(
     start = _PHASE_ORDER.index(command)
     downstream: list[tuple[str, str | None]] = []
     for later_command, later_orgao in plan:
-        if later_command == "consolidate" and command in ("bootstrap", "measure", "report"):
+        if later_command == "consolidate" and command != "consolidate":
             downstream.append((later_command, later_orgao))
             continue
         if later_orgao == orgao and _PHASE_ORDER.index(later_command) > start:

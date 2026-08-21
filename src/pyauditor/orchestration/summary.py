@@ -21,6 +21,7 @@ from pyauditor.cli.consolidate import ConsolidateResult
 from pyauditor.cli.measure import MeasureResult
 from pyauditor.cli.report import ReportResult
 from pyauditor.cli.results import exit_code_name, is_production_command
+from pyauditor.cli.split import SplitResult
 from pyauditor.orchestration.run import RunResult, dependency_missing
 from pyauditor.orchestration.state import CommandStateEntry
 
@@ -70,6 +71,7 @@ def exit_code_for_run(
 
 _RESULT_TYPE_FOR_COMMAND: dict[str, type] = {
     "bootstrap": BootstrapResult,
+    "split": SplitResult,
     "measure": MeasureResult,
     "report": ReportResult,
     "consolidate": ConsolidateResult,
@@ -88,6 +90,13 @@ def _result_for(entry: CommandStateEntry, results: tuple[object, ...]) -> object
 
 def _bootstrap_artifact(result: BootstrapResult) -> str:
     return str(result.capa_path)
+
+
+def _split_artifact(result: SplitResult) -> str:
+    line = f"{len(result.categorias)} categoria(s) processada(s)"
+    if result.warnings:
+        line += f" — {len(result.warnings)} aviso(s)"
+    return line
 
 
 def _measure_artifact(result: MeasureResult) -> str:
@@ -111,6 +120,7 @@ def _consolidate_artifact(result: ConsolidateResult) -> str:
 # "which CommandResult subtype is this" question `_result_for` already answered).
 _ARTIFACT_FORMATTER_FOR_TYPE: dict[type, Callable[[Any], str]] = {
     BootstrapResult: _bootstrap_artifact,
+    SplitResult: _split_artifact,
     MeasureResult: _measure_artifact,
     ReportResult: _report_artifact,
     ConsolidateResult: _consolidate_artifact,

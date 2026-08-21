@@ -1,7 +1,12 @@
 from dataclasses import replace
 from pathlib import Path
 
-from pyauditor.orchestration.run import FailureDecision, RunRequest, execute_run
+from pyauditor.orchestration.run import (
+    FailureDecision,
+    RunRequest,
+    execute_run,
+    isolate_on_failure,
+)
 from pyauditor.orchestration.state import CommandStateEntry, load_state, state_path
 
 _CONFIG_YAML = """\
@@ -42,12 +47,22 @@ penalty:
 """
 
 
+_CATEGORIAS_YAML = """\
+categorias:
+  DUMMY:
+    label: "dummy"
+    inms:
+      "1.99": {mode: whole_indicator}
+"""
+
+
 def _scaffold(tmp_path: Path, *, csv_body: str) -> RunRequest:
     config_dir = tmp_path / "configs"
     data_dir = tmp_path / "input"
     (config_dir / "MinC").mkdir(parents=True)
     (data_dir / "MinC" / "2026" / "06").mkdir(parents=True)
     (config_dir / "MinC" / "inms-test.yaml").write_text(_CONFIG_YAML, encoding="utf-8")
+    (config_dir / "MinC" / "categorias.yaml").write_text(_CATEGORIAS_YAML, encoding="utf-8")
     (data_dir / "MinC" / "2026" / "06" / "data.csv").write_text(csv_body, encoding="utf-8")
 
     return RunRequest(
@@ -75,6 +90,7 @@ def _scaffold_both(tmp_path: Path, *, minc_csv: str, mtur_csv: str) -> RunReques
         (config_dir / orgao / "inms-test.yaml").write_text(
             _CONFIG_YAML.replace("orgao: MinC", f"orgao: {orgao}"), encoding="utf-8"
         )
+        (config_dir / orgao / "categorias.yaml").write_text(_CATEGORIAS_YAML, encoding="utf-8")
         (data_dir / orgao / "2026" / "06" / "data.csv").write_text(csv_body, encoding="utf-8")
 
     return RunRequest(
@@ -98,10 +114,10 @@ def test_execute_run_happy_path_runs_bootstrap_measure_report_in_order(tmp_path:
     )
 
     assert all(entry.status == "done" for entry in run_result.state.commands)
-    assert len(run_result.results) == 3
-    # bootstrap before measure before report, each reaching "done"
+    assert len(run_result.results) == 4
+    # bootstrap before split before measure before report, each reaching "done"
     done_order = [c for c, _, s in seen if s == "done"]
-    assert done_order == ["bootstrap", "measure", "report"]
+    assert done_order == ["bootstrap", "split", "measure", "report"]
 
 
 def test_execute_run_self_heals_from_a_corrupted_state_file(tmp_path: Path) -> None:
@@ -247,7 +263,8 @@ def test_execute_run_both_orgaos_happy_path_runs_consolidate_last(tmp_path: Path
     assert all(entry.status == "done" for entry in run_result.state.commands)
     done_order = [c for c, _, s in seen if s == "done"]
     assert done_order == [
-        "bootstrap", "bootstrap", "measure", "measure", "report", "report", "consolidate",
+        "bootstrap", "bootstrap", "split", "split",
+        "measure", "measure", "report", "report", "consolidate",
     ]
 
 
@@ -262,3 +279,27 @@ def test_execute_run_both_orgaos_cascades_skip_into_shared_consolidate(tmp_path:
     assert by_command[("measure", "MTur")] == "done"
     assert by_command[("report", "MTur")] == "done"
     assert by_command[("consolidate", None)] == "skipped"  # cascaded cross-órgão
+
+
+def test_execute_run_isolate_on_split_failure_blocks_only_that_orgaos_measure(
+    tmp_path: Path,
+) -> None:
+    """Ticket "04 - Integrar split em run/máquina de estado": `split` errando
+    num órgão (aqui, `categorias.yaml` ausente pro MinC) isola só
+    `measure`/`report` daquele órgão + o `consolidate` compartilhado — o MTur
+    roda `bootstrap`→`split`→`measure`→`report` normalmente."""
+    request = _scaffold_both(tmp_path, minc_csv=_GOOD_CSV, mtur_csv=_GOOD_CSV)
+    (request.config_dir / "MinC" / "categorias.yaml").unlink()
+
+    run_result = execute_run(request, on_failure=isolate_on_failure)
+
+    by_command = {(e.command, e.orgao): e.status for e in run_result.state.commands}
+    assert by_command[("bootstrap", "MinC")] == "done"
+    assert by_command[("split", "MinC")] == "error"
+    assert by_command[("measure", "MinC")] == "skipped"
+    assert by_command[("report", "MinC")] == "skipped"
+    assert by_command[("bootstrap", "MTur")] == "done"
+    assert by_command[("split", "MTur")] == "done"
+    assert by_command[("measure", "MTur")] == "done"
+    assert by_command[("report", "MTur")] == "done"
+    assert by_command[("consolidate", None)] == "skipped"

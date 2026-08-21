@@ -49,11 +49,22 @@ penalty:
 _GOOD_CSV = "Nº Solicitacao;DataHoraFim;No prazo\n1;2026-06-01;S\n2;2026-06-02;N\n"
 _HARD_FAILURE_CSV = "Nº Solicitacao;DataHoraFim;No prazo\n1;;S\n2;;N\n"
 
+_CATEGORIAS_YAML = """\
+categorias:
+  DUMMY:
+    label: "dummy"
+    inms:
+      "1.99": {mode: whole_indicator}
+"""
+
 
 def _scaffold_single(tmp_path: Path, *, csv_body: str) -> _Paths:
     (tmp_path / "configs" / "MinC").mkdir(parents=True)
     (tmp_path / "input" / "MinC" / "2026" / "06").mkdir(parents=True)
     (tmp_path / "configs" / "MinC" / "inms-test.yaml").write_text(_CONFIG_YAML, encoding="utf-8")
+    (tmp_path / "configs" / "MinC" / "categorias.yaml").write_text(
+        _CATEGORIAS_YAML, encoding="utf-8"
+    )
     (tmp_path / "input" / "MinC" / "2026" / "06" / "data.csv").write_text(
         csv_body, encoding="utf-8"
     )
@@ -74,6 +85,9 @@ def _scaffold_both(tmp_path: Path, *, minc_csv: str, mtur_csv: str) -> _Paths:
         (tmp_path / "configs" / orgao / "inms-test.yaml").write_text(
             _CONFIG_YAML.replace("orgao: MinC", f"orgao: {orgao}"), encoding="utf-8"
         )
+        (tmp_path / "configs" / orgao / "categorias.yaml").write_text(
+            _CATEGORIAS_YAML, encoding="utf-8"
+        )
         (tmp_path / "input" / orgao / "2026" / "06" / "data.csv").write_text(
             csv_body, encoding="utf-8"
         )
@@ -91,6 +105,9 @@ def test_run_run_executes_pipeline_and_returns_4_for_unfilled_capa(tmp_path: Pat
     (tmp_path / "configs" / "MinC").mkdir(parents=True)
     (tmp_path / "input" / "MinC" / "2026" / "06").mkdir(parents=True)
     (tmp_path / "configs" / "MinC" / "inms-test.yaml").write_text(_CONFIG_YAML, encoding="utf-8")
+    (tmp_path / "configs" / "MinC" / "categorias.yaml").write_text(
+        _CATEGORIAS_YAML, encoding="utf-8"
+    )
     (tmp_path / "input" / "MinC" / "2026" / "06" / "data.csv").write_text(
         "Nº Solicitacao;DataHoraFim;No prazo\n1;2026-06-01;S\n2;2026-06-02;N\n", encoding="utf-8"
     )

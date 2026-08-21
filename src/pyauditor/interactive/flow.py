@@ -21,7 +21,7 @@ from pyauditor.orchestration.state import CommandStateEntry
 
 _COMPETENCIA_RE: Final = re.compile(r"^\d{4}-\d{2}$")
 _HELP_TOKEN: Final = "?"
-_ALL_COMMANDS: Final[tuple[str, ...]] = ("bootstrap", "measure", "report", "consolidate")
+_ALL_COMMANDS: Final[tuple[str, ...]] = ("bootstrap", "split", "measure", "report", "consolidate")
 _CANCELLED_EXIT_CODE: Final = 130  # Unix convention: 128 + SIGINT(2)
 
 _STATE_ICON: Final[dict[str, tuple[str, str]]] = {
@@ -112,6 +112,7 @@ def select_commands(provider: InteractionProvider, orgao: str) -> frozenset[str]
     consolidate_available = orgao == "both"
     labels = {
         "bootstrap": "bootstrap — cria a capa do contrato",
+        "split": "split — gera CSV+config por Categoria",
         "measure": "measure — apura os indicadores INMS",
         "report": "report — monta o relatório da competência",
         "consolidate": "consolidate — funde MinC+MTur na planilha financeira",

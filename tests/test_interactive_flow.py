@@ -79,11 +79,11 @@ def test_cancel_at_final_confirm_exits_instead_of_looping() -> None:
 
 
 def test_select_commands_disables_consolidate_when_not_both_orgaos() -> None:
-    provider = FakeInteractionProvider(answers=[["bootstrap", "measure", "report"]])
+    provider = FakeInteractionProvider(answers=[["bootstrap", "split", "measure", "report"]])
 
     selected = select_commands(provider, "MinC")
 
-    assert selected == frozenset({"bootstrap", "measure", "report"})
+    assert selected == frozenset({"bootstrap", "split", "measure", "report"})
 
 
 def test_help_token_shows_help_and_reasks() -> None:
@@ -139,6 +139,16 @@ penalty:
 """,
         encoding="utf-8",
     )
+    (tmp_path / "configs" / "MinC" / "categorias.yaml").write_text(
+        """\
+categorias:
+  DUMMY:
+    label: "dummy"
+    inms:
+      "1.99": {mode: whole_indicator}
+""",
+        encoding="utf-8",
+    )
     (tmp_path / "input" / "MinC" / "2026" / "06" / "data.csv").write_text(
         "Nº Solicitacao;DataHoraFim;No prazo\n1;2026-06-01;S\n2;2026-06-02;N\n", encoding="utf-8"
     )
@@ -149,7 +159,7 @@ penalty:
     provider = FakeInteractionProvider(
         answers=[
             "2026-06", "MinC", "configs", "input", "roms", "reports", "input/capa.csv", True,
-            ["bootstrap", "measure", "report"],
+            ["bootstrap", "split", "measure", "report"],
         ]
     )
 

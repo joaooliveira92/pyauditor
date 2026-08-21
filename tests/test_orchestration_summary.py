@@ -39,10 +39,22 @@ penalty:
 """
 
 
+_CATEGORIAS_YAML = """\
+categorias:
+  DUMMY:
+    label: "dummy"
+    inms:
+      "1.99": {mode: whole_indicator}
+"""
+
+
 def _run(tmp_path: Path) -> RunRequest:
     (tmp_path / "configs" / "MinC").mkdir(parents=True)
     (tmp_path / "input" / "MinC" / "2026" / "06").mkdir(parents=True)
     (tmp_path / "configs" / "MinC" / "inms-test.yaml").write_text(_CONFIG_YAML, encoding="utf-8")
+    (tmp_path / "configs" / "MinC" / "categorias.yaml").write_text(
+        _CATEGORIAS_YAML, encoding="utf-8"
+    )
     (tmp_path / "input" / "MinC" / "2026" / "06" / "data.csv").write_text(
         "Nº Solicitacao;DataHoraFim;No prazo\n1;2026-06-01;S\n2;2026-06-02;N\n", encoding="utf-8"
     )
