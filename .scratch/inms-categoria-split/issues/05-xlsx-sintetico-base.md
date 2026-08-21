@@ -27,16 +27,16 @@ Fora de escopo deste ticket: a aba do INMS 1.14 (multi-ativo × categoria) — v
 
 **Blocked by:** 03, 02
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `split` gera `roms/<orgao>/<ano>/<mes>/sintetico.xlsx` com uma aba por INMS presente em
+- [x] `split` gera `roms/<orgao>/<ano>/<mes>/sintetico.xlsx` com uma aba por INMS presente em
       `categorias.yaml` (exceto 1.14 — ticket 06)
-- [ ] Abas `grupo_executor`: colunas exatas acima, uma linha por (categoria, valor de
+- [x] Abas `grupo_executor`: colunas exatas acima, uma linha por (categoria, valor de
       `Grupo_executor`), bloco de subtotais por Nível abaixo da tabela
-- [ ] Abas `whole_indicator`: linha única `"(indicador inteiro)"`, sem subtotais
-- [ ] INMS "não ativado": linha mesclada com a frase exata acima, sem lançar erro
-- [ ] `Tempo médio criação→resolução` calculado corretamente a partir de `DataHoraSolicitacao`/
+- [x] Abas `whole_indicator`: linha única `"(indicador inteiro)"`, sem subtotais
+- [x] INMS "não ativado": linha mesclada com a frase exata acima, sem lançar erro
+- [x] `Tempo médio criação→resolução` calculado corretamente a partir de `DataHoraSolicitacao`/
       `DataHoraFim`
-- [ ] Teste de integração gerando o xlsx a partir de fixtures e verificando estrutura de abas/colunas
+- [x] Teste de integração gerando o xlsx a partir de fixtures e verificando estrutura de abas/colunas
       (célula a célula onde fizer sentido, não snapshot binário do arquivo)
-- [ ] `uv run mypy --strict src` e `uv run pytest` verdes
+- [x] `uv run mypy --strict src` e `uv run pytest` verdes

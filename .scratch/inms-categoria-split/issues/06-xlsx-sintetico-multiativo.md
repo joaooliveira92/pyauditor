@@ -17,12 +17,20 @@ nova.
 
 **Blocked by:** 05
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Aba do INMS 1.14 no `sintetico.xlsx` usa coluna `Ativo` em vez de `Grupo executor`
-- [ ] 12 linhas (6 ativos × 2 categorias), lendo as 6 medições por ativo já existentes — nenhuma
+- [x] Aba do INMS 1.14 no `sintetico.xlsx` usa coluna `Ativo` em vez de `Grupo executor`
+- [x] 12 linhas (6 ativos × 2 categorias), lendo as 6 medições por ativo já existentes — nenhuma
       medição nova é calculada
-- [ ] Linhas agrupadas e subtotalizadas por categoria (bloco NOC/SOC, depois bloco Operação N3)
-- [ ] Teste de integração cobrindo a aba do 1.14 especificamente (fixtures multi-asset já existentes
+- [x] Linhas agrupadas e subtotalizadas por categoria (bloco NOC/SOC, depois bloco Operação N3)
+- [x] Teste de integração cobrindo a aba do 1.14 especificamente (fixtures multi-asset já existentes
       em `tests/fixtures/multi_asset_configs/`, se aplicável)
-- [ ] `uv run mypy --strict src` e `uv run pytest` verdes
+- [x] `uv run mypy --strict src` e `uv run pytest` verdes
+
+**Nota de implementação:** o dataset real de 1.14 (`configs/*/inms-14.yaml`) usa `shape:
+precomputed_table` com `name_column` — um único CSV, uma linha por ativo (spec §2.1) — não a
+convenção `Indicator.asset`/`inms-14-<asset-slug>.yaml` (que só existe como fixture sintética em
+`tests/fixtures/multi_asset_configs/`, nunca usada em produção; opera no nível `measure`/`report`
+via `summary.json`, que `sintetico.xlsx` não lê). A aba do 1.14 lê o CSV real via o mesmo fluxo
+`base_config_stem`/`resolve_source`/`read_raw_csv` dos demais INMS e agrupa por `name_column`
+(`Ativo`) em vez de reusar as fixtures de multi-asset-file-discovery.

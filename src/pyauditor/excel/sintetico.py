@@ -1,7 +1,6 @@
 """`sintetico.xlsx` (spec §14.4, ticket 05) — um workbook por órgão/
 competência, uma aba por INMS com entrada em `categorias.yaml` (exclui
-1.8/1.10, que não têm entrada nenhuma; exclui 1.14, adiado pro ticket 06 —
-seu formato multi-ativo x categoria precisa de layout de aba próprio).
+1.8/1.10, que não têm entrada nenhuma).
 
 Contagens são brutas/pré-quality-gate — conferência rápida, não substitui o
 ROM da categoria. A única exceção é `Tempo médio criação→resolução`,
@@ -13,6 +12,13 @@ valem para os datasets linha-a-linha (INMS 1.1-1.3, 1.7ish) contra os quais
 (1.4/1.5/1.9/1.11-1.13, e 1.6 no MinC) não têm essas colunas — elas
 degradam pra "—" em vez de lançar erro, já que este relatório é
 explicitamente uma conferência best-effort, não a medição oficial.
+
+INMS 1.14 (spec §14.5, ticket 06) é o único caso de composição multi-ativo x
+categoria: sua aba troca a coluna `Grupo executor` por `Ativo`, lida do
+`name_column` da config `precomputed_table` (mesma dataset da medição real,
+sem recalcular nada), e agrupa/subtotaliza por Categoria em vez de Nível
+(as duas categorias que o 1.14 integra são ambas N3 — subtotalizar por
+Nível não distinguiria nada).
 """
 
 from __future__ import annotations
@@ -38,6 +44,7 @@ from pyauditor.config.categorias import (
     WholeIndicatorMode,
 )
 from pyauditor.config.manifest import DatasetManifest
+from pyauditor.config.models import PrecomputedTableCalculation
 from pyauditor.engine.pipeline import load_config, resolve_source
 from pyauditor.engine.quality_gates import QualityGateRunner
 from pyauditor.excel._style import LABEL_FONT, new_sheet, write_row
@@ -64,6 +71,18 @@ _NIVEL_BY_CATEGORIA: Final[dict[str, str]] = {
     "OPERACAO_N3": "N3",
     "MONITORAMENTO_NOC_SOC": "N3",
 }
+
+_ATIVO_COLUMNS: Final[tuple[str, ...]] = (
+    "Categoria", "Nível", "Ativo", "Linhas",
+    "Dentro do prazo", "Fora do prazo", "% bruto", "Tempo médio criação→resolução",
+)
+_ATIVO_SUBTOTAL_COLUMNS: Final[tuple[str, ...]] = (
+    "Categoria", "Linhas", "Dentro do prazo", "Fora do prazo", "% bruto",
+    "Tempo médio criação→resolução",
+)
+# Ordem fixa da spec §14.5: bloco NOC/SOC antes do bloco Operação N3,
+# independente da ordem de declaração em categorias.yaml.
+_INMS_1_14_CATEGORIA_ORDER: Final[tuple[str, ...]] = ("MONITORAMENTO_NOC_SOC", "OPERACAO_N3")
 
 _NO_PRAZO_COLUMN: Final[str] = "No prazo"
 _DATA_SOLICITACAO_COLUMN: Final[str] = "DataHoraSolicitacao"
@@ -209,6 +228,93 @@ def _write_subtotals(
         row_idx += 1
 
 
+def _write_ativo_subtotals(
+    sheet: Worksheet,
+    start_row: int,
+    order: list[str],
+    labels: dict[str, str],
+    accumulators: dict[str, _NivelAccumulator],
+) -> None:
+    header_cell = sheet.cell(row=start_row, column=1, value="Subtotais por Categoria")
+    header_cell.font = LABEL_FONT
+    for col_idx, column in enumerate(_ATIVO_SUBTOTAL_COLUMNS, start=1):
+        cell = sheet.cell(row=start_row + 1, column=col_idx, value=column)
+        cell.font = LABEL_FONT
+
+    row_idx = start_row + 2
+    for categoria_key in order:
+        acc = accumulators.get(categoria_key)
+        if acc is None:
+            continue
+        dentro = acc.dentro if acc.tem_prazo else None
+        fora = acc.fora if acc.tem_prazo else None
+        pct_display = _format_pct_bruto(dentro, fora)
+        tempo_display = (
+            _format_duracao(acc.duracao_total_segundos / acc.duracao_contagem)
+            if acc.duracao_contagem > 0
+            else "—"
+        )
+        write_row(sheet, row_idx, (
+            labels[categoria_key], acc.linhas, dentro if dentro is not None else "—",
+            fora if fora is not None else "—", pct_display, tempo_display,
+        ))
+        row_idx += 1
+
+
+def _write_multi_ativo_sheet(
+    workbook: Workbook,
+    sheet_name: str,
+    categorias_file: CategoriasFile,
+    entries: list[tuple[str, WholeIndicatorMode]],
+    ativo_column: str,
+    fieldnames: list[str],
+    rows: list[dict[str, str]],
+    accepted_ids: set[int],
+) -> None:
+    """INMS 1.14 (spec §14.5): produto cartesiano ativo x categoria — as 6
+    medições por ativo (já presentes no CSV, uma linha por ativo) são
+    duplicadas/rotuladas sob cada categoria à qual o INMS pertence, sem
+    recalcular nada. Bloco NOC/SOC antes do bloco Operação N3."""
+    sheet = new_sheet(workbook, sheet_name, _ATIVO_COLUMNS)
+    row_idx = 2
+    accumulators: dict[str, _NivelAccumulator] = {}
+    labels: dict[str, str] = {}
+
+    # Ordem de primeira aparição no CSV (Anexo D já lista os 6 ativos numa
+    # ordem fixa — File Server, Telefonia, Mensageria, etc. — preservada
+    # aqui em vez de reordenar alfabeticamente).
+    ativos = list(dict.fromkeys(row[ativo_column] for row in rows if row.get(ativo_column)))
+
+    ordered_entries = sorted(
+        entries,
+        key=lambda item: (
+            _INMS_1_14_CATEGORIA_ORDER.index(item[0])
+            if item[0] in _INMS_1_14_CATEGORIA_ORDER
+            else len(_INMS_1_14_CATEGORIA_ORDER),
+            item[0],
+        ),
+    )
+
+    for categoria_key, _entry in ordered_entries:
+        categoria = categorias_file.categorias[categoria_key]
+        nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
+        labels[categoria_key] = categoria.label
+        for ativo in ativos:
+            ativo_rows = [row for row in rows if row.get(ativo_column) == ativo]
+            stats = _compute_stats(ativo_rows, fieldnames, accepted_ids)
+            linhas, dentro, fora, pct, tempo = _format_row(stats)
+            write_row(sheet, row_idx, (
+                categoria.label, nivel or "", ativo, linhas, dentro, fora, pct, tempo,
+            ))
+            row_idx += 1
+            current = accumulators.get(categoria_key, _NivelAccumulator())
+            accumulators[categoria_key] = current.add(stats)
+
+    if accumulators:
+        order = [categoria_key for categoria_key, _entry in ordered_entries]
+        _write_ativo_subtotals(sheet, row_idx + 1, order, labels, accumulators)
+
+
 def _write_grupo_executor_sheet(
     workbook: Workbook,
     sheet_name: str,
@@ -302,8 +408,6 @@ def write_sintetico_workbook(
     per_inms: dict[str, list[tuple[str, GrupoExecutorMode | WholeIndicatorMode]]] = {}
     for categoria_key, categoria in categorias_file.categorias.items():
         for inms_key, entry in categoria.inms.items():
-            if inms_key == _INMS_1_14:
-                continue
             per_inms.setdefault(inms_key, []).append((categoria_key, entry))
 
     workbook = Workbook()
@@ -348,11 +452,29 @@ def write_sintetico_workbook(
         gate_report = gate_runner.run(rows)
         accepted_ids = {id(row) for row in gate_report.accepted}
 
-        grupo_executor_entries = [
-            (ck, e) for ck, e in entries if isinstance(e, GrupoExecutorMode)
-        ]
         whole_indicator_entries = [
             (ck, e) for ck, e in entries if isinstance(e, WholeIndicatorMode)
+        ]
+
+        if inms_key == _INMS_1_14:
+            calculation = base_config.calculation
+            if not isinstance(calculation, PrecomputedTableCalculation) or (
+                calculation.name_column is None
+            ):
+                warning = (
+                    f"sintetico.xlsx: INMS {inms_key}: config base não é "
+                    "'precomputed_table' com 'name_column' — aba não gerada"
+                )
+                warnings.append(warning)
+                continue
+            _write_multi_ativo_sheet(
+                workbook, sheet_name, categorias_file, whole_indicator_entries,
+                calculation.name_column, fieldnames, rows, accepted_ids,
+            )
+            continue
+
+        grupo_executor_entries = [
+            (ck, e) for ck, e in entries if isinstance(e, GrupoExecutorMode)
         ]
 
         if grupo_executor_entries:
