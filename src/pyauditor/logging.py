@@ -31,6 +31,11 @@ _LEVELS: Final[tuple[str, ...]] = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICA
 
 _VERBOSITY_LEVEL: Final[dict[int, str]] = {0: "INFO", 1: "DEBUG", 2: "DEBUG"}
 
+# Quantos logs de uma mesma execução (bootstrap/measure/run/split) o loguru
+# mantém por diretório antes de apagar os mais antigos — evita o acúmulo
+# indefinido de `pyauditor-<comando>-<timestamp>.log`.
+_LOG_RETENTION: Final[int] = 5
+
 
 def resolve_log_level(verbosity: int, explicit: str | None) -> str:
     """Nível efetivo de log. `explicit` (--log-level) prevalece sobre a
@@ -97,7 +102,12 @@ def setup_logging(
             path = Path(log_path)
             path.parent.mkdir(parents=True, exist_ok=True)
             logger.add(
-                path, level=level, format=_FILE_LOG_FORMAT, encoding="utf-8", enqueue=False
+                path,
+                level=level,
+                format=_FILE_LOG_FORMAT,
+                encoding="utf-8",
+                enqueue=False,
+                retention=_LOG_RETENTION,
             )
         else:
             logger.add(log_path, level=level, format=_FILE_LOG_FORMAT)

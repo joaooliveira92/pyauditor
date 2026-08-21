@@ -10,7 +10,6 @@ import argparse
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import (
     Final,
@@ -375,10 +374,16 @@ def _capa_path_for(capa_path: Path, orgao: Orgao) -> Path:
 
 def _run_log_path(log_dir: Path, command: str, competencia: str | None = None) -> Path:
     """Timestamped per-run log file next to the command's outputs — every
-    execution leaves a trace the user can consult to rastrear errors."""
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    execution leaves a trace the user can consult to rastrear errors.
+
+    O timestamp usa o placeholder `{time:...}` do próprio loguru (em vez de
+    `datetime.now()` embutido no nome) porque a política de `retention` do
+    logger (`pyauditor.logging._LOG_RETENTION`) só reconhece e limpa arquivos
+    irmãos mais antigos quando consegue extrair o padrão glob a partir desse
+    placeholder — um timestamp já resolvido no nome do arquivo é invisível
+    para ela, e os logs se acumulariam indefinidamente."""
     suffix = f"-{competencia}" if competencia is not None else ""
-    return log_dir / f"pyauditor-{command}{suffix}-{stamp}.log"
+    return log_dir / f"pyauditor-{command}{suffix}-{{time:YYYYMMDD-HHmmss}}.log"
 
 
 def _extract_report_request(ns: argparse.Namespace) -> ReportRequest:
