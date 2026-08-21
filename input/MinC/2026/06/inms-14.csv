@@ -1,0 +1,7 @@
+competencia;item;servico_id;servico_infraestrutura;periodicidade;meta_percentual;ht_horas_totais_periodo;hmp_horas_manutencao_preventiva;hij_horas_indisponiveis_justificadas;horas_indisponiveis_nao_justificadas;hft_horas_totais_funcionamento;base_apuracao_horas;numerador_inms_horas;inms_1_14_percentual;deficit_meta_pontos_percentuais;faixas_0_1_abaixo_meta;penalidade_por_faixa;penalidade_pontos;atingiu_meta;observacao
+2026-06;a;INF-001;File Server;Mensal;99,5;720;2,5;0;1,5833;718,4167;717,5;715,9167;99,7793;0;0;250;0;Sim;"Dados sinteticos; apuracao individual por servico de infraestrutura."
+2026-06;b;INF-002;Telefonia;Mensal;99,5;720;6;1;1,95;718,05;713;711,05;99,7265;0;0;250;0;Sim;"Dados sinteticos; apuracao individual por servico de infraestrutura."
+2026-06;c;INF-003;Mensageria;Mensal;99,5;720;6;0,5;4,0333;715,9667;713,5;709,4667;99,4347;0,0653;1;250;250;Nao;"Dados sinteticos; apuracao individual por servico de infraestrutura."
+2026-06;d;INF-004;Servidores de impressao;Mensal;99,5;720;1,5;1;0,9;719,1;717,5;716,6;99,8746;0;0;250;0;Sim;"Dados sinteticos; apuracao individual por servico de infraestrutura."
+2026-06;e;INF-005;WI-FI;Mensal;99,5;720;3;1,5;4,6333;715,3667;715,5;710,8667;99,3524;0,1476;2;250;500;Nao;"Dados sinteticos; apuracao individual por servico de infraestrutura."
+2026-06;f;INF-006;Rede;Mensal;99,5;720;0;0;1,9333;718,0667;720;718,0667;99,7315;0;0;250;0;Sim;"Dados sinteticos; apuracao individual por servico de infraestrutura."

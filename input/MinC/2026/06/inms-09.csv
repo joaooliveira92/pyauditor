@@ -1,0 +1,9 @@
+competencia;ambiente_id;ambiente_nome;periodicidade;meta_percentual;trm_total_requisicoes_mudanca;trmp_requisicoes_atendidas_no_prazo;requisicoes_fora_do_prazo;inms_1_9_percentual;deficit_meta_pontos_percentuais;faixas_1_percentual_abaixo_meta;penalidade_por_faixa;penalidade_pontos;atingiu_meta;observacao
+2026-06;AMB-001;Producao Corporativa;Mensal;90;27;24;3;88,8889;1,1111;2;200;400;Nao;"Dados sinteticos; penalidade calculada por faixa iniciada de 1 ponto percentual abaixo da meta."
+2026-06;AMB-002;Infraestrutura de Redes;Mensal;90;44;41;3;93,1818;0;0;200;0;Sim;"Dados sinteticos; penalidade calculada por faixa iniciada de 1 ponto percentual abaixo da meta."
+2026-06;AMB-003;Banco de Dados;Mensal;90;47;45;2;95,7447;0;0;200;0;Sim;"Dados sinteticos; penalidade calculada por faixa iniciada de 1 ponto percentual abaixo da meta."
+2026-06;AMB-004;Servicos em Nuvem;Mensal;90;10;10;0;100;0;0;200;0;Sim;"Dados sinteticos; penalidade calculada por faixa iniciada de 1 ponto percentual abaixo da meta."
+2026-06;AMB-005;Seguranca da Informacao;Mensal;90;23;18;5;78,2609;11,7391;12;200;2400;Nao;"Dados sinteticos; penalidade calculada por faixa iniciada de 1 ponto percentual abaixo da meta."
+2026-06;AMB-006;Aplicacoes Corporativas;Mensal;90;28;24;4;85,7143;4,2857;5;200;1000;Nao;"Dados sinteticos; penalidade calculada por faixa iniciada de 1 ponto percentual abaixo da meta."
+2026-06;AMB-007;Integracoes;Mensal;90;29;27;2;93,1034;0;0;200;0;Sim;"Dados sinteticos; penalidade calculada por faixa iniciada de 1 ponto percentual abaixo da meta."
+2026-06;AMB-008;Estacoes de Trabalho;Mensal;90;47;46;1;97,8723;0;0;200;0;Sim;"Dados sinteticos; penalidade calculada por faixa iniciada de 1 ponto percentual abaixo da meta."

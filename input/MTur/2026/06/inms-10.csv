@@ -1,0 +1,9 @@
+competencia;dominio_id;dominio_controle;framework_acordado;periodicidade;meta_percentual;qrc_controles_recomendados;qcsi_controles_implantados;cni_controles_nao_implementados;taxa_implantacao_percentual;controles_excedentes_informados;penalidade_por_controle;penalidade_pontos;atingiu_meta;observacao
+2026-06;CTL-001;Gestao de Ativos;CIS Controls;Mensal;100;7;7;0;100;0;1000;0;Sim;"Dados sinteticos; framework e controles devem ser substituidos pelos efetivamente acordados com a CONTRATADA."
+2026-06;CTL-002;Controle de Acessos;CIS Controls;Mensal;100;6;5;1;83,3333;0;1000;1000;Nao;"Dados sinteticos; framework e controles devem ser substituidos pelos efetivamente acordados com a CONTRATADA."
+2026-06;CTL-003;Gestao de Vulnerabilidades;NIST CSF;Mensal;100;17;16;1;94,1176;0;1000;1000;Nao;"Dados sinteticos; framework e controles devem ser substituidos pelos efetivamente acordados com a CONTRATADA."
+2026-06;CTL-004;Protecao de Dados;NIST CSF;Mensal;100;5;5;0;100;0;1000;0;Sim;"Dados sinteticos; framework e controles devem ser substituidos pelos efetivamente acordados com a CONTRATADA."
+2026-06;CTL-005;Seguranca de Redes;ISO/IEC 27001;Mensal;100;12;11;1;91,6667;0;1000;1000;Nao;"Dados sinteticos; framework e controles devem ser substituidos pelos efetivamente acordados com a CONTRATADA."
+2026-06;CTL-006;Resposta a Incidentes;ISO/IEC 27001;Mensal;100;10;10;0;100;0;1000;0;Sim;"Dados sinteticos; framework e controles devem ser substituidos pelos efetivamente acordados com a CONTRATADA."
+2026-06;CTL-007;Continuidade e Recuperacao;NIST CSF;Mensal;100;8;8;0;100;0;1000;0;Sim;"Dados sinteticos; framework e controles devem ser substituidos pelos efetivamente acordados com a CONTRATADA."
+2026-06;CTL-008;Conscientizacao em Seguranca;ISO/IEC 27001;Mensal;100;5;3;2;60;0;1000;2000;Nao;"Dados sinteticos; framework e controles devem ser substituidos pelos efetivamente acordados com a CONTRATADA."

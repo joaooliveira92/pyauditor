@@ -1,0 +1,4 @@
+competencia;servico_id;servico_nome;periodicidade;meta_pontos;quantidade_ocorrencias;pdt_ocorrencia_1;pdt_ocorrencia_2;pdt_ocorrencia_3;pdt_ocorrencia_4;inms_1_8_total_pdt;atingiu_meta;pontos_acima_meta;referencia_penalidade;observacao
+2026-06;SRV-006;Gestao de Identidades;Mensal;0;0;0;0;0;0;0;Sim;0;Conforme Anexo E;"Dados sinteticos; PDT ilustrativo e sujeito ao enquadramento oficial do Anexo E."
+2026-06;SRV-007;Atendimento ao Usuario;Mensal;0;0;0;0;0;0;0;Sim;0;Conforme Anexo E;"Dados sinteticos; PDT ilustrativo e sujeito ao enquadramento oficial do Anexo E."
+2026-06;SRV-008;Gestao de Backup;Mensal;0;0;0;0;0;0;0;Sim;0;Conforme Anexo E;"Dados sinteticos; PDT ilustrativo e sujeito ao enquadramento oficial do Anexo E."

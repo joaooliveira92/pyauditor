@@ -1,0 +1,6 @@
+competencia;sistema_servico_id;sistema_servico_nome;tipo;meta_percentual;ht_horas_totais_periodo;hmp_horas_manutencao_preventiva;hij_horas_indisponiveis_justificadas;horas_indisponiveis_nao_justificadas;hft_horas_totais_funcionamento;base_apuracao_horas;numerador_inms_horas;inms_1_4_percentual;deficit_meta_pontos_percentuais;faixas_0_1_abaixo_meta;penalidade_pontos;atingiu_meta;observacao
+2026-06;SIS-004;Barramento de Integracao;Servico;99,5;720;3;0,5;3,9333;716,0667;716,5;712,5667;99,451;0,049;1;1000;Nao;"Dados sinteticos para teste; apuracao individual por sistema/servico."
+2026-06;SIS-005;Banco de Dados Corporativo;Servico;99,5;720;1;1,5;0,65;719,35;717,5;716,85;99,9094;0;0;0;Sim;"Dados sinteticos para teste; apuracao individual por sistema/servico."
+2026-06;SIS-006;Sistema Financeiro;Sistema;99,5;720;2,5;1,5;5,5333;714,4667;716;710,4667;99,2272;0,2728;3;3000;Nao;"Dados sinteticos para teste; apuracao individual por sistema/servico."
+2026-06;SIS-007;Servico de Correio;Servico;99,5;720;3,5;0;1,6167;718,3833;716,5;714,8833;99,7744;0;0;0;Sim;"Dados sinteticos para teste; apuracao individual por sistema/servico."
+2026-06;SIS-008;Central de Autenticacao;Servico;99,5;720;3,5;1,5;3,9;716,1;715;711,1;99,4545;0,0455;1;1000;Nao;"Dados sinteticos para teste; apuracao individual por sistema/servico."

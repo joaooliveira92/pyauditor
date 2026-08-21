@@ -1,0 +1,9 @@
+competencia;sistema_servico_id;sistema_servico_nome;tipo;criticidade;meta_percentual;ht_horas_totais_periodo;hmp_horas_manutencao_preventiva;hij_horas_indisponiveis_justificadas;horas_indisponiveis_nao_justificadas;hft_horas_totais_funcionamento;base_apuracao_horas;numerador_inms_horas;inms_1_5_percentual;deficit_meta_pontos_percentuais;faixas_0_1_abaixo_meta;penalidade_por_faixa;penalidade_pontos;atingiu_meta;observacao
+2026-06;NC-001;Wiki Corporativa;Sistema;Nao critico;99;720;6;3;1,3833;718,6167;711;709,6167;99,8054;0;0;250;0;Sim;"Dados sinteticos; apuracao individual por sistema/servico nao critico."
+2026-06;NC-002;Portal de Treinamentos;Sistema;Nao critico;99;720;2,5;2;3,6333;716,3667;715,5;711,8667;99,4922;0;0;250;0;Sim;"Dados sinteticos; apuracao individual por sistema/servico nao critico."
+2026-06;NC-003;Ambiente de Homologacao;Servico;Nao critico;99;720;0;0,5;5,1167;714,8833;719,5;714,3833;99,2889;0;0;250;0;Sim;"Dados sinteticos; apuracao individual por sistema/servico nao critico."
+2026-06;NC-004;Repositorio de Documentos;Servico;Nao critico;99;720;0,5;1;7,5167;712,4833;718,5;710,9833;98,9538;0,0462;1;250;250;Nao;"Dados sinteticos; apuracao individual por sistema/servico nao critico."
+2026-06;NC-005;Painel de Indicadores;Sistema;Nao critico;99;720;3,5;2;1,75;718,25;714,5;712,75;99,7551;0;0;250;0;Sim;"Dados sinteticos; apuracao individual por sistema/servico nao critico."
+2026-06;NC-006;Servico de Impressao;Servico;Nao critico;99;720;6;0;7,95;712,05;714;706,05;98,8866;0,1134;2;250;500;Nao;"Dados sinteticos; apuracao individual por sistema/servico nao critico."
+2026-06;NC-007;Agenda de Recursos;Sistema;Nao critico;99;720;8;2;1,6333;718,3667;710;708,3667;99,77;0;0;250;0;Sim;"Dados sinteticos; apuracao individual por sistema/servico nao critico."
+2026-06;NC-008;Base de Conhecimento;Servico;Nao critico;99;720;6;0;7,35;712,65;714;706,65;98,9706;0,0294;1;250;250;Nao;"Dados sinteticos; apuracao individual por sistema/servico nao critico."
