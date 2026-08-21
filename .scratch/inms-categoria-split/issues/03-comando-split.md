@@ -33,7 +33,7 @@ tocado).
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] `pyauditor split <competência> --orgao <MinC|MTur>` roda como comando standalone (ainda não
       precisa estar em `run` — isso é o próximo ticket)
