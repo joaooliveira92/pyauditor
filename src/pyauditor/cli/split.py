@@ -226,6 +226,26 @@ def run_split(
             continue
 
         real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
+        # Cross-check in_values contra valores reais (issue 09): typo/renomeação
+        # no CSV gera categoria sem linhas — indistinguível de zero atividade
+        for categoria_key, entry in entries:
+            if entry.in_values is not None:
+                unmatched = [v for v in entry.in_values if v not in real_values]
+                if unmatched and not (set(entry.in_values) & real_values):
+                    warning = (
+                        f"INMS {inms_key} ({orgao}/{competencia}), categoria {categoria_key}: "
+                        f"in_values {unmatched!r} sem correspondência em Grupo_executor do CSV "
+                        f"({raw_csv_path}) — possível typo/renomeação, categoria ficará sem linhas"
+                    )
+                    logger.warning(warning)
+                    warnings.append(warning)
+                elif unmatched:
+                    warning = (
+                        f"INMS {inms_key} ({orgao}/{competencia}), categoria {categoria_key}: "
+                        f"in_values {unmatched!r} sem correspondência — valores não encontrados no CSV"
+                    )
+                    logger.warning(warning)
+                    warnings.append(warning)
         per_categoria_values, outros_values = compute_categoria_values(entries, real_values)
 
         split_dir = competencia_data_dir / _SPLIT_DIRNAME / inms_key

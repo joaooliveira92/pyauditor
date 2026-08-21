@@ -51,6 +51,22 @@ class MeasurementResult:
         report = self.quality_gate_report
         return len(report.accepted) == 0 and len(report.rejected) > 0
 
+    @property
+    def systematic_failure(self) -> bool:
+        """Não-conformidade sistemática/estrutural: o cálculo rodou sem erro
+        mas está sempre não-conforme com resultado extremo (0%). Distinto de
+        não-conformidade pontual/esperada, que continua não sendo hard_failure."""
+        if self.hard_failure:
+            return False
+        if self.calculation.conforms:
+            return False
+        if len(self.quality_gate_report.accepted) == 0:
+            return False
+        # Heurística mínima de sistemático: resultado 0% com linhas aceitas
+        # (bug de cálculo que zera o resultado) — não marca pontual onde
+        # result_pct é, ex., 85% abaixo da meta de 98%
+        return self.calculation.result_pct == 0.0
+
 
 @functools.lru_cache(maxsize=1)
 def _pipeline_version() -> str:
@@ -70,8 +86,72 @@ def _pipeline_version() -> str:
         return "dev"
 
 
+def _collect_config_columns(config: IndicatorConfig) -> set[str]:
+    """All column names referenced in *config* that must exist in the CSV header.
+    ``source.id_column`` é metadata para rastreabilidade, não participa do
+    cálculo — não é validada aqui (muitos CSVs sintéticos/testes não a têm)."""
+    cols: set[str] = set()
+    for check in config.quality_gates.checks:
+        cols.add(check.column)
+    # helper for Filter union — every variant has `column`
+    def _filter_col(f: object | None) -> None:
+        if f is not None:
+            cols.add(getattr(f, "column"))
+
+    calc = config.calculation
+    # shape-specific columns (only those that are column names)
+    for attr in (
+        "sum_numerator_column",
+        "sum_denominator_extra_column",
+        "sum_numerator_subtract_column",
+        "precomputed_result_column",
+        "occurrence_id_column",
+        "catalog_codes_column",
+        "result_column",
+        "name_column",
+        "numerator_column",
+        "denominator_column",
+        "penalty_column",
+    ):
+        val = getattr(calc, attr, None)
+        if isinstance(val, str):
+            cols.add(val)
+    _filter_col(getattr(calc, "numerator_filter", None))
+    _filter_col(getattr(calc, "denominator_filter", None))
+    _filter_col(getattr(calc, "recommended_filter", None))
+    _filter_col(getattr(calc, "implemented_filter", None))
+    # SegmentedRatio: list of categories
+    for cat in getattr(calc, "categories", []) or []:
+        _filter_col(getattr(cat, "numerator_filter", None))
+        _filter_col(getattr(cat, "denominator_filter", None))
+    return cols
+
+
+def _validate_columns(config: IndicatorConfig, header: set[str], config_path: Path | None) -> None:
+    missing = sorted(_collect_config_columns(config) - header)
+    if missing:
+        prefix = f"{config_path}: " if config_path else ""
+        raise ValueError(
+            f"{prefix}coluna(s) referenciada(s) no YAML não existe(m) no header do CSV: "
+            f"{', '.join(missing)} — verifique {config_path or config.indicator.id}"
+        )
+
+
 def load_config(config_path: Path) -> IndicatorConfig:
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    if isinstance(raw, dict) and "indicator" not in raw:
+        # Detect typo like `indicador:` — instead of silently skipping later
+        for key in raw:
+            if isinstance(key, str) and key.strip().lower() in ("indicador", "indicators", "indicatior"):
+                raise ValueError(
+                    f"{config_path}: chave {key!r} encontrada, esperado 'indicator:' — "
+                    "typo no YAML, corrija a chave"
+                )
+        # also check if file looks like an indicator config (inms-*.yaml) but missing key
+        if config_path.name.startswith("inms-"):
+            raise ValueError(
+                f"{config_path}: chave 'indicator:' ausente — arquivo não é config válida de indicador"
+            )
     return IndicatorConfig.model_validate(raw)
 
 
@@ -130,6 +210,20 @@ def discover_config_files(
         raw_text = path.read_text(encoding="utf-8")
         raw = yaml.safe_load(raw_text)
         if not isinstance(raw, dict) or "indicator" not in raw:
+            # Detect typo in indicator key before silently skipping
+            if isinstance(raw, dict):
+                for key in raw:
+                    if isinstance(key, str) and key.strip().lower() in (
+                        "indicador", "indicators", "indicatior", "indicator ",
+                    ):
+                        raise ValueError(
+                            f"{path}: chave {key!r} encontrada, esperado 'indicator:' — "
+                            "typo no YAML"
+                        )
+                if path.name.startswith("inms-"):
+                    raise ValueError(
+                        f"{path}: chave 'indicator:' ausente — arquivo não é config válida de indicador"
+                    )
             # Not an indicator config (e.g. `datasets.yaml`, the manifest that
             # now lives alongside the indicators) — skip it.
             continue
@@ -172,6 +266,15 @@ def measure(
     reusing the text it already read, so this fallback only fires for direct
     callers that skip `discover_config_files`."""
     csv_path, delimiter, encoding = resolve_source(config, data_dir, manifest)
+    # Validate every column referenced in YAML against real CSV header — single
+    # border check before any strategy runs (replaces silent .get("", "") and raw KeyErrors)
+    with csv_path.open(encoding=encoding, newline="") as handle:
+        reader = csv.DictReader(handle, delimiter=delimiter)
+        if reader.fieldnames is None:
+            raise ValueError(f"{csv_path}: CSV vazio ou sem linha de cabeçalho")
+        header = {name.strip() for name in reader.fieldnames}
+    _validate_columns(config, header, config_path)
+
     rows = load_rows(csv_path, delimiter, encoding)
 
     gate_runner = QualityGateRunner(config.quality_gates.checks, id_column=config.source.id_column)

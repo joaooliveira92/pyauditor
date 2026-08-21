@@ -83,12 +83,22 @@ def check_report_ready(
 
 
 def _load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
+    # orgao esperado vem do diretório roms/<orgao>/<competencia> — cross-check contra sidecar
+    expected_orgao = roms_dir.parent.name if roms_dir.parent.name in ("MinC", "MTur") else None
+    if expected_orgao is None and roms_dir.name in ("MinC", "MTur"):
+        expected_orgao = roms_dir.name
     summaries = []
     for summary_path in sorted(roms_dir.glob("*.json")):
         try:
             raw = json.loads(summary_path.read_text(encoding="utf-8"))
-            summaries.append(IndicatorSummary(**raw))
-        except (json.JSONDecodeError, TypeError) as exc:
+            summary = IndicatorSummary(**raw)
+            if expected_orgao is not None and summary.orgao != expected_orgao:
+                raise ValueError(
+                    f"{summary_path}: orgao {summary.orgao!r} no sidecar diverge do diretório "
+                    f"de origem {expected_orgao!r} — sidecar mal-rotulado/copiado"
+                )
+            summaries.append(summary)
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
             raise ValueError(f"sumário inválido em {summary_path}: {exc}") from exc
     return summaries
 

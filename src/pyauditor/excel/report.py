@@ -246,6 +246,31 @@ def _group_row(summary: IndicatorSummary) -> tuple[CellValue, ...]:
     )
 
 
+def _is_categoria_derived(summary: IndicatorSummary) -> bool:
+    """Derived configs from `split` have ``indicator_id`` like ``INMS-01.ATENDIMENTO_N1``
+    while the base is ``INMS-01`` — same ``contractual_id``. One ``.`` is the marker."""
+    return "." in summary.indicator_id
+
+
+def _deduplicate_summaries(summaries: list[IndicatorSummary]) -> list[IndicatorSummary]:
+    """When an INMS was segmented by Categoria, ``split`` writes derived
+    configs that all share the same ``contractual_id``/``asset`` as the base.
+    The consolidated financial view must count each INMS once — the base
+    must not contribute when derived categorias exist, otherwise the glosa
+    is counted N+1 times."""
+    by_key: dict[tuple[str, str | None], list[IndicatorSummary]] = {}
+    for s in summaries:
+        by_key.setdefault((s.contractual_id, s.asset), []).append(s)
+    deduped: list[IndicatorSummary] = []
+    for group in by_key.values():
+        if len(group) > 1 and any(_is_categoria_derived(s) for s in group):
+            # keep only derived, drop the base (no dot)
+            deduped.extend(s for s in group if _is_categoria_derived(s))
+        else:
+            deduped.extend(group)
+    return deduped
+
+
 def compute_report_glosa(
     competencia: str,
     summaries: list[IndicatorSummary],
@@ -258,7 +283,8 @@ def compute_report_glosa(
     can persist it to `roms/<orgao>/glosa_historico.json` after a successful
     `report` run without recomputing the rollover/reincidência logic itself.
     """
-    total_points = sum(summary.penalty_points for summary in summaries)
+    deduped = _deduplicate_summaries(summaries)
+    total_points = sum(summary.penalty_points for summary in deduped)
     saldo_anterior = saldo_anterior_pct_de(historico or {}, competencia)
     return compute_glosa(
         total_points, valor_base, is_final_month=is_final_month, saldo_anterior_pct=saldo_anterior

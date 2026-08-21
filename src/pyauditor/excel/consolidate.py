@@ -5,16 +5,12 @@
 
 `consolidate` never re-runs `measure`/`report`: its precondition is that
 `reports/relatorio_<comp>_MinC.xlsx` and `_MTur.xlsx` already exist (ticket
-04 Q1) — this module reads the fiscal-filled `CAPA_E_CONTROLE` from each, but
-sources indicator-level `penalty_points` from the per-órgão
-`roms/<orgao>/<comp>/*.json` summaries instead of the report workbook's
-`INMS_BASE`. That tab deliberately leaves its glosa columns blank per
-indicator (spec §12: glosa is a monthly aggregate there, not per-indicator),
-so it can't carry the per-(indicador×órgão) detail ticket 02's `GLOSAS`
-layout needs. The ROM JSONs are the same already-computed, read-only
-artifact `report.py` itself was built from — reading them isn't re-running
-`measure`, and both órgãos' ROMs are already a precondition of their report
-workbooks existing.
+04 Q1) — mas este módulo nunca abre esses ``.xlsx`` (capa vem de
+``capa.csv``, indicadores vêm dos ROM JSON ``roms/<orgao>/<comp>/*.json``),
+que são o mesmo artefato já computado que ``report.py`` consumiu.
+A aba ``INMS_BASE`` do report deixa colunas de glosa em branco por
+indicador (spec §12: glosa é agregado mensal lá), então não serviria para
+o detalhe por-(indicador×órgão) que ``GLOSAS`` precisa.
 """
 
 from __future__ import annotations
@@ -41,6 +37,7 @@ from pyauditor.excel._style import (
 from pyauditor.excel._style import UNIT_BY_SHAPE as _UNIT_BY_SHAPE
 from pyauditor.excel._style import new_sheet as _new_sheet
 from pyauditor.excel._style import write_row as _write
+from pyauditor.excel.glosas import Historico, compute_glosa, saldo_anterior_pct_de
 from pyauditor.excel.orgao_consolidation import with_orgao_consolidation
 from pyauditor.logging import logger
 from pyauditor.rom.summary import IndicatorSummary
@@ -128,6 +125,17 @@ class ConsolidationResult:
 _TRACKED_HEADER_NAMES: Final[frozenset[str]] = frozenset({"Indicador", "Órgão", *_DECISION_COLUMNS})
 
 
+def _normalize_header(name: str) -> str:
+    """Normaliza espaços/acentos/case para detectar renomeação leve (issue 08)."""
+    import unicodedata
+
+    # strip, collapse internal whitespace, casefold, remove acentos
+    collapsed = " ".join(name.strip().split())
+    folded = collapsed.casefold()
+    nfkd = unicodedata.normalize("NFD", folded)
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
 def _check_no_duplicate_headers(path: Path, header_row: Sequence[object]) -> None:
     """A hand-edited workbook with a duplicate column name (two "Indicador"
     columns, or a stray column literally named "Justificativa" inserted by a
@@ -146,6 +154,31 @@ def _check_no_duplicate_headers(path: Path, header_row: Sequence[object]) -> Non
         )
 
 
+def _check_renamed_headers(path: Path, header_row: Sequence[object]) -> None:
+    """Se um cabeçalho esperado não existe mas há candidato próximo por
+    normalização (espaço extra, acento, case), falha nomeando ambos — em
+    vez de perder a decisão silenciosamente (issue 08)."""
+    present = {h for h in header_row if isinstance(h, str)}
+    present_normalized = {_normalize_header(h): h for h in present}
+    for expected in _TRACKED_HEADER_NAMES:
+        if expected not in present:
+            norm_expected = _normalize_header(expected)
+            candidate = present_normalized.get(norm_expected)
+            if candidate is not None:
+                raise ValueError(
+                    f"{path}: cabeçalho esperado {expected!r} não encontrado, "
+                    f"mas existe candidato próximo {candidate!r} — possível renomeação "
+                    "com espaço/acentuação/case, corrija o cabeçalho"
+                )
+            # também tenta match por um caractere de diferença (ex. espaço extra interno)
+            for actual in present:
+                if _normalize_header(actual) == norm_expected:
+                    raise ValueError(
+                        f"{path}: cabeçalho esperado {expected!r} não encontrado, "
+                        f"mas existe candidato próximo {actual!r}"
+                    )
+
+
 def read_existing_decisions(path: Path) -> dict[RowKey, dict[str, object]]:
     """Reads the decision columns from a previously-generated consolidado
     workbook's `GLOSAS` sheet, keyed by (indicador, órgão) — the merge
@@ -161,9 +194,12 @@ def read_existing_decisions(path: Path) -> dict[RowKey, dict[str, object]]:
         sheet = workbook[GLOSAS_SHEET]
 
         header_row = [cell.value for cell in sheet[1]]
-        if not header_row or "Indicador" not in header_row:
+        if not header_row:
             return {}
         _check_no_duplicate_headers(path, header_row)
+        _check_renamed_headers(path, header_row)
+        if "Indicador" not in header_row:
+            return {}
         col_idx = {name: i + 1 for i, name in enumerate(header_row) if isinstance(name, str)}
         indicador_col = col_idx.get("Indicador")
         orgao_col = col_idx.get("Órgão")
@@ -314,6 +350,23 @@ def _faixa(summary: IndicatorSummary) -> str:
     return f"Déficit de {dif:.2f}pp" if dif > 0 else "Não conforme"
 
 
+def _is_derived(summary: IndicatorSummary) -> bool:
+    return "." in summary.indicator_id
+
+
+def _deduplicate(summaries: list[IndicatorSummary]) -> list[IndicatorSummary]:
+    by_key: dict[tuple[str, str | None], list[IndicatorSummary]] = {}
+    for s in summaries:
+        by_key.setdefault((s.contractual_id, s.asset), []).append(s)
+    deduped: list[IndicatorSummary] = []
+    for group in by_key.values():
+        if len(group) > 1 and any(_is_derived(s) for s in group):
+            deduped.extend(s for s in group if _is_derived(s))
+        else:
+            deduped.extend(group)
+    return deduped
+
+
 def build_glosas(
     wb: Workbook,
     competencia: str,
@@ -322,18 +375,31 @@ def build_glosas(
     valor_base: float | None,
     existing_decisions: dict[RowKey, dict[str, object]],
     warnings: list[str],
+    *,
+    historico: Historico | None = None,
+    is_final_month: bool = False,
 ) -> tuple[float, float]:
     """GLOSAS — uma linha por (indicador × órgão) com ocorrência de glosa,
     mais o resumo agregado. Decisão do fiscal ('Aceita' = anistia) tira a
     ocorrência da base de pontos; colunas de decisão são preservadas do
     workbook anterior, nunca recalculadas (ticket 02/04 Q3).
+
+    Reusa ``glosas.compute_glosa`` por-órgão (mesma fórmula de ``report.py``) —
+    com ``saldo_anterior_pct`` e ``is_final_month`` — e soma contra teto
+    por-órgão em vez de teto único sobre o agregado.
     """
     ws = _new_sheet(wb, GLOSAS_SHEET, _GLOSAS_COLUMNS, width=26)
     seen_keys: set[RowKey] = set()
     row = 2
-    total_pontos = 0.0
 
-    for summary in minc + mtur:
+    # Deduplicação por Categoria (issue 01): base não conta quando derivados existem
+    minc_dedup = _deduplicate(minc)
+    mtur_dedup = _deduplicate(mtur)
+
+    # Primeiro escreve linhas por ocorrência (valor por ocorrência continua pct simples,
+    # mas o agregado usa compute_glosa por-órgão)
+    pontos_por_orgao: dict[str, float] = {"MinC": 0.0, "MTur": 0.0}
+    for summary in minc_dedup + mtur_dedup:
         if summary.penalty_points <= 0:
             continue
         key: RowKey = (format_inms_code(summary.contractual_id), summary.orgao)
@@ -343,7 +409,7 @@ def build_glosas(
 
         pontos = summary.penalty_points
         if not is_amnestied:
-            total_pontos += pontos
+            pontos_por_orgao[summary.orgao] = pontos_por_orgao.get(summary.orgao, 0.0) + pontos
         pct = pontos * 0.001
         valor_glosa = round((valor_base or 0.0) * pct / 100, 2) if valor_base is not None else None
 
@@ -361,11 +427,6 @@ def build_glosas(
         if valor_base is not None:
             ws.cell(row=row, column=10).number_format = _CURRENCY_FMT
             ws.cell(row=row, column=11).number_format = _CURRENCY_FMT
-        # Fiscal-entered free text round-trips across runs (ticket 04 Q3) —
-        # the one column set most likely to accumulate copy-pasted content
-        # over the contract's lifetime. Text format blocks formula injection
-        # (a value starting with =+-@ would otherwise become a live formula
-        # the next time this workbook is opened) without altering the text.
         for column in _DECISION_TEXT_COLUMNS:
             ws.cell(row=row, column=column).number_format = "@"
         row += 1
@@ -376,9 +437,37 @@ def build_glosas(
                 f"decisão registrada para {key[0]}/{key[1]} mas a ocorrência não existe mais nesta rodada — preservada apenas no histórico, não reescrita"
             )
 
-    pct_bruto = total_pontos * 0.001
+    # Agregado por-órgão via compute_glosa (com saldo_anterior e is_final_month)
+    historico = historico or {}
+    saldo_anterior = saldo_anterior_pct_de(historico, competencia)
+    # Rateio do saldo anterior proporcional aos pontos (se ambos têm pontos, divide;
+    # se só um tem, todo saldo vai para ele)
+    total_pontos_bruto = sum(pontos_por_orgao.values())
+    if total_pontos_bruto > 0:
+        # Distribui saldo anterior proporcionalmente — mesma semântica de manter
+        # o teto por-órgão mas respeitar rollover global do período
+        saldo_minc = saldo_anterior * (pontos_por_orgao.get("MinC", 0.0) / total_pontos_bruto)
+        saldo_mtur = saldo_anterior * (pontos_por_orgao.get("MTur", 0.0) / total_pontos_bruto)
+    else:
+        saldo_minc = saldo_mtur = 0.0
+
+    glosa_minc = compute_glosa(
+        pontos_por_orgao.get("MinC", 0.0), valor_base,
+        is_final_month=is_final_month, saldo_anterior_pct=saldo_minc,
+    )
+    glosa_mtur = compute_glosa(
+        pontos_por_orgao.get("MTur", 0.0), valor_base,
+        is_final_month=is_final_month, saldo_anterior_pct=saldo_mtur,
+    )
+    # Para valor_base por-órgão (rateio), o valor da glosa consolidada é a soma
+    # das glosas por-órgão calculadas sobre o mesmo valor_base proporcional?
+    # Simplificação: se valor_base é único (objetos.csv total), manter soma
+    # direta — reflete o Valor Glosa idêntico ao report por-órgão somado.
+    total_pontos = glosa_minc.total_points + glosa_mtur.total_points
+    glosa_final = (glosa_minc.valor_da_glosa or 0.0) + (glosa_mtur.valor_da_glosa or 0.0)
+    # Fallback se valor_base is None: glosa_final já é 0 via compute_glosa
+    pct_bruto = total_pontos * 0.001 + saldo_anterior
     aplicado = min(pct_bruto, LIMITE_PCT)
-    glosa_final = (valor_base or 0.0) * aplicado / 100 if valor_base is not None else 0.0
 
     r = row + 2
     for label, value in (
@@ -483,12 +572,15 @@ def build_consolidated_workbook(
     *,
     valor_base: float | None = None,
     itens: tuple[float, ...] | None = None,
+    historico: Historico | None = None,
+    is_final_month: bool = False,
 ) -> ConsolidationResult:
     """Pure, in-memory build of the 5-sheet consolidated workbook.
 
-    `capa` carries the contract-common fields (from `capa.csv`, ticket 07);
-    `valor_base` and `itens` come from `objetos.csv` — the monetary source.
-    `glosa_calculada` is `valor_base is not None` (ticket 01/03).
+    `capa` carries the contract-common fields (from ``capa.csv``, ticket 07)
+    e indicadores vêm dos ROM JSON (``roms/<orgao>/<comp>/*.json``), não do
+    ``.xlsx`` de ``report.py``. ``valor_base`` e ``itens`` vêm de
+    ``objetos.csv``. ``glosa_calculada`` é ``valor_base is not None``.
     """
     warnings: list[str] = []
     wb = Workbook()
@@ -500,7 +592,8 @@ def build_consolidated_workbook(
     build_servicos(wb, itens)
     build_inms_base(wb, competencia, minc, mtur)
     total_pontos, glosa_final = build_glosas(
-        wb, competencia, minc, mtur, valor_base, existing_decisions or {}, warnings
+        wb, competencia, minc, mtur, valor_base, existing_decisions or {}, warnings,
+        historico=historico, is_final_month=is_final_month,
     )
     build_calculo(wb, valor_base, total_pontos)
 

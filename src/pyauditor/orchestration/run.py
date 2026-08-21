@@ -100,12 +100,11 @@ def isolate_on_failure(_entry: CommandStateEntry) -> FailureDecision:
 
 
 def _capa_path_for(capa_path: Path, orgao: str) -> Path:
-    """The per-órgão capa CSV beside the common `capa.csv` (ticket 07) — the
-    whole capa family lives in one directory; no separate per-órgão flag.
-    An explicit non-default `capa_path` (a `--capa-path` override) wins as-is."""
-    if capa_path.name != _DEFAULT_CAPA_NAME and orgao != "both":
-        return capa_path
-    return capa_path.parent / f"capa_{orgao}.csv"
+    """Delegates to ``pyauditor.capa_paths.resolve_capa_path`` — single
+    implementation shared with ``cli/main.py`` (issue 05)."""
+    from pyauditor.capa_paths import resolve_capa_path
+
+    return resolve_capa_path(capa_path, orgao)
 
 
 def _plan(orgao_selector: str) -> tuple[tuple[str, str | None], ...]:

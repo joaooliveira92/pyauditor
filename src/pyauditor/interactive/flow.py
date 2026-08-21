@@ -160,6 +160,7 @@ def _run_guided_flow(provider: InteractionProvider) -> int:
         report_dir=answers.report_dir,
         capa_path=answers.capa_path,
         commands=commands,
+        force_commands=frozenset({"report", "consolidate"}),
     )
 
     def on_state_change(entry: CommandStateEntry) -> None:

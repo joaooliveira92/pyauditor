@@ -98,12 +98,14 @@ def test_glosas_has_one_row_per_indicator_times_orgao_with_breaches() -> None:
 
 
 def test_glosa_capped_at_30_percent_of_aggregate() -> None:
+    # Cap é por-órgão (issue 07): 20k pts = 20% por órgão, nenhum atinge 30% isolado,
+    # então soma = 40% do valor base, não 30% do agregado.
     minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=20000.0)]
     mtur = [_summary("INMS 1.6", orgao="MTur", conforms=False, penalty_points=20000.0)]
 
     result = build_consolidated_workbook("2026-06", minc, mtur, {}, valor_base=100000.0)
 
-    assert result.glosa_final == 100000.0 * 30.0 / 100
+    assert result.glosa_final == 100000.0 * 20.0 / 100 + 100000.0 * 20.0 / 100
 
 
 def test_capa_uses_valor_base_from_objetos() -> None:

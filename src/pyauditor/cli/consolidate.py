@@ -55,12 +55,31 @@ def check_consolidate_ready(competencia: str, report_dir: Path, roms_dir: Path) 
 
 
 def _load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
+    expected_orgao = roms_dir.parent.name if roms_dir.parent.name in ("MinC", "MTur") else None
+    if expected_orgao is None and roms_dir.name in ("MinC", "MTur"):
+        expected_orgao = roms_dir.name
+    # fallback: for consolidate's roms_dir/<orgao>/<competencia> structure,
+    # roms_dir itself may be the competencia dir
+    if expected_orgao is None:
+        # try grandparent (e.g. roms/MinC/2026-06)
+        try:
+            candidate = roms_dir.parent.name
+            if candidate in ("MinC", "MTur"):
+                expected_orgao = candidate
+        except Exception:
+            expected_orgao = None
     summaries: list[IndicatorSummary] = []
     for summary_path in sorted(roms_dir.glob("*.json")):
         try:
             raw = json.loads(summary_path.read_text(encoding="utf-8"))
-            summaries.append(IndicatorSummary(**raw))
-        except (json.JSONDecodeError, TypeError) as exc:
+            summary = IndicatorSummary(**raw)
+            if expected_orgao is not None and summary.orgao != expected_orgao:
+                raise ValueError(
+                    f"{summary_path}: orgao {summary.orgao!r} no sidecar diverge do diretório "
+                    f"de origem {expected_orgao!r} — sidecar mal-rotulado/copiado"
+                )
+            summaries.append(summary)
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
             raise ValueError(f"sumário inválido em {summary_path}: {exc}") from exc
     return summaries
 
@@ -122,9 +141,6 @@ def run_consolidate(
     if not dependency_check.satisfied:
         return _error("dependência não satisfeita: " + "; ".join(dependency_check.missing))
 
-    report_paths = {
-        orgao: report_dir / f"relatorio_{competencia}_{orgao}.xlsx" for orgao in _ORGAOS
-    }
     roms_dirs = {orgao: roms_dir / orgao / competencia for orgao in _ORGAOS}
 
     try:

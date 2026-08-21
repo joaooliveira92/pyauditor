@@ -68,7 +68,24 @@ def compute_categoria_values(
     categoria contra *real_values*, mais o resto `outros` (spec
     §14.1/§14.3): `catch_all_contains` exclui o que `in_values` já
     reivindicou dentro do mesmo INMS. Devolve `(per_categoria,
-    outros_values)`, `per_categoria` na ordem de *entries*."""
+    outros_values)`, `per_categoria` na ordem de *entries*.
+
+    Valida que nenhuma linha pertence a mais de uma categoria — sobreposição
+    entre ``in_values`` de categorias distintas é erro (issue 01).
+    """
+    # Validação de sobreposição entre in_values explícitos
+    seen_in_values: dict[str, str] = {}
+    for categoria_key, entry in entries:
+        if entry.in_values is not None:
+            for val in entry.in_values:
+                if val in seen_in_values:
+                    raise ValueError(
+                        f"Grupo_executor {val!r} aparece em mais de uma categoria "
+                        f"({seen_in_values[val]!r} e {categoria_key!r}) — categorias "
+                        "devem ser disjuntas, nenhuma linha pode ser contada duas vezes"
+                    )
+                seen_in_values[val] = categoria_key
+
     in_values_claimed: set[str] = set()
     for _categoria_key, entry in entries:
         if entry.in_values is not None:
@@ -84,6 +101,13 @@ def compute_categoria_values(
             effective_values = {
                 v for v in real_values if entry.catch_all_contains in v
             } - in_values_claimed
+        # Validação pós-resolução: effective_values não pode intersectar já reivindicado
+        overlap = effective_values & claimed_overall
+        if overlap:
+            raise ValueError(
+                f"categoria {categoria_key!r} sobrepõe valores já reivindicados "
+                f"{sorted(overlap)!r} — nenhuma linha pode pertencer a duas categorias"
+            )
         claimed_overall |= effective_values
         per_categoria[categoria_key] = effective_values
 

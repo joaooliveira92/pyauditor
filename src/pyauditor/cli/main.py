@@ -371,12 +371,11 @@ def _extract_capa_path(ns: argparse.Namespace, *, data_dir: Path | None = None) 
 
 
 def _capa_path_for(capa_path: Path, orgao: Orgao) -> Path:
-    """The per-órgão capa CSV that sits beside the common `capa.csv`: the
-    whole capa family (capa.csv, capa_{orgao}.csv) lives in one directory
-    (ticket 07 Q6/Q9) — no separate flag for the per-órgão files."""
-    if orgao == "both":
-        return capa_path
-    return capa_path.parent / f"capa_{orgao}.csv"
+    """Delegates to ``pyauditor.capa_paths.resolve_capa_path`` — single
+    implementation shared with ``orchestration/run.py`` (issue 05)."""
+    from pyauditor.capa_paths import resolve_capa_path
+
+    return resolve_capa_path(capa_path, orgao)
 
 
 def _run_log_path(log_dir: Path, command: str, competencia: str | None = None) -> Path:
@@ -421,7 +420,12 @@ def _each_single_orgao(orgao: str) -> tuple[str, ...]:
 
 
 def _dispatch_measure(args: argparse.Namespace) -> int:
+    from pyauditor.cli.results import validate_competencia
+
     request = _extract_measure_request(args)
+    if (msg := validate_competencia(request.competencia)) is not None:
+        print(msg, file=sys.stderr)
+        return 2
     setup_logging(
         log_path=_run_log_path(
             request.output_dir / request.orgao / request.competencia,
@@ -460,16 +464,25 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
 
 
 def _dispatch_split(args: argparse.Namespace) -> int:
+    from pyauditor.cli.results import validate_competencia
+
     request = _extract_split_request(args)
-    setup_logging(
-        log_path=_run_log_path(
-            request.data_dir / request.orgao / request.competencia,
-            _CMD_SPLIT, request.competencia,
-        ),
-        **_logging_kwargs(args),
-    )
+    if (msg := validate_competencia(request.competencia)) is not None:
+        print(msg, file=sys.stderr)
+        return 2
+    # Log fica junto dos artefatos _split (issue 11), não em data_dir/<orgao>/<competencia>
+    # e sem pasta órfã "both"
+    year, month = request.competencia.split("-")
     split_results = []
     for orgao in _each_single_orgao(request.orgao):
+        # setup por órgão dentro do loop para evitar pasta both/ órfã
+        setup_logging(
+            log_path=_run_log_path(
+                request.data_dir / orgao / year / month / "_split",
+                _CMD_SPLIT, request.competencia,
+            ),
+            **_logging_kwargs(args),
+        )
         per_orgao_config_dir = request.config_dir / orgao
         per_orgao_data_dir = request.data_dir / orgao
         per_orgao_manifest_path = request.config_dir / orgao / "datasets.yaml"
@@ -491,6 +504,7 @@ def _dispatch_bootstrap(args: argparse.Namespace) -> int:
     data_dir = _require(args, "data_dir", Path)
     capa_path = _extract_capa_path(args, data_dir=data_dir)
     orgao = _require(args, "orgao", str)
+    # bootstrap não tem competencia, nada a validar previamente
     bootstrap_results = []
     for single_orgao in _each_single_orgao(orgao):
         per_orgao_capa = _capa_path_for(capa_path, cast(Orgao, single_orgao))
@@ -503,7 +517,12 @@ def _dispatch_bootstrap(args: argparse.Namespace) -> int:
 
 
 def _dispatch_report(args: argparse.Namespace) -> int:
+    from pyauditor.cli.results import validate_competencia
+
     report_request = _extract_report_request(args)
+    if (msg := validate_competencia(report_request.competencia)) is not None:
+        print(msg, file=sys.stderr)
+        return 2
     setup_logging(
         log_path=_run_log_path(
             report_request.output_path.parent, _CMD_REPORT, report_request.competencia
@@ -545,7 +564,12 @@ def _dispatch_report(args: argparse.Namespace) -> int:
 
 
 def _dispatch_consolidate(args: argparse.Namespace) -> int:
+    from pyauditor.cli.results import validate_competencia
+
     consolidate_request = _extract_consolidate_request(args)
+    if (msg := validate_competencia(consolidate_request.competencia)) is not None:
+        print(msg, file=sys.stderr)
+        return 2
     setup_logging(
         log_path=_run_log_path(
             consolidate_request.output_path.parent, _CMD_CONSOLIDATE, consolidate_request.competencia
@@ -574,7 +598,12 @@ def _dispatch_consolidate(args: argparse.Namespace) -> int:
 
 
 def _dispatch_run(args: argparse.Namespace) -> int:
+    from pyauditor.cli.results import validate_competencia
+
     competencia = _require(args, "competencia", str)
+    if (msg := validate_competencia(competencia)) is not None:
+        print(msg, file=sys.stderr)
+        return 2
     orgao = _require(args, "orgao", str)
     output_dir = _require(args, "output_dir", Path)
     report_dir = _require(args, "report_dir", Path)

@@ -245,9 +245,24 @@ def run_measure(
                 contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
                 hard_failure=True, error=error,
             ))
+        elif getattr(result, "systematic_failure", False):
+            any_hard_failure = True
+            error = (
+                f"{contractual_id}: não-conformidade sistemática — "
+                f"resultado {summary.result_pct:.2f}% sempre não-conforme, "
+                f"possível bug de cálculo ({rom_path})"
+            )
+            logger.error(error)
+            outcomes.append(IndicatorOutcome(
+                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
+                hard_failure=True, error=error,
+            ))
         else:
             # Observabilidade (ticket 05, Q2/Q7): sem linha por indicador no
             # padrão (INFO); com `-v`/`-vv` (DEBUG) um evento por indicador.
+            status_label = "conforme" if getattr(summary, "conforms", True) else "nao_conforme"
+            if getattr(summary, "systematic_failure", False):
+                status_label = "nao_conforme_sistematica"
             log_event(
                 "indicator_measured",
                 "indicador apurado",
@@ -255,7 +270,7 @@ def run_measure(
                 orgao=orgao or "",
                 codigo=contractual_id,
                 rom_path=str(rom_path),
-                status="conforme" if getattr(summary, "conforms", True) else "nao_conforme",
+                status=status_label,
             )
             outcomes.append(IndicatorOutcome(
                 contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
