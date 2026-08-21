@@ -42,6 +42,7 @@ def run_run(
     runs_dir: Path = _DEFAULT_RUNS_DIR,
     output: OutputFormat = "text",
     force: bool = False,
+    strict: bool = False,
 ) -> int:
     request = RunRequest(
         competencia=competencia,
@@ -55,6 +56,7 @@ def run_run(
         runs_dir=runs_dir,
         force=force,
         force_commands=frozenset({"report", "consolidate"}),
+        strict=strict,
     )
     run_result = execute_run(request, on_failure=isolate_on_failure)
     render_summary(run_result, output=output)

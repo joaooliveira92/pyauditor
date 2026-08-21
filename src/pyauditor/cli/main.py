@@ -29,7 +29,9 @@ from pyauditor.cli.results import exit_code_for, exit_code_for_results
 from pyauditor.cli.run import run_run
 from pyauditor.cli.split import run_split
 from pyauditor.config.manifest import load_manifest
+from pyauditor.excel.equipe import EQUIPE_FILENAME
 from pyauditor.logging import logger, setup_logging
+from pyauditor.periodo import PeriodoAfericao, mes_bounds
 
 __all__: Final[tuple[str, ...]] = (
     "ConsolidateRequest", "MeasureRequest", "ReportRequest", "build_parser", "cli_main",
@@ -72,7 +74,7 @@ class MeasureRequest:
     output_dir: Path
     manifest_path: Path
     orgao: Orgao
-    capa_path: Path
+    strict: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +101,7 @@ class SplitRequest:
     manifest_path: Path
     report_dir: Path
     orgao: Orgao
+    strict: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +143,20 @@ def _add_orgao_argument(parser: argparse.ArgumentParser, *, default: Orgao = "Mi
         default=default,
         help="órgão da aferição (default: MinC). 'both' roda os dois, sequencial, sem cruzar",
     )
+
+
+_STRICT_HELP = (
+    "descarta linhas sem prova de período (célula vazia ou formato "
+    "desconhecido) em vez de mantê-las para os quality gates"
+)
+
+
+def _add_strict_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--strict", action="store_true", help=_STRICT_HELP)
+
+
+def _extract_strict(ns: argparse.Namespace) -> bool:
+    return bool(cast(object, getattr(ns, "strict", False)))
 
 
 def _add_logging_arguments(parser: argparse.ArgumentParser) -> None:
@@ -210,7 +227,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--manifest", type=Path, default=None,
         help="caminho para datasets.yaml (default: <config-dir>/<órgão>/datasets.yaml)"
     )
-    measure_parser.add_argument("--capa-path", type=Path, default=None)
+    _add_strict_argument(measure_parser)
     _add_logging_arguments(measure_parser)
 
     bootstrap_parser = subparsers.add_parser(
@@ -279,6 +296,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--manifest", type=Path, default=None,
         help="caminho para datasets.yaml (default: <config-dir>/<órgão>/datasets.yaml)"
     )
+    _add_strict_argument(split_parser)
     _add_logging_arguments(split_parser)
 
     run_parser = subparsers.add_parser(
@@ -292,6 +310,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
     run_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
     run_parser.add_argument("--capa-path", type=Path, default=None)
+    _add_strict_argument(run_parser)
     run_parser.add_argument(
         "--output",
         type=str,
@@ -334,7 +353,7 @@ def _extract_measure_request(ns: argparse.Namespace) -> MeasureRequest:
         output_dir=_require(ns, "output_dir", Path),
         manifest_path=manifest_path,
         orgao=cast(Orgao, orgao),
-        capa_path=_extract_capa_path(ns, data_dir=data_dir),
+        strict=_extract_strict(ns),
     )
 
 
@@ -354,6 +373,7 @@ def _extract_split_request(ns: argparse.Namespace) -> SplitRequest:
         manifest_path=manifest_path,
         report_dir=_require(ns, "report_dir", Path),
         orgao=cast(Orgao, orgao),
+        strict=_extract_strict(ns),
     )
 
 
@@ -441,6 +461,11 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
     if (msg := validate_competencia(request.competencia)) is not None:
         print(msg, file=sys.stderr)
         return 2
+    # §2 — a janela da competência é derivada uma vez do argumento validado e
+    # repassada a todos os órgãos; equipe.csv vive na raiz de --data-dir (§6),
+    # não no diretório por órgão dos datasets.
+    periodo: PeriodoAfericao = mes_bounds(request.competencia)
+    equipe_path = request.data_dir / EQUIPE_FILENAME
     setup_logging(
         log_path=_run_log_path(
             request.output_dir / request.orgao / request.competencia,
@@ -455,7 +480,6 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
         per_orgao_data_dir = request.data_dir / orgao
         per_orgao_output_dir = request.output_dir / orgao
         per_orgao_manifest_path = _resolve_manifest_path(request.config_dir, orgao)
-        per_orgao_capa = _capa_path_for(request.capa_path, cast(Orgao, orgao))
         manifest = None
         if per_orgao_manifest_path.exists():
             manifest = load_manifest(per_orgao_manifest_path)
@@ -467,14 +491,18 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
             output_dir=per_orgao_output_dir,
             manifest=manifest,
             expected_orgao=orgao,
-            capa_path=per_orgao_capa,
+            equipe_path=equipe_path,
+            periodo=periodo,
+            strict=request.strict,
             collect=collect,
         ))
         per_orgao[orgao] = collect
     if request.orgao == "both":
         # Single markdown per indicator covering both orgãos, alongside the
         # per-orgão ROMs (roms/MinC/..., roms/MTur/...).
-        write_combined_roms(per_orgao, request.competencia, request.output_dir)
+        write_combined_roms(
+            per_orgao, request.competencia, request.output_dir, periodo=periodo
+        )
     return exit_code_for_results(measure_results)
 
 
@@ -488,6 +516,7 @@ def _dispatch_split(args: argparse.Namespace) -> int:
     # Log fica junto dos artefatos _split (issue 11), não em data_dir/<orgao>/<competencia>
     # e sem pasta órfã "both"
     year, month = request.competencia.split("-")
+    periodo: PeriodoAfericao = mes_bounds(request.competencia)
     split_results = []
     for orgao in _each_single_orgao(request.orgao):
         # setup por órgão dentro do loop para evitar pasta both/ órfã
@@ -511,6 +540,8 @@ def _dispatch_split(args: argparse.Namespace) -> int:
             expected_orgao=orgao,
             manifest=manifest,
             report_dir=request.report_dir / orgao,
+            periodo=periodo,
+            strict=request.strict,
         ))
     return exit_code_for_results(split_results)
 
@@ -640,6 +671,7 @@ def _dispatch_run(args: argparse.Namespace) -> int:
         final_month=bool(cast(object, getattr(args, "final_month", False))),
         output="json" if output_raw == "json" else "text",
         force=bool(cast(object, getattr(args, "force", False))),
+        strict=_extract_strict(args),
     )
 
 

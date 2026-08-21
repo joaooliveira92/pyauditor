@@ -78,52 +78,72 @@ def test_measure_exception_continues(tmp_path: Path) -> None:
          patch("pyauditor.cli.measure.render_rom", return_value="x"):
         assert run_measure("2026-06", tmp_path, tmp_path, tmp_path).status == "error"
 
-def test_missing_capa_warns_but_does_not_fail(tmp_path: Path) -> None:
-    """Identificação/Responsáveis are informational — unlike `report`'s
-    valor-base, a missing capa can't block `measure`."""
+def test_missing_equipe_warns_but_does_not_fail(tmp_path: Path) -> None:
+    """Responsáveis são informativos — diferente do valor-base do `report`,
+    equipe.csv ausente nunca bloqueia `measure` (warning + '[a preencher]')."""
     loaded = [_loaded("a", "C-A")]
-    missing_capa = tmp_path / "capa_MinC.csv"
+    missing_equipe = tmp_path / "equipe.csv"
     with patch("pyauditor.cli.measure.discover_config_files", return_value=loaded), \
          patch("pyauditor.cli.measure.measure", return_value=SimpleNamespace(hard_failure=False)), \
          patch("pyauditor.cli.measure.render_rom", return_value="x") as render_mock, \
          patch("pyauditor.cli.measure.summarize", return_value=SimpleNamespace(to_dict=lambda: {})):
-        code = run_measure("2026-06", tmp_path, tmp_path, tmp_path, capa_path=missing_capa)
+        code = run_measure(
+            "2026-06", tmp_path, tmp_path, tmp_path, equipe_path=missing_equipe
+        )
         assert code.status == "done"
         assert render_mock.call_args.kwargs["capa_fields"] == {}
+        assert any("equipe não encontrada" in w for w in code.warnings)
 
-def test_capa_missing_fields_warn_once_per_run(tmp_path: Path) -> None:
+
+def test_equipe_missing_fields_warn_once_per_run(tmp_path: Path) -> None:
     loaded = [_loaded("a", "C-A"), _loaded("b", "C-B")]
-    fields = {"Fiscal técnico": "Fulano de Tal"}  # everything else left blank
+    equipe_path = tmp_path / "equipe.csv"
+    equipe_path.write_text(
+        "FUNÇÃO,NOME,SIAPE\nFiscal técnico,Fulano de Tal,1234567\n",
+        encoding="utf-8-sig",
+    )
     with (
         patch("pyauditor.cli.measure.discover_config_files", return_value=loaded),
         patch("pyauditor.cli.measure.measure", return_value=SimpleNamespace(hard_failure=False)),
         patch("pyauditor.cli.measure.render_rom", return_value="x"),
         patch("pyauditor.cli.measure.summarize", return_value=SimpleNamespace(to_dict=lambda: {})),
-        patch("pyauditor.cli.measure.read_capa_csv_fields", return_value=fields),
         patch("pyauditor.cli.measure.logger") as logger_mock,
     ):
-        capa_path = tmp_path / "capa_MinC.csv"
-        capa_path.write_bytes(b"")
-        code = run_measure("2026-06", tmp_path, tmp_path, tmp_path, capa_path=capa_path)
+        code = run_measure("2026-06", tmp_path, tmp_path, tmp_path, equipe_path=equipe_path)
         assert code.status == "done"
         warnings = [call.args[0] for call in logger_mock.warning.call_args_list]
-        assert len(warnings) == 1  # once per run, not once per indicator
-        assert "Competência" in warnings[0]
-        assert "Fiscal técnico" not in warnings[0]  # that one was filled in
+        resumo = [w for w in warnings if "sem preencher" in w]
+        assert len(resumo) == 1  # o resumo agregado é uma vez por execução
+        assert "Fiscal requisitante" in resumo[0]
+        assert "Fiscal técnico" not in resumo[0]  # esse foi preenchido
 
 
-def test_capa_fields_reach_render_rom(tmp_path: Path) -> None:
+def test_equipe_fields_reach_render_rom_and_malformed_degrades(tmp_path: Path) -> None:
     loaded = [_loaded("a", "C-A")]
-    fields = {"Fiscal técnico": "Fulano de Tal"}
     summarize_result = SimpleNamespace(to_dict=lambda: {})
+    equipe_path = tmp_path / "equipe.csv"
+
+    equipe_path.write_text(
+        "FUNÇÃO,NOME,SIAPE\nGestor do Contrato,Beltrano,7654321\n",
+        encoding="utf-8-sig",
+    )
     with patch("pyauditor.cli.measure.discover_config_files", return_value=loaded), \
          patch("pyauditor.cli.measure.measure", return_value=SimpleNamespace(hard_failure=False)), \
          patch("pyauditor.cli.measure.render_rom", return_value="x") as render_mock, \
-         patch("pyauditor.cli.measure.summarize", return_value=summarize_result), \
-         patch("pyauditor.cli.measure.read_capa_csv_fields", return_value=fields):
-        capa_path = tmp_path / "capa_MinC.csv"
-        # only existence is checked before read_capa_csv_fields is called
-        capa_path.write_bytes(b"")
-        code = run_measure("2026-06", tmp_path, tmp_path, tmp_path, capa_path=capa_path)
+         patch("pyauditor.cli.measure.summarize", return_value=summarize_result):
+        code = run_measure("2026-06", tmp_path, tmp_path, tmp_path, equipe_path=equipe_path)
         assert code.status == "done"
-        assert render_mock.call_args.kwargs["capa_fields"] == fields
+        # normalização de caixa/acento mapeia no rótulo canônico
+        assert render_mock.call_args.kwargs["capa_fields"] == {
+            "Gestor do contrato": "Beltrano (7654321)"
+        }
+
+    equipe_path.write_text("cabecalho,errado\n", encoding="utf-8-sig")
+    with patch("pyauditor.cli.measure.discover_config_files", return_value=loaded), \
+         patch("pyauditor.cli.measure.measure", return_value=SimpleNamespace(hard_failure=False)), \
+         patch("pyauditor.cli.measure.render_rom", return_value="x") as render_mock, \
+         patch("pyauditor.cli.measure.summarize", return_value=summarize_result):
+        code = run_measure("2026-06", tmp_path, tmp_path, tmp_path, equipe_path=equipe_path)
+        assert code.status == "done"  # malformado é dado incompleto, não falha
+        assert render_mock.call_args.kwargs["capa_fields"] == {}
+        assert any("falha ao ler" in w for w in code.warnings)

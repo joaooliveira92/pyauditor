@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 from typing import assert_type
@@ -16,6 +17,7 @@ from pyauditor.cli.main import (
     cli_main,
 )
 from pyauditor.logging import logger
+from pyauditor.periodo import PeriodoAfericao
 
 
 def test_build_parser_typed() -> None:
@@ -32,7 +34,7 @@ def test_measure_request_frozen_slots() -> None:
         output_dir=Path("roms"),
         manifest_path=Path("configs") / "MinC" / "datasets.yaml",
         orgao="MinC",
-        capa_path=Path("input") / "capa.csv",
+        strict=False,
     )
     assert_type(r.competencia, str)
     with pytest.raises(AttributeError):
@@ -70,9 +72,11 @@ def test_cli_main_split_dispatches(tmp_path: Path) -> None:
         assert m.call_args.kwargs["expected_orgao"] == "MinC"
 
 
-def test_cli_main_measure_dispatches_with_capa_path(
+def test_cli_main_measure_dispatch_passes_equipe_periodo_strict(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """§2/§6 — o despachante deriva a janela da competência, resolve
+    `equipe.csv` na raiz de --data-dir e repassa `--strict`."""
     monkeypatch.chdir(tmp_path)
     cfg, data, out = tmp_path / "c", tmp_path / "d", tmp_path / "o"
     for p in (cfg, data, out):
@@ -85,26 +89,27 @@ def test_cli_main_measure_dispatches_with_capa_path(
             ]
         )
         assert code == 0
-        # default orgao MinC -> per-órgão capa `capa_MinC.csv` junto do comum
-        assert m.call_args.kwargs["capa_path"] == data / "capa_MinC.csv"
+        assert m.call_args.kwargs["equipe_path"] == data / "equipe.csv"
+        assert m.call_args.kwargs["periodo"] == PeriodoAfericao(
+            date(2026, 6, 1), date(2026, 6, 30)
+        )
+        assert m.call_args.kwargs["strict"] is False
 
 
-def test_cli_main_measure_dispatches_with_explicit_capa_path(tmp_path: Path) -> None:
+def test_cli_main_measure_dispatch_strict_flag(tmp_path: Path) -> None:
     cfg, data, out = tmp_path / "c", tmp_path / "d", tmp_path / "o"
     for p in (cfg, data, out):
         p.mkdir()
-    capa_path = tmp_path / "custom" / "capa.csv"
     with patch("pyauditor.cli.main.run_measure", return_value=SimpleNamespace(status="done")) as m:
         code = cli_main(
             [
                 "measure", "2026-06",
                 "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out),
-                "--capa-path", str(capa_path),
+                "--strict",
             ]
         )
         assert code == 0
-        # capa do órgão vive ao lado do capa comum (mesma família, ticket 07 Q9)
-        assert m.call_args.kwargs["capa_path"] == tmp_path / "custom" / "capa_MinC.csv"
+        assert m.call_args.kwargs["strict"] is True
 
 
 def test_cli_main_bootstrap_dispatches_with_capa_path(tmp_path: Path) -> None:

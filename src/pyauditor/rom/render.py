@@ -17,6 +17,7 @@ from pyauditor.engine.pipeline import MeasurementProvenance, MeasurementResult
 from pyauditor.engine.quality_gates import QualityGateReport
 from pyauditor.engine.strategies._target import shortfall
 from pyauditor.engine.strategies.base import CalculationResult
+from pyauditor.periodo import PeriodoAfericao, formatar_periodo_br
 
 _CAPA_PLACEHOLDER = "[a preencher]"
 
@@ -123,17 +124,21 @@ def _capa_value(capa_fields: dict[str, object], label: str) -> str:
 def _render_identificacao(
     config: IndicatorConfig,
     provenance: MeasurementProvenance,
-    capa_fields: dict[str, object],
     h: str = "##",
+    *,
+    competencia: str = "",
+    periodo: PeriodoAfericao | None = None,
 ) -> str:
-    periodo_inicial = _capa_value(capa_fields, "Período inicial da aferição")
-    periodo_final = _capa_value(capa_fields, "Período final da aferição")
+    """Competência/Período vêm exclusivamente dos argumentos da CLI (spec
+    competencia-cli-equipe §5) — nunca da capa. Sem período (chamador
+    legado), placeholder."""
+    periodo_texto = formatar_periodo_br(periodo) if periodo is not None else _CAPA_PLACEHOLDER
     return (
         f"{h} Identificação\n"
         f"- Contrato: {config.scope.contract}\n"
         f"- Órgão: {config.scope.orgao}\n"
-        f"- Competência: {_capa_value(capa_fields, 'Competência')}\n"
-        f"- Período da aferição: {periodo_inicial} a {periodo_final}\n"
+        f"- Competência: {competencia or _CAPA_PLACEHOLDER}\n"
+        f"- Período da aferição: {periodo_texto}\n"
         f"- Data de processamento: {provenance.processed_at.isoformat(timespec='seconds')}\n"
         f"- Versão do pipeline: {provenance.pipeline_version}\n"
         f"- Versão da configuração: {provenance.config_hash or '[indisponível]'}\n"
@@ -189,11 +194,23 @@ def _render_ressalva_interpretativa(
     )
 
 
-def _render_linhas_aprovadas(gate_report: QualityGateReport, h: str = "##") -> str:
+def _render_linhas_aprovadas(
+    gate_report: QualityGateReport,
+    h: str = "##",
+    *,
+    dropped_out_of_period: int | None = None,
+) -> str:
+    """`dropped_out_of_period` é None quando o filtro de período não rodou —
+    a linha some do ROM em vez de exibir um zero enganoso (§5)."""
+    fora_do_periodo = (
+        f"\n- Fora do período descartadas: {dropped_out_of_period}"
+        if dropped_out_of_period is not None
+        else ""
+    )
     return (
         f"{h} Linhas aprovadas pelo quality gate\n"
         f"- Linhas lidas: {len(gate_report.accepted) + len(gate_report.rejected)}\n"
-        f"- Linhas aprovadas: {len(gate_report.accepted)}\n\n"
+        f"- Linhas aprovadas: {len(gate_report.accepted)}{fora_do_periodo}\n\n"
         "> Aprovação pelo quality gate não equivale à população contratual completa\n"
         "> (registros podem ser rejeitados por critérios estruturais que não decidem\n"
         "> se pertencem ao universo do indicador)."
@@ -224,11 +241,17 @@ def _render_resultado_vs_meta(
 
 
 def _org_body(
-    result: MeasurementResult, capa_fields: dict[str, object], h: str = "##"
+    result: MeasurementResult,
+    capa_fields: dict[str, object],
+    h: str = "##",
+    *,
+    competencia: str = "",
+    periodo: PeriodoAfericao | None = None,
 ) -> list[str]:
     """The per-orgão body sections of a ROM — shared by the standalone
     `render_rom` (h=`##`) and the combined `render_combined_rom` (nested
-    under each orgão heading, h=`###`)."""
+    under each orgão heading, h=`###`). `capa_fields` alimenta só os
+    Responsáveis (§5); Competência/Período vêm dos argumentos da CLI."""
     config = result.config
     gate_report = result.quality_gate_report
     calculation = result.calculation
@@ -236,13 +259,15 @@ def _org_body(
 
     rejected_table = "\n".join(
         f"| {_md_cell(row.row_id)} | {_md_cell(row.reason)} |" for row in gate_report.rejected
-    ) or "| — | nenhuna rejeição |"
+    ) or "| — | nenhuma rejeição |"
 
     memoria_renderer = _MEMORIA_RENDERERS[config.calculation.shape]
 
     sections = [
-        _render_identificacao(config, provenance, capa_fields, h),
-        _render_linhas_aprovadas(gate_report, h),
+        _render_identificacao(config, provenance, h, competencia=competencia, periodo=periodo),
+        _render_linhas_aprovadas(
+            gate_report, h, dropped_out_of_period=result.dropped_out_of_period
+        ),
         f"{h} Rejeições\n| ID | Motivo |\n|---|---|\n{rejected_table}",
         f"{h} Memória de cálculo\n{memoria_renderer(calculation)}",
     ]
@@ -255,14 +280,23 @@ def _org_body(
     sections.append(_render_responsaveis(capa_fields, h))
     sections.append(
         "---\n"
-        "*Competência, período e responsáveis refletem o estado da capa no momento "
-        "em que este ROM foi gerado — não são valores definitivos.*"
+        "*Competência e Período da aferição são derivados do argumento --competência "
+        "da CLI. Responsáveis refletem o estado da capa no momento em que este ROM "
+        "foi gerado.*"
     )
 
     return sections
 
 
-def render_rom(result: MeasurementResult, capa_fields: dict[str, object] | None = None) -> str:
+def render_rom(
+    result: MeasurementResult,
+    capa_fields: dict[str, object] | None = None,
+    *,
+    competencia: str = "",
+    periodo: PeriodoAfericao | None = None,
+) -> str:
+    """`capa_fields` (células `Nome (SIAPE)` vindas do Equipe) alimenta só a
+    seção Responsáveis; Competência/Período vêm sempre da CLI."""
     capa_fields = capa_fields or {}
     config = result.config
 
@@ -272,7 +306,12 @@ def render_rom(result: MeasurementResult, capa_fields: dict[str, object] | None 
 
     return (
         "\n\n".join(
-            [f"# ROM — {titulo} ({config.indicator.name})", *_org_body(result, capa_fields, "##")]
+            [
+                f"# ROM — {titulo} ({config.indicator.name})",
+                *_org_body(
+                    result, capa_fields, "##", competencia=competencia, periodo=periodo
+                ),
+            ]
         )
         + "\n"
     )
@@ -282,6 +321,9 @@ def render_combined_rom(
     result_a: MeasurementResult,
     result_b: MeasurementResult,
     capa_by_orgao: dict[str, dict[str, object]] | None = None,
+    *,
+    competencia: str = "",
+    periodo: PeriodoAfericao | None = None,
 ) -> str:
     """One markdown per indicator covering both orgãos: the full ROM body of
     each, stacked under a `## <órgão>` heading. Written when `measure` runs
@@ -301,9 +343,9 @@ def render_combined_rom(
     sections = [
         f"# ROM — {titulo} ({config_a.indicator.name}) — {org_a} e {org_b}",
         f"## {org_a}",
-        *_org_body(result_a, capa_a, "###"),
+        *_org_body(result_a, capa_a, "###", competencia=competencia, periodo=periodo),
         f"## {org_b}",
-        *_org_body(result_b, capa_b, "###"),
+        *_org_body(result_b, capa_b, "###", competencia=competencia, periodo=periodo),
     ]
 
     return "\n\n".join(sections) + "\n"

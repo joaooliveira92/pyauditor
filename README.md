@@ -95,7 +95,7 @@ todos em uma invocação scriptable:
 
 | Comando | Responsabilidade |
 |---|---|
-| `bootstrap` | cria a capa Excel do contrato; **idempotente** |
+| `bootstrap` | cria os CSVs de capa (`capa.csv`, `capa_<órgão>.csv`) e o esqueleto de `input/equipe.csv`; **idempotente** |
 | `split <comp>` | valida `categorias.yaml`+CSVs brutos e escreve `sintetico.xlsx` (uma aba por INMS); dentro de `run` roda em modo não-materializado, sem gerar `_split/*` |
 | `measure <comp>` | apura os indicadores da competência, gera um ROM por indicador |
 | `report <comp>` | consolida os ROMs no Excel de relatório do órgão |
@@ -106,12 +106,12 @@ todos em uma invocação scriptable:
 `MinC`). Configs canônicos em `configs/_shared/` (14 `inms-0N.yaml` + `datasets.yaml`);
 `categorias.yaml` por órgão em `configs/<órgão>/`; dados em
 `input/<órgão>/<AAAA>/<MM>`, ROMs em `roms/<órgão>/<competência>/`, e cada
-órgão obtém sua própria capa (`capa_<órgão>.xlsx`) e relatório
+órgão obtém sua própria capa (`capa_<órgão>.csv`) e relatório
 (`reports/relatorio_<competência>_<órgão>.xlsx`). `measure` filtra categorias
 `Grupo_executor` em memória — `input/_split` não é mais pré-requisito.
 
 ```bash
-# Cria a capa de cada órgão (idempotente — omite arquivos existentes)
+# Cria as capas + esqueleto de equipe de cada órgão (idempotente)
 uv run pyauditor bootstrap --orgao both
 
 # Apura cada indicador configurado para uma competência, por órgão
@@ -128,11 +128,31 @@ uv run pyauditor run 2026-06 --orgao both
 ```
 
 `run` aceita os mesmos flags que os subcomandos individuais (`--config-dir`,
-`--data-dir`, `--output-dir`, `--capa-path`, `--final-month`). Cada invocação
+`--data-dir`, `--output-dir`, `--final-month`, `--strict`). Cada invocação
 regenera desde zero os ROMs e Excels; `bootstrap` segue idempotente (nunca
-recria uma capa existente). `split` também pode ser executado isoladamente
+recria um arquivo existente). `split` também pode ser executado isoladamente
 (`--manifest` aponta para um `datasets.yaml` alternativo) para materializar
 `_split/*` (CSVs filtrados + configs por Categoria) e o `sintetico.xlsx`.
+
+### Competência, período e responsáveis automáticos
+
+A capa dos relatórios e ROMs não pede mais hand-fill para campos deriváveis:
+
+- **Competência e Período da aferição** vêm do argumento `--competência`
+  (`2026-06` → 01/06/2026 a 30/06/2026) e são gravados em ROM, relatório do
+  órgão e consolidado.
+- **Responsáveis** (fiscal técnico, fiscal requisitante, fiscal administrativo,
+  gestor do contrato) têm fonte única em `input/equipe.csv`
+  (`FUNÇÃO,NOME,SIAPE`; titulares + linhas `- Substituto`). O `bootstrap` cria o
+  esqueleto; ausência ou linha faltante vira `[a preencher]` com warning —
+  nunca falha técnica.
+- **Filtro pela janela da competência**: cada dataset declara sua coluna de
+  período no YAML (`source.period_column`); `split`, `measure` e o
+  `sintetico.xlsx` descartam as linhas fora da janela (WARN de janela vazia,
+  contagem de descartes no rodapé do ROM). Dataset sem `period_column`
+  declarado é falha técnica no pipeline (`measure`/`split`); no sintetico,
+  degrada com warning. `--strict` troca a política padrão (linhas sem prova de
+  período permanecem para os quality gates decidirem) pelo descarte imediato.
 
 ---
 

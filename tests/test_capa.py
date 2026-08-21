@@ -4,11 +4,14 @@ import pytest
 
 from pyauditor.excel.capa import (
     COMMON_FIELD_LABELS,
+    DERIVED_FIELD_LABELS,
+    EQUIPE_FIELD_LABELS,
+    FIELD_LABELS,
     ORGAO_FIELD_LABELS,
     bootstrap_capa_csv,
     read_capa_csv_fields,
-    validate_periodo_competencia,
 )
+from pyauditor.excel.equipe import RESPONSAVEL_LABELS
 from pyauditor.excel.objetos import parse_brl_value
 
 
@@ -30,7 +33,7 @@ def test_bootstrap_defaults_only_situacao_on_orgao_capa(tmp_path: Path) -> None:
 
     fields = read_capa_csv_fields(capa_path)
     assert fields["Situação geral da aferição"] == "Em preenchimento"
-    assert fields["Fiscal técnico"] == ""
+    assert fields["Versão da planilha"] == ""
 
 
 def test_bootstrap_is_idempotent_never_overwrites(tmp_path: Path) -> None:
@@ -93,61 +96,21 @@ def test_parse_brl_value_rejects_garbage() -> None:
         parse_brl_value("abc")
 
 
-def test_validate_periodo_competencia_empty_fields_no_warning() -> None:
-    # Ticket 10: campo vazio não é assunto deste validador (ticket 02 cuida
-    # disso via missing_publication_fields).
-    assert validate_periodo_competencia({}, "2026-06") == ()
+# Spec competencia-cli-equipe §4 — a capa perdeu Competência/períodos/
+# responsáveis: não são hand-fill, nunca voltam como fallback de capa antiga.
 
 
-def test_validate_periodo_competencia_all_consistent_no_warning() -> None:
-    campos: dict[str, object] = {
-        "Competência": "2026-06",
-        "Período inicial da aferição": "01/06/2026",
-        "Período final da aferição": "30/06/2026",
-    }
+def test_orgao_capa_nao_tem_mais_campos_derivados_nem_responsaveis() -> None:
+    enterrados = set(DERIVED_FIELD_LABELS) | set(EQUIPE_FIELD_LABELS)
 
-    assert validate_periodo_competencia(campos, "2026-06") == ()
+    assert not (set(ORGAO_FIELD_LABELS) & enterrados)
 
 
-def test_validate_periodo_competencia_warns_on_competencia_divergente() -> None:
-    campos: dict[str, object] = {"Competência": "2026-05"}
-
-    warnings = validate_periodo_competencia(campos, "2026-06")
-
-    assert len(warnings) == 1
-    assert "2026-05" in warnings[0]
-    assert "2026-06" in warnings[0]
+def test_field_labels_inclui_derivados_e_equipe_em_ordem_de_exibicao() -> None:
+    assert FIELD_LABELS == (
+        COMMON_FIELD_LABELS + DERIVED_FIELD_LABELS + ORGAO_FIELD_LABELS + EQUIPE_FIELD_LABELS
+    )
 
 
-def test_validate_periodo_competencia_warns_on_periodo_fora_do_mes() -> None:
-    campos: dict[str, object] = {
-        "Período inicial da aferição": "28/05/2026",
-        "Período final da aferição": "30/06/2026",
-    }
-
-    warnings = validate_periodo_competencia(campos, "2026-06")
-
-    assert len(warnings) == 1
-    assert "Período inicial da aferição" in warnings[0]
-    assert "fora dos limites" in warnings[0]
-
-
-def test_validate_periodo_competencia_warns_on_inicio_posterior_ao_fim() -> None:
-    campos: dict[str, object] = {
-        "Período inicial da aferição": "20/06/2026",
-        "Período final da aferição": "10/06/2026",
-    }
-
-    warnings = validate_periodo_competencia(campos, "2026-06")
-
-    assert len(warnings) == 1
-    assert "posterior ao" in warnings[0]
-
-
-def test_validate_periodo_competencia_warns_on_formato_invalido() -> None:
-    campos: dict[str, object] = {"Período inicial da aferição": "junho/2026"}
-
-    warnings = validate_periodo_competencia(campos, "2026-06")
-
-    assert len(warnings) == 1
-    assert "DD/MM/AAAA" in warnings[0]
+def test_responsaveis_vivem_apenas_na_equipe() -> None:
+    assert set(EQUIPE_FIELD_LABELS) == set(RESPONSAVEL_LABELS)

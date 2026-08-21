@@ -19,6 +19,13 @@ from pyauditor.engine.quality_gates import QualityGateReport, QualityGateRunner
 from pyauditor.engine.strategies import SHAPE_REGISTRY
 from pyauditor.engine.strategies.base import CalculationResult
 from pyauditor.logging import logger
+from pyauditor.periodo import (
+    PeriodoAfericao,
+    filter_periodo,
+    mensagem_descarte,
+    mensagem_janela_vazia,
+    require_period_column,
+)
 
 _DELIMITER_CANDIDATES: tuple[str, ...] = (",", ";")
 
@@ -45,6 +52,10 @@ class MeasurementResult:
     quality_gate_report: QualityGateReport
     calculation: CalculationResult
     provenance: MeasurementProvenance
+    # Filtro de período (§5): None quando o filtro não rodou (chamador sem
+    # periodo — só teste unitário). Sidecar novo carrega os valores.
+    dropped_out_of_period: int | None = None
+    undated_dropped: int | None = None
 
     @property
     def hard_failure(self) -> bool:
@@ -327,6 +338,8 @@ def measure(
     *,
     config_path: Path | None = None,
     config_hash: str | None = None,
+    periodo: PeriodoAfericao | None = None,
+    strict: bool = False,
 ) -> MeasurementResult:
     """*config_path*/*config_hash* (the YAML this *config* was loaded from,
     and its content hash) are optional — callers that only have a
@@ -348,6 +361,38 @@ def measure(
     _validate_columns(config, header, config_path)
 
     rows = load_rows(csv_path, delimiter, encoding)
+
+    # Filtro de período (§2 ponto 2): após load_rows, inclusive CSVs `_split`
+    # derivados — re-filtrar é idempotente e protege contra artefato órfão.
+    # Quality gates/acceptance_test rodam sobre o pós-filtro. Contagens viajam
+    # no resultado; quem loga é o chamador (WARN só para whole_indicator).
+    dropped_out_of_period: int | None = None
+    undated_dropped: int | None = None
+    if periodo is not None:
+        period_column = require_period_column(
+            config.source.period_column, config_path=config_path
+        )
+        if period_column not in header:
+            prefix = f"{config_path}: " if config_path else ""
+            raise ValueError(
+                f"{prefix}source.period_column {period_column!r} não existe no header "
+                f"de {csv_path.name} — corrija o YAML"
+            )
+        total_bruto = len(rows)
+        filtro = filter_periodo(
+            rows, period_column=period_column, periodo=periodo, strict=strict
+        )
+        rows = filtro.linhas_na_janela
+        dropped_out_of_period = filtro.dropped_out_of_period
+        undated_dropped = filtro.undated_dropped
+        # Papel "measure" na deduplicação de avisos (§3): emite só aqui, para o
+        # dataset whole_indicator que processa — configs derivadas `_split`
+        # não passam por measure() (o bruto já avisou no split).
+        if total_bruto > 0 and not rows:
+            logger.warning(f"{csv_path}: {mensagem_janela_vazia(periodo)}")
+        info_descarte = mensagem_descarte(dropped_out_of_period or 0, undated_dropped or 0, strict)
+        if info_descarte is not None:
+            logger.info(f"{csv_path}: {info_descarte}")
 
     gate_runner = QualityGateRunner(config.quality_gates.checks, id_column=config.source.id_column)
     gate_report = gate_runner.run(rows)
@@ -373,4 +418,6 @@ def measure(
         quality_gate_report=gate_report,
         calculation=calculation,
         provenance=provenance,
+        dropped_out_of_period=dropped_out_of_period,
+        undated_dropped=undated_dropped,
     )

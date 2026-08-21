@@ -20,6 +20,7 @@ source:
   csv: inms-01.csv
   delimiter: ";"
   encoding: utf-8
+  period_column: "DataHoraFim"
 
 quality_gates:
   checks:
@@ -277,4 +278,77 @@ def test_run_split_missing_categorias_yaml_is_error(tmp_path: Path) -> None:
     result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
 
     assert result.status == "error"
+
+
+# Spec competencia-cli-equipe §2/§3 — split é o primeiro a filtrar pela janela
+# da competência; row_count/warnings refletem o pós-filtro.
+
+
+def test_run_split_filtra_janela_antes_da_segregacao(tmp_path: Path) -> None:
+    from datetime import date
+
+    from pyauditor.periodo import PeriodoAfericao
+
+    config_dir, data_dir = _write_fixture(tmp_path)
+    (data_dir / "2026" / "06" / "inms-01.csv").write_text(
+        "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n"
+        "1;01/06/2026 10:00;S;N1\n"
+        "2;02/06/2026 10:00;S;N1\n"
+        "3;20/05/2026 10:00;S;(CIT) - Infra\n"
+        "4;04/06/2026 10:00;N;(CIT) - Infra\n"
+        "5;05/06/2026 10:00;S;Grupo Desconhecido\n",
+        encoding="utf-8",
+    )
+    periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
+
+    result = run_split(
+        "2026-06", config_dir, data_dir, expected_orgao="MinC", periodo=periodo
+    )
+
+    assert result.status == "done"
+    n1 = next(o for o in result.categorias if o.categoria == "ATENDIMENTO_N1")
+    assert n1.row_count == 2  # só linhas dentro da janela chegam à categoria
+    rows = load_rows(n1.csv_path, ";", "utf-8")
+    assert {r["DataHoraFim"] for r in rows} == {"01/06/2026 10:00", "02/06/2026 10:00"}
+
+
+def test_run_split_janela_vazia_warns_e_segue(tmp_path: Path) -> None:
+    from datetime import date
+
+    from pyauditor.periodo import PeriodoAfericao
+
+    config_dir, data_dir = _write_fixture(tmp_path)
+    (data_dir / "2026" / "06" / "inms-01.csv").write_text(
+        "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n"
+        "1;20/05/2026 10:00;S;N1\n",
+        encoding="utf-8",
+    )
+
+    result = run_split(
+        "2026-06", config_dir, data_dir, expected_orgao="MinC",
+        periodo=PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30)),
+    )
+
+    assert result.status == "done"  # janela vazia não é falha técnica
+    assert any("nenhuma linha no período" in w for w in result.warnings)
+
+
+def test_run_split_sem_period_column_e_erro_com_periodo(tmp_path: Path) -> None:
+    """§2 ponto 3 — dataset bruto sem `source.period_column` declarado é falha
+    técnica quando há janela para aplicar."""
+    from datetime import date
+
+    from pyauditor.periodo import PeriodoAfericao
+
+    config_dir, data_dir = _write_fixture(tmp_path)
+    yaml_sem_periodo = _BASE_CONFIG_YAML.replace('  period_column: "DataHoraFim"\n', "")
+    (config_dir / "inms-01.yaml").write_text(yaml_sem_periodo, encoding="utf-8")
+
+    result = run_split(
+        "2026-06", config_dir, data_dir, expected_orgao="MinC",
+        periodo=PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30)),
+    )
+
+    assert result.status == "error"
+    assert result.categorias == ()
     assert result.error_message is not None

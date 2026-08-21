@@ -6,6 +6,8 @@ from openpyxl import load_workbook
 
 from pyauditor.cli.report import missing_publication_fields, run_report
 from pyauditor.excel.capa import COMMON_FIELD_LABELS, ORGAO_FIELD_LABELS, bootstrap_capa_csv
+from pyauditor.excel.capa import SHEET_NAME as CAPA_SHEET_NAME
+from pyauditor.excel.equipe import RESPONSAVEL_LABELS
 from pyauditor.excel.report import GLOSAS_SHEET, INMS_BASE_SHEET
 
 OBJETOS_CSV = """Item;Categoria;Valor Mensal do Contrato 40/2022
@@ -80,6 +82,21 @@ def _scaffold_capas(tmp_path: Path) -> Path:
     bootstrap_capa_csv(tmp_path / "capa_MinC.csv", ORGAO_FIELD_LABELS)
     (tmp_path / "objetos.csv").write_text(OBJETOS_CSV, encoding="utf-8-sig")
     return comum
+
+
+def test_sidecar_legado_sem_campos_de_periodo_carrega_com_defaults(tmp_path: Path) -> None:
+    """Spec §8 — sidecar novo lê sidecar antigo: chaves ausentes caem nos
+    defaults None e o relatório segue de pé."""
+    from pyauditor.cli.report import _load_summaries
+
+    roms_dir = tmp_path / "roms"
+    _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
+
+    summaries = _load_summaries(roms_dir / "2026-06")
+
+    assert len(summaries) == 1
+    assert summaries[0].dropped_out_of_period is None
+    assert summaries[0].undated_dropped is None
 
 
 def test_run_report_persists_glosa_historico(tmp_path: Path) -> None:
@@ -249,6 +266,38 @@ def test_run_report_builds_workbook_from_summaries(tmp_path: Path) -> None:
     assert sheet.cell(row=2, column=5).value == "INMS 1.01"
 
 
+def test_run_report_capa_do_orgao_exibe_derivados_da_cli_e_equipe(tmp_path: Path) -> None:
+    """Spec competencia-cli-equipe §4/§6 — a CAPA_E_CONTROLE do relatório do
+    órgão exibe Competência/períodos derivados do argumento da CLI e os
+    responsáveis vindos do equipe.csv."""
+    comum = _scaffold_capas(tmp_path)
+    primeira_funcao = RESPONSAVEL_LABELS[0]
+    (tmp_path / "equipe.csv").write_text(
+        f"FUNÇÃO,NOME,SIAPE\n{primeira_funcao},Maria Souza,123456\n", encoding="utf-8-sig"
+    )
+    roms_dir = tmp_path / "roms"
+    _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
+    output_path = tmp_path / "reports" / "relatorio.xlsx"
+
+    exit_code = run_report(
+        "2026-06", comum, roms_dir, output_path,
+        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+    )
+
+    assert exit_code.status == "done"
+    workbook = load_workbook(output_path)
+    sheet = workbook[CAPA_SHEET_NAME]
+    capa_rows = {
+        sheet.cell(row=r, column=1).value: sheet.cell(row=r, column=2).value
+        for r in range(4, sheet.max_row + 1)
+        if sheet.cell(row=r, column=1).value
+    }
+    assert capa_rows["Competência"] == "2026-06"
+    assert capa_rows["Período inicial da aferição"] == "01/06/2026"
+    assert capa_rows["Período final da aferição"] == "30/06/2026"
+    assert capa_rows[primeira_funcao] == "Maria Souza (123456)"
+
+
 def test_run_report_is_regenerated_not_cumulative(tmp_path: Path) -> None:
     comum = _scaffold_capas(tmp_path)
     roms_dir = tmp_path / "roms"
@@ -332,13 +381,11 @@ def test_run_report_malformed_objetos_is_hard_failure(tmp_path: Path) -> None:
 
 
 def test_missing_publication_fields_empty_capa_returns_all_fields() -> None:
-    assert len(missing_publication_fields({})) == 6
+    assert len(missing_publication_fields({})) == 4
 
 
 def test_missing_publication_fields_complete_capa_returns_empty() -> None:
     campos: dict[str, object] = {
-        "Período inicial da aferição": "2026-06-01",
-        "Período final da aferição": "2026-06-30",
         "Fiscal técnico": "Fulano",
         "Fiscal requisitante": "Beltrano",
         "Fiscal administrativo": "Ciclano",
@@ -377,12 +424,17 @@ def test_run_report_missing_fiscais_is_rascunho_nao_publicavel(tmp_path: Path) -
     assert result.publicable is False  # capa_MinC.csv recém-bootstrapped: fiscais vazios
 
 
-def test_run_report_warns_on_competencia_divergente_na_capa(tmp_path: Path) -> None:
-    # Ticket 10: capa preenchida com competência diferente do argumento CLI
-    # vira WARNING (nunca falha técnica) — processamento segue normalmente.
+def test_run_report_campos_orfaos_da_capa_sao_ignorados(tmp_path: Path) -> None:
+    """Spec competencia-cli-equipe §4 — capa antiga com Competência/períodos/
+    responsáveis preenchidos à mão: lida e ignorada; os valores exibidos vêm
+    da CLI + equipe.csv (sem warning de divergência — não há mais o que
+    divergir)."""
     comum = _scaffold_capas(tmp_path)
     (tmp_path / "capa_MinC.csv").write_text(
-        "Capa e controle do contrato;\n;\nCampo;Valor\nCompetência;2026-05\n",
+        "Capa e controle do contrato;\n;\nCampo;Valor\n"
+        "Competência;2026-05\n"
+        "Período inicial da aferição;01/01/2000\n"
+        "Fiscal técnico;Hand-fill esquecido\n",
         encoding="utf-8-sig",
     )
     roms_dir = tmp_path / "roms"
@@ -395,7 +447,9 @@ def test_run_report_warns_on_competencia_divergente_na_capa(tmp_path: Path) -> N
     )
 
     assert result.status == "done"
-    assert any("2026-05" in w and "2026-06" in w for w in result.warnings)
+    assert not any("2026-05" in w for w in result.warnings)
+    # sem equipe.csv, responsáveis ficam vazios → rascunho
+    assert result.publicable is False
 
 
 def test_run_report_valor_mensal_zero_is_glosa_calculada(tmp_path: Path) -> None:

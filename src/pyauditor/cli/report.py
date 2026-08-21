@@ -6,8 +6,10 @@ Migração das capas para CSV (ticket 07): a capa é `capa.csv` (campos comuns)
 + `capa_{orgao}.csv` (campos por órgão), e o valor monetário vem de
 `objetos.csv`. A capa pode estar incompleta — processa e marca rascunho
 (ticket 02); `objetos.csv` ausente significa glosa não calculada (ticket 01),
-malformado é falha técnica (ticket 07 Q5). Competência/período divergentes
-ou fora do formato `DD/MM/AAAA` são WARNING, nunca falha técnica (ticket 10).
+malformado é falha técnica (ticket 07 Q5). Competência/períodos/responsáveis
+NÃO vêm mais da capa (spec competencia-cli-equipe §4): Competência/períodos
+são derivados do argumento `--competência` e os responsáveis, de
+`input/equipe.csv`; campos órfãos numa capa antiga são ignorados.
 """
 
 import json
@@ -17,11 +19,13 @@ from typing import Final
 
 from pyauditor.cli.results import WRITE_FAILURE_HINT, DependencyCheck, Status, validate_competencia
 from pyauditor.engine.pipeline import discover_configs
-from pyauditor.excel.capa import read_capa_csv_fields, validate_periodo_competencia
+from pyauditor.excel.capa import DERIVED_FIELD_LABELS, EQUIPE_FIELD_LABELS, read_capa_csv_fields
+from pyauditor.excel.equipe import EQUIPE_FILENAME, ler_responsaveis
 from pyauditor.excel.glosas import historico_entry, read_historico, write_historico
 from pyauditor.excel.objetos import OBJETOS_FILENAME, read_objetos
 from pyauditor.excel.report import build_report, compute_report_glosa
 from pyauditor.logging import log_event, logger
+from pyauditor.periodo import formatar_data_br, mes_bounds
 from pyauditor.rom.summary import IndicatorSummary
 
 HISTORICO_FILENAME = "glosa_historico.json"
@@ -30,9 +34,10 @@ HISTORICO_FILENAME = "glosa_historico.json"
 # capa"): ausentes → relatório vira rascunho (não-publicável), o que o código
 # de saída 3 reflete. Monetários ficam fora — saem da capa (ticket 07); a
 # ausência de valor é "glosa não calculada" (ticket 01 → código 4).
+# Competência/períodos também ficam fora — derivados da CLI, sempre presentes
+# (spec competencia-cli-equipe §4); restam os 4 responsáveis, fonte única
+# `equipe.csv`.
 _PUBLICATION_FIELDS: Final[tuple[str, ...]] = (
-    "Período inicial da aferição",
-    "Período final da aferição",
     "Fiscal técnico",
     "Fiscal requisitante",
     "Fiscal administrativo",
@@ -185,7 +190,19 @@ def run_report(
     warnings: list[str] = []
     capa_fields, capa_caveat = _load_capa_fields(capa_path, orgao, data_dir)
     warnings.extend(capa_caveat)
-    warnings.extend(validate_periodo_competencia(capa_fields, competencia))
+
+    # Spec competencia-cli-equipe §4 — a capa não alimenta mais Competência/
+    # períodos/responsáveis: capas antigas com esses rótulos são lidas e os
+    # campos órfãos descartados; os valores vêm da CLI + equipe.csv.
+    for label in (*DERIVED_FIELD_LABELS, *EQUIPE_FIELD_LABELS):
+        capa_fields.pop(label, None)
+    periodo = mes_bounds(competencia)
+    capa_fields["Competência"] = competencia
+    capa_fields["Período inicial da aferição"] = formatar_data_br(periodo.inicio)
+    capa_fields["Período final da aferição"] = formatar_data_br(periodo.fim)
+    campos_equipe, avisos_equipe = ler_responsaveis(data_dir / EQUIPE_FILENAME)
+    warnings.extend(avisos_equipe)
+    capa_fields.update(campos_equipe)
     warnings_gerais: list[str] = []
 
     try:

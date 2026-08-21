@@ -19,6 +19,7 @@ source:
   csv: inms-01.csv
   delimiter: ";"
   encoding: utf-8
+  period_column: "DataHoraFim"
 
 quality_gates:
   checks:
@@ -426,3 +427,38 @@ def test_nao_ativado_when_raw_csv_missing(tmp_path: Path) -> None:
     assert sheet.cell(row=2, column=1).value == (
         "Esse serviço não foi requisitado no período selecionado."
     )
+
+
+def test_periodo_filtra_antes_dos_gates_e_degrada_sem_period_column(tmp_path: Path) -> None:
+    """Spec competencia-cli-equipe §2 — sintetico aplica a mesma janela do
+    split: linha de maio some das contagens; config sem `period_column`
+    vira warning 'dataset sem filtro' em vez de derrubar o workbook."""
+    from datetime import date
+
+    from pyauditor.periodo import PeriodoAfericao
+
+    config_dir, data_dir = _write_fixture(tmp_path, include_inms_04_csv=True)
+    (data_dir / "inms-01.csv").write_text(
+        "Nº Solicitacao;DataHoraSolicitacao;DataHoraFim;No prazo;Grupo_executor\n"
+        "1;01/06/2026 08:00;01/06/2026 10:00;S;N1\n"
+        "2;20/05/2026 09:00;20/05/2026 11:00;N;N1\n"
+        "3;02/06/2026 08:00;02/06/2026 09:00;S;N2\n",
+        encoding="utf-8",
+    )
+    categorias_file = load_categorias(config_dir / "categorias.yaml")
+    output_path = tmp_path / "sintetico.xlsx"
+
+    warnings = write_sintetico_workbook(
+        categorias_file, config_dir, data_dir, output_path,
+        periodo=PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30)),
+    )
+
+    # INMS 1.9/1.4 não declaram period_column → dataset sem filtro, aba normal.
+    assert any("INMS 1.9" in w and "sem filtro" in w for w in warnings)
+    wb = load_workbook(output_path)
+    sheet = wb["INMS 1.1"]
+    rows_by_grupo = {row[2].value: row for row in sheet.iter_rows(min_row=2)}
+    n1 = [c.value for c in rows_by_grupo["N1"]]
+    assert n1[3:6] == [1, 1, 0]  # linha de maio descartada antes da segregação
+    n2 = [c.value for c in rows_by_grupo["N2"]]
+    assert n2[3:6] == [1, 1, 0]

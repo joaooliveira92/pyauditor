@@ -27,6 +27,7 @@ source:
   csv: data.csv
   delimiter: ";"
   encoding: utf-8
+  period_column: "DataHoraFim"
 quality_gates:
   checks:
     - type: not_null

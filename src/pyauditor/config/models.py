@@ -79,6 +79,10 @@ class Source(BaseModel):
     delimiter: str = Field(default=";", min_length=1)
     encoding: str = Field(default="utf-8-sig", min_length=1)
     id_column: str = Field(default="Nº Solicitacao", min_length=1)
+    # Coluna de período do dataset (opcional no modelo — §2 da spec
+    # competencia-cli-equipe). Obrigatoria na execucao: todo fluxo real passa
+    # um PeriodoAfericao, e aí a ausência vira erro acionável (periodo.py).
+    period_column: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def _check_csv_or_dataset(self) -> Self:

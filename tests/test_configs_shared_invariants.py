@@ -58,8 +58,12 @@ def test_shared_invariants_between_orgaos() -> None:
 
         shared_dir = REPO_ROOT / "configs" / "_shared"
         assert shared_dir.is_dir(), "configs/_shared deve existir pós-migração"
-        minc_configs = {c.indicator.id: c for c in discover_configs(shared_dir, expected_orgao="MinC")}
-        mtur_configs = {c.indicator.id: c for c in discover_configs(shared_dir, expected_orgao="MTur")}
+        minc_configs = {
+            c.indicator.id: c for c in discover_configs(shared_dir, expected_orgao="MinC")
+        }
+        mtur_configs = {
+            c.indicator.id: c for c in discover_configs(shared_dir, expected_orgao="MTur")
+        }
         assert len(minc_configs) >= 14
         failures_ss: list[str] = []
         for iid, mc in minc_configs.items():

@@ -48,6 +48,7 @@ from pyauditor.config.models import PrecomputedTableCalculation
 from pyauditor.engine.pipeline import load_config, resolve_source
 from pyauditor.engine.quality_gates import QualityGateRunner
 from pyauditor.excel._style import LABEL_FONT, new_sheet, write_row
+from pyauditor.periodo import PeriodoAfericao, filter_periodo, require_period_column
 
 __all__: Final[tuple[str, ...]] = ("write_sintetico_workbook",)
 
@@ -398,6 +399,8 @@ def write_sintetico_workbook(
     output_path: Path,
     *,
     manifest: DatasetManifest | None = None,
+    periodo: PeriodoAfericao | None = None,
+    strict: bool = False,
 ) -> list[str]:
     """Constrói e grava `sintetico.xlsx` de um órgão/competência. Devolve
     warnings (nunca lança por causa do problema de um único INMS — um
@@ -445,6 +448,33 @@ def write_sintetico_workbook(
             warning = f"sintetico.xlsx: INMS {inms_key}: falha ao ler {raw_csv_path}: {exc}"
             warnings.append(warning)
             continue
+
+        # Filtro de período (§2 ponto 3): após read_raw_csv, antes dos gates.
+        # Sintetico nunca emite WARN de janela vazia (a mesma passada do
+        # bruto coube ao split) e configuração ausente degrada a warning em
+        # vez de derrubar o workbook (conferência best-effort).
+        if periodo is not None:
+            period_column: str | None = None
+            try:
+                period_column = require_period_column(
+                    base_config.source.period_column,
+                    config_path=config_dir / f"{base_stem}.yaml",
+                )
+            except ValueError as exc:
+                warnings.append(
+                    f"sintetico.xlsx: INMS {inms_key}: {exc} — dataset sem filtro"
+                )
+            if period_column is not None:
+                if period_column in fieldnames:
+                    filtro = filter_periodo(
+                        rows, period_column=period_column, periodo=periodo, strict=strict
+                    )
+                    rows = filtro.linhas_na_janela
+                else:
+                    warnings.append(
+                        f"sintetico.xlsx: INMS {inms_key}: coluna {period_column!r} não "
+                        f"existe em {raw_csv_path.name} — dataset sem filtro"
+                    )
 
         gate_runner = QualityGateRunner(
             base_config.quality_gates.checks, id_column=base_config.source.id_column

@@ -1,12 +1,18 @@
-"""New ROM template pieces from .scratch/melhoria_rom/map.md: Identificação
-(provenance), capa-sourced Competência/Período/Responsáveis, and the
-conditional "Ressalva interpretativa" (3 readings of the linear penalty)."""
+"""Peças novas do template de ROM de .scratch/melhoria_rom/map.md + spec
+competencia-cli-equipe §5: Identificação (provenance), Competência/Período
+derivados dos kwargs da CLI, Responsáveis via capa_fields (equipe.csv) e a
+"Ressalva interpretativa" condicional (3 leituras da penalidade linear)."""
 
+import sys
+from datetime import date
+from io import StringIO
 from pathlib import Path
 
 import pytest
 
 from pyauditor.engine.pipeline import load_config, measure
+from pyauditor.logging import setup_logging
+from pyauditor.periodo import PeriodoAfericao
 from pyauditor.rom.render import render_combined_rom, render_rom
 
 _RATIO_YAML = """
@@ -76,21 +82,21 @@ def test_identificacao_without_config_path_shows_unavailable(tmp_path: Path) -> 
     assert "- Versão da configuração: [indisponível]" in rom
 
 
-def test_capa_fields_fill_identificacao_and_responsaveis(tmp_path: Path) -> None:
+def test_competencia_periodo_kwargs_e_capa_so_responsaveis(tmp_path: Path) -> None:
+    """§5 — Competência/Período vêm dos kwargs da CLI; `capa_fields` alimenta
+    só a seção Responsáveis (equipe.csv)."""
     config_path = _write_ratio_fixture(tmp_path, resultado=100.0)
     config = load_config(config_path)
     result = measure(config, data_dir=tmp_path, config_path=config_path)
     capa_fields: dict[str, object] = {
-        "Competência": "2026-06",
-        "Período inicial da aferição": "01/06/2026",
-        "Período final da aferição": "30/06/2026",
         "Fiscal técnico": "Fulano de Tal",
         "Fiscal requisitante": "Beltrano",
         "Fiscal administrativo": "Ciclana",
         "Gestor do contrato": "Sicrano",
     }
+    periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
 
-    rom = render_rom(result, capa_fields=capa_fields)
+    rom = render_rom(result, capa_fields=capa_fields, competencia="2026-06", periodo=periodo)
 
     assert "- Competência: 2026-06" in rom
     assert "- Período da aferição: 01/06/2026 a 30/06/2026" in rom
@@ -106,10 +112,75 @@ def test_missing_capa_fields_render_placeholder(tmp_path: Path) -> None:
     config = load_config(config_path)
     result = measure(config, data_dir=tmp_path, config_path=config_path)
 
-    rom = render_rom(result)  # no capa_fields at all
+    rom = render_rom(result)  # no capa_fields, no periodo — chamador legado
 
     assert "- Competência: [a preencher]" in rom
     assert "- Fiscal técnico: [a preencher]" in rom
+    # sem filtro rodado, a linha de descarte não existe (nada de zero enganoso)
+    assert "Fora do período descartadas" not in rom
+
+
+def test_measure_emite_warn_de_janela_vazia_e_info_descarte(tmp_path: Path) -> None:
+    """§3 — measure emite o WARN verbatim para o dataset whole_indicator que
+    processa e INFO estruturado quando há descarte; contagens viajam no
+    resultado."""
+    yaml_com_periodo = """\
+indicator:
+  id: INMS-JANELA
+  contractual_id: "INMS JANELA"
+  name: Janela
+
+scope:
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
+
+source:
+  csv: data.csv
+  delimiter: ","
+  encoding: utf-8
+  period_column: "DataHoraFim"
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: count_distinct
+  numerator_filter:
+    column: "Atendido"
+    equals: "S"
+
+target:
+  operator: ">="
+  value: 98.0
+
+penalty:
+  base_points: 50
+  step_points: 100
+  step_size_pct: 4.0
+"""
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(yaml_com_periodo, encoding="utf-8")
+    (tmp_path / "data.csv").write_text(
+        "Nº Solicitação,DataHoraFim,Atendido\n1,20/05/2026 10:00,S\n", encoding="utf-8"
+    )
+    config = load_config(config_path)
+    periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
+    buf = StringIO()
+    setup_logging(sink=buf, level="INFO")
+
+    try:
+        result = measure(config, data_dir=tmp_path, config_path=config_path, periodo=periodo)
+    finally:
+        setup_logging(sink=sys.stderr, level="INFO")
+
+    logs = buf.getvalue()
+    assert (
+        "nenhuma linha no período 01/06/2026–30/06/2026 "
+        "— o arquivo corresponde à competência?" in logs
+    )
+    assert "1 linha(s) fora do período descartada(s)" in logs
+    assert result.dropped_out_of_period == 1
 
 
 def test_pontuacao_apurada_label_replaces_penalidade(tmp_path: Path) -> None:
@@ -215,7 +286,8 @@ def test_footer_note_present(tmp_path: Path) -> None:
 
     rom = render_rom(result)
 
-    assert "refletem o estado da capa no momento" in rom
+    assert "são derivados do argumento --competência da CLI" in rom
+    assert "Responsáveis refletem o estado da capa no momento em que este ROM foi gerado" in rom
 
 
 def test_render_combined_rom_stacks_both_orgaos(tmp_path: Path) -> None:
@@ -232,9 +304,32 @@ def test_render_combined_rom_stacks_both_orgaos(tmp_path: Path) -> None:
     assert "## MinC" in rom and "## MTur" in rom
     assert "### Identificação" in rom
     assert "### Resultado vs meta" in rom
-    assert rom.count("não são valores definitivos") == 2  # footer once per orgão
+    # footer once per orgão (texto aprovado da spec §5)
+    assert rom.count("são derivados do argumento --competência da CLI") == 2
     # Per-orgão sections keep their own scope, MinC first.
     assert rom.index("## MinC") < rom.index("## MTur")
+
+
+def test_linhas_fora_do_periodo_aparece_somente_com_filtro(tmp_path: Path) -> None:
+    """§5 — a linha `- Fora do período descartadas: N` só existe quando o
+    filtro rodou (a ausência é coberta por
+    `test_missing_capa_fields_render_placeholder`, que renderiza sem filtro)."""
+    yaml = _RATIO_YAML.replace('delimiter: ","', 'delimiter: ","\n  period_column: "Data"')
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(yaml, encoding="utf-8")
+    # 2 linhas brutas: a fora da janela é descartada -> sobra exatamente 1
+    # linha, exigência do `aggregation: precomputed`.
+    (tmp_path / "data.csv").write_text(
+        "Descrição,Resultado,Data\nX,100.0,2026-06\nY,50.0,2026-05\n", encoding="utf-8"
+    )
+    config = load_config(config_path)
+    periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
+
+    result = measure(config, data_dir=tmp_path, config_path=config_path, periodo=periodo)
+    rom = render_rom(result)
+
+    assert result.dropped_out_of_period == 1
+    assert "- Fora do período descartadas: 1" in rom
 
 
 def _write_orgao_fixture(tmp_path: Path, orgao: str, *, resultado: float) -> Path:

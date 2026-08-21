@@ -12,7 +12,13 @@ from pyauditor.engine.strategies import SHAPE_REGISTRY
 _STR_FIELDS: tuple[str, ...] = ("indicator_id", "contractual_id", "name", "orgao", "shape")
 _OPTIONAL_STR_FIELDS: tuple[str, ...] = ("asset", "target_operator")
 _NUMERIC_FIELDS: tuple[str, ...] = ("result_pct", "penalty_points")
-_OPTIONAL_NUMERIC_FIELDS: tuple[str, ...] = ("target_value", "numerator", "denominator")
+_OPTIONAL_NUMERIC_FIELDS: tuple[str, ...] = (
+    "target_value",
+    "numerator",
+    "denominator",
+    "dropped_out_of_period",
+    "undated_dropped",
+)
 _BOOL_FIELDS: tuple[str, ...] = ("conforms", "hard_failure", "systematic_failure")
 
 
@@ -38,6 +44,11 @@ class IndicatorSummary:
     denominator: float | None
     hard_failure: bool
     systematic_failure: bool = False
+    # Filtro de período (spec competencia-cli-equipe §5): None quando o
+    # filtro não rodou — sidecar antigo carrega pelos defaults, e o
+    # consolidado ignora os campos por ora.
+    dropped_out_of_period: int | None = None
+    undated_dropped: int | None = None
 
     def __post_init__(self) -> None:
         known_fields = {f.name for f in fields(self)}
@@ -110,6 +121,8 @@ def summarize(result: MeasurementResult) -> IndicatorSummary:
         denominator=denominator,
         hard_failure=result.hard_failure,
         systematic_failure=result.systematic_failure,
+        dropped_out_of_period=result.dropped_out_of_period,
+        undated_dropped=result.undated_dropped,
     )
 
 

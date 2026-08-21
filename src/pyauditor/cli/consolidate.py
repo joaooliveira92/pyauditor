@@ -12,6 +12,8 @@ preserved (ticket 04 Q3).
 
 Migração das capas para CSV (ticket 07): os campos comuns vêm de `capa.csv`
 e o valor monetário de `objetos.csv` — a capa não carrega mais valores.
+Competência/períodos/responsáveis idem (spec competencia-cli-equipe §4/§6):
+períodos derivados do argumento da CLI e responsáveis de `equipe.csv`.
 """
 
 import json
@@ -22,8 +24,10 @@ from pyauditor.atomic_write import atomic_write
 from pyauditor.cli.results import WRITE_FAILURE_HINT, DependencyCheck, Status, validate_competencia
 from pyauditor.excel.capa import read_capa_csv_fields
 from pyauditor.excel.consolidate import build_consolidated_workbook, read_existing_decisions
+from pyauditor.excel.equipe import EQUIPE_FILENAME, ler_responsaveis
 from pyauditor.excel.objetos import OBJETOS_FILENAME, read_objetos
 from pyauditor.logging import log_event, logger
+from pyauditor.periodo import mes_bounds
 from pyauditor.rom.summary import IndicatorSummary
 
 _ORGAOS: tuple[str, str] = ("MinC", "MTur")
@@ -161,6 +165,12 @@ def run_consolidate(
     except ValueError as exc:
         return _error(str(exc))  # Q5: malformado é FALHA (exit 1)
 
+    # §4/§6 — períodos derivados da CLI; responsáveis de equipe.csv com
+    # degrade para warning (dado incompleto nunca bloqueia o consolidado).
+    periodo = mes_bounds(competencia)
+    responsaveis, avisos_equipe = ler_responsaveis(data_dir / EQUIPE_FILENAME)
+    warnings.extend(avisos_equipe)
+
     try:
         existing_decisions = read_existing_decisions(output_path)
     except Exception as exc:  # boundary: corrupt/hand-edited workbook, never leak a raw traceback
@@ -179,6 +189,7 @@ def run_consolidate(
         result = build_consolidated_workbook(
             competencia, minc, mtur, capa, existing_decisions,
             valor_base=valor_base, itens=itens,
+            periodo=periodo, responsaveis=responsaveis,
         )
     except Exception as exc:  # boundary: never leak a raw traceback past the CLI
         return _error(f"falha inesperada ao montar consolidado de {competencia}: {exc}")

@@ -37,9 +37,11 @@ from pyauditor.excel._style import (
 from pyauditor.excel._style import UNIT_BY_SHAPE as _UNIT_BY_SHAPE
 from pyauditor.excel._style import new_sheet as _new_sheet
 from pyauditor.excel._style import write_row as _write
+from pyauditor.excel.equipe import RESPONSAVEL_LABELS
 from pyauditor.excel.glosas import Historico, compute_glosa, saldo_anterior_pct_de
 from pyauditor.excel.orgao_consolidation import with_orgao_consolidation
 from pyauditor.logging import logger
+from pyauditor.periodo import PeriodoAfericao, formatar_data_br
 from pyauditor.rom.summary import IndicatorSummary
 
 CAPA_SHEET: Final = "CAPA_E_CONTROLE"
@@ -231,10 +233,15 @@ def build_capa(
     capa: dict[str, object],
     warnings: list[str],
     valor_base: float | None,
+    *,
+    periodo: PeriodoAfericao | None = None,
+    responsaveis: dict[str, str] | None = None,
 ) -> None:
     """Embeds a consolidated CAPA_E_CONTROLE. The contract is shared, so the
     common fields come from `capa.csv` (ticket 07); the monetary value comes
-    from `objetos.csv` (`valor_base`), never from a capa file.
+    from `objetos.csv` (`valor_base`), never from a capa file. Competência/
+    períodos vêm da CLI (`competencia`/`periodo`) e os 4 responsáveis, de
+    `equipe.csv` (`responsaveis`) — spec competencia-cli-equipe §4/§6.
     """
     ws = wb.create_sheet(CAPA_SHEET, 0)
     ws.sheet_view.showGridLines = False
@@ -250,14 +257,29 @@ def build_capa(
         cell.fill = HEADER_FILL
         cell.alignment = LEFT_ALIGN
 
+    linhas_periodo: tuple[tuple[str, object], ...] = (
+        (
+            ("Período inicial da aferição", formatar_data_br(periodo.inicio)),
+            ("Período final da aferição", formatar_data_br(periodo.fim)),
+        )
+        if periodo is not None
+        else ()
+    )
+    campos_equipe: dict[str, str] = responsaveis or {}
+    linhas_responsaveis: tuple[tuple[str, object], ...] = tuple(
+        (label, campos_equipe.get(label, "")) for label in RESPONSAVEL_LABELS
+    )
+
     campos: tuple[tuple[str, object], ...] = (
         ("Número do contrato", capa.get("Número do contrato")),
         ("Processo SEI", capa.get("Processo SEI")),
         ("Empresa contratada", capa.get("Empresa contratada")),
         ("Órgãos contratantes", "Ministério da Cultura / Ministério do Turismo"),
         ("Competência", competencia),
+        *linhas_periodo,
         ("Valor mensal vigente", valor_base),
         ("Valor global anual", valor_base * 12 if valor_base is not None else None),
+        *linhas_responsaveis,
     )
     for offset, (label, value) in enumerate(campos):
         row = 4 + offset
@@ -591,6 +613,8 @@ def build_consolidated_workbook(
     itens: tuple[float, ...] | None = None,
     historico: Historico | None = None,
     is_final_month: bool = False,
+    periodo: PeriodoAfericao | None = None,
+    responsaveis: dict[str, str] | None = None,
 ) -> ConsolidationResult:
     """Pure, in-memory build of the 5-sheet consolidated workbook.
 
@@ -598,6 +622,7 @@ def build_consolidated_workbook(
     e indicadores vêm dos ROM JSON (``roms/<orgao>/<comp>/*.json``), não do
     ``.xlsx`` de ``report.py``. ``valor_base`` e ``itens`` vêm de
     ``objetos.csv``. ``glosa_calculada`` é ``valor_base is not None``.
+    ``periodo``/``responsaveis`` alimentam a capa (CLI + equipe.csv, §4/§6).
     """
     warnings: list[str] = []
     wb = Workbook()
@@ -605,7 +630,10 @@ def build_consolidated_workbook(
     assert default_sheet is not None
     wb.remove(default_sheet)
 
-    build_capa(wb, competencia, capa, warnings, valor_base)
+    build_capa(
+        wb, competencia, capa, warnings, valor_base,
+        periodo=periodo, responsaveis=responsaveis,
+    )
     build_servicos(wb, itens)
     build_inms_base(wb, competencia, minc, mtur)
     total_pontos, glosa_final = build_glosas(

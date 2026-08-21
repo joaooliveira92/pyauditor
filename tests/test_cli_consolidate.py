@@ -7,7 +7,9 @@ from openpyxl import load_workbook
 from pyauditor.cli.consolidate import run_consolidate
 from pyauditor.cli.report import run_report
 from pyauditor.excel.capa import COMMON_FIELD_LABELS, ORGAO_FIELD_LABELS, bootstrap_capa_csv
+from pyauditor.excel.consolidate import CAPA_SHEET as CAPA_E_CONTROLE_SHEET
 from pyauditor.excel.consolidate import GLOSAS_SHEET
+from pyauditor.excel.equipe import RESPONSAVEL_LABELS
 
 OBJETOS_CSV = """Item;Categoria;Valor Mensal do Contrato 40/2022
 1;Central de Serviços;"R$ 148.205,54"
@@ -155,6 +157,36 @@ def test_run_consolidate_builds_workbook_from_both_orgaos(tmp_path: Path) -> Non
     sheet = workbook[GLOSAS_SHEET]
     orgaos = {sheet.cell(row=r, column=2).value for r in (2, 3)}
     assert orgaos == {"MinC", "MTur"}
+
+
+def test_run_consolidate_capa_tem_competencia_periodo_e_responsaveis(tmp_path: Path) -> None:
+    """Spec competencia-cli-equipe §4/§6 — a capa do consolidado recebe
+    Competência/períodos derivados da CLI e responsáveis do `equipe.csv`."""
+    _scaffold_capas(tmp_path)
+    primeira_funcao = RESPONSAVEL_LABELS[0]
+    (tmp_path / "equipe.csv").write_text(
+        f"FUNÇÃO,NOME,SIAPE\n{primeira_funcao},Maria Souza,123456\n", encoding="utf-8-sig"
+    )
+    _build_orgao_report(tmp_path, "MinC")
+    _build_orgao_report(tmp_path, "MTur")
+    output_path = tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx"
+
+    exit_code = run_consolidate(
+        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+    )
+
+    assert exit_code.status == "done"
+    workbook = load_workbook(output_path)
+    sheet = workbook[CAPA_E_CONTROLE_SHEET]
+    capa_rows = {
+        sheet.cell(row=r, column=1).value: sheet.cell(row=r, column=2).value
+        for r in range(4, sheet.max_row + 1)
+        if sheet.cell(row=r, column=1).value
+    }
+    assert capa_rows["Competência"] == "2026-06"
+    assert capa_rows["Período inicial da aferição"] == "01/06/2026"
+    assert capa_rows["Período final da aferição"] == "30/06/2026"
+    assert capa_rows[primeira_funcao] == "Maria Souza (123456)"
 
 
 def test_run_consolidate_never_regenerates_the_orgao_reports(tmp_path: Path) -> None:

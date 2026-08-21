@@ -25,6 +25,7 @@ from pyauditor.cli.measure import MeasureResult, run_measure
 from pyauditor.cli.report import ReportResult, check_report_ready, run_report
 from pyauditor.cli.split import SplitResult, run_split
 from pyauditor.config.manifest import DatasetManifest, load_manifest
+from pyauditor.excel.equipe import EQUIPE_FILENAME
 from pyauditor.logging import logger
 from pyauditor.orchestration.state import (
     CommandStateEntry,
@@ -35,6 +36,7 @@ from pyauditor.orchestration.state import (
     save_state,
     state_path,
 )
+from pyauditor.periodo import PeriodoAfericao, mes_bounds
 
 type CommandResult = (
     BootstrapResult | SplitResult | MeasureResult | ReportResult | ConsolidateResult
@@ -67,6 +69,9 @@ class RunRequest:
     # the completion summary (ticket 04) needs a fresh Result to report
     # accurate publicable/glosa status even for an órgão skipped this invocation
     force_commands: frozenset[str] = frozenset()
+    # spec competencia-cli-equipe §2: descarta linhas sem prova de período em
+    # vez de mantê-las — repassado a split/measure (report/consolidate não filtram).
+    strict: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +112,12 @@ def _capa_path_for(capa_path: Path, orgao: str) -> Path:
     from pyauditor.capa_paths import resolve_capa_path
 
     return resolve_capa_path(capa_path, orgao)
+
+
+def _periodo(request: RunRequest) -> PeriodoAfericao:
+    """Janela da competência (§2), derivada do argumento já validado pelos
+    despachantes — competência inválida aqui é bug de chamador, então levanta."""
+    return mes_bounds(request.competencia)
 
 
 def _plan(orgao_selector: str) -> tuple[tuple[str, str | None], ...]:
@@ -224,6 +235,8 @@ def _dispatch(command: str, orgao: str | None, request: RunRequest) -> CommandRe
             manifest=manifest,
             report_dir=request.report_dir / (orgao or ""),
             materialize=False,
+            periodo=_periodo(request),
+            strict=request.strict,
         )
     if command == "measure":
         base = request.config_dir
@@ -238,7 +251,9 @@ def _dispatch(command: str, orgao: str | None, request: RunRequest) -> CommandRe
             output_dir=request.output_dir / (orgao or ""),
             manifest=manifest,
             expected_orgao=orgao,
-            capa_path=_capa_path_for(request.capa_path, orgao or ""),
+            equipe_path=request.data_dir / EQUIPE_FILENAME,
+            periodo=_periodo(request),
+            strict=request.strict,
         )
     if command == "report":
         output_path = request.report_dir / f"relatorio_{request.competencia}_{orgao}.xlsx"

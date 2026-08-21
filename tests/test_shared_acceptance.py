@@ -8,6 +8,7 @@ perdeu informação.
 """
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 import yaml
@@ -20,24 +21,30 @@ SHARED_DIR = REPO_ROOT / "configs" / "_shared"
 ACCEPTANCE_DIR = REPO_ROOT / "tests" / "acceptance"
 
 
-def _load_acceptance(orgao: str) -> dict[str, dict]:
+def _load_acceptance(orgao: str) -> dict[str, dict[str, object]]:
     path = ACCEPTANCE_DIR / orgao / "2026-06.yaml"
     if not path.exists():
         pytest.skip(f"fixture {path} ausente")
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert isinstance(data, dict)
-    return data  # type: ignore[return-value]
+    return data
 
 
-@pytest.mark.skipif(not (REPO_ROOT / "input" / "MinC" / "2026" / "06").exists(), reason="input MinC ausente")
+@pytest.mark.skipif(
+    not (REPO_ROOT / "input" / "MinC" / "2026" / "06").exists(), reason="input MinC ausente"
+)
 @pytest.mark.skipif(not SHARED_DIR.is_dir(), reason="configs/_shared ausente")
 def test_shared_no_acceptance_test() -> None:
     configs = discover_configs(SHARED_DIR, expected_orgao="MinC")
     for cfg in configs:
-        assert cfg.acceptance_test is None, f"{cfg.indicator.id} ainda tem acceptance_test em _shared"
+        assert cfg.acceptance_test is None, (
+            f"{cfg.indicator.id} ainda tem acceptance_test em _shared"
+        )
 
 
-@pytest.mark.skipif(not (REPO_ROOT / "input" / "MinC" / "2026" / "06").exists(), reason="input MinC ausente")
+@pytest.mark.skipif(
+    not (REPO_ROOT / "input" / "MinC" / "2026" / "06").exists(), reason="input MinC ausente"
+)
 @pytest.mark.parametrize("orgao", ["MinC", "MTur"])
 def test_shared_measure_matches_acceptance_fixture(orgao: str) -> None:
     acceptance = _load_acceptance(orgao)
@@ -69,7 +76,8 @@ def test_shared_measure_matches_acceptance_fixture(orgao: str) -> None:
         if orgao not in strict_orgaos or iid not in strict_iids:
             assert result.calculation is not None
             continue
-        expected = expected_raw["expected"]
+        expected_raw["expected"]  # chave obrigatória do snapshot
+        expected = cast(dict[str, object], expected_raw["expected"])
         # Verifica apenas direção de conformidade e que penalty não é absurda;
         # valores exatos podem divergir por evolução do CSV real vs snapshot.
         assert result.calculation.conforms == expected["conforms"], f"{orgao}/{iid} conforms"

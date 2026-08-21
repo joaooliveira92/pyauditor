@@ -8,7 +8,13 @@ Pipeline de aferição do contrato 40/2022 (MinC/MTur): mede indicadores INMS 1.
 Cada entidade contratante coberta pelo relatório (MinC, MTur). Cada órgão tem configs, inputs e outputs próprios; a consolidação os funde apenas no passo `consolidate`.
 _Avoid_: cliente, contratante
 
-**Competência**: O mês de aferição, escrito `YYYY-MM`. Dá nome aos inputs e outputs mensais.
+**Competência**: O mês de aferição, escrito `YYYY-MM`. Dá nome aos inputs e outputs mensais. Informada obrigatoriamente na CLI; deriva o Período de aferição.
+
+**Período de aferição**: Intervalo de datas da competência, do primeiro ao último dia do mês. Derivado da competência informada na CLI — nunca lido da capa nem inferido dos dados. Delimita quais linhas do dataset pertencem à aferição.
+_Avoid_: período da capa, datas da planilha
+
+**Equipe**: Quadro de responsáveis do contrato (gestão e fiscalização), com função, nome e SIAPE. Fonte dos campos de responsáveis da planilha; substitutos ficam registrados na Equipe, fora da capa.
+_Avoid_: responsáveis da capa
 
 **Glosa**: Dedução aplicada sobre o valor mensal vigente quando indicadores não cumprem a meta. Nunca é silenciosa: nasce de uma não-conformidade registrada e termina numa decisão do fiscal.
 _Avoid_: desconto, multa, penalidade

@@ -45,6 +45,13 @@ from pyauditor.config.models import IndicatorConfig, Source
 from pyauditor.engine.pipeline import load_config, resolve_source
 from pyauditor.excel.sintetico import write_sintetico_workbook
 from pyauditor.logging import log_event, logger
+from pyauditor.periodo import (
+    PeriodoAfericao,
+    filter_periodo,
+    mensagem_descarte,
+    mensagem_janela_vazia,
+    require_period_column,
+)
 
 __all__: Final[tuple[str, ...]] = (
     "SplitCategoriaOutcome",
@@ -111,6 +118,7 @@ def _derive_config(
         delimiter=delimiter,
         encoding="utf-8",
         id_column=base.source.id_column,
+        period_column=base.source.period_column,
     )
     return base.model_copy(
         update={
@@ -141,6 +149,8 @@ def run_split(
     manifest: DatasetManifest | None = None,
     report_dir: Path | None = None,
     materialize: bool = True,
+    periodo: PeriodoAfericao | None = None,
+    strict: bool = False,
 ) -> SplitResult:
     orgao = expected_orgao
 
@@ -231,6 +241,54 @@ def run_split(
             )
             any_error = True
             continue
+
+        # Filtro de período (§2 ponto 1): logo após read_raw_csv, ANTES de
+        # computar categorias — row_count/outros/warnings refletem o
+        # pós-filtro. WARN de janela vazia: 1x por (órgão, arquivo bruto).
+        if periodo is not None:
+            try:
+                period_column = require_period_column(
+                    base_config.source.period_column, config_path=base_config_path
+                )
+            except ValueError as exc:
+                logger.error(f"INMS {inms_key} ({orgao}/{competencia}): {exc}")
+                any_error = True
+                continue
+            total_bruto = len(rows)
+            filtro = filter_periodo(
+                rows, period_column=period_column, periodo=periodo, strict=strict
+            )
+            rows = filtro.linhas_na_janela
+            if total_bruto > 0 and not rows:
+                aviso_vazio = (
+                    f"INMS {inms_key} ({orgao}/{competencia}): "
+                    f"{mensagem_janela_vazia(periodo)}"
+                )
+                log_event(
+                    "periodo_janela_vazia",
+                    aviso_vazio,
+                    "WARNING",
+                    orgao=orgao,
+                    competencia=competencia,
+                    inms=inms_key,
+                    arquivo=str(raw_csv_path),
+                )
+                warnings.append(aviso_vazio)
+            info_descarte = mensagem_descarte(
+                filtro.dropped_out_of_period, filtro.undated_dropped, strict
+            )
+            if info_descarte is not None:
+                log_event(
+                    "periodo_filtro",
+                    f"INMS {inms_key} ({orgao}/{competencia}): {info_descarte}",
+                    "INFO",
+                    orgao=orgao,
+                    competencia=competencia,
+                    inms=inms_key,
+                    arquivo=str(raw_csv_path),
+                    descartadas=filtro.dropped_out_of_period,
+                    sem_data=filtro.undated_dropped,
+                )
 
         real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
         # Cross-check in_values contra valores reais (issue 09): typo/renomeação
@@ -332,7 +390,7 @@ def run_split(
         try:
             sintetico_warnings = write_sintetico_workbook(
                 categorias_file, config_dir, competencia_data_dir, sintetico_path,
-                manifest=manifest,
+                manifest=manifest, periodo=periodo, strict=strict,
             )
             warnings.extend(sintetico_warnings)
         except OSError as exc:

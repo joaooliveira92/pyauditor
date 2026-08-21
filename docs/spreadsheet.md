@@ -82,6 +82,13 @@ Será a página inicial e o painel de identificação do relatório.
 - data da análise;
 - situação geral da aferição.
 
+> **Preenchimento automatizado (spec `competencia-cli-equipe`)**: competência e
+> os períodos de aferição são derivados do argumento `--competência` da CLI —
+> nunca hand-fill. Fiscal técnico, fiscal requisitante, fiscal administrativo e
+> gestor do contrato vêm de `input/equipe.csv` (fonte única dos responsáveis,
+> criada pelo `pyauditor bootstrap`). Os demais campos seguem hand-fill nos
+> CSVs de capa (`capa.csv` / `capa_<órgão>.csv`).
+
 #### Situações possíveis
 
 - Em preenchimento;

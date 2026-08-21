@@ -9,6 +9,12 @@ Datasets are organized per competência: `measure 2026-06 --data-dir input`
 reads every CSV from `input/2026/06/` (derived from the competência, never
 from the data-dir root). Keeping each competência in its own folder lets one
 project hold the data of every past aferição side by side.
+
+Spec competencia-cli-equipe: os ROMs recebem Competência/Período do argumento
+da CLI (`periodo`) e os Responsáveis de `equipe.csv` (`equipe_path`) — nada
+vem mais da capa. Com `periodo`, o dataset whole_indicator é filtrado pela
+janela da competência dentro de `engine.measure()` (único emissor dos avisos);
+o caminho derivado (categorias em memória) re-filtra as linhas já lidas.
 """
 
 import hashlib
@@ -17,7 +23,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Final, cast
+from typing import Final
 
 from pyauditor.categoria_filter import (
     GRUPO_EXECUTOR_COLUMN,
@@ -43,8 +49,9 @@ from pyauditor.engine.pipeline import (
 )
 from pyauditor.engine.quality_gates import QualityGateRunner
 from pyauditor.engine.strategies import SHAPE_REGISTRY
-from pyauditor.excel.capa import read_capa_csv_fields
+from pyauditor.excel.equipe import RESPONSAVEL_LABELS, ler_responsaveis
 from pyauditor.logging import log_event, logger
+from pyauditor.periodo import PeriodoAfericao, filter_periodo, require_period_column
 from pyauditor.rom.render import render_combined_rom, render_rom
 from pyauditor.rom.summary import summarize
 
@@ -76,8 +83,9 @@ class MeasureResult:
 
 @dataclass(frozen=True, slots=True)
 class _MeasuredIndicator:
-    """A measured indicator alongside enough to render the combined markdown
-    later — `result` (the numbers) and the capa fields used for its orgão."""
+    """Indicador medido + o bastante para renderizar o markdown combinado
+    depois — `result` (os números) e as células de Responsáveis
+    (`capa_fields`, vindos do `equipe.csv`) do seu órgão."""
 
     indicator_id: str
     safe_id: str
@@ -90,17 +98,6 @@ def check_measure_ready(*_args: object, **_kwargs: object) -> DependencyCheck:
     """`measure` only needs configs+data, both external inputs it validates
     itself — no dependency on another Command's output."""
     return DependencyCheck(satisfied=True, missing=())
-
-# Capa labels the ROM's Identificação/Responsáveis sections read (rom/render.py).
-_CAPA_ROM_FIELDS: Final[tuple[str, ...]] = (
-    "Competência",
-    "Período inicial da aferição",
-    "Período final da aferição",
-    "Fiscal técnico",
-    "Fiscal requisitante",
-    "Fiscal administrativo",
-    "Gestor do contrato",
-)
 
 
 def _inms_key_from_contractual_id(contractual_id: str) -> str | None:
@@ -129,7 +126,9 @@ def run_measure(
     manifest: DatasetManifest | None = None,
     *,
     expected_orgao: str | None = None,
-    capa_path: Path | None = None,
+    equipe_path: Path | None = None,
+    periodo: PeriodoAfericao | None = None,
+    strict: bool = False,
     collect: list[_MeasuredIndicator] | None = None,
 ) -> MeasureResult:
     orgao = expected_orgao or ""
@@ -163,35 +162,22 @@ def run_measure(
     except OSError as exc:
         return _error(f"falha ao criar diretório {target_dir}: {exc} — {DIR_FAILURE_HINT}")
 
-    # Identificação/Responsáveis in the ROM come from the capa — informational
-    # only here (unlike `report`'s "Valor mensal vigente", nothing here blocks
-    # the measurement), so a missing capa is a warning, not a hard failure.
+    # Responsáveis do ROM vêm exclusivamente de `equipe.csv` (spec §6) —
+    # ausente/malformado é warning + '[a preencher]', nunca falha técnica:
+    # nada aqui bloqueia a medição.
     capa_fields: dict[str, object] = {}
     warnings: list[str] = []
-    if capa_path is not None:
-        if capa_path.exists():
-            try:
-                capa_fields = cast(dict[str, object], read_capa_csv_fields(capa_path))
-            except (OSError, ValueError) as exc:
-                warning = (
-                    f"falha ao ler capa em {capa_path}: {exc} — "
-                    "identificação/responsáveis do ROM ficam '[a preencher]'"
-                )
-                logger.warning(warning)
-                warnings.append(warning)
-                capa_fields = {}
-            empty_fields = [f for f in _CAPA_ROM_FIELDS if not capa_fields.get(f)]
-            if empty_fields:
-                warning = (
-                    f"capa em {capa_path} sem preencher: {', '.join(empty_fields)} — "
-                    "ROM mostra '[a preencher]' nesses campos"
-                )
-                logger.warning(warning)
-                warnings.append(warning)
-        else:
+    if equipe_path is not None:
+        campos_equipe, avisos_equipe = ler_responsaveis(equipe_path)
+        capa_fields.update(campos_equipe)
+        for warning in avisos_equipe:
+            logger.warning(warning)
+            warnings.append(warning)
+        empty_fields = [f for f in RESPONSAVEL_LABELS if not capa_fields.get(f)]
+        if empty_fields:
             warning = (
-                f"capa não encontrada em {capa_path} — identificação/responsáveis do ROM "
-                "ficam '[a preencher]'"
+                f"{equipe_path}: sem preencher: {', '.join(empty_fields)} — "
+                "ROM mostra '[a preencher]' nesses campos"
             )
             logger.warning(warning)
             warnings.append(warning)
@@ -219,6 +205,29 @@ def run_measure(
     any_hard_failure = False
     outcomes: list[IndicatorOutcome] = []
 
+    def _hard_fail_todas_categorias(
+        message: str,
+        *,
+        entries: list[tuple[str, GrupoExecutorMode]],
+        indicator_id: str,
+        contractual_id: str,
+        target_dir: Path,
+    ) -> None:
+        """Marca todas as categorias derivadas como hard-failure com a mesma
+        mensagem — falha técnica do dataset bruto, não de uma categoria."""
+        nonlocal any_hard_failure
+        logger.error(message)
+        any_hard_failure = True
+        for cat_key, _ in entries:
+            derived_id = f"{indicator_id}.{cat_key}"
+            safe_id = _sanitize_indicator_id(derived_id)
+            rom_path = target_dir / f"{safe_id}.md"
+            summary_path = target_dir / f"{safe_id}.json"
+            outcomes.append(IndicatorOutcome(
+                contractual_id=contractual_id, rom_path=rom_path,
+                summary_path=summary_path, hard_failure=True, error=message,
+            ))
+
     def _handle_result(
         result: MeasurementResult,
         safe_id: str,
@@ -230,7 +239,15 @@ def run_measure(
     ) -> None:
         nonlocal any_hard_failure
         try:
-            rom_path.write_text(render_rom(result, capa_fields=capa_fields), encoding="utf-8")
+            rom_path.write_text(
+                render_rom(
+                    result,
+                    capa_fields=capa_fields,
+                    competencia=competencia,
+                    periodo=periodo,
+                ),
+                encoding="utf-8",
+            )
             summary = summarize(result)
             summary_path.write_text(
                 json.dumps(summary.to_dict(), ensure_ascii=False, indent=2),
@@ -373,22 +390,66 @@ def run_measure(
                         summary_path=summary_path, hard_failure=True, error=message,
                     ))
                 continue
+            # §2 — re-filtro de período no caminho em memória: as linhas já
+            # foram lidas do bruto, então o filtro roda aqui antes de qualquer
+            # gate/cálculo. Falta de period_column é hard-failure para todas
+            # as categorias derivadas. Sem WARN/INFO aqui — o único emissor
+            # por dataset bruto é engine.measure() (caminho single), e este
+            # dataset não passa por lá.
+            try:
+                period_column = require_period_column(
+                    config.source.period_column, config_path=config_path
+                )
+            except ValueError as exc:
+                _hard_fail_todas_categorias(
+                    f"{contractual_id}: exceção na medição: {exc}",
+                    entries=entries,
+                    indicator_id=config.indicator.id,
+                    contractual_id=contractual_id,
+                    target_dir=target_dir,
+                )
+                continue
+            if periodo is not None:
+                if period_column not in fieldnames:
+                    _hard_fail_todas_categorias(
+                        f"{config_path}: source.period_column {period_column!r} não existe "
+                        f"no header de {raw_csv_path.name} — corrija o YAML",
+                        entries=entries,
+                        indicator_id=config.indicator.id,
+                        contractual_id=contractual_id,
+                        target_dir=target_dir,
+                    )
+                    continue
+                filtro = filter_periodo(
+                    rows, period_column=period_column, periodo=periodo, strict=strict
+                )
+                rows = filtro.linhas_na_janela
+                dropped_out_of_period = filtro.dropped_out_of_period
+                undated_dropped = filtro.undated_dropped
+            else:
+                dropped_out_of_period = None
+                undated_dropped = None
+
             real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
             for cat_key, entry in entries:
+                prefixo = (
+                    f"INMS {inms_key} ({config.scope.orgao}/{competencia}), "
+                    f"categoria {cat_key}: "
+                )
                 if entry.in_values is not None:
                     unmatched = [v for v in entry.in_values if v not in real_values]
                     if unmatched and not (set(entry.in_values) & real_values):
                         w = (
-                            f"INMS {inms_key} ({config.scope.orgao}/{competencia}), categoria {cat_key}: "
-                            f"in_values {unmatched!r} sem correspondência em Grupo_executor do CSV "
-                            f"({raw_csv_path}) — possível typo/renomeação, categoria ficará sem linhas"
+                            f"{prefixo}in_values {unmatched!r} sem correspondência em "
+                            f"Grupo_executor do CSV ({raw_csv_path}) — possível "
+                            "typo/renomeação, categoria ficará sem linhas"
                         )
                         logger.warning(w)
                         warnings.append(w)
                     elif unmatched:
                         w = (
-                            f"INMS {inms_key} ({config.scope.orgao}/{competencia}), categoria {cat_key}: "
-                            f"in_values {unmatched!r} sem correspondência — valores não encontrados no CSV"
+                            f"{prefixo}in_values {unmatched!r} sem correspondência — "
+                            "valores não encontrados no CSV"
                         )
                         logger.warning(w)
                         warnings.append(w)
@@ -396,14 +457,21 @@ def run_measure(
             # mede cada categoria filtrada em memória
             for cat_key, effective_values in per_categoria_values.items():
                 filtered_rows = [r for r in rows if r[GRUPO_EXECUTOR_COLUMN] in effective_values]
-                derived_indicator = config.indicator.model_copy(update={"id": f"{config.indicator.id}.{cat_key}"})
-                derived_config = config.model_copy(update={"indicator": derived_indicator, "acceptance_test": None})
+                derived_indicator = config.indicator.model_copy(
+                    update={"id": f"{config.indicator.id}.{cat_key}"}
+                )
+                derived_config = config.model_copy(
+                    update={"indicator": derived_indicator, "acceptance_test": None}
+                )
                 derived_safe_id = _sanitize_indicator_id(derived_config.indicator.id)
                 rom_path = target_dir / f"{derived_safe_id}.md"
                 summary_path = target_dir / f"{derived_safe_id}.json"
                 # quality gates + estratégia sobre linhas filtradas
                 try:
-                    gate_runner = QualityGateRunner(derived_config.quality_gates.checks, id_column=derived_config.source.id_column)
+                    gate_runner = QualityGateRunner(
+                        derived_config.quality_gates.checks,
+                        id_column=derived_config.source.id_column,
+                    )
                     gate_report = gate_runner.run(filtered_rows)
                     strategy = SHAPE_REGISTRY[derived_config.calculation.shape]
                     calculation = strategy.calculate(derived_config, gate_report.accepted)
@@ -424,6 +492,8 @@ def run_measure(
                     result = MeasurementResult(
                         config=derived_config, quality_gate_report=gate_report,
                         calculation=calculation, provenance=provenance,
+                        dropped_out_of_period=dropped_out_of_period,
+                        undated_dropped=undated_dropped,
                     )
                 except Exception as exc:
                     message = f"{contractual_id}.{cat_key}: exceção na medição: {exc}"
@@ -434,13 +504,18 @@ def run_measure(
                         hard_failure=True, error=message,
                     ))
                     continue
-                _handle_result(result, derived_safe_id, rom_path, summary_path, contractual_id, derived_config.indicator.id, derived_config.scope.orgao)
+                _handle_result(
+                    result, derived_safe_id, rom_path, summary_path,
+                    contractual_id, derived_config.indicator.id,
+                    derived_config.scope.orgao,
+                )
             # outros contábil — warning se houver linhas não classificadas
             outros_rows = [r for r in rows if r[GRUPO_EXECUTOR_COLUMN] in outros_values]
             if outros_rows:
                 w = (
-                    f"INMS {inms_key} ({config.scope.orgao}/{competencia}), categoria outros: "
-                    f"{len(outros_rows)} linha(s) não classificada(s) em nenhuma categoria — revisar categorias.yaml"
+                    f"INMS {inms_key} ({config.scope.orgao}/{competencia}), "
+                    f"categoria outros: {len(outros_rows)} linha(s) não "
+                    "classificada(s) em nenhuma categoria — revisar categorias.yaml"
                 )
                 logger.warning(w)
                 warnings.append(w)
@@ -458,6 +533,8 @@ def run_measure(
                 manifest=manifest,
                 config_path=config_path,
                 config_hash=config_hash,
+                periodo=periodo,
+                strict=strict,
             )
         except FileNotFoundError:
             _orgao_warn = getattr(getattr(config, "scope", None), "orgao", orgao)
@@ -482,7 +559,11 @@ def run_measure(
             ))
             continue
 
-        _handle_result(result, safe_id, rom_path, summary_path, contractual_id, config.indicator.id, getattr(getattr(config, "scope", None), "orgao", orgao))
+        _handle_result(
+            result, safe_id, rom_path, summary_path, contractual_id,
+            config.indicator.id,
+            getattr(getattr(config, "scope", None), "orgao", orgao),
+        )
 
     # Resumo conciso por órgão (INFO) — no lugar das N linhas repetidas.
     total = len(outcomes)
@@ -510,7 +591,11 @@ def run_measure(
 
 
 def write_combined_roms(
-    per_orgao: dict[str, list[_MeasuredIndicator]], competencia: str, output_dir: Path
+    per_orgao: dict[str, list[_MeasuredIndicator]],
+    competencia: str,
+    output_dir: Path,
+    *,
+    periodo: PeriodoAfericao | None = None,
 ) -> None:
     """Given the measured indicators of each orgão (from `run_measure(...,
     collect=...)` calls with `--orgao both`), write under
@@ -539,7 +624,10 @@ def write_combined_roms(
         combined_path = both_dir / f"{minc.safe_id}.md"
         try:
             combined_path.write_text(
-                render_combined_rom(minc.result, mtur.result, capa_by_orgao),
+                render_combined_rom(
+                    minc.result, mtur.result, capa_by_orgao,
+                    competencia=competencia, periodo=periodo,
+                ),
                 encoding="utf-8",
             )
         except OSError as exc:
