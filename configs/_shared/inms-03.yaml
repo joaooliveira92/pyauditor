@@ -1,0 +1,19 @@
+indicator:
+  id: INMS-03
+  contractual_id: INMS 1.3
+  name: Projetos atendidos dentro do prazo
+source:
+  dataset: projetos
+quality_gates:
+  checks: []
+calculation:
+  shape: ratio
+  aggregation: sum
+  sum_numerator_column: DiasProjeto
+  sum_denominator_extra_column: DiasAtraso
+target:
+  operator: '>='
+  value: 100.0
+penalty:
+  step_points: 200
+  step_size_pct: 1.0

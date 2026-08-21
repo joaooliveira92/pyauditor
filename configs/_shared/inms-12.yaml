@@ -1,0 +1,20 @@
+indicator:
+  id: INMS-12
+  contractual_id: INMS 1.12
+  name: Índice de chamadas telefônicas atendidas em até 20 segundos
+source:
+  dataset: chamadas_telefonicas
+quality_gates:
+  checks: []
+calculation:
+  shape: ratio
+  aggregation: count_distinct
+  numerator_filter:
+    column: ESPERA
+    max_seconds: 20
+target:
+  operator: '>='
+  value: 95.0
+penalty:
+  step_points: 25
+  step_size_pct: 0.1

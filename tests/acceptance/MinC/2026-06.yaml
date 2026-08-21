@@ -1,0 +1,112 @@
+INMS-01:
+  expected:
+    shape: ratio
+    numerator: 171
+    denominator: 175
+    result_pct: 97.71
+    conforms: false
+    penalty_points: 222.14
+INMS-02:
+  expected:
+    shape: segmented_ratio
+    result_pct: 98.41
+    conforms: true
+    penalty_points: 0.0
+    categories:
+    - name: alta
+      numerator: 524
+      denominator: 533
+      result_pct: 98.31
+      penalty_points: 0.0
+    - name: media
+      numerator: 461
+      denominator: 464
+      result_pct: 99.35
+      penalty_points: 0.0
+    - name: baixa
+      numerator: 505
+      denominator: 517
+      result_pct: 97.68
+      penalty_points: 0.0
+INMS-03:
+  expected:
+    shape: ratio
+    numerator: 0
+    denominator: 0
+    result_pct: 0.0
+    conforms: true
+    penalty_points: 0.0
+INMS-04:
+  expected:
+    shape: precomputed_table
+    result_pct: 99.5635
+    conforms: false
+    penalty_points: 5000.0
+INMS-05:
+  expected:
+    shape: precomputed_table
+    result_pct: 99.3645
+    conforms: false
+    penalty_points: 1000.0
+INMS-06:
+  expected:
+    shape: ratio
+    numerator: 1621.0
+    denominator: 1622.0
+    result_pct: 99.9383
+    conforms: true
+    penalty_points: 0.0
+INMS-07:
+  expected:
+    shape: ratio
+    numerator: 40
+    denominator: 40
+    result_pct: 100.0
+    conforms: true
+    penalty_points: 0.0
+INMS-08:
+  expected:
+    shape: precomputed_table
+    result_pct: 0.0
+    conforms: true
+    penalty_points: 0.0
+INMS-09:
+  expected:
+    shape: precomputed_table
+    result_pct: 92.1569
+    conforms: false
+    penalty_points: 3800.0
+INMS-10:
+  expected:
+    shape: precomputed_table
+    result_pct: 92.8571
+    conforms: false
+    penalty_points: 5000.0
+INMS-11:
+  expected:
+    shape: ratio
+    numerator: 119
+    denominator: 924
+    result_pct: 12.8788
+    conforms: false
+    penalty_points: 393.94
+INMS-12:
+  expected:
+    shape: ratio
+    numerator: 885
+    denominator: 924
+    result_pct: 95.7792
+    conforms: true
+    penalty_points: 0.0
+INMS-13:
+  expected:
+    shape: precomputed_table
+    result_pct: 75.05
+    conforms: false
+    penalty_points: 1000.0
+INMS-14:
+  expected:
+    shape: precomputed_table
+    result_pct: 99.6501
+    conforms: false
+    penalty_points: 750.0

@@ -1,0 +1,18 @@
+indicator:
+  id: INMS-09
+  contractual_id: INMS 1.9
+  name: Tempo médio de implementação de uma mudança
+source:
+  dataset: mudancas
+quality_gates:
+  checks: []
+calculation:
+  shape: precomputed_table
+  result_column: inms_1_9_percentual
+  name_column: ambiente_nome
+  numerator_column: trmp_requisicoes_atendidas_no_prazo
+  denominator_column: trm_total_requisicoes_mudanca
+  penalty_column: penalidade_pontos
+target:
+  operator: '>='
+  value: 90.0

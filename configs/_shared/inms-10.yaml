@@ -1,0 +1,18 @@
+indicator:
+  id: INMS-10
+  contractual_id: INMS 1.10
+  name: Taxa de implantação de controles de segurança
+source:
+  dataset: controles_seguranca
+quality_gates:
+  checks: []
+calculation:
+  shape: precomputed_table
+  result_column: taxa_implantacao_percentual
+  name_column: dominio_controle
+  numerator_column: qcsi_controles_implantados
+  denominator_column: qrc_controles_recomendados
+  penalty_column: penalidade_pontos
+target:
+  operator: '>='
+  value: 100.0

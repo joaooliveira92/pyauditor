@@ -1,0 +1,44 @@
+indicator:
+  id: INMS-02
+  contractual_id: INMS 1.2
+  name: Requisições atendidas dentro do prazo
+source:
+  dataset: requisicoes
+quality_gates:
+  checks:
+  - type: in_set
+    column: No prazo
+    values:
+    - S
+    - N
+calculation:
+  shape: segmented_ratio
+  step_size_pct: 0.1
+  categories:
+  - name: alta
+    denominator_filter:
+      column: SLA
+      contains: Alta
+    numerator_filter:
+      column: No prazo
+      equals: S
+    step_points: 20
+  - name: media
+    denominator_filter:
+      column: SLA
+      contains: Média
+    numerator_filter:
+      column: No prazo
+      equals: S
+    step_points: 15
+  - name: baixa
+    denominator_filter:
+      column: SLA
+      contains: Baixa
+    numerator_filter:
+      column: No prazo
+      equals: S
+    step_points: 10
+target:
+  operator: '>='
+  value: 95.0

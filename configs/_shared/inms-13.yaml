@@ -1,0 +1,18 @@
+indicator:
+  id: INMS-13
+  contractual_id: INMS 1.13
+  name: Índice de chamados atendidos no Nível I
+source:
+  dataset: chamados_grupo_executor
+quality_gates:
+  checks: []
+calculation:
+  shape: precomputed_table
+  result_column: inms_1_13_percentual
+  name_column: unidade_nome
+  numerator_column: tcn1_chamados_atendidos_nivel_1
+  denominator_column: tcr_total_chamados_registrados
+  penalty_column: penalidade_pontos
+target:
+  operator: '>='
+  value: 90.0

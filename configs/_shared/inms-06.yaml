@@ -1,0 +1,22 @@
+indicator:
+  id: INMS-06
+  contractual_id: INMS 1.6
+  name: Eficácia no tratamento de chamados
+source:
+  dataset: chamados_reabertos
+quality_gates:
+  checks: []
+calculation:
+  shape: ratio
+  aggregation: sum
+  denominator_filter:
+    column: Acordo de Nível de Serviço
+    not_equals: TOTAIS
+  sum_numerator_column: Total de Chamados
+  sum_numerator_subtract_column: Total de Chamados Reabertos
+target:
+  operator: '>='
+  value: 97.0
+penalty:
+  step_points: 200
+  step_size_pct: 0.5

@@ -1,0 +1,28 @@
+indicator:
+  id: INMS-01
+  contractual_id: INMS 1.1
+  name: Incidentes atendidos dentro do prazo
+source:
+  dataset: incidentes
+quality_gates:
+  checks:
+  - type: not_null
+    column: DataHoraFim
+  - type: in_set
+    column: No prazo
+    values:
+    - S
+    - N
+calculation:
+  shape: ratio
+  aggregation: count_distinct
+  numerator_filter:
+    column: No prazo
+    equals: S
+target:
+  operator: '>='
+  value: 98.0
+penalty:
+  base_points: 165
+  step_points: 20
+  step_size_pct: 0.1

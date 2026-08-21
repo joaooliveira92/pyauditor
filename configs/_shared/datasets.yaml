@@ -1,0 +1,78 @@
+# ---------------------------------------------------------------------------
+# Dataset manifest — maps human-readable aliases to CSV files.
+#
+# Each indicator YAML references a `dataset` key (instead of a raw `csv`
+# filename). The pipeline resolves the alias to the real file + parsing
+# options at load time via src/pyauditor/config/manifest.py.
+# ---------------------------------------------------------------------------
+
+datasets:
+  incidentes:
+    file: inms-01.csv
+    delimiter: ";"
+    encoding: utf-8-sig
+
+  requisicoes:
+    file: inms-02.csv
+    delimiter: ";"
+    encoding: utf-8-sig
+
+  projetos:
+    file: inms-03.csv
+    delimiter: ";"
+    encoding: utf-8-sig
+
+  disponibilidade_sistema_critico:
+    file: inms-04.csv
+    delimiter: ";"
+    encoding: utf-8-sig
+
+  disponibilidade_sistema_nao_critico:
+    file: inms-05.csv
+    delimiter: ";"
+    encoding: utf-8-sig
+
+  chamados_reabertos:
+    file: inms-06.csv
+    delimiter: ";"
+    encoding: utf-8-sig
+
+  satisfacao:
+    file: inms-07.csv
+    delimiter: ";"
+    encoding: utf-8-sig
+
+  desconformidade_tecnica:
+    file: inms-08.csv
+    delimiter: ";"
+    encoding: utf-8-sig
+
+  mudancas:
+    file: inms-09.csv
+    delimiter: ";"
+    encoding: utf-8-sig
+
+  controles_seguranca:
+    file: inms-10.csv
+    delimiter: ";"
+    encoding: utf-8-sig
+
+  telefonemas:
+    file: inms-11.csv
+    delimiter: ";"
+    encoding: utf-8-sig
+
+  chamadas_telefonicas:
+    file: inms-12.csv
+    delimiter: ";"
+    encoding: utf-8-sig
+
+  chamados_grupo_executor:
+    file: inms-13.csv
+    delimiter: ";"
+    encoding: utf-8-sig
+
+  disponibilidade_infra:
+    file: inms-14.csv
+    delimiter: ";"
+    encoding: utf-8-sig

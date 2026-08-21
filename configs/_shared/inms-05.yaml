@@ -1,0 +1,18 @@
+indicator:
+  id: INMS-05
+  contractual_id: INMS 1.5
+  name: Disponibilidade de sistema/serviço não-crítico
+source:
+  dataset: disponibilidade_sistema_nao_critico
+quality_gates:
+  checks: []
+calculation:
+  shape: precomputed_table
+  result_column: inms_1_5_percentual
+  name_column: sistema_servico_nome
+  numerator_column: numerador_inms_horas
+  denominator_column: base_apuracao_horas
+  penalty_column: penalidade_pontos
+target:
+  operator: '>='
+  value: 99.0

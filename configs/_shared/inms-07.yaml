@@ -1,0 +1,31 @@
+indicator:
+  id: INMS-07
+  contractual_id: INMS 1.7
+  name: Satisfação dos usuários
+source:
+  dataset: satisfacao
+  id_column: Nº Ticket
+quality_gates:
+  checks:
+  - type: in_set
+    column: Avaliação
+    values:
+    - Muito Insatisfeito
+    - Insatisfeito
+    - Parcialmente satisfeito
+    - Satisfeito
+    - Muito Satisfeito
+calculation:
+  shape: ratio
+  aggregation: count_distinct
+  numerator_filter:
+    column: Avaliação
+    in_values:
+    - Satisfeito
+    - Muito Satisfeito
+target:
+  operator: '>='
+  value: 80.0
+penalty:
+  step_points: 250
+  step_size_pct: 1.0

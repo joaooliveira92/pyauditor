@@ -1,0 +1,18 @@
+indicator:
+  id: INMS-14
+  contractual_id: INMS 1.14
+  name: Índice de disponibilidade de serviços de infraestrutura
+source:
+  dataset: disponibilidade_infra
+quality_gates:
+  checks: []
+calculation:
+  shape: precomputed_table
+  result_column: inms_1_14_percentual
+  name_column: servico_infraestrutura
+  numerator_column: numerador_inms_horas
+  denominator_column: base_apuracao_horas
+  penalty_column: penalidade_pontos
+target:
+  operator: '>='
+  value: 99.5
