@@ -13,7 +13,7 @@ from pathlib import Path
 
 import yaml
 
-from pyauditor.config.manifest import DatasetManifest, load_manifest
+from pyauditor.config.manifest import DatasetManifest
 from pyauditor.config.models import IndicatorConfig
 from pyauditor.engine.quality_gates import QualityGateReport, QualityGateRunner
 from pyauditor.engine.strategies import SHAPE_REGISTRY

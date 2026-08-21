@@ -6,9 +6,10 @@ extracted to YAML at build time. See docs/spec/inms-pipeline.md §11.1.
 from __future__ import annotations
 
 import importlib.resources
+from collections.abc import Mapping
 from functools import lru_cache
 from types import MappingProxyType
-from typing import Final, Mapping, TypedDict, TypeGuard, cast
+from typing import Final, TypedDict, TypeGuard, cast
 
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError

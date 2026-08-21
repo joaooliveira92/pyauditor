@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-import argparse, re, sys
+import argparse
+import re
+import sys
 from pathlib import Path
 from urllib.parse import unquote
 

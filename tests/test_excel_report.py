@@ -1,5 +1,11 @@
 from pyauditor.excel.groups import GROUP_TABS, primary_group
-from pyauditor.excel.report import CADASTROS_SHEET, EVIDENCIAS_SHEET, GLOSAS_SHEET, INMS_BASE_SHEET, build_report_workbook
+from pyauditor.excel.report import (
+    CADASTROS_SHEET,
+    EVIDENCIAS_SHEET,
+    GLOSAS_SHEET,
+    INMS_BASE_SHEET,
+    build_report_workbook,
+)
 from pyauditor.rom.summary import IndicatorSummary
 
 
@@ -194,16 +200,16 @@ def test_inms_base_never_synthesizes_a_consolidado_row() -> None:
 
 def test_cadastros_sheet_populated_from_configs() -> None:
     from pyauditor.config.models import (
-        IndicatorConfig,
+        ColumnEquals,
+        ExternalCatalogSumCalculation,
         Indicator,
-        Scope,
-        Source,
+        IndicatorConfig,
+        Penalty,
         QualityGates,
         RatioCalculation,
-        ExternalCatalogSumCalculation,
+        Scope,
+        Source,
         Target,
-        Penalty,
-        ColumnEquals,
     )
 
     configs = [
@@ -259,16 +265,16 @@ def test_cadastros_sheet_skipped_when_no_configs() -> None:
 
 def test_evidencias_sheet_populated_from_configs() -> None:
     from pyauditor.config.models import (
-        IndicatorConfig,
+        ColumnEquals,
+        ExternalCatalogSumCalculation,
         Indicator,
-        Scope,
-        Source,
+        IndicatorConfig,
+        Penalty,
         QualityGates,
         RatioCalculation,
-        ExternalCatalogSumCalculation,
+        Scope,
+        Source,
         Target,
-        Penalty,
-        ColumnEquals,
     )
 
     configs = [
@@ -324,15 +330,15 @@ def test_evidencias_sheet_populated_from_configs() -> None:
 
 def test_evidencias_sheet_has_dropdown_validations() -> None:
     from pyauditor.config.models import (
-        IndicatorConfig,
+        ColumnEquals,
         Indicator,
-        Scope,
-        Source,
+        IndicatorConfig,
+        Penalty,
         QualityGates,
         RatioCalculation,
+        Scope,
+        Source,
         Target,
-        Penalty,
-        ColumnEquals,
     )
 
     configs = [

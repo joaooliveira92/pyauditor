@@ -7,8 +7,6 @@ route any numeric column through :func:`parse_decimal`.
 
 from __future__ import annotations
 
-from typing import Final
-
 
 def parse_decimal(raw: str) -> float:
     """Parse a PT-BR decimal string (comma decimal separator) to ``float``.

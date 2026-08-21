@@ -7,7 +7,6 @@ from pyauditor.config.models import (
     ColumnEquals,
     ColumnIn,
     ColumnNotEquals,
-    DurationAtMost,
     Filter,
 )
 

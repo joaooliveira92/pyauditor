@@ -5,8 +5,8 @@ import pytest
 from pyauditor.excel.capa import (
     COMMON_FIELD_LABELS,
     ORGAO_FIELD_LABELS,
-    read_capa_csv_fields,
     bootstrap_capa_csv,
+    read_capa_csv_fields,
     validate_periodo_competencia,
 )
 from pyauditor.excel.objetos import parse_brl_value

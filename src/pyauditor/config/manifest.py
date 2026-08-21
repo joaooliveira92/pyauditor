@@ -7,9 +7,10 @@ alias to a real file at load time.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Final, Mapping, TypeAlias
+from typing import Annotated, Final, TypeAlias
 
 import yaml
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError

@@ -5,7 +5,7 @@ between MinC and MTur.
 """
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Annotated, Final, Literal, Self, TypeAlias
 
@@ -92,7 +92,7 @@ def _load_raw(path: Path) -> CategoriasFile:
 
 # Unbounded (vs. manifest.py's maxsize=1): one categorias.yaml per orgao,
 # so the cache only ever holds a handful of entries.
-@lru_cache(maxsize=None)
+@cache
 def load_categorias(path: Path) -> CategoriasFile:
     """Load and cache a `categorias.yaml` from *path*.
 
