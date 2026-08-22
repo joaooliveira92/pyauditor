@@ -1,5 +1,7 @@
 # 02 — Adotar fluxo dev→master com gate de qualidade e proteção de branches
 
+Type: task
+
 **What to build:** o repo passa a trabalhar com PRs em vez de push direto. O `quality.yml` (hoje arquivo untracked) entra no repo e roda verde numa PR; a branch `dev` é criada a partir de `master`; o trigger do CI cobre push em `dev` + PRs; `dev` e `master` ganham branch protection (PR obrigatório + status check "Quality gates"); `master` só recebe merge via PR vindo de `dev`; os deploys de docs/pages continuam saindo de `master`.
 
 **Blocked by:** nenhum — pode começar imediatamente.
