@@ -325,7 +325,7 @@ def test_execute_run_uses_shared_manifest_when_both_exist(tmp_path: Path) -> Non
         commands=frozenset({"measure"}),
     )
     with patch(
-        "pyauditor.orchestration.run.run_measure",
+        "pyauditor.orchestration.command_dispatch.run_measure",
         return_value=SimpleNamespace(status="done", error_message=None),
     ) as m:
         run_result = execute_run(request)
@@ -406,7 +406,7 @@ def test_execute_run_measure_reused_split_does_not_suppress_in_values_warnings(
     suprimidos — `split` não os emitiu nesta passada."""
     request = _scaffold(tmp_path, csv_body=_GOOD_CSV)
     with patch(
-        "pyauditor.orchestration.run.run_measure",
+        "pyauditor.orchestration.command_dispatch.run_measure",
         return_value=SimpleNamespace(status="done", error_message=None),
     ):
         execute_run(request)
@@ -416,7 +416,7 @@ def test_execute_run_measure_reused_split_does_not_suppress_in_values_warnings(
     # already_split=False, então os avisos não são silenciados.
     resumed = replace(request, force_commands=frozenset({"measure"}))
     with patch(
-        "pyauditor.orchestration.run.run_measure",
+        "pyauditor.orchestration.command_dispatch.run_measure",
         return_value=SimpleNamespace(status="done", error_message=None),
     ) as m2:
         execute_run(resumed)
@@ -430,7 +430,7 @@ def test_execute_run_measure_same_passada_split_sets_already_split(tmp_path: Pat
     e já emitiu os avisos de `in_values`/`outros` para o mesmo dataset."""
     request = _scaffold(tmp_path, csv_body=_GOOD_CSV)
     with patch(
-        "pyauditor.orchestration.run.run_measure",
+        "pyauditor.orchestration.command_dispatch.run_measure",
         return_value=SimpleNamespace(status="done", error_message=None),
     ) as m:
         execute_run(request)

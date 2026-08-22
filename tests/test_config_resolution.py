@@ -137,7 +137,7 @@ def test_measure_and_run_resolve_the_same_manifest_for_same_orgao_base(
         commands=frozenset({"measure"}),
     )
     with patch(
-        "pyauditor.orchestration.run.run_measure",
+        "pyauditor.orchestration.command_dispatch.run_measure",
         return_value=SimpleNamespace(status="done", error_message=None),
     ) as m_run:
         execute_run(request)
