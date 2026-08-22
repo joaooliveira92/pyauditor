@@ -4,7 +4,7 @@
 
 **Linhas afetadas:** 401–408, 443–450, 868–900.
 
-**Status:** needs-triage
+**Status:** resolved
 
 ## Problema
 
@@ -29,7 +29,31 @@ Escolher uma das duas opções:
 
 ## Critério de aceite
 
-- [ ] Decisão registrada (restringir vs. implementar as duas direções)
-- [ ] Se restringir: `write_sheet()` valida `target_operator` na fronteira e falha com mensagem clara para `<=`
-- [ ] Se implementar: labels e fórmulas da Seção 3 e Seção 9 corrigidos para refletir a direção correta da meta
-- [ ] Teste: operador `<=` (ver matriz de testes do spec.md)
+- [x] Decisão registrada (restringir vs. implementar as duas direções)
+- [x] Se restringir: `write_sheet()` valida `target_operator` na fronteira e falha com mensagem clara para `<=`
+- [ ] ~~Se implementar: labels e fórmulas da Seção 3 e Seção 9 corrigidos~~ (não aplicável — decisão foi restringir)
+- [x] Teste: operador `<=` (ver matriz de testes do spec.md)
+
+## Answer
+
+Opção 1 (restringir): `write_sheet()` agora valida em `_validate_write_sheet_params()`
+que `target_operator == ">="`, lançando `ValueError` explícito para qualquer outro
+valor (incluindo `"<="`). Motivo da escolha: a Seção 3 (memória de cálculo —
+"quantidade mínima dentro do prazo", narrativa da margem) e a Seção 9 (penalidade)
+só têm semântica coerente para meta mínima; não há hoje nenhum caso real do INMS
+1.1 com meta-teto (`<=`) — o próprio nome do indicador ("Incidentes atendidos
+dentro do prazo") só faz sentido como piso contratual. Implementar as duas
+direções manteria código morto/nunca exercitado em produção e dobraria a
+superfície de teste de todas as fórmulas de texto condicional.
+
+Como consequência, os ramos `else` (`target_operator == "<="`) das Seções 2, 7 e 9
+foram removidos (eram simétricos e nunca mais alcançáveis) — `target_operator`
+deixou de ser passado para `_write_section_2_resumo`, `_write_section_7_auditoria`
+e `_write_section_9_penalidade`.
+
+`sintetico.py` captura o `ValueError` na chamada de `inms_1_1_audit.write_sheet()`
+e degrada para o renderer genérico (`_write_grupo_executor_sheet`), como as
+demais falhas por-INMS do loop — um contrato com `target_operator: "<="`
+configurado não derruba o workbook inteiro, só perde a aba enriquecida.
+
+Teste: `test_target_operator_le_is_rejected` em `tests/test_inms_1_1_audit.py`.

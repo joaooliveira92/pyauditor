@@ -4,7 +4,7 @@
 
 **Linhas afetadas:** 951, 959.
 
-**Status:** needs-triage
+**Status:** resolved
 
 ## Problema
 
@@ -28,6 +28,23 @@ Melhor ainda: validar na fronteira que número da solicitação não está vazio
 
 ## Critério de aceite
 
-- [ ] Contagem do IAP não depende de `COUNTA` sobre coluna que pode ter vazios
-- [ ] Teste: número de solicitação vazio em um registro — total bate entre nota da fonte e IAP
-- [ ] Teste: número de solicitação duplicado (matriz de testes do spec.md)
+- [x] Contagem do IAP não depende de `COUNTA` sobre coluna que pode ter vazios
+- [x] Teste: número de solicitação vazio em um registro — total bate entre nota da fonte e IAP
+- [x] Teste: número de solicitação duplicado (matriz de testes do spec.md)
+
+## Answer
+
+`iap` trocou de `COUNTA($R$2:$R${last_row})` para `ROWS($R$2:$R${last_row})` —
+`ROWS()` conta as linhas do range independentemente de conteúdo (vazio, texto,
+duplicado), então o IAP sempre bate com `len(rows)` (o mesmo número exibido na
+nota da fonte, Seção 1), inclusive quando `Nº Solicitação` vier vazio ou
+duplicado. Não foi adicionada validação de unicidade/obrigatoriedade de `Nº
+Solicitação` — o ticket já marca isso como "melhor ainda" opcional, e nenhuma
+regra de negócio deste indicador depende de `Nº Solicitação` ser único (ele só
+é usado para exibição/rastreabilidade nas Seções 6 e 7, via `INDEX`/`MATCH`
+sobre outras colunas).
+
+Teste: `test_iap_denominator_uses_rows_not_counta` em `tests/test_inms_1_1_audit.py`,
+com um registro de `Nº Solicitação` vazio e dois registros duplicados (`"1"`)
+— confirma `B13 = ROWS($R$2:$R$4)` e que a nota da fonte (`B6`) mostra "3
+registros brutos", batendo com o range da base de apoio.

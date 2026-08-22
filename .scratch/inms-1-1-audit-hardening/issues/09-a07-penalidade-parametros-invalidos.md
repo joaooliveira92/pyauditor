@@ -4,7 +4,7 @@
 
 **Linhas afetadas:** 856–900.
 
-**Status:** needs-triage
+**Status:** resolved
 
 ## Problema
 
@@ -33,6 +33,25 @@ if penalty_step_size_pct <= 0:
 
 ## Critério de aceite
 
-- [ ] `write_sheet()` valida `target_operator`, `target_value` e `penalty_step_size_pct` na fronteira, falhando com `ValueError` claro
-- [ ] Teste: `penalty_step_size_pct == 0` levanta erro em vez de gerar `#DIV/0!` (matriz de testes do spec.md)
-- [ ] Teste: parâmetros fora de faixa (negativos, NaN, meta fora de 0–100) são rejeitados
+- [x] `write_sheet()` valida `target_operator`, `target_value` e `penalty_step_size_pct` na fronteira, falhando com `ValueError` claro
+- [x] Teste: `penalty_step_size_pct == 0` levanta erro em vez de gerar `#DIV/0!` (matriz de testes do spec.md)
+- [x] Teste: parâmetros fora de faixa (negativos, meta fora de 0–100) são rejeitados
+
+## Answer
+
+`_validate_write_sheet_params()` roda no início de `write_sheet()` (antes de
+qualquer aba ser criada) e valida: `target_operator` deve ser `">="` (ver
+ticket 05); `target_value` deve estar em `[0, 100]`; `penalty_base_points` e
+`penalty_step_points` não podem ser negativos; `penalty_step_size_pct` deve
+ser positivo (é divisor nas fórmulas da Seção 9 — `0` ou negativo gerariam
+`#DIV/0!`/sinal invertido). Cada violação levanta `ValueError` com o nome do
+parâmetro e o valor recebido.
+
+Não foi adicionada validação explícita de NaN/infinito: `float("nan") <= 100`
+e `float("nan") >= 0` são ambos `False` em Python, então um `target_value` NaN
+já cai automaticamente fora do range `0 <= target_value <= 100` e é rejeitado
+pela mesma checagem — não precisa de `math.isnan()` dedicado.
+
+Testes: `test_out_of_range_params_are_rejected` (parametrizado com
+`target_value` 150 e -1, `penalty_base_points` -1, `penalty_step_points` -1,
+`penalty_step_size_pct` 0 e -0.1) em `tests/test_inms_1_1_audit.py`.

@@ -31,7 +31,7 @@ from typing import Final
 
 from openpyxl import Workbook
 from openpyxl.formatting.rule import CellIsRule
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Protection, Side
 from openpyxl.utils import get_column_letter as cl
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.worksheet import Worksheet
@@ -40,6 +40,7 @@ from pyauditor.categoria_filter import GRUPO_EXECUTOR_COLUMN, compute_categoria_
 from pyauditor.config.categorias import CategoriasFile, GrupoExecutorMode, WholeIndicatorMode
 from pyauditor.excel._datetime import PRAZO_TOLERANCIA_MINUTOS, parse_dt
 from pyauditor.excel._safety import safe_excel_text
+from pyauditor.excel._workbook import create_sheet_atomic, force_recalc, unique_table_name
 from pyauditor.periodo import PeriodoAfericao
 
 __all__: Final[tuple[str, ...]] = ("has_required_columns", "write_sheet")
@@ -106,6 +107,9 @@ GREEN_FILL: Final = PatternFill("solid", fgColor="BBF7D0")
 RED_FILL: Final = PatternFill("solid", fgColor="FECACA")
 ORANGE_FILL: Final = PatternFill("solid", fgColor="FED7AA")
 BORDER: Final = Border(bottom=Side(style="thin", color="D1D5DB"))
+# Campos de preenchimento manual (justificativa/documento/evidência) que
+# devem continuar editáveis mesmo com a planilha protegida (ticket 20 / B-03).
+_UNLOCKED: Final = Protection(locked=False)
 
 # Colunas de apoio (dados brutos) — far à direita do conteúdo visível.
 _R, _S, _T, _U, _V, _W, _X, _Y, _Z, _AA, _AB, _AC, _AD, _AE, _AF, _AG, _AH, _AI = range(18, 36)
@@ -195,6 +199,24 @@ def _add_situacao_conditional_formatting(sheet: Worksheet, coordinate: str) -> N
     )
 
 
+def _protect_support_columns(sheet: Worksheet) -> None:
+    """Oculta as colunas de apoio (R:AM) e protege a aba contra edição
+    acidental das fórmulas — os únicos campos que continuam editáveis são
+    os marcados com `_UNLOCKED` (justificativa/documento/evidência de
+    preenchimento manual da auditoria, Seções 4 e 6). Sem senha: o
+    objetivo é reduzir edição acidental das fórmulas, não impedir edição
+    deliberada por quem tem o arquivo (ticket 20 / B-03). Não afeta a
+    leitura das fórmulas pelo pipeline — proteção de planilha do Excel só
+    bloqueia edição interativa, nunca o cálculo/leitura de valores por
+    openpyxl ou por qualquer motor de recálculo."""
+    for col in range(_R, _AM + 1):
+        sheet.column_dimensions[cl(col)].hidden = True
+    sheet.protection.sheet = True
+    sheet.protection.formatCells = False
+    sheet.protection.formatColumns = False
+    sheet.protection.formatRows = False
+
+
 def _build_grupo_rows(
     categorias_file: CategoriasFile,
     grupo_executor_entries: list[tuple[str, GrupoExecutorMode]],
@@ -210,12 +232,36 @@ def _build_grupo_rows(
     result: list[tuple[str, str, str]] = []
     for categoria_key, effective_values in per_categoria_values.items():
         categoria = categorias_file.categorias[categoria_key]
-        nivel = _NIVEL_BY_CATEGORIA.get(categoria_key, "")
+        nivel = _NIVEL_BY_CATEGORIA.get(categoria_key, _SEM_NIVEL)
         for grupo in sorted(effective_values):
             result.append((grupo, nivel, categoria.label))
     for grupo in sorted(outros_values):
         result.append((grupo, _SEM_NIVEL, _AUDIT_REVIEW_LABEL))
+    # Nota (ticket 14 / M-05): não há checagem extra de unicidade aqui —
+    # `compute_categoria_values`, chamada acima, já valida que nenhum grupo
+    # pertence a mais de uma categoria (in_values sobrepostos ou
+    # catch_all_contains sobrepondo in_values de outra categoria) e lança
+    # `ValueError` antes de `per_categoria_values`/`outros_values` existirem.
+    # Duplicar essa validação aqui seria código morto.
     return result
+
+
+def _normalize_no_prazo(row: dict[str, str]) -> str:
+    """Normaliza o campo "No prazo" do CSV bruto para exatamente "S" ou "N"
+    — sem isso, variações como "s", "Sim", "N/A" ou vazio entram no
+    denominador (IAP, via `COUNTA`/`ROWS`) mas não em nenhum dos dois
+    `COUNTIF` (dentro/fora do prazo), quebrando silenciosamente a
+    identidade IAP = dentro + fora. Local a este módulo: não há hoje outro
+    renderer ITSM reusando esse vocabulário S/N — ver nota de reuso em
+    `spec.md`."""
+    normalized = row[_NO_PRAZO_COLUMN].strip().upper()
+    if normalized not in {"S", "N"}:
+        num_solicitacao = row.get(_NUM_SOLICITACAO_COLUMN, "?")
+        raise ValueError(
+            f"Nº Solicitação {num_solicitacao!r}: valor de 'No prazo' inválido "
+            f"{row[_NO_PRAZO_COLUMN]!r} — esperado apenas 'S' ou 'N'"
+        )
+    return normalized
 
 
 def _write_raw_block(
@@ -236,13 +282,13 @@ def _write_raw_block(
         _Z: "Nível",
         _AA: "Categoria",
         _AB: "Limite contratual (abertura + prazo corrido)",
-        _AC: "Divergência de prazo",
+        _AC: "Limite ITSM superior ao contratual bruto",
         _AD: "No prazo (data limite ITSM)",
         _AE: "No prazo (controle contratual bruto)",
         _AF: "Atraso vs. limite ITSM (min)",
         _AG: "Duração criação→resolução (dias)",
         _AH: "Ordem — fora do prazo",
-        _AI: "Ordem — divergência de prazo",
+        _AI: "Ordem — limite ITSM superior ao contratual bruto",
         _AJ: "Situação dos dados",
     }
     note = sheet.cell(
@@ -301,7 +347,11 @@ def _write_raw_block(
             qualidade = "Data limite inválida"
         elif fim.is_malformed:
             qualidade = "Data de encerramento inválida"
-        elif solicitacao.value is not None and fim.value is not None and fim.value < solicitacao.value:
+        elif (
+            solicitacao.value is not None
+            and fim.value is not None
+            and fim.value < solicitacao.value
+        ):
             qualidade = "Encerramento anterior à abertura"
         else:
             qualidade = _DATA_QUALIDADE_OK
@@ -375,6 +425,7 @@ def _write_section_1_identificacao(
     contract: str,
     periodo: PeriodoAfericao | None,
     raw_csv_path: Path,
+    generated_at: datetime,
 ) -> None:
     sheet.merge_cells("A1:L1")
     t = sheet.cell(row=1, column=1, value="INMS 1.1 – Incidentes atendidos dentro do prazo")
@@ -397,10 +448,13 @@ def _write_section_1_identificacao(
     _label_value(sheet, 5, "Contrato:", safe_excel_text(contract), fill=GRAY_FILL)
     _label_value(
         sheet, 6, "Fonte dos dados:",
-        safe_excel_text(f"{raw_csv_path} ({len(rows)} registros brutos)"), fill=GRAY_FILL,
+        # Só o nome do arquivo, não o caminho completo — evita expor
+        # estrutura de diretório/usuário do ambiente que gerou a planilha
+        # (ticket 19 / B-02).
+        safe_excel_text(f"{raw_csv_path.name} ({len(rows)} registros brutos)"), fill=GRAY_FILL,
     )
     _label_value(
-        sheet, 7, "Data de geração:", datetime.now(), fmt=_DATETIME_FMT, fill=GRAY_FILL
+        sheet, 7, "Data de geração:", generated_at, fmt=_DATETIME_FMT, fill=GRAY_FILL
     )
     _label_value(sheet, 8, "Data de corte:", data_corte, fmt=data_corte_fmt, fill=GRAY_FILL)
     _label_value(sheet, 9, "Responsável pela elaboração:", "Não informado", fill=GRAY_FILL)
@@ -413,8 +467,9 @@ def _write_section_2_resumo(
     iadp: str,
     fora: str,
     meta_value: float,
-    target_operator: str,
-) -> None:
+) -> int:
+    """Seção de linhas fixas (11-14) — devolve `next_free_row` (16, fixo)
+    para a Seção 3."""
     _section_bar(sheet, 11, "SEÇÃO 2 · RESUMO EXECUTIVO")
     _header_row(
         sheet, 12,
@@ -429,20 +484,13 @@ def _write_section_2_resumo(
     # é resultado não mensurável; guardado para não propagar #DIV/0! e para
     # não afirmar "meta não atingida" indevidamente.
     sheet["E13"] = '=IF(B13=0,"Sem ocorrências",C13/B13)'
-    # `target_operator` só assume ">=" ou "<=" (validado no config Pydantic);
-    # o sinal da diferença e o sentido da situação seguem `meets_target`.
-    if target_operator == ">=":
-        sheet["F13"] = '=IF(B13=0,"",E13-A13)'
-        sheet["G13"] = (
-            '=IF(B13=0,"Sem ocorrências",'
-            'IF(E13>=A13,"Meta atingida","Meta não atingida"))'
-        )
-    else:
-        sheet["F13"] = '=IF(B13=0,"",A13-E13)'
-        sheet["G13"] = (
-            '=IF(B13=0,"Sem ocorrências",'
-            'IF(E13<=A13,"Meta atingida","Meta não atingida"))'
-        )
+    # Meta mínima ("`>=`") — único operador suportado por este renderer
+    # (validado em `_validate_write_sheet_params`, ticket 05 / A-03).
+    sheet["F13"] = '=IF(B13=0,"",E13-A13)'
+    sheet["G13"] = (
+        '=IF(B13=0,"Sem ocorrências",'
+        'IF(E13>=A13,"Meta atingida","Meta não atingida"))'
+    )
 
     sheet["A13"].number_format = _PCT2
     sheet["E13"].number_format = _PCT2
@@ -462,9 +510,12 @@ def _write_section_2_resumo(
     )
     pen_note.font = LABEL_FONT
     pen_note.fill = ORANGE_FILL
+    return 16
 
 
-def _write_section_3_memoria(sheet: Worksheet) -> None:
+def _write_section_3_memoria(sheet: Worksheet) -> int:
+    """Seção de linhas fixas (16-26) — devolve `next_free_row` (28, fixo)
+    para a Seção 4."""
     _section_bar(sheet, 16, "SEÇÃO 3 · MEMÓRIA DO CÁLCULO CONSOLIDADO")
     _label_value(sheet, 17, "IAP (incidentes abertos no período):", "=B13", fmt="0")
     _label_value(sheet, 18, "IADP (incidentes dentro do prazo):", "=C13", fmt="0")
@@ -506,6 +557,7 @@ def _write_section_3_memoria(sheet: Worksheet) -> None:
         f"IF(B25<0,{abaixo},IF(B25=0,{exato},{acima})))"
     )
     sheet["A26"].font = NOTE_FONT
+    return 28
 
 
 def _write_section_4_detalhamento(
@@ -513,17 +565,19 @@ def _write_section_4_detalhamento(
     *,
     grupo_rows: list[tuple[str, str, str]],
     rng: _ColumnRange,
+    start_row: int,
+    table_name: str,
 ) -> int:
-    """Devolve `last_group_row` — a última linha da tabela de grupos, usada
-    pela Seção 5 para calcular sua própria linha inicial."""
-    _section_bar(sheet, 28, "SEÇÃO 4 · DETALHAMENTO POR GRUPO EXECUTOR", last_col=12)
+    """Devolve `next_free_row` — a linha livre após a tabela de grupos,
+    usada pela Seção 5 como sua própria linha inicial."""
+    _section_bar(sheet, start_row, "SEÇÃO 4 · DETALHAMENTO POR GRUPO EXECUTOR", last_col=12)
     _header_row(
-        sheet, 29,
+        sheet, start_row + 1,
         ("Categoria", "Nível", "Grupo executor", "Linhas", "Dentro do prazo", "Fora do prazo",
          "% (dentro/linhas)", "Tempo médio", "Incluído no INMS?", "Justificativa de exclusão",
          "Documento autorizador", "Observação de auditoria"),
     )
-    first_group_row = 30
+    first_group_row = start_row + 2
     for offset, (grupo, nivel, categoria) in enumerate(grupo_rows):
         r = first_group_row + offset
         sheet.cell(row=r, column=1, value=safe_excel_text(categoria)).font = BODY_FONT
@@ -571,16 +625,21 @@ def _write_section_4_detalhamento(
             c.alignment = Alignment(wrap_text=True, vertical="top")
         for col in range(1, 13):
             sheet.cell(row=r, column=col).border = BORDER
+        # Campos de preenchimento manual da auditoria (justificativa/documento
+        # autorizador) permanecem editáveis quando a planilha for protegida
+        # (ticket 20 / B-03) — os demais campos desta seção são fórmulas.
+        just_cell.protection = _UNLOCKED
+        doc_cell.protection = _UNLOCKED
     last_group_row = first_group_row + len(grupo_rows) - 1
-    _add_table(sheet, "TabelaGrupoExecutor", f"A29:L{last_group_row}")
-    return last_group_row
+    _add_table(sheet, table_name, f"A{start_row + 1}:L{last_group_row}")
+    return last_group_row + 2
 
 
 def _write_section_5_subtotais(
     sheet: Worksheet, *, rng: _ColumnRange, start_row: int
 ) -> int:
-    """Devolve `check_row` — a linha da verificação cruzada Seção 5 vs.
-    Seção 2/3, usada como âncora da Seção 6."""
+    """Devolve `next_free_row` — a linha livre após as verificações
+    cruzadas da seção, usada pela Seção 6 como sua própria linha inicial."""
     sub_bar_row = start_row
     _section_bar(
         sheet, sub_bar_row, "SEÇÃO 5 · SUBTOTAIS POR NÍVEL (informação gerencial)", last_col=6
@@ -604,7 +663,7 @@ def _write_section_5_subtotais(
             value=f'=IF(B{r}=0,"—",AVERAGEIFS({rng(_AG)},{rng(_Z)},"{nivel_label}"))',
         )
         tempo.number_format = _DUR
-        for c in (linhas, dentro, fora_c):
+        for c in (linhas, dentro, fora_c, pct, tempo):
             c.font = BODY_FONT
         for col in range(1, 7):
             sheet.cell(row=r, column=col).border = BORDER
@@ -673,7 +732,29 @@ def _write_section_5_subtotais(
     sheet.conditional_formatting.add(
         chk.coordinate, CellIsRule(operator="equal", formula=['"DIVERGÊNCIA"'], fill=RED_FILL)  # type: ignore[no-untyped-call]
     )
-    return check_row
+
+    # IAP = dentro do prazo + fora do prazo (ticket 06 / A-04) — se algum
+    # valor de "No prazo" escapasse à normalização de `_normalize_no_prazo`,
+    # essa identidade quebraria silenciosamente (o registro entraria no IAP
+    # sem entrar em nenhum dos dois `COUNTIF`); mantida como cinto e
+    # suspensório mesmo com a validação na fronteira.
+    check2_row = check_row + 1
+    sheet[f"A{check2_row}"] = "Verificação (IAP = dentro do prazo + fora do prazo):"
+    sheet[f"A{check2_row}"].font = LABEL_FONT
+    chk2 = sheet.cell(
+        row=check2_row,
+        column=2,
+        value='=IF(B13=C13+D13,"OK","DIVERGÊNCIA DE CLASSIFICAÇÃO")',
+    )
+    chk2.font = Font(bold=True)
+    sheet.conditional_formatting.add(
+        chk2.coordinate, CellIsRule(operator="equal", formula=['"OK"'], fill=GREEN_FILL)  # type: ignore[no-untyped-call]
+    )
+    sheet.conditional_formatting.add(
+        chk2.coordinate,
+        CellIsRule(operator="equal", formula=['"DIVERGÊNCIA DE CLASSIFICAÇÃO"'], fill=RED_FILL),  # type: ignore[no-untyped-call]
+    )
+    return check2_row + 2
 
 
 def _write_section_6_fora_prazo(
@@ -682,9 +763,11 @@ def _write_section_6_fora_prazo(
     rows: list[dict[str, str]],
     rng: _ColumnRange,
     start_row: int,
+    table_name: str,
 ) -> int:
-    """Devolve `fora_last` — última linha ocupada (nota "nenhum incidente"
-    ou última linha da tabela), usada como âncora da Seção 7."""
+    """Devolve `next_free_row` — a linha livre após a nota "nenhum
+    incidente" ou após a tabela, usada pela Seção 7 como sua própria linha
+    inicial."""
     s6_bar = start_row
     _section_bar(sheet, s6_bar, "SEÇÃO 6 · INCIDENTES FORA DO PRAZO", last_col=11)
     _header_row(
@@ -703,7 +786,7 @@ def _write_section_6_fora_prazo(
         sheet.merge_cells(f"A{fora_first}:K{fora_first}")
         sheet[f"A{fora_first}"] = "Nenhum incidente fora do prazo no período."
         sheet[f"A{fora_first}"].font = NOTE_FONT
-        return fora_first
+        return fora_first + 2
 
     for n in range(1, fora_count + 1):
         r = fora_first + n - 1
@@ -727,9 +810,15 @@ def _write_section_6_fora_prazo(
             c.font = BODY_FONT
             c.border = BORDER
         c1.fill = RED_FILL
+        # Justificativa/aceite/evidência são preenchimento manual da
+        # auditoria — permanecem editáveis com a planilha protegida
+        # (ticket 20 / B-03).
+        c9.protection = _UNLOCKED
+        c10.protection = _UNLOCKED
+        c11.protection = _UNLOCKED
     fora_last = fora_first + fora_count - 1
-    _add_table(sheet, "TabelaForaDoPrazo", f"A{s6_bar + 1}:K{fora_last}")
-    return fora_last
+    _add_table(sheet, table_name, f"A{s6_bar + 1}:K{fora_last}")
+    return fora_last + 2
 
 
 def _write_section_7_auditoria(
@@ -737,11 +826,12 @@ def _write_section_7_auditoria(
     *,
     rows: list[dict[str, str]],
     rng: _ColumnRange,
-    target_operator: str,
     start_row: int,
+    table_name: str,
 ) -> int:
-    """Devolve `sample_note_row` — última linha da amostra de divergências
-    (ou da nota "nenhuma divergência"), usada como âncora da Seção 8."""
+    """Devolve `next_free_row` — a linha livre após a amostra (ou após a
+    nota "nenhuma divergência"), usada pela Seção 8 como sua própria linha
+    inicial."""
     s7_bar = start_row
     _section_bar(sheet, s7_bar, "SEÇÃO 7 · AUDITORIA DO PRAZO CONTRATUAL", last_col=7)
     sheet.cell(row=s7_bar + 1, column=1, value="Controles de resultado").font = LABEL_FONT
@@ -766,10 +856,9 @@ def _write_section_7_auditoria(
         sheet.cell(row=r, column=1).alignment = Alignment(wrap_text=True)
         val = sheet.cell(row=r, column=2, value=f'=IF(B13=0,"Sem ocorrências",{division})')
         val.number_format = _PCT4
-        meets = f"B{r}>=A13" if target_operator == ">=" else f"B{r}<=A13"
         sit_formula = (
             f'=IF(B13=0,"Não aplicável",'
-            f'IF({meets},"Meta atingida","Meta não atingida"))'
+            f'IF(B{r}>=A13,"Meta atingida","Meta não atingida"))'
         )
         sit = sheet.cell(row=r, column=3, value=sit_formula)
         val.font = BODY_FONT
@@ -782,13 +871,15 @@ def _write_section_7_auditoria(
     sheet.cell(
         row=div_header_row, column=1,
         value=(
-            f"Divergência de prazo (limite registrado no ITSM vs. abertura + "
-            f"{_PRAZO_HORAS_CORRIDAS:g}h corridas)"
+            f"Limite ITSM superior ao prazo contratual bruto (abertura + "
+            f"{_PRAZO_HORAS_CORRIDAS:g}h corridas) — comparação unidirecional: só "
+            f"sinaliza prorrogação, não limite ITSM mais rígido que o contratual"
         ),
     ).font = LABEL_FONT
     div_count_row = div_header_row + 1
     sheet.cell(
-        row=div_count_row, column=1, value="Registros com limite divergente:"
+        row=div_count_row, column=1,
+        value="Registros com limite ITSM superior ao contratual bruto:",
     ).font = BODY_FONT
     div_count = sheet.cell(row=div_count_row, column=2, value=f'=COUNTIF({rng(_AC)},"Sim")')
     div_count.font = Font(bold=True)
@@ -806,11 +897,12 @@ def _write_section_7_auditoria(
     note_row7 = div_count_row + 1
     sheet.merge_cells(f"A{note_row7}:L{note_row7}")
     sheet[f"A{note_row7}"] = (
-        "Divergências entre o limite registrado no ITSM e abertura + prazo corrido não "
-        "são presumidas válidas nem inválidas aqui: quando o percentual acima for "
+        "Casos em que o limite registrado no ITSM é superior ao limite contratual bruto "
+        "não são presumidos válidos nem inválidos aqui: quando o percentual acima for "
         "relevante, solicite o histórico de pausa/suspensão/reclassificação do SLA ou a "
         "norma de calendário aplicada para confirmar a compatibilidade com a cláusula "
-        "contratual de prazo corrido."
+        "contratual de prazo corrido. Um limite ITSM inferior ao contratual bruto não é "
+        "sinalizado — é mais rígido que o exigido, não uma violação."
     )
     sheet[f"A{note_row7}"].font = Font(name="Arial", size=10, bold=True, color="9A3412")
     sheet[f"A{note_row7}"].fill = ORANGE_FILL
@@ -831,13 +923,18 @@ def _write_section_7_auditoria(
     sample_header_row = note_row7 + 2
     if sample_size == 0:
         sheet.merge_cells(f"A{sample_header_row}:F{sample_header_row}")
-        sheet[f"A{sample_header_row}"] = "Nenhuma divergência de prazo encontrada no período."
+        sheet[f"A{sample_header_row}"] = (
+            "Nenhum limite ITSM superior ao contratual bruto encontrado no período."
+        )
         sheet[f"A{sample_header_row}"].font = NOTE_FONT
-        return sample_header_row
+        return sample_header_row + 2
 
     sheet.cell(
         row=sample_header_row, column=1,
-        value=f"Amostra de divergências ({sample_size} primeiras, ordenadas por ocorrência)",
+        value=(
+            f"Amostra de limites ITSM superiores ao contratual bruto "
+            f"({sample_size} primeiros, ordenados por ocorrência)"
+        ),
     ).font = LABEL_FONT
     _header_row(
         sheet, sample_header_row + 1,
@@ -870,21 +967,21 @@ def _write_section_7_auditoria(
             c.font = BODY_FONT
             c.border = BORDER
     sample_last = sample_first + sample_size - 1
-    _add_table(sheet, "TabelaAmostraDivergencias", f"A{sample_header_row + 1}:F{sample_last}")
+    _add_table(sheet, table_name, f"A{sample_header_row + 1}:F{sample_last}")
     sample_note_row = sample_last + 1
     sheet.merge_cells(f"A{sample_note_row}:F{sample_note_row}")
     sheet[f"A{sample_note_row}"] = (
         f'=CONCATENATE("Amostra limitada às {sample_size} primeiras ocorrências de ",'
-        f'B{div_count_row},"registros divergentes — colunas de apoio desta aba (coluna AC) '
-        f'permitem reproduzir a lista completa.")'
+        f'B{div_count_row}," registros com limite ITSM superior ao contratual bruto — '
+        f'colunas de apoio desta aba (coluna AC) permitem reproduzir a lista completa.")'
     )
     sheet[f"A{sample_note_row}"].font = NOTE_FONT
-    return sample_note_row
+    return sample_note_row + 2
 
 
 def _write_section_8_tempo(sheet: Worksheet, *, rng: _ColumnRange, start_row: int) -> int:
-    """Devolve `note8` — a linha da nota de rodapé da seção, usada como
-    âncora da Seção 9."""
+    """Devolve `next_free_row` — a linha livre após a nota de rodapé da
+    seção, usada pela Seção 9 como sua própria linha inicial."""
     s8_bar = start_row
     _section_bar(sheet, s8_bar, "SEÇÃO 8 · TEMPO CORRIDO MÉDIO ATÉ A RESOLUÇÃO", last_col=6)
     _label_value(
@@ -895,30 +992,55 @@ def _write_section_8_tempo(sheet: Worksheet, *, rng: _ColumnRange, start_row: in
         sheet, s8_bar + 2, "Mediana do tempo corrido até a resolução:",
         f"=MEDIAN({rng(_AG)})", fmt=_DUR,
     )
-    atraso_row = s8_bar + 3
+    # M-01: `_AG` já devolve "" (texto, ignorado por AVERAGE/MEDIAN) para
+    # linhas com data ausente/malformada ou encerramento anterior à
+    # abertura — mas isso ficava implícito; expõe a contagem de linhas
+    # rejeitadas para que a média/mediana acima não pareça cobrir 100% dos
+    # incidentes sem dizer quantos foram excluídos.
+    rejeitados_row = s8_bar + 3
+    sheet.cell(
+        row=rejeitados_row, column=1,
+        value=(
+            "Registros excluídos da média/mediana (data ausente/inválida ou "
+            "encerramento antes da abertura):"
+        ),
+    ).font = LABEL_FONT
+    rejeitados_cell = sheet.cell(
+        row=rejeitados_row, column=2, value=f'=COUNTIF({rng(_AG)},"")'
+    )
+    rejeitados_cell.font = BODY_FONT
+    atraso_row = s8_bar + 4
     sheet.cell(
         row=atraso_row, column=1,
         value="Atraso médio dos registros fora do prazo (vs. limite ITSM, minutos):",
     ).font = LABEL_FONT
+    # M-02: seleciona pela coluna calculada `_AD` ("No prazo (data limite
+    # ITSM)"), não pela classificação do fornecedor (`_X`) — consistente
+    # com o rótulo "vs. limite ITSM"; guarda contra #DIV/0! quando não há
+    # nenhum registro fora do prazo por esse critério.
     atraso_cell = sheet.cell(
-        row=atraso_row, column=2, value=f'=AVERAGEIF({rng(_X)},"N",{rng(_AF)})'
+        row=atraso_row,
+        column=2,
+        value=(
+            f'=IF(COUNTIF({rng(_AD)},"N")=0,"Sem atrasos",'
+            f'AVERAGEIF({rng(_AD)},"N",{rng(_AF)}))'
+        ),
     )
     atraso_cell.number_format = "0.0"
     atraso_cell.font = BODY_FONT
-    note8 = s8_bar + 4
+    note8 = s8_bar + 5
     sheet.merge_cells(f"A{note8}:F{note8}")
     sheet[f"A{note8}"] = (
         "O tempo corrido médio é indicador gerencial complementar — não substitui a "
         "verificação linha-a-linha do campo 'No prazo' para o cálculo do INMS 1.1."
     )
     sheet[f"A{note8}"].font = NOTE_FONT
-    return note8
+    return note8 + 2
 
 
 def _write_section_9_penalidade(
     sheet: Worksheet,
     *,
-    target_operator: str,
     penalty_base_points: float,
     penalty_step_points: float,
     penalty_step_size_pct: float,
@@ -929,9 +1051,8 @@ def _write_section_9_penalidade(
     _label_value(sheet, s9_bar + 1, "Meta:", "=A13", fmt=_PCT4)
     _label_value(sheet, s9_bar + 2, "Resultado:", "=E13", fmt=_PCT4)
     diff9_row = s9_bar + 3
-    diff_formula = (
-        '=IF(B13=0,"",A13-E13)' if target_operator == ">=" else '=IF(B13=0,"",E13-A13)'
-    )
+    # Meta mínima ("`>=`") — único operador suportado por este renderer.
+    diff_formula = '=IF(B13=0,"",A13-E13)'
     _label_value(sheet, diff9_row, "Diferença (Meta - Resultado):", diff_formula, fmt=_PCT4)
     diffpp_row = diff9_row + 1
     _label_value(
@@ -940,7 +1061,7 @@ def _write_section_9_penalidade(
         fmt="0.0000",
     )
     base_row = diffpp_row + 1
-    below_target = "E13<A13" if target_operator == ">=" else "E13>A13"
+    below_target = "E13<A13"
     _label_value(
         sheet, base_row, "Penalidade-base:",
         f'=IF(B13=0,"Não aplicável",IF({below_target},{penalty_base_points:g},0))', fmt="0",
@@ -994,6 +1115,42 @@ def _write_section_9_penalidade(
     sheet[f"A{final_note_row}"].font = NOTE_FONT
 
 
+def _validate_write_sheet_params(
+    *,
+    target_operator: str,
+    target_value: float,
+    penalty_base_points: float,
+    penalty_step_points: float,
+    penalty_step_size_pct: float,
+) -> None:
+    """Validação na fronteira de `write_sheet()` — a função é pública e
+    aceita `str`/`float` irrestritos; o Pydantic (`config/models.py`) já
+    valida esses mesmos limites quando os parâmetros vêm de um YAML de
+    config, mas nada impede uma chamada direta com valores fora de faixa."""
+    # A2-03: a memória de cálculo (Seção 3) e a penalidade (Seção 9) só têm
+    # semântica de "quantidade mínima dentro do prazo"/"diferença Meta -
+    # Resultado" para meta mínima (`>=`); nenhum uso real do INMS 1.1 hoje
+    # é meta-teto (`<=`), então restringimos aqui em vez de manter as duas
+    # narrativas coerentes ao mesmo tempo — ver ticket 05 (A-03).
+    if target_operator != ">=":
+        raise ValueError(
+            f"target_operator {target_operator!r} não suportado por este renderer — "
+            "a aba enriquecida do INMS 1.1 assume meta mínima ('>='); para meta-teto "
+            "('<='), use o renderer genérico (_write_grupo_executor_sheet)"
+        )
+    if not 0 <= target_value <= 100:
+        raise ValueError(f"target_value {target_value!r} fora da faixa 0–100")
+    if penalty_base_points < 0:
+        raise ValueError(f"penalty_base_points {penalty_base_points!r} não pode ser negativo")
+    if penalty_step_points < 0:
+        raise ValueError(f"penalty_step_points {penalty_step_points!r} não pode ser negativo")
+    if penalty_step_size_pct <= 0:
+        raise ValueError(
+            f"penalty_step_size_pct {penalty_step_size_pct!r} deve ser positivo — "
+            "usado como divisor nas fórmulas da Seção 9"
+        )
+
+
 def write_sheet(
     workbook: Workbook,
     sheet_name: str,
@@ -1011,54 +1168,82 @@ def write_sheet(
     contract: str,
     periodo: PeriodoAfericao | None,
     raw_csv_path: Path,
+    generated_at: datetime,
 ) -> None:
     del whole_indicator_entries  # categorias.yaml não usa whole_indicator para 1.1 hoje
     del fieldnames  # validado por has_required_columns antes de chamar
 
-    sheet = workbook.create_sheet(sheet_name)
-    sheet.sheet_view.showGridLines = False
-    for col, width in {
-        1: 42, 2: 24, 3: 16, 4: 12, 5: 14, 6: 12, 7: 12, 8: 16, 9: 14, 10: 34, 11: 20, 12: 40,
-    }.items():
-        sheet.column_dimensions[cl(col)].width = width
-
-    last_row = 1 + len(rows)
-    real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
-    grupo_rows = _build_grupo_rows(categorias_file, grupo_executor_entries, real_values)
-    _write_raw_block(sheet, rows, grupo_rows, last_row)
-
-    def rng(col: int) -> str:
-        return _raw_range(col, last_row)
-
-    iap = f"COUNTA({rng(_R)})"
-    iadp = f'COUNTIF({rng(_X)},"S")'
-    fora = f'COUNTIF({rng(_X)},"N")'
-    meta_value = target_value / 100
-
-    _write_section_1_identificacao(
-        sheet, rows=rows, contract=contract, periodo=periodo, raw_csv_path=raw_csv_path
-    )
-    _write_section_2_resumo(
-        sheet, iap=iap, iadp=iadp, fora=fora, meta_value=meta_value,
+    _validate_write_sheet_params(
         target_operator=target_operator,
-    )
-    _write_section_3_memoria(sheet)
-    last_group_row = _write_section_4_detalhamento(sheet, grupo_rows=grupo_rows, rng=rng)
-    check_row = _write_section_5_subtotais(sheet, rng=rng, start_row=last_group_row + 2)
-    fora_last = _write_section_6_fora_prazo(
-        sheet, rows=rows, rng=rng, start_row=check_row + 2
-    )
-    sample_note_row = _write_section_7_auditoria(
-        sheet, rows=rows, rng=rng, target_operator=target_operator, start_row=fora_last + 2
-    )
-    note8 = _write_section_8_tempo(sheet, rng=rng, start_row=sample_note_row + 2)
-    _write_section_9_penalidade(
-        sheet,
-        target_operator=target_operator,
+        target_value=target_value,
         penalty_base_points=penalty_base_points,
         penalty_step_points=penalty_step_points,
         penalty_step_size_pct=penalty_step_size_pct,
-        start_row=note8 + 2,
     )
 
-    sheet.freeze_panes = "A2"
+    rows = [{**row, _NO_PRAZO_COLUMN: _normalize_no_prazo(row)} for row in rows]
+
+    with create_sheet_atomic(workbook, sheet_name) as sheet:
+        sheet.sheet_view.showGridLines = False
+        for col, width in {
+            1: 42, 2: 24, 3: 16, 4: 12, 5: 14, 6: 12, 7: 12, 8: 16, 9: 14, 10: 34, 11: 20, 12: 40,
+        }.items():
+            sheet.column_dimensions[cl(col)].width = width
+
+        last_row = 1 + len(rows)
+        real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
+        grupo_rows = _build_grupo_rows(categorias_file, grupo_executor_entries, real_values)
+        _write_raw_block(sheet, rows, grupo_rows, last_row)
+
+        def rng(col: int) -> str:
+            return _raw_range(col, last_row)
+
+        iap = f"ROWS({rng(_R)})"
+        iadp = f'COUNTIF({rng(_X)},"S")'
+        fora = f'COUNTIF({rng(_X)},"N")'
+        meta_value = target_value / 100
+
+        table_names = {
+            "grupo_executor": unique_table_name(workbook, "TabelaGrupoExecutor"),
+            "fora_do_prazo": unique_table_name(workbook, "TabelaForaDoPrazo"),
+            "amostra_divergencias": unique_table_name(workbook, "TabelaAmostraDivergencias"),
+        }
+
+        _write_section_1_identificacao(
+            sheet,
+            rows=rows,
+            contract=contract,
+            periodo=periodo,
+            raw_csv_path=raw_csv_path,
+            generated_at=generated_at,
+        )
+        next_row = _write_section_2_resumo(
+            sheet, iap=iap, iadp=iadp, fora=fora, meta_value=meta_value,
+        )
+        next_row = _write_section_3_memoria(sheet)
+        next_row = _write_section_4_detalhamento(
+            sheet, grupo_rows=grupo_rows, rng=rng, start_row=next_row,
+            table_name=table_names["grupo_executor"],
+        )
+        next_row = _write_section_5_subtotais(sheet, rng=rng, start_row=next_row)
+        next_row = _write_section_6_fora_prazo(
+            sheet, rows=rows, rng=rng, start_row=next_row,
+            table_name=table_names["fora_do_prazo"],
+        )
+        next_row = _write_section_7_auditoria(
+            sheet, rows=rows, rng=rng, start_row=next_row,
+            table_name=table_names["amostra_divergencias"],
+        )
+        next_row = _write_section_8_tempo(sheet, rng=rng, start_row=next_row)
+        _write_section_9_penalidade(
+            sheet,
+            penalty_base_points=penalty_base_points,
+            penalty_step_points=penalty_step_points,
+            penalty_step_size_pct=penalty_step_size_pct,
+            start_row=next_row,
+        )
+
+        _protect_support_columns(sheet)
+        sheet.freeze_panes = "A2"
+
+    force_recalc(workbook)

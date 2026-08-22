@@ -728,12 +728,18 @@ def write_sintetico_workbook(
     capa_path: Path | None = None,
     equipe_path: Path | None = None,
     objetos_path: Path | None = None,
+    generated_at: datetime | None = None,
 ) -> list[str]:
     """Constrói e grava `sintetico.xlsx` de um órgão/competência. Devolve
     warnings (nunca lança por causa do problema de um único INMS — um
     config ruim ou um dataset genuinamente ausente pula/degrada a aba
-    daquele INMS em vez de derrubar o workbook inteiro)."""
+    daquele INMS em vez de derrubar o workbook inteiro).
+
+    `generated_at` (default `datetime.now()`, resolvido uma única vez aqui)
+    é repassado à aba enriquecida do INMS 1.1 — injetável para permitir
+    teste determinístico sem depender do relógio real (ticket 18 / B-01)."""
     warnings: list[str] = []
+    generated_at = generated_at if generated_at is not None else datetime.now()
 
     per_inms: dict[str, list[tuple[str, GrupoExecutorMode | WholeIndicatorMode]]] = {}
     for categoria_key, categoria in categorias_file.categorias.items():
@@ -887,23 +893,47 @@ def write_sintetico_workbook(
                 # tem as colunas de detalhe (produção real, ambos os
                 # órgãos); CSVs minimalistas (ex. fixtures de teste) caem no
                 # renderer genérico abaixo, sem degradar silenciosamente.
-                inms_1_1_audit.write_sheet(
-                    workbook,
-                    sheet_name,
-                    categorias_file=categorias_file,
-                    grupo_executor_entries=grupo_executor_entries,
-                    whole_indicator_entries=whole_indicator_entries,
-                    fieldnames=fieldnames,
-                    rows=rows,
-                    target_operator=base_config.target.operator,
-                    target_value=base_config.target.value,
-                    penalty_base_points=base_config.penalty.base_points,
-                    penalty_step_points=base_config.penalty.step_points,
-                    penalty_step_size_pct=base_config.penalty.step_size_pct,
-                    contract=base_config.scope.contract,
-                    periodo=periodo,
-                    raw_csv_path=raw_csv_path,
-                )
+                try:
+                    inms_1_1_audit.write_sheet(
+                        workbook,
+                        sheet_name,
+                        categorias_file=categorias_file,
+                        grupo_executor_entries=grupo_executor_entries,
+                        whole_indicator_entries=whole_indicator_entries,
+                        fieldnames=fieldnames,
+                        rows=rows,
+                        target_operator=base_config.target.operator,
+                        target_value=base_config.target.value,
+                        penalty_base_points=base_config.penalty.base_points,
+                        penalty_step_points=base_config.penalty.step_points,
+                        penalty_step_size_pct=base_config.penalty.step_size_pct,
+                        contract=base_config.scope.contract,
+                        periodo=periodo,
+                        raw_csv_path=raw_csv_path,
+                        generated_at=generated_at,
+                    )
+                except ValueError as exc:
+                    # Falha de validação/qualidade de dado específica da aba
+                    # enriquecida (ex.: "No prazo" com valor fora de S/N,
+                    # target_operator "<=" não suportado, grupo mapeado em
+                    # mais de uma categoria) não deve derrubar o restante do
+                    # workbook — degrada para o renderer genérico, como as
+                    # demais falhas por-INMS deste loop.
+                    warning = (
+                        f"sintetico.xlsx: INMS {inms_key}: falha ao gerar aba enriquecida "
+                        f"do INMS 1.1 ({exc}) — usando renderer genérico"
+                    )
+                    warnings.append(warning)
+                    _write_grupo_executor_sheet(
+                        workbook,
+                        sheet_name,
+                        categorias_file,
+                        grupo_executor_entries,
+                        whole_indicator_entries,
+                        fieldnames,
+                        rows,
+                        accepted_ids,
+                    )
             else:
                 _write_grupo_executor_sheet(
                     workbook,
