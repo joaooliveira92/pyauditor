@@ -4,7 +4,7 @@
 
 **Linhas afetadas:** 202.
 
-**Status:** needs-triage
+**Status:** resolved
 
 ## Problema
 
@@ -28,5 +28,16 @@ explicitamente em vez de usar um default silencioso.
 
 ## Critério de aceite
 
-- [ ] `_build_grupo_rows()` usa `_SEM_NIVEL` (ou falha) para categoria sem nível configurado
-- [ ] Teste: categoria conhecida sem nível configurado (matriz de testes do spec.md)
+- [x] `_build_grupo_rows()` usa `_SEM_NIVEL` (ou falha) para categoria sem nível configurado
+- [x] Teste: categoria conhecida sem nível configurado (matriz de testes do spec.md)
+
+## Answer
+
+Correção exatamente como sugerida: `_NIVEL_BY_CATEGORIA.get(categoria_key, "")`
+→ `_NIVEL_BY_CATEGORIA.get(categoria_key, _SEM_NIVEL)`. Uma linha.
+
+Teste: `test_categoria_sem_nivel_configurado_usa_sem_nivel_sentinela` em
+`tests/test_inms_1_1_audit.py`, com um `categorias.yaml` de duas categorias
+(`ATENDIMENTO_N1`, presente em `_NIVEL_BY_CATEGORIA`, e `SUPORTE_ESPECIAL`,
+ausente) — confirma que a linha do grupo mapeado em `SUPORTE_ESPECIAL` recebe
+`_SEM_NIVEL` ("—"), não `""`, na coluna "Nível" da Seção 4.

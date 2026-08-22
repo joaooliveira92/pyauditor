@@ -2,7 +2,7 @@
 
 **Severidade:** Média
 
-**Status:** needs-triage
+**Status:** resolved
 
 ## Problema
 
@@ -30,5 +30,22 @@ def create_sheet_atomic(workbook: Workbook, sheet_name: str) -> Iterator[Workshe
 
 ## Critério de aceite
 
-- [ ] `create_sheet_atomic()` implementado em `excel/_workbook.py` e usado por `write_sheet()`
-- [ ] Teste: erro forçado no meio da escrita não deixa aba parcial no workbook
+- [x] `create_sheet_atomic()` implementado em `excel/_workbook.py` e usado por `write_sheet()`
+- [x] Teste: erro forçado no meio da escrita não deixa aba parcial no workbook
+
+## Answer
+
+Implementado como sugerido: `create_sheet_atomic()` em `excel/_workbook.py`
+cria a aba, entrega ao bloco `with`, e remove a aba do workbook se qualquer
+exceção escapar. `write_sheet()` envolve toda a escrita das 9 seções nesse
+`with` — `force_recalc(workbook)` fica de propósito fora do bloco, depois que
+a aba já está completa.
+
+Testes: `test_create_sheet_atomic_yields_usable_sheet` e
+`test_create_sheet_atomic_removes_sheet_on_failure` em
+`tests/test_excel_workbook.py` (unitários do context manager); e
+`test_write_sheet_atomic_rollback_on_duplicate_grupo` em
+`tests/test_inms_1_1_audit.py`, que força o erro real do ticket 14 (M-05,
+grupo mapeado em duas categorias, propagado por `compute_categoria_values`)
+no meio da escrita de `write_sheet()` e confirma que o workbook não fica com
+a aba `"INMS 1.1"` parcialmente criada.

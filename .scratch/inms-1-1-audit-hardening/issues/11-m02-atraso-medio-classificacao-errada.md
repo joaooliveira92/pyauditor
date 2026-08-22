@@ -4,7 +4,7 @@
 
 **Linhas afetadas:** 839–840.
 
-**Status:** needs-triage
+**Status:** resolved
 
 ## Problema
 
@@ -21,6 +21,21 @@ seleção para a coluna calculada (`_AD`), consistente com o rótulo "atraso mé
 
 ## Critério de aceite
 
-- [ ] Decisão registrada: renomear label ou trocar critério de seleção para `_AD`
-- [ ] Fórmula/label atualizados de forma consistente
-- [ ] Teste: caso com divergência entre classificação do fornecedor e cálculo ITSM cobre o comportamento escolhido
+- [x] Decisão registrada: renomear label ou trocar critério de seleção para `_AD`
+- [x] Fórmula/label atualizados de forma consistente
+- [x] Teste: caso com divergência entre classificação do fornecedor e cálculo ITSM cobre o comportamento escolhido
+
+## Answer
+
+Decisão: trocar o critério de seleção para a coluna calculada `_AD` ("No prazo
+— data limite ITSM"), não renomear o label. O label já diz "vs. limite ITSM";
+selecionar por `_X` ("No prazo (fornecedor)") contradizia o próprio label — a
+fórmula agora é `=IF(COUNTIF($AD$2:$AD$N,"N")=0,"Sem atrasos",AVERAGEIF($AD$2:$AD$N,"N",$AF$2:$AF$N))`.
+De brinde, isso também corrige um `#DIV/0!` que existia mesmo antes deste
+ticket (`AVERAGEIF` sem nenhuma correspondência gera erro, e não havia guarda
+— um caso de div-por-zero que a auditoria original do ticket 03/A-01 não
+cobria porque não depende de `B13`).
+
+Teste: `test_atraso_medio_uses_itsm_calculated_column` em
+`tests/test_inms_1_1_audit.py`, verificando que a fórmula referencia `$AD$2:$AD$5`
+e não `$X$2:$X$5`, e que tem a guarda `"Sem atrasos"`.

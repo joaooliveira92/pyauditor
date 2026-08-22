@@ -4,7 +4,7 @@
 
 **Linhas afetadas:** 311–313, 758–764.
 
-**Status:** needs-triage
+**Status:** resolved
 
 ## Problema
 
@@ -25,6 +25,31 @@ Decidir a semântica correta com o dono do domínio e então:
 
 ## Critério de aceite
 
-- [ ] Semântica decidida e documentada
-- [ ] Fórmula e/ou nome da coluna ajustados de forma consistente com a decisão
-- [ ] Teste cobrindo o caso de limite ITSM menor que o contratual bruto
+- [x] Semântica decidida e documentada
+- [x] Fórmula e/ou nome da coluna ajustados de forma consistente com a decisão
+- [x] Teste cobrindo o caso de limite ITSM menor que o contratual bruto
+
+## Answer
+
+Decisão: manter unidirecional (só sinalizar prorrogação indevida — limite ITSM
+maior que o contratual bruto), renomear em vez de tornar bidirecional. Um
+limite ITSM *menor* que o contratual bruto é mais rígido que o exigido
+contratualmente — não é uma violação, é o fornecedor sendo mais restritivo do
+que precisava; sinalizar isso como "divergência" no mesmo sentido que uma
+prorrogação indevida confundiria o auditor sobre qual dos dois casos precisa de
+atenção.
+
+Renomeações: cabeçalho da coluna `_AC` ("Divergência de prazo" →
+"Limite ITSM superior ao contratual bruto"), cabeçalho da coluna de ordenação
+`_AI` ("Ordem — divergência de prazo" → "Ordem — limite ITSM superior ao
+contratual bruto"), rótulos da Seção 7 ("Registros com limite divergente:" →
+"Registros com limite ITSM superior ao contratual bruto:", título da amostra,
+nota explicativa reforçando que "um limite ITSM inferior ao contratual bruto
+não é sinalizado"). A fórmula em si (`vc > abc + tolerância` → "Sim"/"Não") não
+mudou — já era unidirecional, só o nome não deixava isso explícito.
+
+Testes: `test_limite_itsm_column_renamed_unidirectional` (novo cabeçalho da
+coluna `AC`) e `test_limite_itsm_menor_que_contratual_bruto_nao_e_sinalizado`
+(limite ITSM de 1h, mais rígido que o contratual bruto de 2h — a amostra de
+divergências da Seção 7, cuja contagem é calculada em Python e não depende de
+recálculo de fórmula, permanece vazia) em `tests/test_inms_1_1_audit.py`.
