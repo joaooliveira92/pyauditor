@@ -1,8 +1,11 @@
 """`sintetico.xlsx` (spec §14.4, ticket 05) — um workbook por órgão/
 competência, uma aba por INMS com entrada em `categorias.yaml` (exclui
-1.8/1.10, que não têm entrada nenhuma), mais a aba "Prazos" (a pedido do
-usuário) reproduzindo `input/prazos.csv` verbatim como a primeira aba
-quando `prazos_path` é passado.
+1.8/1.10, que não têm entrada nenhuma), mais quatro abas opcionais que
+reproduzem `input/{capa,equipe,objetos,prazos}.csv` verbatim (cabeçalho +
+linhas, sem processamento) — "Capa", "Equipe", "Objetos" e "Prazos", nessa
+ordem, cada uma só quando o respectivo `*_path` é passado. Como são
+escritas antes do laço de INMS, acabam sendo as primeiras abas do
+workbook.
 
 Contagens são brutas/pré-quality-gate — conferência rápida, não substitui o
 ROM da categoria. A única exceção é `Tempo médio criação→resolução`,
@@ -33,6 +36,15 @@ categoria: sua aba troca a coluna `Grupo executor` por `Ativo`, lida do
 sem recalcular nada), e agrupa/subtotaliza por Categoria em vez de Nível
 (as duas categorias que o 1.14 integra são ambas N3 — subtotalizar por
 Nível não distinguiria nada).
+
+INMS 1.1 tem um terceiro renderer dedicado, em `excel/inms_1_1_audit.py`:
+resumo executivo, memória de cálculo, incidentes fora do prazo e auditoria
+de prazo contratual, tudo via fórmulas do Excel sobre os dados brutos
+embutidos na própria aba (não valores pré-calculados em Python). Só entra
+em jogo quando o CSV bruto tem as colunas de detalhe de produção (`Nº
+Solicitacao`, `Atividades`, `DataHoraLimite`, `TecnicoExecutor` — ver
+`inms_1_1_audit.has_required_columns`); CSVs minimalistas (fixtures de
+teste) caem no `_write_grupo_executor_sheet` genérico abaixo, como antes.
 """
 
 from __future__ import annotations
@@ -65,12 +77,22 @@ from pyauditor.engine.quality_gates import QualityGateRunner
 from pyauditor.engine.strategies._filters import filter_rows
 from pyauditor.engine.strategies._numbers import parse_decimal
 from pyauditor.engine.strategies._target import meets_target, safe_pct
+from pyauditor.excel import inms_1_1_audit
+from pyauditor.excel._csv_verbatim import read_csv_verbatim
 from pyauditor.excel._style import LABEL_FONT, new_sheet, write_row
-from pyauditor.excel.prazos import PRAZOS_SHEET_NAME, read_prazos
+from pyauditor.excel.capa import CAPA_DELIMITER, CAPA_ENCODING
+from pyauditor.excel.equipe import EQUIPE_DELIMITER, EQUIPE_ENCODING
+from pyauditor.excel.objetos import OBJETOS_DELIMITER, OBJETOS_ENCODING
+from pyauditor.excel.prazos import PRAZOS_DELIMITER, PRAZOS_ENCODING, PRAZOS_SHEET_NAME
 from pyauditor.periodo import PeriodoAfericao, filter_periodo, require_period_column
 
 __all__: Final[tuple[str, ...]] = ("write_sintetico_workbook",)
 
+_CAPA_SHEET_NAME: Final[str] = "Capa"
+_EQUIPE_SHEET_NAME: Final[str] = "Equipe"
+_OBJETOS_SHEET_NAME: Final[str] = "Objetos"
+
+_INMS_1_1: Final[str] = "1.1"
 _INMS_1_14: Final[str] = "1.14"
 _OUTROS_LABEL: Final[str] = "outros (não contabilizado na meta)"
 _WHOLE_INDICATOR_LABEL: Final[str] = "(indicador inteiro)"
@@ -614,21 +636,32 @@ def _write_ratio_aggregate_sheet(
             row_idx += 1
 
 
-def _write_prazos_sheet(workbook: Workbook, prazos_path: Path, warnings: list[str]) -> None:
-    """Aba "Prazos": reprodução exata de `prazos.csv` (input, à parte do
-    pipeline de INMS), sempre a primeira aba do workbook."""
+def _write_csv_verbatim_sheet(
+    workbook: Workbook,
+    sheet_name: str,
+    path: Path,
+    *,
+    delimiter: str,
+    encoding: str,
+    warnings: list[str],
+) -> None:
+    """Aba de reprodução verbatim de um CSV bruto de `input/`
+    (`capa.csv`/`equipe.csv`/`objetos.csv`/`prazos.csv`) — cabeçalho e
+    linhas exatamente como estão no arquivo, sem processamento. Essas quatro
+    abas (quando os paths são passados) sempre vêm antes do laço de INMS,
+    então acabam sendo as primeiras abas do workbook."""
     try:
-        header, rows = read_prazos(prazos_path)
+        header, rows = read_csv_verbatim(path, delimiter=delimiter, encoding=encoding)
     except FileNotFoundError:
-        warnings.append(f"sintetico.xlsx: {prazos_path} não encontrado — aba 'Prazos' não gerada")
+        warnings.append(f"sintetico.xlsx: {path} não encontrado — aba '{sheet_name}' não gerada")
         return
     except (OSError, ValueError) as exc:
         warnings.append(
-            f"sintetico.xlsx: falha ao ler {prazos_path}: {exc} — aba 'Prazos' não gerada"
+            f"sintetico.xlsx: falha ao ler {path}: {exc} — aba '{sheet_name}' não gerada"
         )
         return
 
-    sheet = new_sheet(workbook, PRAZOS_SHEET_NAME, tuple(header))
+    sheet = new_sheet(workbook, sheet_name, tuple(header))
     for row_idx, row in enumerate(rows, start=2):
         write_row(sheet, row_idx, tuple(row))
 
@@ -643,6 +676,9 @@ def write_sintetico_workbook(
     periodo: PeriodoAfericao | None = None,
     strict: bool = False,
     prazos_path: Path | None = None,
+    capa_path: Path | None = None,
+    equipe_path: Path | None = None,
+    objetos_path: Path | None = None,
 ) -> list[str]:
     """Constrói e grava `sintetico.xlsx` de um órgão/competência. Devolve
     warnings (nunca lança por causa do problema de um único INMS — um
@@ -660,8 +696,42 @@ def write_sintetico_workbook(
     assert default_sheet is not None
     workbook.remove(default_sheet)
 
+    if capa_path is not None:
+        _write_csv_verbatim_sheet(
+            workbook,
+            _CAPA_SHEET_NAME,
+            capa_path,
+            delimiter=CAPA_DELIMITER,
+            encoding=CAPA_ENCODING,
+            warnings=warnings,
+        )
+    if equipe_path is not None:
+        _write_csv_verbatim_sheet(
+            workbook,
+            _EQUIPE_SHEET_NAME,
+            equipe_path,
+            delimiter=EQUIPE_DELIMITER,
+            encoding=EQUIPE_ENCODING,
+            warnings=warnings,
+        )
+    if objetos_path is not None:
+        _write_csv_verbatim_sheet(
+            workbook,
+            _OBJETOS_SHEET_NAME,
+            objetos_path,
+            delimiter=OBJETOS_DELIMITER,
+            encoding=OBJETOS_ENCODING,
+            warnings=warnings,
+        )
     if prazos_path is not None:
-        _write_prazos_sheet(workbook, prazos_path, warnings)
+        _write_csv_verbatim_sheet(
+            workbook,
+            PRAZOS_SHEET_NAME,
+            prazos_path,
+            delimiter=PRAZOS_DELIMITER,
+            encoding=PRAZOS_ENCODING,
+            warnings=warnings,
+        )
     sheets_before_inms = set(workbook.sheetnames)
 
     for inms_key in sorted(per_inms, key=lambda k: int(k.split(".")[1])):
@@ -768,16 +838,45 @@ def write_sintetico_workbook(
                 )
                 warnings.append(warning)
                 continue
-            _write_grupo_executor_sheet(
-                workbook,
-                sheet_name,
-                categorias_file,
-                grupo_executor_entries,
-                whole_indicator_entries,
-                fieldnames,
-                rows,
-                accepted_ids,
-            )
+            if (
+                inms_key == _INMS_1_1
+                and base_config.target is not None
+                and base_config.penalty is not None
+                and inms_1_1_audit.has_required_columns(fieldnames)
+            ):
+                # Aba enriquecida (resumo executivo, memória de cálculo,
+                # fora-do-prazo, auditoria de prazo) — só quando o CSV bruto
+                # tem as colunas de detalhe (produção real, ambos os
+                # órgãos); CSVs minimalistas (ex. fixtures de teste) caem no
+                # renderer genérico abaixo, sem degradar silenciosamente.
+                inms_1_1_audit.write_sheet(
+                    workbook,
+                    sheet_name,
+                    categorias_file=categorias_file,
+                    grupo_executor_entries=grupo_executor_entries,
+                    whole_indicator_entries=whole_indicator_entries,
+                    fieldnames=fieldnames,
+                    rows=rows,
+                    target_operator=base_config.target.operator,
+                    target_value=base_config.target.value,
+                    penalty_base_points=base_config.penalty.base_points,
+                    penalty_step_points=base_config.penalty.step_points,
+                    penalty_step_size_pct=base_config.penalty.step_size_pct,
+                    contract=base_config.scope.contract,
+                    periodo=periodo,
+                    raw_csv_path=raw_csv_path,
+                )
+            else:
+                _write_grupo_executor_sheet(
+                    workbook,
+                    sheet_name,
+                    categorias_file,
+                    grupo_executor_entries,
+                    whole_indicator_entries,
+                    fieldnames,
+                    rows,
+                    accepted_ids,
+                )
         elif isinstance(base_config.calculation, PrecomputedTableCalculation):
             assert base_config.target is not None
             _write_precomputed_table_sheet(
@@ -821,9 +920,9 @@ def write_sintetico_workbook(
     if set(workbook.sheetnames) == sheets_before_inms:
         # Nada pôde ser medido (todo INMS de categorias.yaml falhou ao
         # carregar/resolver) — um xlsx sem nenhuma aba de INMS não é um
-        # arquivo válido pra este propósito (a aba "Prazos" sozinha não
-        # conta); não sobrescreve um sintetico.xlsx de rerun anterior com um
-        # arquivo vazio/quebrado.
+        # arquivo válido pra este propósito (as abas Capa/Equipe/Objetos/
+        # Prazos sozinhas não contam); não sobrescreve um sintetico.xlsx de
+        # rerun anterior com um arquivo vazio/quebrado.
         return warnings
 
     atomic_write(output_path, workbook.save)

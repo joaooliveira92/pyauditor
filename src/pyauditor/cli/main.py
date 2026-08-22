@@ -538,6 +538,9 @@ def _dispatch_split(args: argparse.Namespace) -> int:
     year, month = request.competencia.split("-")
     periodo: PeriodoAfericao = month_bounds(request.competencia)
     prazos_path = request.data_dir / PRAZOS_FILENAME
+    capa_path = request.data_dir / _CAPA_COMUM
+    equipe_path = request.data_dir / EQUIPE_FILENAME
+    objetos_path = request.data_dir / _OBJETOS_FILENAME
     split_results = []
     for orgao in _each_single_orgao(request.orgao):
         # setup por órgão dentro do loop para evitar pasta both/ órfã
@@ -566,6 +569,9 @@ def _dispatch_split(args: argparse.Namespace) -> int:
                 periodo=periodo,
                 strict=request.strict,
                 prazos_path=prazos_path,
+                capa_path=capa_path,
+                equipe_path=equipe_path,
+                objetos_path=objetos_path,
             )
         )
     return exit_code_for_results(split_results)

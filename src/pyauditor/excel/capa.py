@@ -37,6 +37,7 @@ from pyauditor.excel.equipe import RESPONSAVEL_LABELS
 
 SHEET_NAME: Final = "CAPA_E_CONTROLE"
 
+CAPA_FILENAME: Final = "capa.csv"
 CAPA_DELIMITER: Final = ";"
 CAPA_ENCODING: Final = "utf-8-sig"
 

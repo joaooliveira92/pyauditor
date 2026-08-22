@@ -6,14 +6,15 @@ há processamento, só leitura crua e regravação linha a linha.
 
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 from typing import Final
 
+from pyauditor.excel._csv_verbatim import read_csv_verbatim
+
 PRAZOS_FILENAME: Final = "prazos.csv"
 PRAZOS_SHEET_NAME: Final = "Prazos"
-_PRAZOS_DELIMITER: Final = ","
-_PRAZOS_ENCODING: Final = "utf-8-sig"
+PRAZOS_DELIMITER: Final = ","
+PRAZOS_ENCODING: Final = "utf-8-sig"
 
 
 def read_prazos(path: Path) -> tuple[list[str], list[list[str]]]:
@@ -24,8 +25,4 @@ def read_prazos(path: Path) -> tuple[list[str], list[list[str]]]:
             aba não gerada), mesmo contrato de `equipe.read_equipe`.
         ValueError: CSV vazio (sem nem cabeçalho).
     """
-    with path.open(encoding=_PRAZOS_ENCODING, newline="") as handle:
-        rows = list(csv.reader(handle, delimiter=_PRAZOS_DELIMITER))
-    if not rows:
-        raise ValueError(f"{path}: CSV vazio")
-    return rows[0], rows[1:]
+    return read_csv_verbatim(path, delimiter=PRAZOS_DELIMITER, encoding=PRAZOS_ENCODING)
