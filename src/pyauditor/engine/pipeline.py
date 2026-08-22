@@ -367,7 +367,7 @@ def measurement_source(
     config_path: Path | None = None,
     periodo: PeriodoAfericao | None = None,
     strict: bool = False,
-    emit_empty_window_warning: bool = True,
+    emit_period_filter_logs: bool = True,
 ) -> SourceBundle:
     """Backbone do pipeline de medição (ticket 02): resolve a fonte → valida
     colunas do YAML contra o header real → lê o CSV → filtra pela janela de
@@ -376,12 +376,14 @@ def measurement_source(
     primeiro a migrar (mesmo ticket); `sintetico`/`split`/`cli.measure`
     migram nos tickets 03-05.
 
-    *emit_empty_window_warning* controla o WARN de janela vazia (1x por
-    dataset bruto, spec §3): o chamador que já sabe que outro ponto do mesmo
-    `run` acabou de emiti-lo para este dataset (ex.: `cli.measure` quando
-    `split` já rodou na mesma passada — ticket 05) passa `False` para não
-    duplicar o aviso. O INFO de descarte fora-de-janela/sem-data é sempre
-    emitido — não é o aviso duplicado, é contagem informativa por chamada.
+    *emit_period_filter_logs* controla o WARN de janela vazia e o INFO de
+    descarte fora-de-janela/sem-data (1x por dataset bruto, spec §3): o
+    chamador que quer logar com seu próprio contexto estruturado (`split`,
+    via `log_event`) ou que já sabe que outro ponto do mesmo `run` acabou de
+    logar para este dataset (`cli.measure` quando `split` já rodou na mesma
+    passada — ticket 05) passa `False` e usa as contagens no `SourceBundle`
+    (`dropped_out_of_period`/`undated_dropped`) para logar por conta própria
+    ou não logar de novo.
     """
     csv_path, delimiter, encoding = resolve_source(config, data_dir, manifest)
     # `read_raw_csv` (not `load_rows`): normaliza o alias "Grupo executor" ->
@@ -412,11 +414,12 @@ def measurement_source(
         rows = filtro.linhas_na_janela
         dropped_out_of_period = filtro.dropped_out_of_period
         undated_dropped = filtro.undated_dropped
-        if emit_empty_window_warning and total_bruto > 0 and not rows:
-            logger.warning(f"{csv_path}: {empty_window_message(periodo)}")
-        info_descarte = discard_message(dropped_out_of_period or 0, undated_dropped or 0, strict)
-        if info_descarte is not None:
-            logger.info(f"{csv_path}: {info_descarte}")
+        if emit_period_filter_logs:
+            if total_bruto > 0 and not rows:
+                logger.warning(f"{csv_path}: {empty_window_message(periodo)}")
+            info_descarte = discard_message(dropped_out_of_period or 0, undated_dropped or 0, strict)
+            if info_descarte is not None:
+                logger.info(f"{csv_path}: {info_descarte}")
 
     gate_runner = QualityGateRunner(config.quality_gates.checks, id_column=config.source.id_column)
     gate_report = gate_runner.run(rows)

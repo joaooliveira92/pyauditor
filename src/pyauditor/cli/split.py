@@ -36,21 +36,18 @@ from pyauditor.categoria_filter import (
     GRUPO_EXECUTOR_COLUMN,
     base_config_stem,
     compute_categoria_values,
-    read_raw_csv,
 )
 from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
 from pyauditor.config.categorias import GrupoExecutorMode, load_categorias
 from pyauditor.config.manifest import DatasetManifest
 from pyauditor.config.models import IndicatorConfig, Source
-from pyauditor.engine.pipeline import load_config, resolve_source
+from pyauditor.engine.pipeline import load_config, measurement_source
 from pyauditor.excel.sintetico import write_sintetico_workbook
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import (
     PeriodoAfericao,
     discard_message,
     empty_window_message,
-    filter_periodo,
-    require_period_column,
 )
 
 __all__: Final[tuple[str, ...]] = (
@@ -227,25 +224,30 @@ def run_split(
             any_error = True
             continue
 
+        # Backbone (ticket 04): resolve→valida→lê→filtra→gates. `split` loga
+        # com seu próprio contexto estruturado (`log_event`), então desliga
+        # o log genérico do backbone (`emit_period_filter_logs=False`) e usa
+        # as contagens do `SourceBundle` para decidir/logar WARN/INFO ele
+        # mesmo — WARN de janela vazia: 1x por (órgão, arquivo bruto).
         try:
-            raw_csv_path, delimiter, encoding = resolve_source(
-                base_config, competencia_data_dir, manifest
+            bundle = measurement_source(
+                base_config,
+                competencia_data_dir,
+                manifest,
+                config_path=base_config_path,
+                periodo=periodo,
+                strict=strict,
+                emit_period_filter_logs=False,
             )
-        except ValueError as exc:
-            logger.error(
-                f"INMS {inms_key} ({orgao}/{competencia}): falha ao resolver fonte de dados: {exc}"
-            )
+        except (OSError, ValueError) as exc:
+            logger.error(f"INMS {inms_key} ({orgao}/{competencia}): {exc}")
             any_error = True
             continue
 
-        try:
-            fieldnames, rows = read_raw_csv(raw_csv_path, delimiter, encoding)
-        except (OSError, ValueError) as exc:
-            logger.error(
-                f"INMS {inms_key} ({orgao}/{competencia}): falha ao ler {raw_csv_path}: {exc}"
-            )
-            any_error = True
-            continue
+        raw_csv_path = bundle.csv_path
+        fieldnames = bundle.fieldnames
+        rows = bundle.rows
+        delimiter = bundle.delimiter
 
         if GRUPO_EXECUTOR_COLUMN not in fieldnames:
             logger.error(
@@ -255,24 +257,10 @@ def run_split(
             any_error = True
             continue
 
-        # Filtro de período (§2 ponto 1): logo após read_raw_csv, ANTES de
-        # computar categorias — row_count/outros/warnings refletem o
-        # pós-filtro. WARN de janela vazia: 1x por (órgão, arquivo bruto).
         if periodo is not None and not base_config.source.unfilterable:
-            try:
-                period_column = require_period_column(
-                    base_config.source.period_column, config_path=base_config_path
-                )
-            except ValueError as exc:
-                logger.error(f"INMS {inms_key} ({orgao}/{competencia}): {exc}")
-                any_error = True
-                continue
-            total_bruto = len(rows)
-            filtro = filter_periodo(
-                rows, period_column=period_column, periodo=periodo, strict=strict
-            )
-            rows = filtro.linhas_na_janela
-            if total_bruto > 0 and not rows:
+            dropped_out_of_period = bundle.dropped_out_of_period or 0
+            undated_dropped = bundle.undated_dropped or 0
+            if not rows and (dropped_out_of_period + undated_dropped) > 0:
                 aviso_vazio = (
                     f"INMS {inms_key} ({orgao}/{competencia}): {empty_window_message(periodo)}"
                 )
@@ -286,9 +274,7 @@ def run_split(
                     arquivo=str(raw_csv_path),
                 )
                 warnings.append(aviso_vazio)
-            info_descarte = discard_message(
-                filtro.dropped_out_of_period, filtro.undated_dropped, strict
-            )
+            info_descarte = discard_message(dropped_out_of_period, undated_dropped, strict)
             if info_descarte is not None:
                 log_event(
                     "periodo_filtro",
@@ -298,8 +284,8 @@ def run_split(
                     competencia=competencia,
                     inms=inms_key,
                     arquivo=str(raw_csv_path),
-                    descartadas=filtro.dropped_out_of_period,
-                    sem_data=filtro.undated_dropped,
+                    descartadas=dropped_out_of_period,
+                    sem_data=undated_dropped,
                 )
 
         real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}

@@ -113,7 +113,9 @@ def test_period_filter_counts_and_warns_once(tmp_path: Path) -> None:
     assert bundle.rows == []
 
 
-def test_emit_empty_window_warning_false_suppresses_warn_not_info(tmp_path: Path) -> None:
+def test_emit_period_filter_logs_false_suppresses_both_warn_and_info(tmp_path: Path) -> None:
+    """Chamadores que logam com seu próprio contexto estruturado (`split`,
+    via `log_event`) desligam ambos e usam as contagens do `SourceBundle`."""
     config_path = _write_config(tmp_path)
     (tmp_path / "data.csv").write_text(
         "Nº Solicitação,DataHoraFim,Atendido\n1,20/05/2026 10:00,S\n", encoding="utf-8"
@@ -129,12 +131,13 @@ def test_emit_empty_window_warning_false_suppresses_warn_not_info(tmp_path: Path
             data_dir=tmp_path,
             config_path=config_path,
             periodo=periodo,
-            emit_empty_window_warning=False,
+            emit_period_filter_logs=False,
         )
     finally:
         setup_logging(sink=sys.stderr, level="INFO")
 
     logs = buf.getvalue()
     assert "nenhuma linha no período" not in logs
-    assert "1 linha(s) fora do período descartada(s)" in logs
+    assert "1 linha(s) fora do período descartada(s)" not in logs
+    assert bundle.dropped_out_of_period == 1
     assert bundle.dropped_out_of_period == 1

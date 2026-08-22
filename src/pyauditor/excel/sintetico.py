@@ -792,7 +792,7 @@ def write_sintetico_workbook(
         # Backbone (ticket 03): resolve→valida→lê→filtra→gates, um só lugar
         # para os quatro reimplementadores do pipeline de medição. Sintetico
         # nunca emite WARN de janela vazia (a mesma passada do bruto coube
-        # ao split) — `emit_empty_window_warning=False`. `period_column`
+        # ao split) — `emit_period_filter_logs=False`. `period_column`
         # ausente/não presente no header é erro acionável (spec §2 ponto 1,
         # issue 01 item 5) — degrada esta aba como os demais erros do loop.
         try:
@@ -803,7 +803,7 @@ def write_sintetico_workbook(
                 config_path=config_dir / f"{base_stem}.yaml",
                 periodo=periodo,
                 strict=strict,
-                emit_empty_window_warning=False,
+                emit_period_filter_logs=False,
             )
         except FileNotFoundError:
             _write_nao_ativado_sheet(workbook, sheet_name)
