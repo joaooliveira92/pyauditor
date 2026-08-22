@@ -560,12 +560,14 @@ def test_section_8_exposes_rejected_record_count(tmp_path: Path) -> None:
 
     wb = load_workbook(output_path)
     sheet = wb["INMS 1.1"]
-    rejeitados_row = next(
-        cell.row
+    rejeitados_cell = next(
+        cell
         for row in sheet.iter_rows(min_col=1, max_col=1)
         for cell in row
         if isinstance(cell.value, str) and cell.value.startswith("Registros excluídos da média")
     )
+    assert isinstance(rejeitados_cell.row, int)
+    rejeitados_row = rejeitados_cell.row
     assert sheet.cell(row=rejeitados_row, column=2).value == '=COUNTIF($AG$2:$AG$4,"")'
 
 
@@ -584,13 +586,14 @@ def test_atraso_medio_uses_itsm_calculated_column(tmp_path: Path) -> None:
 
     wb = load_workbook(output_path)
     sheet = wb["INMS 1.1"]
-    atraso_row = next(
-        cell.row
+    atraso_cell = next(
+        cell
         for row in sheet.iter_rows(min_col=1, max_col=1)
         for cell in row
         if isinstance(cell.value, str) and cell.value.startswith("Atraso médio dos registros")
     )
-    formula = sheet.cell(row=atraso_row, column=2).value
+    assert isinstance(atraso_cell.row, int)
+    formula = sheet.cell(row=atraso_cell.row, column=2).value
     assert isinstance(formula, str)
     assert "$AD$2:$AD$5" in formula
     assert "$X$2:$X$5" not in formula
@@ -645,6 +648,7 @@ def test_limite_itsm_menor_que_contratual_bruto_nao_e_sinalizado(tmp_path: Path)
         if isinstance(cell.value, str)
         and cell.value.startswith("Nenhum limite ITSM superior ao contratual bruto")
     )
+    assert isinstance(sample_row, int)
     assert sample_row > 0
 
 

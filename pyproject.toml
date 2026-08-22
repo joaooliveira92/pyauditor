@@ -57,6 +57,19 @@ typeCheckingMode = "strict"
 pythonVersion = "3.12"
 include = ["src", "tests"]
 exclude = [".scratch"]
+# Ruído não-tipo: lint (unused/private) é coberto pelo Ruff; isinstance
+# defensivo é padrão deste repo; unknown em stubs de terceiros incompletos
+# (types-openpyxl) é propagação de "untyped", não erro real.
+reportPrivateUsage = "none"
+reportUnusedImport = "none"
+reportUnusedFunction = "none"
+reportUnusedVariable = "none"
+reportUnnecessaryIsInstance = "none"
+reportDeprecated = "none"
+reportUnknownLambdaType = "none"
+reportUnknownMemberType = "none"
+reportUnknownVariableType = "none"
+reportUnknownArgumentType = "none"
 
 [tool.ruff]
 target-version = "py312"

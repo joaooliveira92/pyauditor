@@ -25,7 +25,6 @@ from pyauditor.engine.strategies._target import safe_pct, shortfall
 from pyauditor.engine.strategies.base import (
     CalculationResult,
     narrow_calculation,
-    no_pooled_numerator_denominator,
 )
 
 
@@ -93,5 +92,8 @@ class PrecomputedTableStrategy:
             memoria={"categories": categories},
         )
 
-    # Point/aggregated measure, not a ratio — no numerator/denominator.
-    pool_numerator_denominator = staticmethod(no_pooled_numerator_denominator)
+    def pool_numerator_denominator(
+        self, memoria: dict[str, object]
+    ) -> tuple[None, None]:
+        # Point/aggregated measure, not a ratio — no numerator/denominator.
+        return None, None

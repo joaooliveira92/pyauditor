@@ -346,7 +346,7 @@ def test_glosas_summary_formula_label_derives_from_glosa_fator() -> None:
     result = build_consolidated_workbook("2026-06", minc, [], {}, valor_base=100000.0)
 
     sheet = result.workbook[GLOSAS_SHEET]
-    labels = {sheet.cell(row=r, column=1).value for r in range(5, 10)}
+    labels = {str(sheet.cell(row=r, column=1).value) for r in range(5, 10)}
     assert f"Fórmula (pontos x {_FATOR_PCT_TEXTO})" in labels
 
 

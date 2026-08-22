@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Final
+from typing import Final, cast
 
+from openpyxl.cell.cell import Cell
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -126,10 +127,12 @@ def render_capa_sheet(sheet: Worksheet, values: dict[str, object] | None = None)
         label_cell.alignment = LEFT_ALIGN
         label_cell.border = BOTTOM_BORDER
 
-        value_cell = sheet.cell(row=row, column=2)
+        value_cell = cast(Cell, sheet.cell(row=row, column=2))
         value_cell.font = BODY_FONT
         value_cell.border = BOTTOM_BORDER
         if values is not None:
+            # Campos do CSV são `object` (str/números) — openpyxl aceita em
+            # runtime, mas o stub type-checka `_CellSetValue`, union menor.
             value_cell.value = values.get(label)  # type: ignore[assignment]
         elif label == "Situação geral da aferição":
             value_cell.value = SITUACOES[0]

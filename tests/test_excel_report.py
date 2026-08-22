@@ -155,7 +155,10 @@ def test_split_derived_summary_lands_on_its_own_categoria_tab() -> None:
     assert "INMS 1.01" not in n1_codes  # would be primary_group's first-listed tab
 
     base_sheet = workbook[INMS_BASE_SHEET]
-    grupos = {base_sheet.cell(row=r, column=4).value for r in range(2, base_sheet.max_row + 1)}
+    grupos = {
+        str(base_sheet.cell(row=r, column=4).value)
+        for r in range(2, base_sheet.max_row + 1)
+    }
     assert grupos == {"OPERACAO_N3", "ATENDIMENTO_N2"}
 
 

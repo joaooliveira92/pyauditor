@@ -29,12 +29,6 @@ class CalculationStrategy(Protocol):
         ...
 
 
-def no_pooled_numerator_denominator(_memoria: dict[str, object]) -> tuple[None, None]:
-    """Shared no-op for shapes with no ratio-style numerator/denominator at
-    the indicator level (point/aggregated measures)."""
-    return None, None
-
-
 def narrow_calculation[C: Calculation](config: IndicatorConfig, shape: type[C]) -> C:
     """Every strategy is only ever invoked for its own `shape` (dispatched via
     `SHAPE_REGISTRY`), so this narrowing always succeeds — it exists to give

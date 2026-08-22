@@ -220,7 +220,7 @@ def test_run_consolidate_builds_workbook_from_both_orgaos(tmp_path: Path) -> Non
     assert output_path.exists()
     workbook = load_workbook(output_path)
     sheet = workbook[GLOSAS_SHEET]
-    orgaos = {sheet.cell(row=r, column=2).value for r in (2, 3)}
+    orgaos = {str(sheet.cell(row=r, column=2).value) for r in (2, 3)}
     assert orgaos == {"MinC", "MTur"}
 
 
@@ -307,7 +307,9 @@ def test_run_consolidate_rerun_preserves_fiscal_decision(tmp_path: Path) -> None
 
     reread = load_workbook(output_path)
     reread_sheet = reread[GLOSAS_SHEET]
-    decisoes = {reread_sheet.cell(row=r, column=decisao_col).value for r in (2, 3)}
+    decisoes = {
+        str(reread_sheet.cell(row=r, column=decisao_col).value) for r in (2, 3)
+    }
     assert "Aceita" in decisoes
 
 
@@ -487,8 +489,12 @@ def test_run_consolidate_preserves_decision_despite_new_penalty_value(tmp_path: 
 
     reread = load_workbook(output_path)
     reread_sheet = reread[GLOSAS_SHEET]
-    ajustes = {reread_sheet.cell(row=r, column=ajuste_col).value for r in (2, 3)}
-    decisoes = {reread_sheet.cell(row=r, column=decisao_col).value for r in (2, 3)}
+    ajustes = {
+        str(reread_sheet.cell(row=r, column=ajuste_col).value) for r in (2, 3)
+    }
+    decisoes = {
+        str(reread_sheet.cell(row=r, column=decisao_col).value) for r in (2, 3)
+    }
     assert "Aceita" in decisoes  # decisão preservada apesar da nova apuração
     # MinC recalculado diverge de MTur (inalterado) — não travou no valor antigo
     assert len(ajustes) == 2

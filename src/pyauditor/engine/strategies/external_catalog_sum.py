@@ -13,7 +13,6 @@ from pyauditor.config.models import ExternalCatalogSumCalculation, IndicatorConf
 from pyauditor.engine.strategies.base import (
     CalculationResult,
     narrow_calculation,
-    no_pooled_numerator_denominator,
 )
 
 
@@ -52,5 +51,8 @@ class ExternalCatalogSumStrategy:
             memoria={"occurrences": occurrences, "total_points": total_points},
         )
 
-    # Point/aggregated measure, not a ratio — no numerator/denominator.
-    pool_numerator_denominator = staticmethod(no_pooled_numerator_denominator)
+    def pool_numerator_denominator(
+        self, memoria: dict[str, object]
+    ) -> tuple[None, None]:
+        # Point/aggregated measure, not a ratio — no numerator/denominator.
+        return None, None
