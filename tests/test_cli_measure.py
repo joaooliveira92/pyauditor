@@ -340,3 +340,79 @@ def test_run_measure_ignores_split_derived_configs_on_disk(tmp_path: Path) -> No
     assert len(result.indicators) == 2
     written = {p.stem for p in (output_dir / "2026-06").glob("*.md")}
     assert written == {"INMS-01.ATENDIMENTO_N1", "INMS-01.OPERACAO_N3"}
+
+
+def _write_categoria_fixture_with_empty_window(tmp_path: Path) -> tuple[Path, Path, Path]:
+    config_dir = tmp_path / "configs"
+    data_dir = tmp_path / "input"
+    output_dir = tmp_path / "roms"
+    competencia_data_dir = data_dir / "2026" / "06"
+    competencia_data_dir.mkdir(parents=True)
+    config_dir.mkdir(parents=True)
+    (config_dir / "inms-01.yaml").write_text(_CATEGORIA_CONFIG_YAML, encoding="utf-8")
+    (config_dir / "categorias.yaml").write_text(_CATEGORIAS_YAML, encoding="utf-8")
+    (competencia_data_dir / "inms-01.csv").write_text(
+        "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n"
+        "1;20/05/2026 10:00;S;N1\n",
+        encoding="utf-8",
+    )
+    return config_dir, data_dir, output_dir
+
+
+def test_run_measure_categoria_warns_empty_window_when_standalone(tmp_path: Path) -> None:
+    """Ticket 05 — o caminho em-memória (categorias) ganha o mesmo WARN de
+    janela vazia que o caminho single já emitia; sem `already_split`
+    (`pyauditor measure` isolado), o aviso deve aparecer."""
+    import sys
+    from datetime import date
+    from io import StringIO
+
+    from pyauditor.logging import setup_logging
+    from pyauditor.periodo import PeriodoAfericao
+
+    config_dir, data_dir, output_dir = _write_categoria_fixture_with_empty_window(tmp_path)
+    periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
+    buf = StringIO()
+    setup_logging(sink=buf, level="INFO")
+
+    try:
+        result = run_measure(
+            "2026-06", config_dir, data_dir, output_dir, expected_orgao="MinC", periodo=periodo
+        )
+    finally:
+        setup_logging(sink=sys.stderr, level="INFO")
+
+    assert result.status == "done"
+    assert "nenhuma linha no período" in buf.getvalue()
+
+
+def test_run_measure_categoria_already_split_suppresses_duplicate_warn(tmp_path: Path) -> None:
+    """`already_split=True` (dispatch de `run`) suprime o WARN/INFO — `split`
+    já os logou para o mesmo dataset bruto na mesma passada."""
+    import sys
+    from datetime import date
+    from io import StringIO
+
+    from pyauditor.logging import setup_logging
+    from pyauditor.periodo import PeriodoAfericao
+
+    config_dir, data_dir, output_dir = _write_categoria_fixture_with_empty_window(tmp_path)
+    periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
+    buf = StringIO()
+    setup_logging(sink=buf, level="INFO")
+
+    try:
+        result = run_measure(
+            "2026-06",
+            config_dir,
+            data_dir,
+            output_dir,
+            expected_orgao="MinC",
+            periodo=periodo,
+            already_split=True,
+        )
+    finally:
+        setup_logging(sink=sys.stderr, level="INFO")
+
+    assert result.status == "done"
+    assert "nenhuma linha no período" not in buf.getvalue()

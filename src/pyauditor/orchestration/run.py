@@ -691,6 +691,11 @@ def _dispatch(
             equipe_path=request.data_dir / EQUIPE_FILENAME,
             periodo=periodo,
             strict=request.strict,
+            # `run` always dispatches split immediately before measure for the
+            # same organization/competência (ticket 05) — split already
+            # logged the empty-window WARN/discard INFO for the same raw
+            # dataset, so measure's in-memory categorical path skips it.
+            already_split=True,
         )
 
     if command == "report":

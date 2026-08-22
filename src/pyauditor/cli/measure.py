@@ -12,9 +12,11 @@ project hold the data of every past aferição side by side.
 
 Spec competencia-cli-equipe: os ROMs recebem Competência/Período do argumento
 da CLI (`periodo`) e os Responsáveis de `equipe.csv` (`equipe_path`) — nada
-vem mais da capa. Com `periodo`, o dataset whole_indicator é filtrado pela
-janela da competência dentro de `engine.measure()` (único emissor dos avisos);
-o caminho derivado (categorias em memória) re-filtra as linhas já lidas.
+vem mais da capa. Com `periodo`, tanto o caminho single (whole_indicator) via
+`engine.measure()` quanto o caminho derivado (categorias em memória) filtram
+pela janela da competência através do backbone `measurement_source()`
+(ticket 05) — `already_split` evita emitir o mesmo aviso duas vezes quando
+`run` já rodou `split` na mesma passada.
 """
 
 import hashlib
@@ -29,7 +31,6 @@ from pyauditor.categoria_filter import (
     GRUPO_EXECUTOR_COLUMN,
     base_config_stem,
     compute_categoria_values,
-    read_raw_csv,
 )
 from pyauditor.cli.results import (
     DIR_FAILURE_HINT,
@@ -46,13 +47,13 @@ from pyauditor.engine.pipeline import (
     _pipeline_version,
     discover_config_files,
     measure,
-    resolve_source,
+    measurement_source,
 )
 from pyauditor.engine.quality_gates import QualityGateRunner
 from pyauditor.engine.strategies import SHAPE_REGISTRY
 from pyauditor.excel.equipe import RESPONSAVEL_LABELS, read_responsaveis
 from pyauditor.logging import log_event, logger
-from pyauditor.periodo import PeriodoAfericao, filter_periodo, require_period_column
+from pyauditor.periodo import PeriodoAfericao
 from pyauditor.rom.render import render_combined_rom, render_rom
 from pyauditor.rom.summary import summarize
 
@@ -131,7 +132,15 @@ def run_measure(
     periodo: PeriodoAfericao | None = None,
     strict: bool = False,
     collect: list[_MeasuredIndicator] | None = None,
+    already_split: bool = False,
 ) -> MeasureResult:
+    """*already_split* (ticket 05): `True` when `split` already ran for this
+    exact competência/órgão earlier in the same `run` (orchestration always
+    dispatches split before measure) — the categorical in-memory path then
+    suppresses its own empty-window WARN/discard INFO, since `split` already
+    logged them for the same raw dataset. Standalone `pyauditor measure`
+    (default `False`) gets the WARN/INFO here — previously this path never
+    emitted them at all, unlike the single/whole_indicator path below."""
     orgao = expected_orgao or ""
 
     def _error(message: str) -> MeasureResult:
@@ -368,10 +377,19 @@ def run_measure(
         # para este INMS, expande em N medições filtradas sem materializar
         # _split/*. O caminho single (abaixo) só roda para whole_indicator.
         if entries is not None and categorias_file is not None:
-            # Tenta resolver fonte bruta uma vez para todas as categorias
+            # Backbone (ticket 05): resolve->valida->lê->filtra o bruto uma
+            # vez para todas as categorias. `already_split` evita duplicar o
+            # WARN/INFO de período quando `split` já rodou na mesma passada
+            # de `run` sobre o mesmo dataset bruto.
             try:
-                raw_csv_path, delimiter, encoding = resolve_source(
-                    config, competencia_data_dir, manifest
+                bundle = measurement_source(
+                    config,
+                    competencia_data_dir,
+                    manifest,
+                    config_path=config_path,
+                    periodo=periodo,
+                    strict=strict,
+                    emit_period_filter_logs=not already_split,
                 )
             except FileNotFoundError:
                 for cat_key, _ in entries:
@@ -396,107 +414,37 @@ def run_measure(
                         )
                     )
                 continue
-            except Exception as exc:
-                message = f"{contractual_id}: exceção na medição: {exc}"
-                logger.error(message)
-                any_hard_failure = True
-                for cat_key, _ in entries:
-                    derived_id = f"{config.indicator.id}.{cat_key}"
-                    safe_id = _sanitize_indicator_id(derived_id)
-                    rom_path = target_dir / f"{safe_id}.md"
-                    summary_path = target_dir / f"{safe_id}.json"
-                    outcomes.append(
-                        IndicatorOutcome(
-                            contractual_id=contractual_id,
-                            rom_path=rom_path,
-                            summary_path=summary_path,
-                            hard_failure=True,
-                            error=message,
-                        )
-                    )
-                continue
-            try:
-                fieldnames, rows = read_raw_csv(raw_csv_path, delimiter, encoding)
             except (OSError, ValueError) as exc:
-                message = f"{contractual_id}: exceção na medição: {exc}"
-                logger.error(message)
-                any_hard_failure = True
-                for cat_key, _ in entries:
-                    derived_id = f"{config.indicator.id}.{cat_key}"
-                    safe_id = _sanitize_indicator_id(derived_id)
-                    rom_path = target_dir / f"{safe_id}.md"
-                    summary_path = target_dir / f"{safe_id}.json"
-                    outcomes.append(
-                        IndicatorOutcome(
-                            contractual_id=contractual_id,
-                            rom_path=rom_path,
-                            summary_path=summary_path,
-                            hard_failure=True,
-                            error=message,
-                        )
-                    )
+                _hard_fail_todas_categorias(
+                    f"{contractual_id}: exceção na medição: {exc}",
+                    entries=entries,
+                    indicator_id=config.indicator.id,
+                    contractual_id=contractual_id,
+                    target_dir=target_dir,
+                )
                 continue
+
+            raw_csv_path = bundle.csv_path
+            fieldnames = bundle.fieldnames
+            rows = bundle.rows
+            delimiter = bundle.delimiter
+            encoding = bundle.encoding
+            dropped_out_of_period = bundle.dropped_out_of_period
+            undated_dropped = bundle.undated_dropped
+
             if GRUPO_EXECUTOR_COLUMN not in fieldnames:
                 message = (
                     f"{contractual_id}: exceção na medição: {raw_csv_path} não tem coluna "
                     f"'{GRUPO_EXECUTOR_COLUMN}' — declarado mode: grupo_executor em categorias.yaml"
                 )
-                logger.error(message)
-                any_hard_failure = True
-                for cat_key, _ in entries:
-                    derived_id = f"{config.indicator.id}.{cat_key}"
-                    safe_id = _sanitize_indicator_id(derived_id)
-                    rom_path = target_dir / f"{safe_id}.md"
-                    summary_path = target_dir / f"{safe_id}.json"
-                    outcomes.append(
-                        IndicatorOutcome(
-                            contractual_id=contractual_id,
-                            rom_path=rom_path,
-                            summary_path=summary_path,
-                            hard_failure=True,
-                            error=message,
-                        )
-                    )
-                continue
-            # §2 — re-filtro de período no caminho em memória: as linhas já
-            # foram lidas do bruto, então o filtro roda aqui antes de qualquer
-            # gate/cálculo. Falta de period_column é hard-failure para todas
-            # as categorias derivadas. Sem WARN/INFO aqui — o único emissor
-            # por dataset bruto é engine.measure() (caminho single), e este
-            # dataset não passa por lá.
-            if periodo is not None and not config.source.unfilterable:
-                try:
-                    period_column = require_period_column(
-                        config.source.period_column, config_path=config_path
-                    )
-                except ValueError as exc:
-                    _hard_fail_todas_categorias(
-                        f"{contractual_id}: exceção na medição: {exc}",
-                        entries=entries,
-                        indicator_id=config.indicator.id,
-                        contractual_id=contractual_id,
-                        target_dir=target_dir,
-                    )
-                    continue
-                if period_column not in fieldnames:
-                    _hard_fail_todas_categorias(
-                        f"{config_path}: source.period_column {period_column!r} não existe "
-                        f"no header de {raw_csv_path.name} — corrija o YAML",
-                        entries=entries,
-                        indicator_id=config.indicator.id,
-                        contractual_id=contractual_id,
-                        target_dir=target_dir,
-                    )
-                    continue
-                filtro = filter_periodo(
-                    rows, period_column=period_column, periodo=periodo, strict=strict
+                _hard_fail_todas_categorias(
+                    message,
+                    entries=entries,
+                    indicator_id=config.indicator.id,
+                    contractual_id=contractual_id,
+                    target_dir=target_dir,
                 )
-                rows = filtro.linhas_na_janela
-                dropped_out_of_period = filtro.dropped_out_of_period
-                undated_dropped = filtro.undated_dropped
-            else:
-                dropped_out_of_period = None
-                undated_dropped = None
+                continue
 
             real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
             for cat_key, entry in entries:
