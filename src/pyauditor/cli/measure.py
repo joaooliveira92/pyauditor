@@ -50,9 +50,9 @@ from pyauditor.engine.pipeline import (
     measure,
     measurement_source,
 )
-from pyauditor.engine.version import pipeline_version
 from pyauditor.engine.quality_gates import QualityGateRunner
 from pyauditor.engine.strategies import SHAPE_REGISTRY
+from pyauditor.engine.version import pipeline_version
 from pyauditor.excel.equipe import RESPONSAVEL_LABELS, read_responsaveis
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import PeriodoAfericao
@@ -288,7 +288,7 @@ def run_measure(
     ) -> None:
         nonlocal any_hard_failure
         try:
-            rom_path.write_text(
+            _ = rom_path.write_text(
                 render_rom(
                     result,
                     capa_fields=capa_fields,
@@ -298,7 +298,7 @@ def run_measure(
                 encoding='utf-8',
             )
             summary = summarize(result)
-            summary_path.write_text(
+            _ = summary_path.write_text(
                 json.dumps(summary.to_dict(), ensure_ascii=False, indent=2),
                 encoding='utf-8',
             )
@@ -742,7 +742,7 @@ def write_combined_roms(
         }
         combined_path = both_dir / f'{minc.safe_id}.md'
         try:
-            combined_path.write_text(
+            _ = combined_path.write_text(
                 render_combined_rom(
                     minc.result,
                     mtur.result,
