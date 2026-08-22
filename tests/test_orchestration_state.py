@@ -13,10 +13,12 @@ from pyauditor.orchestration.state import (
     state_path,
 )
 
+_TS = "2026-08-22T05:00:00+00:00"
+
 
 def test_state_path_keys_on_competencia_and_orgao_selector() -> None:
     path = state_path("2026-06", "both", Path("/runs"))
-    assert path == Path("/runs/2026-06-both.json")
+    assert path == Path("/runs/2026-06--4-both.json")
 
 
 def test_save_and_load_state_roundtrips(tmp_path: Path) -> None:
@@ -25,7 +27,13 @@ def test_save_and_load_state_roundtrips(tmp_path: Path) -> None:
         competencia="2026-06",
         orgao_selector="MinC",
         commands=(
-            CommandStateEntry(command="bootstrap", orgao="MinC", status="done"),
+            CommandStateEntry(
+                command="bootstrap",
+                orgao="MinC",
+                status="done",
+                started_at=_TS,
+                finished_at=_TS,
+            ),
             CommandStateEntry(command="measure", orgao="MinC", status="pending"),
         ),
     )
@@ -62,8 +70,10 @@ def test_load_state_raises_run_state_corrupted_on_unknown_status(tmp_path: Path)
     path = state_path("2026-06", "MinC", tmp_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        '{"competencia": "2026-06", "orgao_selector": "MinC", "commands": '
-        '[{"command": "bootstrap", "orgao": "MinC", "status": "not_a_real_status"}]}',
+        '{"schema_version": 1, "competencia": "2026-06", "orgao_selector": "MinC", '
+        '"commands": [{"command": "bootstrap", "orgao": "MinC", "status": '
+        '"not_a_real_status", "started_at": null, "finished_at": null, '
+        '"error_message": null}]}',
         encoding="utf-8",
     )
 
@@ -76,8 +86,19 @@ def test_reset_stale_running_resets_only_running_entries() -> None:
         competencia="2026-06",
         orgao_selector="MinC",
         commands=(
-            CommandStateEntry(command="bootstrap", orgao="MinC", status="done"),
-            CommandStateEntry(command="measure", orgao="MinC", status="running", started_at="t"),
+            CommandStateEntry(
+                command="bootstrap",
+                orgao="MinC",
+                status="done",
+                started_at=_TS,
+                finished_at=_TS,
+            ),
+            CommandStateEntry(
+                command="measure",
+                orgao="MinC",
+                status="running",
+                started_at=_TS,
+            ),
         ),
     )
 

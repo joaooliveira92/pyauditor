@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -85,14 +86,14 @@ def test_read_capa_csv_fields_rejects_duplicate_label(tmp_path: Path) -> None:
 
 
 def test_parse_brl_value_accepts_ptbr_and_machine_shapes() -> None:
-    assert parse_brl_value("R$ 148.205,54") == 148205.54
-    assert parse_brl_value("461.063,58") == 461063.58
-    assert parse_brl_value("148205.54") == 148205.54
-    assert parse_brl_value("0") == 0.0
+    assert parse_brl_value("R$ 148.205,54") == Decimal("148205.54")
+    assert parse_brl_value("461.063,58") == Decimal("461063.58")
+    assert parse_brl_value("148205.54") == Decimal("148205.54")
+    assert parse_brl_value("0") == Decimal("0")
 
 
 def test_parse_brl_value_rejects_garbage() -> None:
-    with pytest.raises(ValueError, match="inválido"):
+    with pytest.raises(ValueError, match="Invalid monetary value"):
         parse_brl_value("abc")
 
 

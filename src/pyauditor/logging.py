@@ -51,7 +51,7 @@ from enum import Enum
 from math import isfinite
 from pathlib import Path
 from threading import Lock
-from typing import Final, TextIO, TypeAlias, cast
+from typing import Final, TextIO, cast
 
 from loguru import logger
 
@@ -63,9 +63,9 @@ __all__: Final[tuple[str, ...]] = (
     "setup_logging",
 )
 
-JsonScalar: TypeAlias = str | int | float | bool | None
-JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
-Sink: TypeAlias = TextIO | str | Path
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
+type Sink = TextIO | str | Path
 
 _DEFAULT_LOG_LEVEL: Final[str] = "INFO"
 _SUPPORTED_LEVELS: Final[frozenset[str]] = frozenset(
@@ -377,28 +377,30 @@ def setup_logging(
             )
 
         if log_path is not None:
-            file_options: dict[str, object] = {
-                "level": effective_level,
-                "filter": detail_filter,
-                "format": _FILE_LOG_FORMAT,
-                "backtrace": False,
-                "diagnose": False,
-                "enqueue": False,
-                "catch": False,
-            }
-
             if isinstance(log_path, (str, Path)):
-                file_options.update(
-                    {
-                        "encoding": "utf-8",
-                        "retention": _LOG_RETENTION,
-                    }
+                file_handler_id = logger.add(
+                    log_path,
+                    level=effective_level,
+                    filter=detail_filter,
+                    format=_FILE_LOG_FORMAT,
+                    backtrace=False,
+                    diagnose=False,
+                    enqueue=False,
+                    catch=False,
+                    encoding="utf-8",
+                    retention=_LOG_RETENTION,
                 )
-
-            file_handler_id = logger.add(
-                log_path,
-                **file_options,
-            )
+            else:
+                file_handler_id = logger.add(
+                    log_path,
+                    level=effective_level,
+                    filter=detail_filter,
+                    format=_FILE_LOG_FORMAT,
+                    backtrace=False,
+                    diagnose=False,
+                    enqueue=False,
+                    catch=False,
+                )
     except Exception:
         if file_handler_id is not None:
             logger.remove(file_handler_id)

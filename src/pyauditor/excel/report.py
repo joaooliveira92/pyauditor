@@ -23,11 +23,13 @@ justifications, applicability decisions, or other manual declarations.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Final, Sequence
+from typing import Final
 
 from openpyxl import Workbook
 from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.atomic_write import atomic_write
 from pyauditor.codes import contractual_sort_key, format_inms_code
@@ -242,7 +244,7 @@ def _inline_validation_formula(values: tuple[str, ...]) -> str:
 
 
 def _add_evidencias_validations(
-    sheet,
+    sheet: Worksheet,
     last_row: int,
 ) -> None:
     """Apply controlled-value validation to populated evidence rows."""
@@ -326,14 +328,12 @@ def _compliance_margin(
     target: float | None,
     operator: str | None,
 ) -> float | None:
-    """Calculate the signed distance from the target boundary.
+    """Calculate the distance from the target boundary.
 
-    A positive value indicates that the result is on the compliant side of
-    the target boundary. A negative value indicates the magnitude of the
-    nonconformity.
-
-    For minimum targets, the margin is ``result - target``. For maximum
-    targets, the margin is ``target - result``.
+    The value is positive in the noncompliant direction — how far the result
+    must move to reach the target — matching the "Diferença para a meta"
+    column and the consolidated view: for minimum targets the margin is
+    ``target - result``, for maximum targets it is ``result - target``.
 
     Args:
         result: Calculated indicator result.
@@ -341,7 +341,7 @@ def _compliance_margin(
         operator: Target comparison operator.
 
     Returns:
-        The signed compliance margin, or ``None`` when no target is configured.
+        The target distance, or ``None`` when no target is configured.
 
     Raises:
         ValueError: If a target exists but its operator is missing or
@@ -351,13 +351,13 @@ def _compliance_margin(
         return None
 
     if operator in {">", ">="}:
-        return result - target
-
-    if operator in {"<", "<="}:
         return target - result
 
+    if operator in {"<", "<="}:
+        return result - target
+
     if operator in {"=", "=="}:
-        return -abs(result - target)
+        return abs(result - target)
 
     raise ValueError(
         f"Unsupported target operator for compliance margin: {operator!r}."

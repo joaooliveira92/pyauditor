@@ -661,9 +661,12 @@ def _write_csv_verbatim_sheet(
         return None
 
     sheet = new_sheet(workbook, sheet_name, tuple(header))
+
+    expected_columns = sheet.max_column
     row_idx = 1
     for row_idx, row in enumerate(rows, start=2):
-        write_row(sheet, row_idx, tuple(row))
+        padded_row = tuple(row) + (None,) * (expected_columns - len(row))
+        write_row(sheet, row_idx, padded_row[:expected_columns])
     return sheet, row_idx
 
 

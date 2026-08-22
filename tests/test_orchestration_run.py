@@ -258,8 +258,10 @@ def test_execute_run_pre_dispatch_failure_offers_no_retry_option_distinction(
     tmp_path: Path,
 ) -> None:
     """Selecting only `report` — bootstrap/measure never ran — makes the
-    dependency check fail before `report` is ever dispatched. `started_at`
-    stays `None`, distinguishing this from a post-dispatch `Result` failure."""
+    dependency check fail before `report` is ever dispatched. The persisted
+    entry is distinguished from a post-dispatch `Result` failure by its
+    ``dependência não satisfeita`` message (state schema requires
+    ``started_at``/``finished_at`` for every ``error`` entry)."""
     request = replace(_scaffold(tmp_path, csv_body=_GOOD_CSV), commands=frozenset({"report"}))
     seen: list[CommandStateEntry] = []
 
@@ -271,9 +273,9 @@ def test_execute_run_pre_dispatch_failure_offers_no_retry_option_distinction(
 
     assert len(seen) == 1
     assert seen[0].command == "report"
-    assert seen[0].started_at is None
+    assert seen[0].status == "error"
     assert seen[0].error_message is not None
-    assert "dependência não satisfeita" in seen[0].error_message
+    assert seen[0].error_message.startswith("dependência não satisfeita")
 
 
 def test_execute_run_pre_dispatch_failure_skip_cascades(tmp_path: Path) -> None:

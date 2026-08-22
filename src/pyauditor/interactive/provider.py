@@ -32,7 +32,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
-from typing import Final, Protocol, TypeAlias, runtime_checkable
+from typing import Final, Protocol, runtime_checkable
 
 import questionary
 from rich.console import Console
@@ -52,8 +52,8 @@ __all__: Final[tuple[str, ...]] = (
     "TextValidator",
 )
 
-TextValidator: TypeAlias = Callable[[str], bool | str]
-MultiChoiceOption: TypeAlias = tuple[str, str, bool, str | None]
+type TextValidator = Callable[[str], bool | str]
+type MultiChoiceOption = tuple[str, str, bool, str | None]
 
 
 class InteractionCancelled(Exception):

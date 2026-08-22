@@ -28,7 +28,7 @@ def _summary(
     target_value: float | None = 98.0,
 ) -> IndicatorSummary:
     return IndicatorSummary(
-        indicator_id=f"{contractual_id}-{orgao}",
+        indicator_id=f"{contractual_id}-IND",
         contractual_id=contractual_id,
         name=f"Indicador {contractual_id}",
         asset=None,

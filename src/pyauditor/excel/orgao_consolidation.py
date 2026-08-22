@@ -23,9 +23,10 @@ pairing keys first appear in the input.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import replace
 from math import isfinite
-from typing import Final, Sequence, TypeAlias
+from typing import Final
 
 from pyauditor.excel.groups import PER_ASSET_CONTRACTUAL_IDS
 from pyauditor.rom.summary import IndicatorSummary
@@ -52,7 +53,7 @@ _SUPPORTED_ORGAOS: Final[frozenset[str]] = frozenset(
     }
 )
 
-SummaryKey: TypeAlias = tuple[str, str, str | None]
+type SummaryKey = tuple[str, str, str | None]
 
 
 def with_orgao_consolidation(

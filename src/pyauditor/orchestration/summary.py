@@ -25,12 +25,12 @@ are rendered as literal text and are never interpreted as Rich markup.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 from math import isfinite
 from pathlib import Path
-from typing import Final, Literal, TypedDict, cast
+from typing import Final, Literal, TypedDict
 
 from rich.console import Console
 from rich.panel import Panel

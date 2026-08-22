@@ -33,7 +33,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final, Literal
+from typing import Final, Literal, cast
 
 from pyauditor.capa_paths import resolve_capa_path
 from pyauditor.cli.bootstrap import BootstrapResult, run_bootstrap
@@ -279,20 +279,6 @@ def _validate_request(request: RunRequest) -> PeriodoAfericao:
         raise ValueError(
             "force_commands contains unsupported values: "
             f"{sorted(unknown_forced_commands)!r}"
-        )
-
-    applicable_commands = {
-        command
-        for command, _ in _plan(request.orgao)
-    }
-    inapplicable_forced_commands = (
-        request.force_commands - applicable_commands
-    )
-    if inapplicable_forced_commands:
-        raise ValueError(
-            "force_commands contains commands not applicable to the "
-            f"selected organization plan: "
-            f"{sorted(inapplicable_forced_commands)!r}"
         )
 
     if not request.competencia.strip():
@@ -818,7 +804,7 @@ def _validate_failure_decision(
             f"{decision!r}"
         )
 
-    return decision
+    return cast(FailureDecision, decision)
 
 
 def _result_key(

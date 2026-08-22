@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -28,10 +29,10 @@ def test_read_objetos_parses_items_and_derives_totals(tmp_path: Path) -> None:
     objetos = read_objetos(path)
 
     assert len(objetos.itens) == 9
-    assert objetos.itens[0] == 148205.54
-    assert objetos.itens[8] == 28912.84
-    assert objetos.total_mensal == pytest.approx(461063.58)
-    assert objetos.total_anual == pytest.approx(objetos.total_mensal * 12)
+    assert objetos.itens[0] == Decimal("148205.54")
+    assert objetos.itens[8] == Decimal("28912.84")
+    assert objetos.total_mensal == Decimal("461063.58")
+    assert objetos.total_anual == Decimal("461063.58") * 12
     assert objetos.warnings == ()
 
 
@@ -39,14 +40,14 @@ def test_rejects_non_numeric_item_index(tmp_path: Path) -> None:
     body = OBJETOS_CSV.replace("\n1,", "\nX,", 1)
     path = _write(tmp_path / "objetos.csv", body)
 
-    with pytest.raises(ValueError, match="sem item numérico"):
+    with pytest.raises(ValueError, match="positive ASCII integer"):
         read_objetos(path)
 
 
 def test_rejects_wrong_header(tmp_path: Path) -> None:
     path = _write(tmp_path / "objetos.csv", "a,b,c\n1,2,3\n")
 
-    with pytest.raises(ValueError, match="cabeçalho esperado"):
+    with pytest.raises(ValueError, match="invalid header"):
         read_objetos(path)
 
 
@@ -58,7 +59,7 @@ def test_zero_value_item_is_legitimate_not_malformed(tmp_path: Path) -> None:
 
     objetos = read_objetos(path)
 
-    assert objetos.itens[0] == 0.0
+    assert objetos.itens[0] == Decimal("0.00")
     assert objetos.warnings == ()
 
 
@@ -66,7 +67,7 @@ def test_rejects_empty_item_value(tmp_path: Path) -> None:
     body = OBJETOS_CSV.replace('1,Central de Serviços,"R$ 148.205,54"', "1,Central de Serviços,")
     path = _write(tmp_path / "objetos.csv", body)
 
-    with pytest.raises(ValueError, match="valor monetário inválido"):
+    with pytest.raises(ValueError, match="must not be empty"):
         read_objetos(path)
 
 
@@ -76,5 +77,5 @@ def test_rejects_negative_item_value(tmp_path: Path) -> None:
     )
     path = _write(tmp_path / "objetos.csv", body)
 
-    with pytest.raises(ValueError, match="valor monetário inválido"):
+    with pytest.raises(ValueError, match="invalid Valor"):
         read_objetos(path)

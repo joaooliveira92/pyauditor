@@ -49,4 +49,4 @@ def read_valor_base(data_dir: Path, warnings: list[str]) -> tuple[float | None, 
     except ValueError as exc:
         raise ValueError(f"objetos.csv malformado em {path}: {exc}") from exc
     warnings.extend(objetos.warnings)
-    return objetos.total_mensal, objetos.itens
+    return float(objetos.total_mensal), tuple(float(it) for it in objetos.itens)

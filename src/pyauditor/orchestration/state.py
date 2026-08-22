@@ -26,7 +26,7 @@ import re
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from pathlib import Path
-from typing import Final, Literal, TypeAlias, cast
+from typing import Final, Literal, cast
 
 from pyauditor.atomic_write import atomic_write
 
@@ -49,7 +49,7 @@ type CommandState = Literal[
     "error",
 ]
 
-JsonObject: TypeAlias = dict[str, object]
+type JsonObject = dict[str, object]
 
 _SCHEMA_VERSION: Final[int] = 1
 _DEFAULT_RUNS_DIR: Final[Path] = Path(".pyauditor/runs")
@@ -472,11 +472,10 @@ def _validate_command_entry(
         field=f"{context}.finished_at",
     )
 
-    if started_at is not None and finished_at is not None:
-        if finished_at < started_at:
-            raise ValueError(
-                f"{context}.finished_at must not precede started_at"
-            )
+    if started_at is not None and finished_at is not None and finished_at < started_at:
+        raise ValueError(
+            f"{context}.finished_at must not precede started_at"
+        )
 
     if entry.error_message is not None:
         _validate_non_empty_string(

@@ -15,8 +15,9 @@ mappings, and common sheet-writing behavior used by ``capa.py``,
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Final, Mapping, TypeAlias
+from typing import Final
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -25,13 +26,13 @@ from openpyxl.worksheet.worksheet import Worksheet
 __all__: Final[tuple[str, ...]] = (
     "BODY_FONT",
     "BOTTOM_BORDER",
-    "CellValue",
     "HEADER_FILL",
     "HEADER_FONT",
     "LABEL_FONT",
     "LEFT_ALIGN",
     "TITLE_FONT",
     "UNIT_BY_SHAPE",
+    "CellValue",
     "new_sheet",
     "write_row",
 )
@@ -55,7 +56,7 @@ BOTTOM_BORDER: Final = Border(
 )
 LEFT_ALIGN: Final = Alignment(horizontal="left")
 
-CellValue: TypeAlias = str | float | int | None
+type CellValue = str | float | int | None
 
 UNIT_BY_SHAPE: Final[Mapping[str, str]] = MappingProxyType(
     {
@@ -91,8 +92,13 @@ def new_sheet(
 
     Raises:
         ValueError: If ``name`` is empty, a worksheet with the same name
-            already exists, ``columns`` is empty, a column heading is empty,
-            or ``width`` is not positive.
+            already exists, ``columns`` is empty, a heading before the last
+            non-empty one is empty, or ``width`` is not positive.
+
+    Note:
+        Trailing empty headings are allowed so verbatim reproductions of
+        tabular text files (such as the Capa CSV) can keep their exact column
+        count even when the file ends a row with an empty cell.
     """
     if not name.strip():
         raise ValueError("Worksheet name must not be empty.")
@@ -103,7 +109,13 @@ def new_sheet(
     if not columns:
         raise ValueError("Worksheet must declare at least one column.")
 
-    if any(not column.strip() for column in columns):
+    meaningful_columns = list(columns)
+    while meaningful_columns and not meaningful_columns[-1].strip():
+        meaningful_columns.pop()
+
+    if not meaningful_columns or any(
+        not column.strip() for column in meaningful_columns
+    ):
         raise ValueError("Worksheet column headings must not be empty.")
 
     if isinstance(width, bool) or width <= 0:

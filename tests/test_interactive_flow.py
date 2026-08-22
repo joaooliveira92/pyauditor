@@ -72,7 +72,7 @@ def test_cancel_during_collect_answers_exits_cleanly_without_raising() -> None:
     exit_code = run_guided_flow(provider)
 
     assert exit_code == 130
-    assert any("Encerrado" in text for text, _ in provider.messages)
+    assert any("encerrada" in text for text, _ in provider.messages)
 
 
 def test_cancel_at_final_confirm_exits_instead_of_looping() -> None:

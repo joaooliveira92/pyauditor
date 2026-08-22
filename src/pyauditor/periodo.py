@@ -266,8 +266,11 @@ def filter_periodo(
     quality gates can evaluate it. Under strict mode, the row is discarded
     and counted in ``undated_dropped``.
 
-    The declared period column must exist in every row. A missing column is a
-    dataset-schema error and is not treated as an undated cell.
+    A row that does not contain the declared period column is treated as an
+    undated row: in default mode it is retained for the quality gates, and in
+    strict mode it is discarded and counted. Row-level column absence is
+    therefore never treated as a dataset-schema error — callers that must
+    reject a missing column outright check the header before filtering.
 
     Input mappings are never modified. Retained rows are shallow-copied into
     ordinary dictionaries, and their original order is preserved.
@@ -284,8 +287,6 @@ def filter_periodo(
     Raises:
         TypeError: If arguments violate their runtime type contracts.
         ValueError: If ``period_column`` is empty.
-        PeriodColumnNotFoundError: If a row does not contain the declared
-            period column.
     """
     if not isinstance(period_column, str):
         raise TypeError(
@@ -320,13 +321,8 @@ def filter_periodo(
                 f"received {type(row).__name__}."
             )
 
-        if normalized_column not in row:
-            raise PeriodColumnNotFoundError(
-                f"coluna de período {normalized_column!r} ausente "
-                f"na linha {row_index} do dataset"
-            )
-
-        interval = _cell_interval(row[normalized_column])
+        cell_value = row.get(normalized_column)
+        interval = None if cell_value is None else _cell_interval(cell_value)
 
         if interval is None:
             if strict:

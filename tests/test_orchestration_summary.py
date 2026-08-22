@@ -133,7 +133,7 @@ def test_render_summary_points_to_incomplete_orgao_after_isolated_failure(
     output = buffer.getvalue()
     assert "Próximos passos" in output
     assert "MTur: relatório não gerado" in output
-    assert "rode `pyauditor run 2026-06 --orgao MTur`" in output
+    assert "execute `pyauditor run 2026-06 --orgao MTur`" in output
 
 
 def test_render_summary_text_has_root_panel(tmp_path: Path) -> None:

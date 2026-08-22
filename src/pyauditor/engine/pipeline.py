@@ -417,7 +417,9 @@ def measurement_source(
         if emit_period_filter_logs:
             if total_bruto > 0 and not rows:
                 logger.warning(f"{csv_path}: {empty_window_message(periodo)}")
-            info_descarte = discard_message(dropped_out_of_period or 0, undated_dropped or 0, strict)
+            info_descarte = discard_message(
+                dropped_out_of_period or 0, undated_dropped or 0, strict
+            )
             if info_descarte is not None:
                 logger.info(f"{csv_path}: {info_descarte}")
 

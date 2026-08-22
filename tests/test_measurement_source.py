@@ -82,7 +82,8 @@ def test_resolves_reads_and_gates(tmp_path: Path) -> None:
 
 def test_missing_yaml_column_raises(tmp_path: Path) -> None:
     config_path = _write_config(tmp_path)
-    (tmp_path / "data.csv").write_text("Nº Solicitação,DataHoraFim\n1,20/06/2026 10:00\n", encoding="utf-8")
+    body = "Nº Solicitação,DataHoraFim\n1,20/06/2026 10:00\n"
+    (tmp_path / "data.csv").write_text(body, encoding="utf-8")
     config = load_config(config_path)
 
     with pytest.raises(ValueError, match="coluna\\(s\\) referenciada"):

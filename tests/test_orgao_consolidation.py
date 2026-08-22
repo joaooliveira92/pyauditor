@@ -20,7 +20,7 @@ def _summary(
     penalty_points: float = 0.0,
 ) -> IndicatorSummary:
     return IndicatorSummary(
-        indicator_id=indicator_id or f"{contractual_id}-{orgao}",
+        indicator_id=indicator_id or f"{contractual_id}-IND",
         contractual_id=contractual_id,
         name=f"Indicador {contractual_id}",
         asset=asset,
@@ -83,14 +83,17 @@ def test_consolidated_conforms_tolerates_float_rounding_at_the_target() -> None:
     assert consolidated.conforms is True
 
 
-def test_consolidated_penalty_is_sum_of_both_orgaos() -> None:
+def test_consolidated_synthetic_row_carries_no_penalty_points() -> None:
+    # A linha consolidada é apenas a visão analítica de INMS_BASE: os pontos
+    # de glosa continuam somados por órgão (GLOSAS) — a linha sintética nunca
+    # participa de cálculo financeiro para não contar duas vezes.
     minc = _summary("INMS 1.1", "MinC", numerator=50, denominator=100, penalty_points=300.0)
     mtur = _summary("INMS 1.1", "MTur", numerator=50, denominator=100, penalty_points=150.0)
 
     rows = with_orgao_consolidation([minc, mtur])
     consolidated = next(r for r in rows if r.orgao == "Consolidado")
 
-    assert consolidated.penalty_points == 450.0
+    assert consolidated.penalty_points == 0.0
 
 
 def test_per_asset_indicators_are_excluded() -> None:
@@ -127,13 +130,13 @@ def test_single_orgao_is_left_untouched() -> None:
 
 
 def test_consolidated_row_gets_a_distinct_indicator_id() -> None:
-    minc = _summary("INMS 1.1", "MinC", indicator_id="INMS-1.1-MINC", numerator=90, denominator=100)
-    mtur = _summary("INMS 1.1", "MTur", indicator_id="INMS-1.1-MTUR", numerator=90, denominator=100)
+    minc = _summary("INMS 1.1", "MinC", indicator_id="INMS-1.1", numerator=90, denominator=100)
+    mtur = _summary("INMS 1.1", "MTur", indicator_id="INMS-1.1", numerator=90, denominator=100)
 
     rows = with_orgao_consolidation([minc, mtur])
 
     ids = {r.indicator_id for r in rows}
-    assert ids == {"INMS-1.1-MINC", "INMS-1.1-MTUR", "INMS-1.1-MINC-CONSOLIDADO"}
+    assert ids == {"INMS-1.1", "INMS-1.1-CONSOLIDADO"}
 
 
 def test_multi_asset_pairs_are_consolidated_independently_per_asset() -> None:
