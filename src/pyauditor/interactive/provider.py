@@ -130,7 +130,8 @@ class InteractionProvider(Protocol):
         self,
         message: str,
         choices: Sequence[MultiChoiceOption],
-    ) -> list"""Prompt for zero or more values.
+    ) -> list[str]:
+        """Prompt for zero or more values.
 
         Each option is represented by:
 
@@ -192,7 +193,8 @@ class InteractionProvider(Protocol):
     def show_progress(
         self,
         label: str,
-    ) -> AbstractContextManager"""Display a progress indicator for the context lifetime.
+    ) -> AbstractContextManager[None]:
+        """Display a progress indicator for the context lifetime.
 
         The label is rendered literally. The progress indicator must be
         stopped when the context exits, including exceptional exits.
@@ -309,7 +311,8 @@ class RichQuestionaryProvider:
         self,
         message: str,
         choices: Sequence[MultiChoiceOption],
-    ) -> list"""Prompt for multiple values using validated option definitions."""
+    ) -> list[str]:
+        """Prompt for multiple values using validated option definitions."""
         normalized_choices = tuple(choices)
 
         if not normalized_choices:
@@ -430,7 +433,7 @@ class RichQuestionaryProvider:
         self._console.print(
             Text(
                 text,
-                style=style if style else None,
+                style=style,
             )
         )
 
@@ -438,7 +441,8 @@ class RichQuestionaryProvider:
     def show_progress(
         self,
         label: str,
-    ) -> Iterator"""Display and deterministically stop a literal progress indicator."""
+    ) -> Iterator[None]:
+        """Display and deterministically stop a literal progress indicator."""
         with self._console.status(
             Text(label),
             spinner="dots",

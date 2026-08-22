@@ -329,7 +329,8 @@ def collect_answers(
 def select_commands(
     provider: InteractionProvider,
     orgao: str,
-) -> frozenset"""Collect a non-empty set of commands for the selected plan.
+) -> frozenset[str]:
+    """Collect a non-empty set of commands for the selected plan.
 
     Consolidation is available only for ``both``. The provider may allow the
     user to omit upstream commands when their artifacts already exist; the
@@ -439,7 +440,8 @@ def _render_state_line(
 def _force_commands_for(
     orgao: str,
     commands: frozenset[str],
-) -> frozenset"""Return applicable production commands that require fresh results.
+) -> frozenset[str]:
+    """Return applicable production commands that require fresh results.
 
     Report and consolidation are inexpensive to regenerate from materialized
     inputs and provide publication and financial fields required by the final
@@ -545,6 +547,7 @@ def _run_guided_flow(
             style="bold red",
         )
 
+        choices: tuple[str, ...]
         if _is_pre_dispatch_failure(entry):
             choices = (
                 "Ignorar esta etapa",
