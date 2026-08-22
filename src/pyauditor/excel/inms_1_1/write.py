@@ -78,7 +78,7 @@ def _validate_write_sheet_params(
     # narrativas coerentes ao mesmo tempo — ver ticket 05 (A-03).
     if target_operator != '>=':
         raise ValueError(
-            f'target_operator {target_operator!r} não suportado por este'
+            f'target_operator {target_operator!r} não suportado por este '
             f'renderer — '
             "a aba enriquecida do INMS 1.1 assume meta mínima ('>='); para "
             'meta-teto '

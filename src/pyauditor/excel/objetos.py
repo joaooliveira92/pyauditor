@@ -238,7 +238,7 @@ def read_objetos(path: Path) -> Objetos:
 
     if actual_indexes != expected_indexes:
         raise ValueError(
-            f'{path}: índices de item devem ser únicos e contíguos a partir de'
+            f'{path}: índices de item devem ser únicos e contíguos a partir de '
             f'1: '
             f'esperado {expected_indexes!r}, recebido {actual_indexes!r}.'
         )
@@ -331,7 +331,7 @@ def _parse_item_index(
     """Valida e converte um índice de item contratual positivo."""
     if not value.isascii() or not value.isdecimal():
         raise ValueError(
-            f'{path}: linha {line_number}: Item deve ser um inteiro ASCII'
+            f'{path}: linha {line_number}: Item deve ser um inteiro ASCII '
             f'positivo, '
             f'recebido {value!r}.'
         )

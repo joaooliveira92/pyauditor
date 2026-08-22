@@ -30,9 +30,9 @@ def load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
             summary = IndicatorSummary(**raw)
             if expected_orgao is not None and summary.orgao != expected_orgao:
                 raise ValueError(
-                    f'{summary_path}: orgao {summary.orgao!r} no sidecar'
+                    f'{summary_path}: orgao {summary.orgao!r} no sidecar '
                     f'diverge do diretório '
-                    f'de origem {expected_orgao!r} — sidecar'
+                    f'de origem {expected_orgao!r} — sidecar '
                     f'mal-rotulado/copiado'
                 )
             summaries.append(summary)

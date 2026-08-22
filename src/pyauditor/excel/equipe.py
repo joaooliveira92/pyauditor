@@ -129,7 +129,7 @@ def read_equipe(path: Path) -> Equipe:
         )
         if not eh_substituto and base_chave not in _FUNCAO_BY_NORMALIZED:
             warnings.append(
-                f'função desconhecida {funcao_raw!r} — não mapeada para nenhum'
+                f'função desconhecida {funcao_raw!r} — não mapeada para nenhum '
                 f'campo da capa'
             )
         membros[chave] = (nome, siape)
@@ -152,20 +152,21 @@ def read_responsaveis(
         equipe = read_equipe(equipe_path)
     except FileNotFoundError:
         return {}, (
-            f"equipe não encontrada em {equipe_path} — responsáveis ficam '[a"
+            f"equipe não encontrada em {equipe_path} — responsáveis ficam '[a "
             f"preencher]' "
-            f'(rode'
-            f'`pyauditor'
-            f'bootstrap`'
-            f'ou'
-            f'crie'
-            f'o'
-            f'arquivo:'
+            f'(rode '
+            f'`pyauditor '
+            f'bootstrap` '
+            f'ou '
+            f'crie '
+            f'o '
+            f'arquivo: '
             f'{EQUIPE_FILENAME})',
         )
     except ValueError as exc:
         return {}, (
-            f"falhaaoler{equipe_path}:{exc}—responsáveisficam'[apreencher]'",
+            f'falha ao ler {equipe_path}: {exc} — responsáveis ficam '
+            "'[a preencher]'",
         )
     prefixo = f'{equipe_path.name}: '
     return equipe.responsaveis_fields(), tuple(

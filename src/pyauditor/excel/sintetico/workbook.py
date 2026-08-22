@@ -123,14 +123,14 @@ def write_sintetico_workbook(
         _write_capa_sheet(workbook, capa_path, objetos_path, warnings)
     elif objetos_path is not None:
         warnings.append(
-            f'sintetico.xlsx:'
-            f'capa_path'
-            f'não'
-            f'informado'
-            f'—'
-            f'dados'
-            f'de'
-            f'{objetos_path}'
+            f'sintetico.xlsx: '
+            f'capa_path '
+            f'não '
+            f'informado '
+            f'— '
+            f'dados '
+            f'de '
+            f'{objetos_path} '
             f"não anexados (dependem da aba '{CAPA_SHEET_NAME}')"
         )
     if equipe_path is not None:
@@ -229,7 +229,7 @@ def write_sintetico_workbook(
         if grupo_executor_entries:
             if GRUPO_EXECUTOR_COLUMN not in fieldnames:
                 warning = (
-                    f'sintetico.xlsx: INMS {inms_key}: {raw_csv_path} não tem'
+                    f'sintetico.xlsx: INMS {inms_key}: {raw_csv_path} não tem '
                     f'coluna '
                     f"'{GRUPO_EXECUTOR_COLUMN}' — aba não gerada"
                 )
@@ -271,7 +271,7 @@ def write_sintetico_workbook(
                     # degrada para o renderer genérico, como as demais
                     # falhas por-INMS deste loop.
                     warning = (
-                        f'sintetico.xlsx: INMS {inms_key}: falha ao gerar aba'
+                        f'sintetico.xlsx: INMS {inms_key}: falha ao gerar aba '
                         f'enriquecida '
                         f'({exc}) — usando renderer genérico'
                     )

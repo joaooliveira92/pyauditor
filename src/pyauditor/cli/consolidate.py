@@ -76,7 +76,7 @@ def _load_common_capa(data_dir: Path, warnings: list[str]) -> dict[str, object]:
     path = data_dir / 'capa.csv'
     if not path.exists():
         warnings.append(
-            f'capa.csv não encontrado em {data_dir} — capa do consolidado sem'
+            f'capa.csv não encontrado em {data_dir} — capa do consolidado sem '
             f'campos comuns'
         )
         return {}
@@ -84,7 +84,7 @@ def _load_common_capa(data_dir: Path, warnings: list[str]) -> dict[str, object]:
         return read_capa_csv_fields(path)  # type: ignore[return-value]
     except (OSError, ValueError) as exc:
         warnings.append(
-            f'falha ao ler capa.csv em {data_dir}: {exc} — campos comuns'
+            f'falha ao ler capa.csv em {data_dir}: {exc} — campos comuns '
             f'ausentes'
         )
         return {}

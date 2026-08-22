@@ -885,7 +885,8 @@ def test_prazos_sheet_omitted_when_prazos_path_not_given(
 
 
 _CAPA_RAW_CSV = (
-    'Campo;Valor\nNúmerodocontrato;40/2022\nProcessoSEI;72031.010172/2020-97\n'
+    'Campo;Valor\nNúmero do contrato;40/2022\n'
+    'Processo SEI;72031.010172/2020-97\n'
 )
 _EQUIPE_RAW_CSV = (
     'FUNÇÃO,NOME,SIAPE\n'

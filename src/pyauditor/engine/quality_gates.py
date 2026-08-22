@@ -38,8 +38,8 @@ class QualityGateRunner:
             else:
                 if self._id_column not in row:
                     raise ValueError(
-                        f'id_column {self._id_column!r} não existe no header do'
-                        f'CSV '
+                        f'id_column {self._id_column!r} não existe no '
+                        f'header do CSV '
                         '— corrija source.id_column na config do indicador'
                     )
                 rejected.append(
@@ -59,11 +59,11 @@ class QualityGateRunner:
                     return (
                         f"'{check.column}'"
                         f'='
-                        f"'{value}'"
-                        f'fora'
-                        f'do'
-                        f'conjunto'
-                        f'permitido'
+                        f"'{value}' "
+                        f'fora '
+                        f'do '
+                        f'conjunto '
+                        f'permitido '
                         f'{check.values}'
                     )
         return None

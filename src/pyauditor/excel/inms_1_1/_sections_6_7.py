@@ -187,10 +187,10 @@ def _write_section_7_auditoria(
         )
         val.number_format = _PCT4
         sit_formula = (
-            f'=IF(B13=0,"Não'
-            f'aplicável",IF(B{r}>=A13,"Meta'
-            f'atingida","Meta'
-            f'não'
+            f'=IF(B13=0,"Não '
+            f'aplicável",IF(B{r}>=A13,"Meta '
+            f'atingida","Meta '
+            f'não '
             f'atingida"))'
         )
         sit = sheet.cell(row=r, column=3, value=sit_formula)
@@ -206,9 +206,9 @@ def _write_section_7_auditoria(
         column=1,
         value=(
             f'Limite ITSM superior ao prazo contratual bruto (abertura + '
-            f'{_PRAZO_HORAS_CORRIDAS:g}h corridas) — comparação unidirecional:'
+            f'{_PRAZO_HORAS_CORRIDAS:g}h corridas) — comparação unidirecional: '
             f'só '
-            f'sinaliza prorrogação, não limite ITSM mais rígido que o'
+            f'sinaliza prorrogação, não limite ITSM mais rígido que o '
             f'contratual'
         ),
     ).font = LABEL_FONT
@@ -341,11 +341,11 @@ def _write_section_7_auditoria(
     sample_note_row = sample_last + 1
     sheet.merge_cells(f'A{sample_note_row}:F{sample_note_row}')
     sheet[f'A{sample_note_row}'] = (
-        f'=CONCATENATE("Amostra limitada às {sample_size} primeiras ocorrências'
-        f'de ",'
-        f'B{div_count_row}," registros com limite ITSM superior ao contratual'
+        f'=CONCATENATE("Amostra limitada às {sample_size} primeiras '
+        f'ocorrências de ",'
+        f'B{div_count_row}," registros com limite ITSM superior ao contratual '
         f'bruto — '
-        f'colunas de apoio desta aba (coluna AC) permitem reproduzir a lista'
+        f'colunas de apoio desta aba (coluna AC) permitem reproduzir a lista '
         f'completa.")'
     )
     sheet[f'A{sample_note_row}'].font = NOTE_FONT

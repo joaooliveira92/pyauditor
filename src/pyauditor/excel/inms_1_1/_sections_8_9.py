@@ -74,7 +74,10 @@ def _write_section_8_tempo(
     sheet.cell(
         row=atraso_row,
         column=1,
-        value='Atrasomédiodosregistrosforadoprazo(vs.limiteITSM,minutos):',
+        value=(
+            'Atraso médio dos registros fora do prazo (vs. limite ITSM, '
+            'minutos):'
+        ),
     ).font = LABEL_FONT
     # M-02: seleciona pela coluna calculada `_AD` ("No prazo (data limite
     # ITSM)"), não pela classificação do fornecedor (`_X`) — consistente
@@ -84,7 +87,7 @@ def _write_section_8_tempo(
         row=atraso_row,
         column=2,
         value=(
-            f'=IF(COUNTIF({rng(_AD)},"N")=0,"Sem'
+            f'=IF(COUNTIF({rng(_AD)},"N")=0,"Sem '
             f'atrasos",AVERAGEIF({rng(_AD)},"N",{rng(_AF)}))'
         ),
     )
@@ -140,7 +143,7 @@ def _write_section_9_penalidade(
         sheet,
         base_row,
         'Penalidade-base:',
-        f'=IF(B13=0,"Não'
+        f'=IF(B13=0,"Não '
         f'aplicável",IF({below_target},{penalty_base_points:g},0))',
         fmt='0',
     )
@@ -162,7 +165,7 @@ def _write_section_9_penalidade(
         total_row,
         'Total proporcional (base + adicional):',
         (
-            f'=IF(OR(ISTEXT(B{base_row}),ISTEXT(B{add_row})),"Não'
+            f'=IF(OR(ISTEXT(B{base_row}),ISTEXT(B{add_row})),"Não '
             f'aplicável",B{base_row}+B{add_row})'
         ),
         fmt='0.0000',
@@ -174,7 +177,7 @@ def _write_section_9_penalidade(
         scenario_row,
         'Cenário — faixas completas ou iniciadas:',
         (
-            f'=IF(B13=0,"Não'
+            f'=IF(B13=0,"Não '
             f'aplicável",IF({below_target},{penalty_base_points:g}+'
             f'CEILING(B{diffpp_row},{penalty_step_size_pct!r})/{penalty_step_size_pct!r}'
             f'*{penalty_step_points!r},0))'

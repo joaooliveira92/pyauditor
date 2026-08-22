@@ -237,12 +237,12 @@ def measurement_source(
         if period_column not in header:
             prefix = f'{config_path}: ' if config_path else ''
             raise ValueError(
-                f'{prefix}source.period_column'
-                f'{period_column!r}'
-                f'não'
-                f'existe'
-                f'no'
-                f'header'
+                f'{prefix}source.period_column '
+                f'{period_column!r} '
+                f'não '
+                f'existe '
+                f'no '
+                f'header '
                 f'de {csv_path.name} — corrija o YAML'
             )
         total_bruto = len(rows)

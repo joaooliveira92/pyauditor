@@ -110,8 +110,8 @@ class RunStateCorrupted(ValueError):
         self.path = path
         self.reason = reason
         super().__init__(
-            f'Run-state file {path} is corrupted ({reason}); delete it to start'
-            f'the run again.'
+            f'Run-state file {path} is corrupted ({reason}); delete it to '
+            f'start the run again.'
         )
 
 

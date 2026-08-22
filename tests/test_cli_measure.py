@@ -491,7 +491,8 @@ def test_run_measure_already_split_dedups_in_values_e_outros_warning(
     # órfão para forçar o aviso de sem-correspondência nos dois caminhos.
     csv_path = data_dir / '2026' / '06' / 'inms-01.csv'
     csv_path.write_text(
-        'NºSolicitacao;DataHoraFim;Noprazo;Grupo_executor\n1;2026-06-01;S;N0\n',
+        'Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n'
+        '1;2026-06-01;S;N0\n',
         encoding='utf-8',
     )
     periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))

@@ -319,7 +319,7 @@ class RichQuestionaryProvider:
         for index, option in enumerate(normalized_choices):
             if len(option) != 4:
                 raise ValueError(
-                    f'Multiple-choice option {index} must contain exactly four'
+                    f'Multiple-choice option {index} must contain exactly four '
                     f'fields.'
                 )
 
@@ -337,13 +337,13 @@ class RichQuestionaryProvider:
 
             if not isinstance(checked, bool):
                 raise TypeError(
-                    f'Multiple-choice option {index} checked state must be'
+                    f'Multiple-choice option {index} checked state must be '
                     f'boolean.'
                 )
 
             if disabled_reason is not None and not disabled_reason.strip():
                 raise ValueError(
-                    f'Multiple-choice option {index} has an empty disabled'
+                    f'Multiple-choice option {index} has an empty disabled '
                     f'reason.'
                 )
 

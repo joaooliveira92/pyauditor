@@ -226,7 +226,7 @@ def run_split(
             base_config = load_config(base_config_path)
         except (OSError, ValueError) as exc:
             logger.error(
-                f'INMS {inms_key} ({orgao}/{competencia}): falha ao carregar'
+                f'INMS {inms_key} ({orgao}/{competencia}): falha ao carregar '
                 f'config base '
                 f'{base_config_path}: {exc}'
             )
@@ -260,10 +260,10 @@ def run_split(
 
         if GRUPO_EXECUTOR_COLUMN not in fieldnames:
             logger.error(
-                f'INMS {inms_key} ({orgao}/{competencia}): {raw_csv_path} não'
+                f'INMS {inms_key} ({orgao}/{competencia}): {raw_csv_path} não '
                 f'tem coluna '
-                f"'{GRUPO_EXECUTOR_COLUMN}' — declarado mode: grupo_executor em"
-                f'categorias.yaml'
+                f"'{GRUPO_EXECUTOR_COLUMN}' — declarado mode: grupo_executor "
+                f'em categorias.yaml'
             )
             any_error = True
             continue

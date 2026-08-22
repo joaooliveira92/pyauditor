@@ -21,7 +21,8 @@ _COMPETENCIA_RE: Final = re.compile(r'^\d{4}-\d{2}$')
 # só melhora a mensagem). Cada chamador já monta sua própria mensagem
 # ("falha ao escrever X: exc") — só aponta esta dica no final.
 WRITE_FAILURE_HINT: Final = (
-    'verifiquepermissõesdodiretórioouseoarquivoestáabertoemoutroprograma'
+    'verifique as permissões do diretório ou se o arquivo está aberto em '
+    'outro programa'
 )
 DIR_FAILURE_HINT: Final = 'verifique as permissões do diretório'
 
@@ -33,7 +34,8 @@ def validate_competencia(competencia: str) -> str | None:
     building any path from it."""
     if not _COMPETENCIA_RE.match(competencia):
         return (
-            f'competênciainválida{competencia!r}:esperadoYYYY-MM(ex.:2026-06)'
+            f'competência inválida {competencia!r}: esperado YYYY-MM '
+            '(ex.: 2026-06)'
         )
     return None
 

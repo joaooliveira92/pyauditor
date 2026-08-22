@@ -36,7 +36,7 @@ def _write_csv_verbatim_sheet(
         )
     except FileNotFoundError:
         warnings.append(
-            f"sintetico.xlsx: {path} não encontrado — aba '{sheet_name}' não"
+            f"sintetico.xlsx: {path} não encontrado — aba '{sheet_name}' não "
             f'gerada'
         )
         return None
@@ -92,7 +92,7 @@ def _write_capa_sheet(
         return
     except (OSError, ValueError) as exc:
         warnings.append(
-            f'sintetico.xlsx: falha ao ler {objetos_path}: {exc} — dados de'
+            f'sintetico.xlsx: falha ao ler {objetos_path}: {exc} — dados de '
             f'objetos '
             f"não anexados à aba '{_CAPA_SHEET_NAME}'"
         )

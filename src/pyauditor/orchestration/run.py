@@ -541,7 +541,7 @@ def execute_run(
                 on_state_change,
                 skipped_steps,
                 reason=(
-                    f'etapa dependente de {command} ({orgao or "global"}) não'
+                    f'etapa dependente de {command} ({orgao or "global"}) não '
                     f'executada'
                 ),
             )

@@ -461,7 +461,7 @@ def build_glosas(
     for key in existing_decisions:
         if key not in seen_keys:
             warnings.append(
-                f'decisão registrada para {key[0]}/{key[1]} mas a ocorrência'
+                f'decisão registrada para {key[0]}/{key[1]} mas a ocorrência '
                 f'não existe mais '
                 'nesta rodada — preservada apenas no histórico, não reescrita'
             )

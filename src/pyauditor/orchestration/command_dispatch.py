@@ -133,14 +133,14 @@ def own_artifact_missing(
 
         if not capa_path.is_file():
             return (
-                f'capa'
-                f'de'
-                f'{organization}'
-                f'ausente'
-                f'em'
-                f'{capa_path};'
-                f'execute'
-                f'bootstrap'
+                f'capa '
+                f'de '
+                f'{organization} '
+                f'ausente '
+                f'em '
+                f'{capa_path}; '
+                f'execute '
+                f'bootstrap '
                 f'novamente'
             )
 
@@ -157,14 +157,14 @@ def own_artifact_missing(
 
         if not sintetico_path.is_file():
             return (
-                f'artefato'
-                f'de'
-                f'split'
-                f'ausente'
-                f'em'
-                f'{sintetico_path};'
-                f'execute'
-                f'split'
+                f'artefato '
+                f'de '
+                f'split '
+                f'ausente '
+                f'em '
+                f'{sintetico_path}; '
+                f'execute '
+                f'split '
                 f'novamente'
             )
 
@@ -175,7 +175,10 @@ def own_artifact_missing(
         roms_dir = request.output_dir / organization / request.competencia
 
         if not roms_dir.is_dir():
-            return f'diretóriodeROMsausenteem{roms_dir};executemeasurenovamente'
+            return (
+                f'diretório de ROMs ausente em {roms_dir}; execute measure '
+                'novamente'
+            )
 
         return None
 

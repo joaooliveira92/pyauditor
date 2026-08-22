@@ -232,7 +232,8 @@ def run_report(
         configs = discover_configs(config_dir, expected_orgao=expected_orgao)
     except (OSError, ValueError) as exc:
         warning = (
-            f'falhaaocarregarconfigsde{config_dir},CADASTROSseráomitido:{exc}'
+            f'falha ao carregar configs de {config_dir}, CADASTROS será '
+            f'omitido: {exc}'
         )
         logger.warning(warning)
         warnings.append(warning)
@@ -284,16 +285,16 @@ def run_report(
         write_historico(historico_path, historico)
     except OSError as exc:
         warning = (
-            f'falha'
-            f'ao'
-            f'gravar'
-            f'histórico'
-            f'de'
-            f'glosa'
-            f'em'
-            f'{historico_path}:'
-            f'{exc}'
-            f'—'
+            f'falha '
+            f'ao '
+            f'gravar '
+            f'histórico '
+            f'de '
+            f'glosa '
+            f'em '
+            f'{historico_path}: '
+            f'{exc} '
+            f'— '
             f'{WRITE_FAILURE_HINT}'
         )
         logger.warning(warning)

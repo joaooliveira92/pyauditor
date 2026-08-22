@@ -130,13 +130,13 @@ def month_bounds(competencia: str) -> PeriodoAfericao:
     """
     if not isinstance(competencia, str):
         raise TypeError(
-            f'competencia must be a string, received'
+            f'competencia must be a string, received '
             f'{type(competencia).__name__}.'
         )
 
     if _COMPETENCIA_RE.fullmatch(competencia) is None:
         raise ValueError(
-            f'competência inválida: {competencia!r}; esperado AAAA-MM com mês'
+            f'competência inválida: {competencia!r}; esperado AAAA-MM com mês '
             f'entre 01 e 12'
         )
 
@@ -152,8 +152,8 @@ def month_bounds(competencia: str) -> PeriodoAfericao:
         )
     except ValueError as exc:
         raise ValueError(
-            f'competência inválida: {competencia!r}; ano e mês devem formar uma'
-            f'data válida'
+            f'competência inválida: {competencia!r}; ano e mês devem '
+            f'formar uma data válida'
         ) from exc
 
     return PeriodoAfericao(

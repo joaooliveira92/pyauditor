@@ -138,7 +138,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     bootstrap_parser = subparsers.add_parser(
         _CMD_BOOTSTRAP,
-        help='criaascapasCSVdocontrato(comum+porórgão),seaindanãoexistirem',
+        help=(
+            'cria as capas CSV do contrato (comum + por órgão), se ainda '
+            'não existirem'
+        ),
     )
     _add_orgao_argument(bootstrap_parser)
     bootstrap_parser.add_argument(
@@ -253,7 +256,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     split_parser = subparsers.add_parser(
         _CMD_SPLIT,
-        help='geraCSVsfiltrados+configsderivadasporCategoria(spec§14.3)',
+        help=(
+            'gera CSVs filtrados + configs derivadas por Categoria (spec §14.3)'
+        ),
     )
     split_parser.add_argument('competencia', help='ex.: "2026-06"')
     _add_orgao_argument(split_parser)

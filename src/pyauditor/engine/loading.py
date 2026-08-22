@@ -72,9 +72,9 @@ def _detect_delimiter(csv_path: Path, encoding: str, configured: str) -> str:
     if detected is None:
         return configured
     logger.warning(
-        f'{csv_path}: delimiter configurado {configured!r} não aparece no'
+        f'{csv_path}: delimiter configurado {configured!r} não aparece no '
         f'cabeçalho, '
-        f'usando {detected!r} (detectado) — corrija o manifest/config se isso'
+        f'usando {detected!r} (detectado) — corrija o manifest/config se isso '
         f'persistir'
     )
     return detected

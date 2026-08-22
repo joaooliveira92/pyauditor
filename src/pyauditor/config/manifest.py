@@ -71,7 +71,7 @@ class DatasetManifest:
         except KeyError:
             available = ', '.join(sorted(self._entries))
             raise KeyError(
-                f'dataset alias {alias!r} not found in manifest; available:'
+                f'dataset alias {alias!r} not found in manifest; available: '
                 f'{available}'
             ) from None
 

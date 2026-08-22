@@ -104,13 +104,13 @@ def _require_numeric(
         return
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise TypeError(
-            f'IndicatorSummary.{name} must be a number, got'
+            f'IndicatorSummary.{name} must be a number, got '
             f'{type(value).__name__}'
         )
     if not math.isfinite(float(value)):
         raise ValueError(
-            f'IndicatorSummary.{name} não finito ({value!r}) — sidecar JSON com'
-            f'NaN/Infinity'
+            f'IndicatorSummary.{name} não finito ({value!r}) — sidecar '
+            f'JSON com NaN/Infinity'
         )
 
 

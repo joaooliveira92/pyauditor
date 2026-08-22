@@ -31,6 +31,7 @@ A suíte de testes do pyauditor sai do vermelho (hoje: 33 falhas / 526 passam / 
 <!-- centraliza aqui, uma linha por ticket fechado: gist + link -->
 
 - [01 — Que regra do Ruff detecta concatenação implícita de strings?](issues/01-ruff-rule-strings.md) — **Usar a família `ISC` do Ruff como gate anti-costura** (ISC001/ISC002/ISC003, estáveis, sem preview, compatíveis com ruff>=0.12), com `allow-multiline = false` para capturar o padrão multilinha da regressão; formatter funde literais que cabem na linha (auto‑prote); sem driver custom em pytest (Ruff já cobre sintaxe, tem `--fix` e integração de formatter). Findings em `notes/ruff-rule-strings.md`.
+- [03 — Reparar as costuras de strings e deixar a suíte verde](issues/03-reparar-costuras.md) — **Suíte verde**: 559 passed / 34 skipped (era 16 failed / 543 passed), via 3 varreduras complementares (fronteira de concatenação + transição de caixa em literal já fundido + triagem de testes) — nenhum caso intencional de colagem sem espaço encontrado (`notes/casos-intencionais.md`); `ruff check`/`format --check` sem regressão frente ao baseline pré-existente.
 
 ## Not yet specified
 

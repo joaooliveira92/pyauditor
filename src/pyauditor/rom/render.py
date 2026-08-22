@@ -178,10 +178,11 @@ def _render_responsaveis(capa_fields: dict[str, object], h: str = '##') -> str:
         f'{h} Responsáveis\n'
         f'- Fiscal técnico: {_capa_value(capa_fields, "Fiscal técnico")}\n'
         f'- Fiscal requisitante:'
-        f' {_capa_value(capa_fields, "Fiscalrequisitante")}\n'
+        f' {_capa_value(capa_fields, "Fiscal requisitante")}\n'
         f'- Fiscal administrativo:'
-        f' {_capa_value(capa_fields, "Fiscaladministrativo")}\n'
-        f'- Gestor do contrato: {_capa_value(capa_fields, "Gestordocontrato")}'
+        f' {_capa_value(capa_fields, "Fiscal administrativo")}\n'
+        f'- Gestor do contrato: '
+        f'{_capa_value(capa_fields, "Gestor do contrato")}'
     )
 
 

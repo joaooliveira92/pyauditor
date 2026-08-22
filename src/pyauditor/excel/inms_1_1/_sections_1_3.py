@@ -52,9 +52,9 @@ def _write_section_1_identificacao(
     data_corte: _CellValue
     if periodo is not None:
         competencia = (
-            f'{periodo.inicio:%d/%m/%Y}'
-            f'a'
-            f'{periodo.fim:%d/%m/%Y}'
+            f'{periodo.inicio:%d/%m/%Y} '
+            f'a '
+            f'{periodo.fim:%d/%m/%Y} '
             f'({periodo.inicio:%Y-%m})'
         )
         data_corte = periodo.fim
@@ -220,8 +220,8 @@ def _write_section_3_memoria(sheet: Worksheet) -> int:
         return (
             'CONCATENATE("Com ",B17," incidentes, seriam necessários pelo menos '
             '",B24,'
-            f'" dentro do prazo para atingir ",TEXT(B22,"0.00%"),". O resultado'
-            f'ficou {desfecho})'
+            f'" dentro do prazo para atingir ",TEXT(B22,"0.00%"),". O '
+            f'resultado ficou {desfecho})'
         )
 
     # Narrativa condicional ao sinal da margem (B25 = IADP - mínimo): "abaixo"

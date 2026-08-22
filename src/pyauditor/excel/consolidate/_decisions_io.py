@@ -61,8 +61,8 @@ def _check_no_duplicate_headers(
     if duplicates:
         raise ValueError(
             f'{path}: coluna(s) duplicada(s) em {GLOSAS_SHEET!r}: '
-            f'{", ".join(sorted(duplicates))} — planilha hand-edited em formato'
-            f'inesperado, '
+            f'{", ".join(sorted(duplicates))} — planilha hand-edited em '
+            f'formato inesperado, '
             'corrija antes de rodar consolidate de novo'
         )
 
@@ -80,7 +80,7 @@ def _check_renamed_headers(path: Path, header_row: Sequence[object]) -> None:
             if candidate is not None:
                 raise ValueError(
                     f'{path}: cabeçalho esperado {expected!r} não encontrado, '
-                    f'mas existe candidato próximo {candidate!r} — possível'
+                    f'mas existe candidato próximo {candidate!r} — possível '
                     f'renomeação '
                     'com espaço/acentuação/case, corrija o cabeçalho'
                 )
@@ -89,7 +89,7 @@ def _check_renamed_headers(path: Path, header_row: Sequence[object]) -> None:
             for actual in present:
                 if _normalize_header(actual) == norm_expected:
                     raise ValueError(
-                        f'{path}: cabeçalho esperado {expected!r} não'
+                        f'{path}: cabeçalho esperado {expected!r} não '
                         f'encontrado, '
                         f'mas existe candidato próximo {actual!r}'
                     )

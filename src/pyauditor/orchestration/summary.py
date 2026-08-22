@@ -170,9 +170,9 @@ def _consolidate_artifact(
 ) -> str:
     """Describe the consolidated report artifact."""
     return (
-        f'{result.output_path}'
-        f'({result.decisions_preserved}'
-        f'decisão(ões)'
+        f'{result.output_path} '
+        f'({result.decisions_preserved} '
+        f'decisão(ões) '
         f'preservada(s))'
     )
 
