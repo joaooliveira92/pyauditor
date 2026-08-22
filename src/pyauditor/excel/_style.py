@@ -127,27 +127,35 @@ def write_row(
     sheet: Worksheet,
     row_idx: int,
     values: tuple[CellValue, ...],
+    *,
+    expected_columns: int | None = None,
 ) -> None:
     """Write and style one complete worksheet body row.
 
-    The number of values must match the number of columns already declared on
-    the worksheet. Existing cells at ``row_idx`` are overwritten.
+    By default, the number of values must match the number of columns already
+    declared on the worksheet (its header row). Existing cells at ``row_idx``
+    are overwritten.
 
     Args:
         sheet: Worksheet that receives the row.
         row_idx: One-based destination row. Body rows must start after the
             header row.
         values: Cell values in the same order as the worksheet columns.
+        expected_columns: Column count to validate ``values`` against, instead
+            of the worksheet's declared header width. Needed when a sheet
+            carries more than one differently-shaped row block (e.g. a second
+            verbatim CSV block appended below the sheet's own header).
 
     Raises:
         ValueError: If ``row_idx`` refers to the header row or an earlier row,
-            or if the number of values differs from the worksheet column
+            or if the number of values differs from the expected column
             count.
     """
     if isinstance(row_idx, bool) or row_idx < 2:
         raise ValueError("Body row index must be an integer greater than 1.")
 
-    expected_columns = sheet.max_column
+    if expected_columns is None:
+        expected_columns = sheet.max_column
     if len(values) != expected_columns:
         raise ValueError(
             "Row value count does not match the worksheet schema: "

@@ -298,6 +298,7 @@ def _write_subtotals(
                 pct_display,
                 tempo_display,
             ),
+            expected_columns=len(_SUBTOTAL_COLUMNS),
         )
         row_idx += 1
 
@@ -339,6 +340,7 @@ def _write_ativo_subtotals(
                 pct_display,
                 tempo_display,
             ),
+            expected_columns=len(_ATIVO_SUBTOTAL_COLUMNS),
         )
         row_idx += 1
 
@@ -710,9 +712,10 @@ def _write_capa_sheet(
         return
 
     header_row = last_row + 2  # 1 linha em branco de separação
-    write_row(sheet, header_row, tuple(objetos_header))
+    objetos_columns = len(objetos_header)
+    write_row(sheet, header_row, tuple(objetos_header), expected_columns=objetos_columns)
     for row_idx, row in enumerate(objetos_rows, start=header_row + 1):
-        write_row(sheet, row_idx, tuple(row))
+        write_row(sheet, row_idx, tuple(row), expected_columns=objetos_columns)
 
 
 def write_sintetico_workbook(
