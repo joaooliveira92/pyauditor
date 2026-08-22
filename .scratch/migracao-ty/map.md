@@ -23,14 +23,19 @@ O repositório pyauditor deixa de usar **mypy e basedpyright** em tudo — local
 
 <!-- centralizar aqui, uma linha por ticket fechado: gist + link -->
 
-_(nenhum ticket fechado ainda)_
+-   Ticket 01 (instalar ty): ty 0.0.73 global via `uv tool install ty@latest`; `uvx ty@0.0.73` é a resolução do CI. (issues/01-instalar-ty.md)
+-   Ticket 02 (research): mapa dos 32 suppresses + delta de 150 diagnósticos (139 dívida real / 11 ruído de stub); strict-equality/generic-narrowing ficam `false`. (issues/02-mapeamento-estado-ty.md, notes/estado-ty.md)
+-   Ticket 03 (config): `[tool.ty]` strict default sem overrides de regra; `respect-type-ignore-comments = false`; `include = [src, tests]`; Ruff `+ANN/PYI`+`preview`; basedpyright removido. (issues/03.md)
+-   Ticket 04 (limpeza): 150 diag → 0; 11 suppresses mortos removidos; 3 dívidas em src corrigidas com `cast`; ruído de stub (11) resolvido com `assert ... is not None`; `excel/capa.py:141` mantém o único `# ty: ignore` justificado de stub (`Cell.value` mais estreito que o runtime); suíte 559 passed / 89.29% branch. (issues/04.md)
+-   Ticket 05 (docs vivas): CODING_STANDARDS.md, README.md, pyguide.md (§2.21, §3.19.7) → ty; `.gitignore` sem `.basedpyright/`; `.vscode/settings.json` → Pylance off + extensão `astral-sh.ty` (`extensions.json` novo). (issues/05.md)
+-   Ticket 06 (CI): novo `.github/workflows/quality.yml` (push main/master + PR; `uvx ty@0.0.73` pinado; ty strict como gate); `weekly-testing.yml` corrigido para `uvx ty@0.0.73`. (issues/06.md)
 
 ## Not yet specified
 
--   **Perfil estrito exato do `[tool.ty.rules]`**: a preocupação é espelhar "strict", mas o delta do default do ty sobre este repo ainda não foi medido — o ticket 02 (research) o resolve e gradua a configuração.
--   **Delta de diagnostics novos**: quais diagnostics o ty levanta que o basedpyright strict não levantava (por módulo/regra); o volume materializa o trabalho do ticket 04.
--   **Stubs de terceiros**: `types-openpyxl`, `types-pyyaml`, stubs de `questionary`/`rich`/`loguru` — como o ty as resolve; pode exigir `overrides`, `allowed-unresolved-imports`, `replace-imports-with-any` ou downgrades de regra em `[tool.ty.overrides]`.
--   **Editor settings**: o `.vscode/settings.json` hoje só liga Pylance `full` — precisa da extensão `astral-sh.ty` e o comportamento `python.languageServer` (o config em repo vs máquina está por decidir).
+-   ~~**Perfil estrito exato do `[tool.ty.rules]`**~~ → resolvido no ticket 03 (strict default, sem overrides).
+-   ~~**Delta de diagnostics novos**~~ → resolvido no ticket 02 (150 diag catalogados por módulo/regra).
+-   ~~**Stubs de terceiros**~~ → resolvido no ticket 04 (narrowing com `assert is not None`; zero overrides/suppressões de stub).
+-   ~~**Editor settings**~~ → resolvido no ticket 05 (Pylance off, extensão `astral-sh.ty` recomendada no repo; config de máquina fica com o human).
 
 ## Out of escopo
 

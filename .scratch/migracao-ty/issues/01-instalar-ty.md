@@ -1,7 +1,7 @@
 # 01 — Instalar ty no ambiente
 
 **Type:** task
-**Status:** aberto
+**Status:** resolvido
 **Blocked by:** nenhum
 
 ## Question
@@ -14,4 +14,8 @@ Como o ty entra no ambiente da estação de trabalho e qual versão fica garanti
 
 ## Resolução
 
-_(preencher ao resolver: versão instalada, saída de `ty --version`, qualquer peculiaridade do ambiente macOS evidenciada)_
+-   Instalado globalmente via `uv tool install ty@latest` (confirma `uv tool list`: `ty v0.0.73`).
+-   `ty --version` → `ty 0.0.73 (4bd2833c4 2026-08-18)`.
+-   `uvx ty@0.0.73` também resolve e roda o check no repo (`uvx ty@0.0.73 check src` → `All checks passed!`) — sem poluir o projeto.
+-   Fato ambiental macOS evidenciado: nenhum peculiar — binário em `~/.local/bin/ty` (dir padrão do `uv tool`), já no PATH.
+-   O CI (ticket 06) e o `weekly-testing.yml` usam `uvx ty@0.0.73` pinado, independente desta instalação local.

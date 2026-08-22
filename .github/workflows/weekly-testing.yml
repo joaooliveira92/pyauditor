@@ -38,7 +38,10 @@ jobs:
           uv run --locked ruff check src tests
           uv run --locked ruff format --check src tests
       - name: Type check
-        run: uv run --locked ty check
+        # `ty` é tool global do repo (Q1/A do wayfinder migracao-ty), não
+        # dependência do projeto — no CI o `uv run ty` não o acharia; vai via
+        # `uvx` na versão pinada que mediu o baseline (ticket 06).
+        run: uvx ty@0.0.73 check src tests
       - name: Tests and branch coverage
         run: uv run --locked pytest --cov=pyauditor --cov-branch --cov-report=term-missing --cov-report=xml --junitxml=junit.xml --durations=20
       - name: Security checks

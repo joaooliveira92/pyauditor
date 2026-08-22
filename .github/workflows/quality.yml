@@ -1,0 +1,55 @@
+name: Quality gates
+
+# Wf de qualidade do repo (ty + ruff + pytest), rodando no push/PR.
+# É um workflow novo, que soma aos de deploy existentes (docs.yml, static.yml)
+# — estes não são alterados por esta migração (wayfinder migracao-ty, ticket 06).
+#
+# o `ty` NÃO é dependência do projeto (decisão Q1/A do wayfinder: instalado
+# globalmente via `uv tool install ty@latest`), então o CI o resolve via
+# `uvx ty@0.0.73` — pinado na versão que mediu o baseline. O default
+# `terminal.error-on-warning = true` do ty faz qualquer warning falhar o gate
+# (é o "strict do ty" decidido no ticket 03 — sem tolerância).
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Verify lockfile
+        run: uv lock --check
+      - name: Synchronize environment
+        run: uv sync --locked --group dev
+      - name: Ruff
+        run: |
+          set -euo pipefail
+          uv run --locked ruff check src tests
+          uv run --locked ruff format --check src tests
+      - name: Type check (ty, pinado)
+        run: uvx ty@0.0.73 check src tests
+      - name: Tests and branch coverage
+        run: uv run --locked pytest
