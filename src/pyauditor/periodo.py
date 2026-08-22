@@ -220,34 +220,44 @@ def _cell_interval(
     if not text:
         return None
 
-    try:
-        timestamp = datetime.strptime(
-            text,
-            _DATETIME_CELL_FORMAT,
-        )
-    except ValueError:
-        pass
-    else:
-        day = timestamp.date()
-        return day, day
+    length = len(text)
+    # ⚡ Bolt: otimização de performance.
+    # Evita chamadas custosas ao datetime.strptime (e o lançamento/captura de
+    # exceções ValueError em caminhos de falha) verificando primeiro a estrutura
+    # dos formatos suportados:
+    # 1. "DD/MM/YYYY HH:MM" possui exatamente 16 caracteres com separadores em posições fixas.
+    # 2. "YYYY-MM" possui exatamente 7 caracteres com hífen na posição 4.
+    if length == 16 and text[2] == "/" and text[5] == "/" and text[10] == " " and text[13] == ":":
+        try:
+            timestamp = datetime.strptime(
+                text,
+                _DATETIME_CELL_FORMAT,
+            )
+        except ValueError:
+            return None
+        else:
+            day = timestamp.date()
+            return day, day
+    elif length == 7 and text[4] == "-":
+        if _MONTH_CELL_RE.fullmatch(text) is None:
+            return None
 
-    if _MONTH_CELL_RE.fullmatch(text) is None:
-        return None
+        year = int(text[:4])
+        month = int(text[5:7])
 
-    year = int(text[:4])
-    month = int(text[5:7])
+        try:
+            first_day = date(year, month, 1)
+            last_day = date(
+                year,
+                month,
+                calendar.monthrange(year, month)[1],
+            )
+        except ValueError:
+            return None
 
-    try:
-        first_day = date(year, month, 1)
-        last_day = date(
-            year,
-            month,
-            calendar.monthrange(year, month)[1],
-        )
-    except ValueError:
-        return None
+        return first_day, last_day
 
-    return first_day, last_day
+    return None
 
 
 def filter_periodo(
