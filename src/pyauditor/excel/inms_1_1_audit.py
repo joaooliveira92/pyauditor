@@ -38,6 +38,8 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.categoria_filter import GRUPO_EXECUTOR_COLUMN, compute_categoria_values
 from pyauditor.config.categorias import CategoriasFile, GrupoExecutorMode, WholeIndicatorMode
+from pyauditor.excel._datetime import PRAZO_TOLERANCIA_MINUTOS, parse_dt
+from pyauditor.excel._safety import safe_excel_text
 from pyauditor.periodo import PeriodoAfericao
 
 __all__: Final[tuple[str, ...]] = ("has_required_columns", "write_sheet")
@@ -107,7 +109,10 @@ BORDER: Final = Border(bottom=Side(style="thin", color="D1D5DB"))
 
 # Colunas de apoio (dados brutos) — far à direita do conteúdo visível.
 _R, _S, _T, _U, _V, _W, _X, _Y, _Z, _AA, _AB, _AC, _AD, _AE, _AF, _AG, _AH, _AI = range(18, 36)
+_AJ = 36
 _AK, _AL, _AM = 37, 38, 39
+
+_DATA_QUALIDADE_OK: Final[str] = "OK"
 
 # Assinatura do range de uma coluna de apoio (`R2:R{last_row}` etc.), fixada
 # uma vez por chamada de `write_sheet` a partir de `last_row` — repassada
@@ -117,16 +122,6 @@ _ColumnRange = Callable[[int], str]
 
 def has_required_columns(fieldnames: list[str]) -> bool:
     return all(column in fieldnames for column in _REQUIRED_COLUMNS)
-
-
-def _parse_dt(raw: str) -> datetime | None:
-    raw = raw.strip()
-    if not raw:
-        return None
-    try:
-        return datetime.strptime(raw, "%d/%m/%Y %H:%M")
-    except ValueError:
-        return None
 
 
 def _raw_range(col: int, last_row: int) -> str:
@@ -248,6 +243,7 @@ def _write_raw_block(
         _AG: "Duração criação→resolução (dias)",
         _AH: "Ordem — fora do prazo",
         _AI: "Ordem — divergência de prazo",
+        _AJ: "Situação dos dados",
     }
     note = sheet.cell(
         row=1,
@@ -271,27 +267,53 @@ def _write_raw_block(
         cell.fill = HEADER_FILL
         sheet.column_dimensions[cl(col)].width = 30
     for idx, (grupo, nivel, categoria) in enumerate(grupo_rows, start=2):
-        sheet.cell(row=idx, column=_AK, value=grupo).font = BODY_FONT
-        sheet.cell(row=idx, column=_AL, value=nivel).font = BODY_FONT
-        sheet.cell(row=idx, column=_AM, value=categoria).font = BODY_FONT
+        sheet.cell(row=idx, column=_AK, value=safe_excel_text(grupo)).font = BODY_FONT
+        sheet.cell(row=idx, column=_AL, value=safe_excel_text(nivel)).font = BODY_FONT
+        sheet.cell(row=idx, column=_AM, value=safe_excel_text(categoria)).font = BODY_FONT
     map_range = f"${cl(_AK)}$2:${cl(_AM)}${1 + len(grupo_rows)}"
 
     for i, row in enumerate(rows, start=2):
-        sheet.cell(row=i, column=_R, value=row[_NUM_SOLICITACAO_COLUMN]).font = BODY_FONT
-        sheet.cell(row=i, column=_S, value=row[GRUPO_EXECUTOR_COLUMN]).font = BODY_FONT
-        sheet.cell(row=i, column=_T, value=row[_ATIVIDADE_COLUMN]).font = BODY_FONT
+        num_solicitacao = safe_excel_text(row[_NUM_SOLICITACAO_COLUMN])
+        sheet.cell(row=i, column=_R, value=num_solicitacao).font = BODY_FONT
+        sheet.cell(
+            row=i, column=_S, value=safe_excel_text(row[GRUPO_EXECUTOR_COLUMN])
+        ).font = BODY_FONT
+        sheet.cell(
+            row=i, column=_T, value=safe_excel_text(row[_ATIVIDADE_COLUMN])
+        ).font = BODY_FONT
 
-        u_cell = sheet.cell(row=i, column=_U, value=_parse_dt(row[_DATA_SOLICITACAO_COLUMN]))
+        solicitacao = parse_dt(row[_DATA_SOLICITACAO_COLUMN])
+        limite = parse_dt(row[_DATA_LIMITE_COLUMN])
+        fim = parse_dt(row[_DATA_FIM_COLUMN])
+
+        u_cell = sheet.cell(row=i, column=_U, value=solicitacao.value)
         u_cell.number_format = _DATETIME_FMT
-        v_cell = sheet.cell(row=i, column=_V, value=_parse_dt(row[_DATA_LIMITE_COLUMN]))
+        v_cell = sheet.cell(row=i, column=_V, value=limite.value)
         v_cell.number_format = _DATETIME_FMT
-        w_cell = sheet.cell(row=i, column=_W, value=_parse_dt(row[_DATA_FIM_COLUMN]))
+        w_cell = sheet.cell(row=i, column=_W, value=fim.value)
         w_cell.number_format = _DATETIME_FMT
         for c in (u_cell, v_cell, w_cell):
             c.font = BODY_FONT
 
-        sheet.cell(row=i, column=_X, value=row[_NO_PRAZO_COLUMN]).font = BODY_FONT
-        sheet.cell(row=i, column=_Y, value=row[_TECNICO_COLUMN]).font = BODY_FONT
+        if solicitacao.is_malformed:
+            qualidade = "Data de abertura inválida"
+        elif limite.is_malformed:
+            qualidade = "Data limite inválida"
+        elif fim.is_malformed:
+            qualidade = "Data de encerramento inválida"
+        elif solicitacao.value is not None and fim.value is not None and fim.value < solicitacao.value:
+            qualidade = "Encerramento anterior à abertura"
+        else:
+            qualidade = _DATA_QUALIDADE_OK
+        aj_cell = sheet.cell(row=i, column=_AJ, value=qualidade)
+        aj_cell.font = BODY_FONT
+        if qualidade != _DATA_QUALIDADE_OK:
+            aj_cell.fill = RED_FILL
+
+        sheet.cell(row=i, column=_X, value=safe_excel_text(row[_NO_PRAZO_COLUMN])).font = BODY_FONT
+        sheet.cell(
+            row=i, column=_Y, value=safe_excel_text(row[_TECNICO_COLUMN])
+        ).font = BODY_FONT
 
         sc, uc, vc, wc, abc = (
             f"{cl(_S)}{i}", f"{cl(_U)}{i}", f"{cl(_V)}{i}", f"{cl(_W)}{i}", f"{cl(_AB)}{i}",
@@ -302,14 +324,16 @@ def _write_raw_block(
         aa_cell = sheet.cell(
             row=i, column=_AA, value=f'=IFERROR(VLOOKUP({sc},{map_range},3,FALSE),"")'
         )
-        ab_cell = sheet.cell(row=i, column=_AB, value=f"={uc}+{_PRAZO_HORAS_CORRIDAS}/24")
+        ab_cell = sheet.cell(
+            row=i, column=_AB, value=f'=IF({uc}="","",{uc}+{_PRAZO_HORAS_CORRIDAS}/24)'
+        )
         ab_cell.number_format = _DATETIME_FMT
         ac_cell = sheet.cell(
             row=i,
             column=_AC,
             value=(
                 f'=IF(OR({uc}="",{vc}=""),"Requer análise",'
-                f'IF({vc}>{abc}+1/1440,"Sim","Não"))'
+                f'IF({vc}>{abc}+{PRAZO_TOLERANCIA_MINUTOS}/1440,"Sim","Não"))'
             ),
         )
         ad_cell = sheet.cell(
@@ -324,7 +348,11 @@ def _write_raw_block(
             value=f'=IF(AND({wc}<>"",{vc}<>"",{wc}>{vc}),({wc}-{vc})*1440,0)',
         )
         af_cell.number_format = "0.0"
-        ag_cell = sheet.cell(row=i, column=_AG, value=f"={wc}-{uc}")
+        ag_cell = sheet.cell(
+            row=i,
+            column=_AG,
+            value=f'=IF(OR({uc}="",{wc}="",{wc}<{uc}),"",{wc}-{uc})',
+        )
         ag_cell.number_format = _DUR
         for c in (z_cell, aa_cell, ac_cell, ad_cell, ae_cell):
             c.font = BODY_FONT
@@ -366,10 +394,10 @@ def _write_section_1_identificacao(
         data_corte = "Não informado"
         data_corte_fmt = None
     _label_value(sheet, 4, "Competência:", competencia, fill=GRAY_FILL)
-    _label_value(sheet, 5, "Contrato:", contract, fill=GRAY_FILL)
+    _label_value(sheet, 5, "Contrato:", safe_excel_text(contract), fill=GRAY_FILL)
     _label_value(
         sheet, 6, "Fonte dos dados:",
-        f"{raw_csv_path} ({len(rows)} registros brutos)", fill=GRAY_FILL,
+        safe_excel_text(f"{raw_csv_path} ({len(rows)} registros brutos)"), fill=GRAY_FILL,
     )
     _label_value(
         sheet, 7, "Data de geração:", datetime.now(), fmt=_DATETIME_FMT, fill=GRAY_FILL
@@ -397,15 +425,24 @@ def _write_section_2_resumo(
     sheet["B13"] = f"={iap}"
     sheet["C13"] = f"={iadp}"
     sheet["D13"] = f"={fora}"
-    sheet["E13"] = "=C13/B13"
+    # B13=0 (nenhum incidente aberto no período) não é "0% de desempenho" —
+    # é resultado não mensurável; guardado para não propagar #DIV/0! e para
+    # não afirmar "meta não atingida" indevidamente.
+    sheet["E13"] = '=IF(B13=0,"Sem ocorrências",C13/B13)'
     # `target_operator` só assume ">=" ou "<=" (validado no config Pydantic);
     # o sinal da diferença e o sentido da situação seguem `meets_target`.
     if target_operator == ">=":
-        sheet["F13"] = "=E13-A13"
-        sheet["G13"] = '=IF(E13>=A13,"Meta atingida","Meta não atingida")'
+        sheet["F13"] = '=IF(B13=0,"",E13-A13)'
+        sheet["G13"] = (
+            '=IF(B13=0,"Sem ocorrências",'
+            'IF(E13>=A13,"Meta atingida","Meta não atingida"))'
+        )
     else:
-        sheet["F13"] = "=A13-E13"
-        sheet["G13"] = '=IF(E13<=A13,"Meta atingida","Meta não atingida")'
+        sheet["F13"] = '=IF(B13=0,"",A13-E13)'
+        sheet["G13"] = (
+            '=IF(B13=0,"Sem ocorrências",'
+            'IF(E13<=A13,"Meta atingida","Meta não atingida"))'
+        )
 
     sheet["A13"].number_format = _PCT2
     sheet["E13"].number_format = _PCT2
@@ -440,7 +477,8 @@ def _write_section_3_memoria(sheet: Worksheet) -> None:
     _label_value(sheet, 21, "INMS 1.1 (resultado, 4 casas):", "=E13", fmt=_PCT4)
     _label_value(sheet, 22, "Meta contratual:", "=A13", fmt=_PCT4)
     _label_value(
-        sheet, 23, "Desvio em pontos percentuais (Resultado - Meta):", "=E13-A13", fmt=_PCT4
+        sheet, 23, "Desvio em pontos percentuais (Resultado - Meta):",
+        '=IF(B13=0,"",E13-A13)', fmt=_PCT4,
     )
     _label_value(
         sheet, 24, "Quantidade mínima dentro do prazo p/ atingir a meta:",
@@ -450,10 +488,22 @@ def _write_section_3_memoria(sheet: Worksheet) -> None:
         sheet, 25, "Margem em quantidade de incidentes (IADP - mínimo):", "=C13-B24", fmt="0;-0"
     )
     sheet.merge_cells("A26:L26")
+
+    def _narrativa(desfecho: str) -> str:
+        return (
+            'CONCATENATE("Com ",B17," incidentes, seriam necessários pelo menos ",B24,'
+            f'" dentro do prazo para atingir ",TEXT(B22,"0.00%"),". O resultado ficou {desfecho})'
+        )
+
+    # Narrativa condicional ao sinal da margem (B25 = IADP - mínimo): "abaixo"
+    # só quando a margem é negativa — antes disso o texto sempre dizia
+    # "abaixo do mínimo" mesmo com meta superada (ABS(B25) escondia o sinal).
+    abaixo = _narrativa('",ABS(B25)," incidente(s) abaixo do mínimo necessário."')
+    exato = _narrativa('exatamente no mínimo necessário."')
+    acima = _narrativa('",B25," incidente(s) acima do mínimo necessário."')
     sheet["A26"] = (
-        '=CONCATENATE("Com ",B17," incidentes, seriam necessários pelo menos ",B24,'
-        '" dentro do prazo para atingir ",TEXT(B22,"0.00%"),". O resultado ficou ",'
-        'ABS(B25)," incidente(s) abaixo do mínimo necessário.")'
+        '=IF(B13=0,"Sem incidentes abertos no período — indicador não mensurável.",'
+        f"IF(B25<0,{abaixo},IF(B25=0,{exato},{acima})))"
     )
     sheet["A26"].font = NOTE_FONT
 
@@ -476,9 +526,9 @@ def _write_section_4_detalhamento(
     first_group_row = 30
     for offset, (grupo, nivel, categoria) in enumerate(grupo_rows):
         r = first_group_row + offset
-        sheet.cell(row=r, column=1, value=categoria).font = BODY_FONT
-        sheet.cell(row=r, column=2, value=nivel).font = BODY_FONT
-        sheet.cell(row=r, column=3, value=grupo).font = BODY_FONT
+        sheet.cell(row=r, column=1, value=safe_excel_text(categoria)).font = BODY_FONT
+        sheet.cell(row=r, column=2, value=safe_excel_text(nivel)).font = BODY_FONT
+        sheet.cell(row=r, column=3, value=safe_excel_text(grupo)).font = BODY_FONT
         grupo_ref = f"$C${r}"
         linhas_cell = sheet.cell(row=r, column=4, value=f"=COUNTIF({rng(_S)},{grupo_ref})")
         dentro_cell = sheet.cell(
@@ -586,7 +636,9 @@ def _write_section_5_subtotais(
     tl = sheet.cell(row=totr, column=2, value=f"=SUM(B{nivel_rows[0]}:B{outr})")
     td = sheet.cell(row=totr, column=3, value=f"=SUM(C{nivel_rows[0]}:C{outr})")
     tf = sheet.cell(row=totr, column=4, value=f"=SUM(D{nivel_rows[0]}:D{outr})")
-    tp = sheet.cell(row=totr, column=5, value=f"=C{totr}/B{totr}")
+    tp = sheet.cell(
+        row=totr, column=5, value=f'=IF(B{totr}=0,"Sem ocorrências",C{totr}/B{totr})'
+    )
     tp.number_format = _PCT2
     for c in (tl, td, tf, tp):
         c.font = Font(bold=True)
@@ -606,7 +658,13 @@ def _write_section_5_subtotais(
     sheet[f"A{check_row}"] = "Verificação cruzada (Seção 5 = Seção 2/3):"
     sheet[f"A{check_row}"].font = LABEL_FONT
     chk = sheet.cell(
-        row=check_row, column=2, value=f'=IF(ROUND(E{totr},6)=ROUND(E13,6),"OK","DIVERGÊNCIA")'
+        row=check_row,
+        column=2,
+        value=(
+            f'=IF(AND(ISNUMBER(E{totr}),ISNUMBER(E13)),'
+            f'IF(ROUND(E{totr},6)=ROUND(E13,6),"OK","DIVERGÊNCIA"),'
+            f'IF(E{totr}=E13,"OK","DIVERGÊNCIA"))'
+        ),
     )
     chk.font = Font(bold=True)
     sheet.conditional_formatting.add(
@@ -689,29 +747,29 @@ def _write_section_7_auditoria(
     sheet.cell(row=s7_bar + 1, column=1, value="Controles de resultado").font = LABEL_FONT
     _header_row(sheet, s7_bar + 2, ("Metodologia", "Resultado", "Situação"))
     ctrl_rows = [
-        ("Resultado informado pelo fornecedor (campo 'No prazo')", "=C13/B13"),
+        ("Resultado informado pelo fornecedor (campo 'No prazo')", "C13/B13"),
         (
             "Resultado reproduzido pela data limite registrada no ITSM "
             "(DataHoraFim ≤ DataHoraLimite)",
-            f'=COUNTIF({rng(_AD)},"S")/B13',
+            f'COUNTIF({rng(_AD)},"S")/B13',
         ),
         (
             f"Controle contratual bruto (DataHoraFim ≤ DataHoraSolicitacao + "
             f"{_PRAZO_HORAS_CORRIDAS:g}h corridas)",
-            f'=COUNTIF({rng(_AE)},"S")/B13',
+            f'COUNTIF({rng(_AE)},"S")/B13',
         ),
     ]
     first_ctrl = s7_bar + 3
-    for i, (label, formula) in enumerate(ctrl_rows):
+    for i, (label, division) in enumerate(ctrl_rows):
         r = first_ctrl + i
         sheet.cell(row=r, column=1, value=label).font = BODY_FONT
         sheet.cell(row=r, column=1).alignment = Alignment(wrap_text=True)
-        val = sheet.cell(row=r, column=2, value=formula)
+        val = sheet.cell(row=r, column=2, value=f'=IF(B13=0,"Sem ocorrências",{division})')
         val.number_format = _PCT4
+        meets = f"B{r}>=A13" if target_operator == ">=" else f"B{r}<=A13"
         sit_formula = (
-            f'=IF(B{r}>=A13,"Meta atingida","Meta não atingida")'
-            if target_operator == ">="
-            else f'=IF(B{r}<=A13,"Meta atingida","Meta não atingida")'
+            f'=IF(B13=0,"Não aplicável",'
+            f'IF({meets},"Meta atingida","Meta não atingida"))'
         )
         sit = sheet.cell(row=r, column=3, value=sit_formula)
         val.font = BODY_FONT
@@ -735,7 +793,11 @@ def _write_section_7_auditoria(
     div_count = sheet.cell(row=div_count_row, column=2, value=f'=COUNTIF({rng(_AC)},"Sim")')
     div_count.font = Font(bold=True)
     sheet.cell(row=div_count_row, column=3, value="% do total:").font = BODY_FONT
-    div_pct = sheet.cell(row=div_count_row, column=4, value=f"=B{div_count_row}/B13")
+    div_pct = sheet.cell(
+        row=div_count_row,
+        column=4,
+        value=f'=IF(B13=0,"Sem ocorrências",B{div_count_row}/B13)',
+    )
     div_pct.number_format = _PCT2
     div_pct.font = Font(bold=True)
     div_pct.fill = ORANGE_FILL
@@ -755,11 +817,13 @@ def _write_section_7_auditoria(
     sheet[f"A{note_row7}"].alignment = Alignment(wrap_text=True, vertical="center")
     sheet.row_dimensions[note_row7].height = 48
 
-    prazo_delta = timedelta(hours=_PRAZO_HORAS_CORRIDAS, minutes=1)  # +1min de tolerância
+    prazo_delta = timedelta(
+        hours=_PRAZO_HORAS_CORRIDAS, minutes=PRAZO_TOLERANCIA_MINUTOS
+    )
     divergentes_count = 0
     for row in rows:
-        sol = _parse_dt(row[_DATA_SOLICITACAO_COLUMN])
-        lim = _parse_dt(row[_DATA_LIMITE_COLUMN])
+        sol = parse_dt(row[_DATA_SOLICITACAO_COLUMN]).value
+        lim = parse_dt(row[_DATA_LIMITE_COLUMN]).value
         if sol is not None and lim is not None and lim > sol + prazo_delta:
             divergentes_count += 1
     sample_size = min(divergentes_count, 15)
@@ -865,39 +929,49 @@ def _write_section_9_penalidade(
     _label_value(sheet, s9_bar + 1, "Meta:", "=A13", fmt=_PCT4)
     _label_value(sheet, s9_bar + 2, "Resultado:", "=E13", fmt=_PCT4)
     diff9_row = s9_bar + 3
-    diff_formula = "=A13-E13" if target_operator == ">=" else "=E13-A13"
+    diff_formula = (
+        '=IF(B13=0,"",A13-E13)' if target_operator == ">=" else '=IF(B13=0,"",E13-A13)'
+    )
     _label_value(sheet, diff9_row, "Diferença (Meta - Resultado):", diff_formula, fmt=_PCT4)
     diffpp_row = diff9_row + 1
     _label_value(
-        sheet, diffpp_row, "Diferença em pontos percentuais:", f"=(B{diff9_row})*100",
+        sheet, diffpp_row, "Diferença em pontos percentuais:",
+        f'=IF(B{diff9_row}="","",B{diff9_row}*100)',
         fmt="0.0000",
     )
     base_row = diffpp_row + 1
     below_target = "E13<A13" if target_operator == ">=" else "E13>A13"
     _label_value(
         sheet, base_row, "Penalidade-base:",
-        f"=IF({below_target},{penalty_base_points:g},0)", fmt="0",
+        f'=IF(B13=0,"Não aplicável",IF({below_target},{penalty_base_points:g},0))', fmt="0",
     )
     add_row = base_row + 1
     _label_value(
         sheet, add_row,
         f"Adicional proporcional ({penalty_step_points:g} pontos a cada "
         f"{penalty_step_size_pct:g} p.p. — cálculo contínuo):",
-        f"=IF({below_target},(B{diffpp_row}/{penalty_step_size_pct!r})*{penalty_step_points!r},0)",
+        (
+            f'=IF(B13=0,"Não aplicável",IF({below_target},'
+            f"(B{diffpp_row}/{penalty_step_size_pct!r})*{penalty_step_points!r},0))"
+        ),
         fmt="0.0000",
     )
     total_row = add_row + 1
     _label_value(
         sheet, total_row, "Total proporcional (base + adicional):",
-        f"=B{base_row}+B{add_row}", fmt="0.0000", fill=TEAL_FILL,
+        (
+            f"=IF(OR(ISTEXT(B{base_row}),ISTEXT(B{add_row})),"
+            f'"Não aplicável",B{base_row}+B{add_row})'
+        ),
+        fmt="0.0000", fill=TEAL_FILL,
     )
     scenario_row = total_row + 1
     _label_value(
         sheet, scenario_row, "Cenário — faixas completas ou iniciadas:",
         (
-            f"=IF({below_target},{penalty_base_points:g}+"
+            f'=IF(B13=0,"Não aplicável",IF({below_target},{penalty_base_points:g}+'
             f"CEILING(B{diffpp_row},{penalty_step_size_pct!r})/{penalty_step_size_pct!r}"
-            f"*{penalty_step_points!r},0)"
+            f"*{penalty_step_points!r},0))"
         ),
         fmt="0", fill=ORANGE_FILL,
     )
