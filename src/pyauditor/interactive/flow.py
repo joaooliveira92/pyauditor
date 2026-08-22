@@ -61,13 +61,9 @@ _ALL_COMMANDS: Final[tuple[str, ...]] = (
     "consolidate",
 )
 
-_PRE_DISPATCH_FAILURE_PREFIX: Final[str] = (
-    "dependência não satisfeita:"
-)
+_PRE_DISPATCH_FAILURE_PREFIX: Final[str] = "dependência não satisfeita:"
 
-_STATE_PRESENTATION: Final[
-    dict[CommandState, tuple[str, str]]
-] = {
+_STATE_PRESENTATION: Final[dict[CommandState, tuple[str, str]]] = {
     "pending": ("[ ]", "dim"),
     "running": ("[>]", "cyan"),
     "done": ("[x]", "green"),
@@ -116,10 +112,7 @@ def _validate_competencia(text: str) -> bool | str:
     try:
         month_bounds(text)
     except (TypeError, ValueError):
-        return (
-            "Competência inválida. Use AAAA-MM com um mês entre 01 e 12, "
-            "por exemplo 2026-06."
-        )
+        return "Competência inválida. Use AAAA-MM com um mês entre 01 e 12, por exemplo 2026-06."
 
     return True
 
@@ -251,11 +244,7 @@ def collect_answers(
             "Escolha both para executar o plano phase-major dos dois órgãos "
             "e, quando selecionada, a consolidação final.",
         )
-        orgao = (
-            "both"
-            if orgao_choice.startswith("both")
-            else orgao_choice
-        )
+        orgao = "both" if orgao_choice.startswith("both") else orgao_choice
 
         config_dir = _ask_path(
             provider,
@@ -347,18 +336,14 @@ def select_commands(
         ValueError: If ``orgao`` is not supported.
     """
     if orgao not in {"MinC", "MTur", "both"}:
-        raise ValueError(
-            f"Seletor de órgão não suportado: {orgao!r}."
-        )
+        raise ValueError(f"Seletor de órgão não suportado: {orgao!r}.")
 
     labels: Final[dict[str, str]] = {
         "bootstrap": "bootstrap: cria ou atualiza a capa do contrato",
         "split": "split: prepara categorias e gera o arquivo sintético",
         "measure": "measure: apura os indicadores INMS",
         "report": "report: gera o relatório da competência",
-        "consolidate": (
-            "consolidate: reúne MinC e MTur no relatório consolidado"
-        ),
+        "consolidate": ("consolidate: reúne MinC e MTur no relatório consolidado"),
     }
 
     consolidate_available = orgao == "both"
@@ -371,11 +356,7 @@ def select_commands(
                     labels[command],
                     command,
                     consolidate_available,
-                    (
-                        None
-                        if consolidate_available
-                        else "disponível somente para both"
-                    ),
+                    (None if consolidate_available else "disponível somente para both"),
                 )
             )
             continue
@@ -538,10 +519,7 @@ def _run_guided_flow(
         entry: CommandStateEntry,
     ) -> FailureDecision:
         """Ask how the orchestrator should handle a command failure."""
-        reason = (
-            entry.error_message
-            or "falha sem mensagem disponível"
-        )
+        reason = entry.error_message or "falha sem mensagem disponível"
         provider.show_message(
             f"{entry.command} falhou: {reason}",
             style="bold red",

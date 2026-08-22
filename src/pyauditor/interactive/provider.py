@@ -251,8 +251,7 @@ class RichQuestionaryProvider:
 
         if not isinstance(answer, str):
             raise TypeError(
-                "Questionary text prompt returned a non-string answer: "
-                f"{type(answer).__name__}."
+                f"Questionary text prompt returned a non-string answer: {type(answer).__name__}."
             )
 
         return answer
@@ -268,22 +267,13 @@ class RichQuestionaryProvider:
         normalized_choices = tuple(choices)
 
         if not normalized_choices:
-            raise ValueError(
-                "Single-choice prompt requires at least one option."
-            )
+            raise ValueError("Single-choice prompt requires at least one option.")
 
-        if any(
-            not isinstance(choice, str)
-            for choice in normalized_choices
-        ):
-            raise TypeError(
-                "Single-choice prompt options must all be strings."
-            )
+        if any(not isinstance(choice, str) for choice in normalized_choices):
+            raise TypeError("Single-choice prompt options must all be strings.")
 
         if default is not None and default not in normalized_choices:
-            raise ValueError(
-                f"Default choice {default!r} is not available."
-            )
+            raise ValueError(f"Default choice {default!r} is not available.")
 
         answer = questionary.select(
             message,
@@ -296,14 +286,11 @@ class RichQuestionaryProvider:
 
         if not isinstance(answer, str):
             raise TypeError(
-                "Questionary select prompt returned a non-string answer: "
-                f"{type(answer).__name__}."
+                f"Questionary select prompt returned a non-string answer: {type(answer).__name__}."
             )
 
         if answer not in normalized_choices:
-            raise ValueError(
-                f"Questionary returned an unavailable choice: {answer!r}."
-            )
+            raise ValueError(f"Questionary returned an unavailable choice: {answer!r}.")
 
         return answer
 
@@ -316,9 +303,7 @@ class RichQuestionaryProvider:
         normalized_choices = tuple(choices)
 
         if not normalized_choices:
-            raise ValueError(
-                "Multiple-choice prompt requires at least one option."
-            )
+            raise ValueError("Multiple-choice prompt requires at least one option.")
 
         values: list[str] = []
         options: list[questionary.Choice] = []
@@ -326,36 +311,22 @@ class RichQuestionaryProvider:
         for index, option in enumerate(normalized_choices):
             if len(option) != 4:
                 raise ValueError(
-                    f"Multiple-choice option {index} must contain exactly "
-                    "four fields."
+                    f"Multiple-choice option {index} must contain exactly four fields."
                 )
 
             label, value, checked, disabled_reason = option
 
             if not label:
-                raise ValueError(
-                    f"Multiple-choice option {index} has an empty label."
-                )
+                raise ValueError(f"Multiple-choice option {index} has an empty label.")
 
             if not value:
-                raise ValueError(
-                    f"Multiple-choice option {index} has an empty value."
-                )
+                raise ValueError(f"Multiple-choice option {index} has an empty value.")
 
             if not isinstance(checked, bool):
-                raise TypeError(
-                    f"Multiple-choice option {index} checked state must be "
-                    "boolean."
-                )
+                raise TypeError(f"Multiple-choice option {index} checked state must be boolean.")
 
-            if (
-                disabled_reason is not None
-                and not disabled_reason.strip()
-            ):
-                raise ValueError(
-                    f"Multiple-choice option {index} has an empty disabled "
-                    "reason."
-                )
+            if disabled_reason is not None and not disabled_reason.strip():
+                raise ValueError(f"Multiple-choice option {index} has an empty disabled reason.")
 
             values.append(value)
             options.append(
@@ -368,9 +339,7 @@ class RichQuestionaryProvider:
             )
 
         if len(values) != len(set(values)):
-            raise ValueError(
-                "Multiple-choice option values must be unique."
-            )
+            raise ValueError("Multiple-choice option values must be unique.")
 
         answer = questionary.checkbox(
             message,
@@ -387,15 +356,12 @@ class RichQuestionaryProvider:
             )
 
         if any(not isinstance(value, str) for value in answer):
-            raise TypeError(
-                "Questionary checkbox returned a non-string option value."
-            )
+            raise TypeError("Questionary checkbox returned a non-string option value.")
 
         unknown_values = set(answer) - set(values)
         if unknown_values:
             raise ValueError(
-                "Questionary checkbox returned unavailable values: "
-                f"{sorted(unknown_values)!r}."
+                f"Questionary checkbox returned unavailable values: {sorted(unknown_values)!r}."
             )
 
         return answer
@@ -417,8 +383,7 @@ class RichQuestionaryProvider:
 
         if not isinstance(answer, bool):
             raise TypeError(
-                "Questionary confirmation returned a non-boolean answer: "
-                f"{type(answer).__name__}."
+                f"Questionary confirmation returned a non-boolean answer: {type(answer).__name__}."
             )
 
         return answer

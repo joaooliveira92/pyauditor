@@ -341,16 +341,12 @@ def _require_finite_number(
         ValueError: If the operand is boolean or not finite.
     """
     if isinstance(value, bool):
-        raise ValueError(
-            f"{field} must be numeric for {orgao!r}, not boolean."
-        )
+        raise ValueError(f"{field} must be numeric for {orgao!r}, not boolean.")
 
     numeric_value = float(value)
 
     if not isfinite(numeric_value):
-        raise ValueError(
-            f"{field} must be finite for {orgao!r}: {value!r}."
-        )
+        raise ValueError(f"{field} must be finite for {orgao!r}: {value!r}.")
 
     return numeric_value
 
@@ -385,9 +381,7 @@ def _require_nonnegative_number(
     )
 
     if numeric_value < 0:
-        raise ValueError(
-            f"{field} must be non-negative for {orgao!r}: {value!r}."
-        )
+        raise ValueError(f"{field} must be non-negative for {orgao!r}: {value!r}.")
 
     return numeric_value
 
@@ -416,23 +410,18 @@ def _meets_target(
             uses an unsupported operator.
     """
     if not isfinite(result_pct):
-        raise ValueError(
-            f"Consolidated result must be finite: {result_pct!r}."
-        )
+        raise ValueError(f"Consolidated result must be finite: {result_pct!r}.")
 
     if operator is None and target is None:
         return False
 
     if operator is None or target is None:
         raise ValueError(
-            "Target operator and target value must either both be set or "
-            "both be absent."
+            "Target operator and target value must either both be set or both be absent."
         )
 
     if not isfinite(target):
-        raise ValueError(
-            f"Target value must be finite: {target!r}."
-        )
+        raise ValueError(f"Target value must be finite: {target!r}.")
 
     if operator == ">=":
         return result_pct >= target - _EPSILON
@@ -440,6 +429,4 @@ def _meets_target(
     if operator == "<=":
         return result_pct <= target + _EPSILON
 
-    raise ValueError(
-        f"Unsupported target operator for consolidation: {operator!r}."
-    )
+    raise ValueError(f"Unsupported target operator for consolidation: {operator!r}.")

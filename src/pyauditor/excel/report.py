@@ -230,15 +230,11 @@ def _inline_validation_formula(values: tuple[str, ...]) -> str:
         raise ValueError("Data-validation values must not be empty.")
 
     if any("," in value or '"' in value for value in values):
-        raise ValueError(
-            "Inline data-validation values must not contain commas or quotes."
-        )
+        raise ValueError("Inline data-validation values must not contain commas or quotes.")
 
     formula = f'"{",".join(values)}"'
     if len(formula) > 255:
-        raise ValueError(
-            "Inline data-validation formula exceeds Excel's 255-character limit."
-        )
+        raise ValueError("Inline data-validation formula exceeds Excel's 255-character limit.")
 
     return formula
 
@@ -423,10 +419,7 @@ def compute_report_glosa(
     """
     effective_history = historico if historico is not None else {}
     selected_summaries = _summaries_for_glosa(summaries)
-    total_points = sum(
-        summary.penalty_points
-        for summary in selected_summaries
-    )
+    total_points = sum(summary.penalty_points for summary in selected_summaries)
     previous_balance = saldo_anterior_pct_de(
         effective_history,
         competencia,
@@ -469,10 +462,7 @@ def _build_group_sheets(
     summaries: Sequence[IndicatorSummary],
 ) -> None:
     """Create every configured operational group worksheet."""
-    summaries_by_group: dict[str, list[IndicatorSummary]] = {
-        group: []
-        for group in GROUP_TABS
-    }
+    summaries_by_group: dict[str, list[IndicatorSummary]] = {group: [] for group in GROUP_TABS}
 
     for summary in summaries:
         group = group_for_summary(
@@ -544,17 +534,9 @@ def _build_glosas_sheet(
             round(previous_balance, 5) if previous_balance else None,
             round(glosa.percentual_ajuste, 5),
             glosa.valor_base,
-            (
-                round(glosa.valor_da_glosa, 2)
-                if glosa.valor_da_glosa is not None
-                else None
-            ),
+            (round(glosa.valor_da_glosa, 2) if glosa.valor_da_glosa is not None else None),
             "S" if glosa.teto_atingido else "N",
-            (
-                round(glosa.saldo_rolado_pct, 5)
-                if glosa.saldo_rolado_pct
-                else None
-            ),
+            (round(glosa.saldo_rolado_pct, 5) if glosa.saldo_rolado_pct else None),
             "S" if reincidencia else "N",
         ),
     )
@@ -631,11 +613,7 @@ def build_report_workbook(
             summaries,
         )
 
-        effective_history = (
-            historico
-            if historico is not None
-            else {}
-        )
+        effective_history = historico if historico is not None else {}
         _build_glosas_sheet(
             workbook,
             competencia,

@@ -12,7 +12,7 @@ usa `,` em 1.7/1.11/1.12 enquanto MinC usa `;`).
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Existe um único resolver compartilhado para o diretório de config (`_shared` se is_dir, senão per-órgão) e para o manifest, com precedência única e documentada.
 - [x] `cli/main.py` e `orchestration/run.py` usam o mesmo resolver — para o mesmo órgão+base, `measure` e `run` chegam ao mesmo config_dir e ao mesmo `DatasetManifest`.

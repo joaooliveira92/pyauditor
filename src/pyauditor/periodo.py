@@ -44,12 +44,8 @@ __all__: Final[tuple[str, ...]] = (
 )
 
 _DATETIME_CELL_FORMAT: Final[str] = "%d/%m/%Y %H:%M"
-_MONTH_CELL_RE: Final[re.Pattern[str]] = re.compile(
-    r"^\d{4}-(?:0[1-9]|1[0-2])$"
-)
-_COMPETENCIA_RE: Final[re.Pattern[str]] = re.compile(
-    r"^\d{4}-(?:0[1-9]|1[0-2])$"
-)
+_MONTH_CELL_RE: Final[re.Pattern[str]] = re.compile(r"^\d{4}-(?:0[1-9]|1[0-2])$")
+_COMPETENCIA_RE: Final[re.Pattern[str]] = re.compile(r"^\d{4}-(?:0[1-9]|1[0-2])$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,16 +67,10 @@ class PeriodoAfericao:
     def __post_init__(self) -> None:
         """Validate the inclusive date interval."""
         if not isinstance(self.inicio, date):
-            raise TypeError(
-                "inicio must be a date, "
-                f"received {type(self.inicio).__name__}."
-            )
+            raise TypeError(f"inicio must be a date, received {type(self.inicio).__name__}.")
 
         if not isinstance(self.fim, date):
-            raise TypeError(
-                "fim must be a date, "
-                f"received {type(self.fim).__name__}."
-            )
+            raise TypeError(f"fim must be a date, received {type(self.fim).__name__}.")
 
         if self.fim < self.inicio:
             raise ValueError(
@@ -131,15 +121,11 @@ def month_bounds(competencia: str) -> PeriodoAfericao:
             invalid calendar year or month.
     """
     if not isinstance(competencia, str):
-        raise TypeError(
-            "competencia must be a string, "
-            f"received {type(competencia).__name__}."
-        )
+        raise TypeError(f"competencia must be a string, received {type(competencia).__name__}.")
 
     if _COMPETENCIA_RE.fullmatch(competencia) is None:
         raise ValueError(
-            f"competência inválida: {competencia!r}; "
-            "esperado AAAA-MM com mês entre 01 e 12"
+            f"competência inválida: {competencia!r}; esperado AAAA-MM com mês entre 01 e 12"
         )
 
     year = int(competencia[:4])
@@ -154,8 +140,7 @@ def month_bounds(competencia: str) -> PeriodoAfericao:
         )
     except ValueError as exc:
         raise ValueError(
-            f"competência inválida: {competencia!r}; "
-            "ano e mês devem formar uma data válida"
+            f"competência inválida: {competencia!r}; ano e mês devem formar uma data válida"
         ) from exc
 
     return PeriodoAfericao(
@@ -184,19 +169,14 @@ def require_period_column(
     """
     if period_column is not None and not isinstance(period_column, str):
         raise TypeError(
-            "period_column must be a string or None, "
-            f"received {type(period_column).__name__}."
+            f"period_column must be a string or None, received {type(period_column).__name__}."
         )
 
     column = (period_column or "").strip()
     if column:
         return column
 
-    origin = (
-        f" em {config_path}"
-        if config_path is not None
-        else ""
-    )
+    origin = f" em {config_path}" if config_path is not None else ""
     raise PeriodColumnMissingError(
         f"source.period_column não declarado{origin}; "
         "indique no YAML a coluna de período do dataset para que o pipeline "
@@ -289,26 +269,17 @@ def filter_periodo(
         ValueError: If ``period_column`` is empty.
     """
     if not isinstance(period_column, str):
-        raise TypeError(
-            "period_column must be a string, "
-            f"received {type(period_column).__name__}."
-        )
+        raise TypeError(f"period_column must be a string, received {type(period_column).__name__}.")
 
     normalized_column = period_column.strip()
     if not normalized_column:
         raise ValueError("period_column must not be empty.")
 
     if not isinstance(periodo, PeriodoAfericao):
-        raise TypeError(
-            "periodo must be PeriodoAfericao, "
-            f"received {type(periodo).__name__}."
-        )
+        raise TypeError(f"periodo must be PeriodoAfericao, received {type(periodo).__name__}.")
 
     if not isinstance(strict, bool):
-        raise TypeError(
-            "strict must be bool, "
-            f"received {type(strict).__name__}."
-        )
+        raise TypeError(f"strict must be bool, received {type(strict).__name__}.")
 
     retained_rows: list[dict[str, str]] = []
     dropped_out_of_period = 0
@@ -317,8 +288,7 @@ def filter_periodo(
     for row_index, row in enumerate(linhas, start=1):
         if not isinstance(row, Mapping):
             raise TypeError(
-                f"linhas[{row_index - 1}] must be a mapping, "
-                f"received {type(row).__name__}."
+                f"linhas[{row_index - 1}] must be a mapping, received {type(row).__name__}."
             )
 
         cell_value = row.get(normalized_column)
@@ -331,10 +301,7 @@ def filter_periodo(
                 retained_rows.append(dict(row))
             continue
 
-        intersects_window = (
-            interval[1] >= periodo.inicio
-            and interval[0] <= periodo.fim
-        )
+        intersects_window = interval[1] >= periodo.inicio and interval[0] <= periodo.fim
 
         if intersects_window:
             retained_rows.append(dict(row))
@@ -361,10 +328,7 @@ def format_date_br(data: date) -> str:
         TypeError: If ``data`` is not a date.
     """
     if not isinstance(data, date):
-        raise TypeError(
-            "data must be a date, "
-            f"received {type(data).__name__}."
-        )
+        raise TypeError(f"data must be a date, received {type(data).__name__}.")
 
     return f"{data.day:02d}/{data.month:02d}/{data.year:04d}"
 
@@ -376,15 +340,9 @@ def format_period_br(periodo: PeriodoAfericao) -> str:
         ``01/06/2026 a 30/06/2026``
     """
     if not isinstance(periodo, PeriodoAfericao):
-        raise TypeError(
-            "periodo must be PeriodoAfericao, "
-            f"received {type(periodo).__name__}."
-        )
+        raise TypeError(f"periodo must be PeriodoAfericao, received {type(periodo).__name__}.")
 
-    return (
-        f"{format_date_br(periodo.inicio)} a "
-        f"{format_date_br(periodo.fim)}"
-    )
+    return f"{format_date_br(periodo.inicio)} a {format_date_br(periodo.fim)}"
 
 
 def empty_window_message(
@@ -392,10 +350,7 @@ def empty_window_message(
 ) -> str:
     """Return the diagnostic used when no row remains in the window."""
     if not isinstance(periodo, PeriodoAfericao):
-        raise TypeError(
-            "periodo must be PeriodoAfericao, "
-            f"received {type(periodo).__name__}."
-        )
+        raise TypeError(f"periodo must be PeriodoAfericao, received {type(periodo).__name__}.")
 
     return (
         f"nenhuma linha no período {format_date_br(periodo.inicio)}–"
@@ -437,27 +392,18 @@ def discard_message(
     )
 
     if not isinstance(strict, bool):
-        raise TypeError(
-            "strict must be bool, "
-            f"received {type(strict).__name__}."
-        )
+        raise TypeError(f"strict must be bool, received {type(strict).__name__}.")
 
     parts: list[str] = []
 
     if dropped_out_of_period > 0:
-        parts.append(
-            f"{dropped_out_of_period} linha(s) fora do período descartada(s)"
-        )
+        parts.append(f"{dropped_out_of_period} linha(s) fora do período descartada(s)")
 
     if strict and undated_dropped > 0:
         if parts:
-            parts.append(
-                f"{undated_dropped} sem data legível"
-            )
+            parts.append(f"{undated_dropped} sem data legível")
         else:
-            parts.append(
-                f"{undated_dropped} linha(s) sem data legível descartada(s)"
-            )
+            parts.append(f"{undated_dropped} linha(s) sem data legível descartada(s)")
 
     if not parts:
         return None
@@ -472,12 +418,7 @@ def _validate_non_negative_count(
 ) -> None:
     """Validate a non-boolean, non-negative integer counter."""
     if isinstance(value, bool) or not isinstance(value, int):
-        raise TypeError(
-            f"{field} must be an integer, "
-            f"received {type(value).__name__}."
-        )
+        raise TypeError(f"{field} must be an integer, received {type(value).__name__}.")
 
     if value < 0:
-        raise ValueError(
-            f"{field} must not be negative, received {value}."
-        )
+        raise ValueError(f"{field} must not be negative, received {value}.")

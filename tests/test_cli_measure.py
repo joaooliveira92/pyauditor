@@ -352,8 +352,7 @@ def _write_categoria_fixture_with_empty_window(tmp_path: Path) -> tuple[Path, Pa
     (config_dir / "inms-01.yaml").write_text(_CATEGORIA_CONFIG_YAML, encoding="utf-8")
     (config_dir / "categorias.yaml").write_text(_CATEGORIAS_YAML, encoding="utf-8")
     (competencia_data_dir / "inms-01.csv").write_text(
-        "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n"
-        "1;20/05/2026 10:00;S;N1\n",
+        "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n1;20/05/2026 10:00;S;N1\n",
         encoding="utf-8",
     )
     return config_dir, data_dir, output_dir
@@ -435,8 +434,7 @@ def test_run_measure_already_split_dedups_in_values_e_outros_warning(tmp_path: P
     # órfão para forçar o aviso de sem-correspondência nos dois caminhos.
     csv_path = data_dir / "2026" / "06" / "inms-01.csv"
     csv_path.write_text(
-        "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n"
-        "1;2026-06-01;S;N0\n",
+        "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n1;2026-06-01;S;N0\n",
         encoding="utf-8",
     )
     periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))

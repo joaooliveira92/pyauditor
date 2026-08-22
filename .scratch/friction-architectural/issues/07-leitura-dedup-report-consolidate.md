@@ -6,7 +6,7 @@ Hoje `_load_summaries` é verbatim nos dois (com fallback de grandParent redunda
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] `_load_summaries`, `_read_objetos`/`_read_valor_base` e o dedup de sumário derivado existem uma única vez e `report`/`consolidate` os importam.
 - [x] Fallback redundante de grandParent no consolidate reconciliado (ou removido com teste) com a versão do report.

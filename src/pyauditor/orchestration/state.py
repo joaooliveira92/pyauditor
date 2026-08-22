@@ -64,9 +64,7 @@ _VALID_STATES: Final[frozenset[str]] = frozenset(
     }
 )
 
-_STATE_COMPONENT_RE: Final[re.Pattern[str]] = re.compile(
-    r"^[A-Za-z0-9][A-Za-z0-9._-]*$"
-)
+_STATE_COMPONENT_RE: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 _ROOT_FIELDS: Final[frozenset[str]] = frozenset(
     {
@@ -109,8 +107,7 @@ class RunStateCorrupted(ValueError):
         self.path = path
         self.reason = reason
         super().__init__(
-            f"Run-state file {path} is corrupted ({reason}); "
-            "delete it to start the run again."
+            f"Run-state file {path} is corrupted ({reason}); delete it to start the run again."
         )
 
 
@@ -194,9 +191,7 @@ def state_path(
     _validate_path_component("competencia", competencia)
     _validate_path_component("orgao_selector", orgao_selector)
 
-    filename = (
-        f"{competencia}--{len(orgao_selector)}-{orgao_selector}.json"
-    )
+    filename = f"{competencia}--{len(orgao_selector)}-{orgao_selector}.json"
     return runs_dir / filename
 
 
@@ -325,8 +320,7 @@ def _decode_state(raw: object) -> RunState:
     )
     if schema_version != _SCHEMA_VERSION:
         raise ValueError(
-            "unsupported schema_version "
-            f"{schema_version!r}; expected {_SCHEMA_VERSION}"
+            f"unsupported schema_version {schema_version!r}; expected {_SCHEMA_VERSION}"
         )
 
     competencia = _require_string(
@@ -345,8 +339,7 @@ def _decode_state(raw: object) -> RunState:
         raise TypeError("document root field 'commands' must be a list")
 
     commands = tuple(
-        _decode_command(entry, index=index)
-        for index, entry in enumerate(raw_commands)
+        _decode_command(entry, index=index) for index, entry in enumerate(raw_commands)
     )
 
     return RunState(
@@ -372,9 +365,7 @@ def _decode_command(raw: object, *, index: int) -> CommandStateEntry:
         context=context,
     )
     if status_raw not in _VALID_STATES:
-        raise ValueError(
-            f"{context} has unknown command status {status_raw!r}"
-        )
+        raise ValueError(f"{context} has unknown command status {status_raw!r}")
 
     return CommandStateEntry(
         command=_require_string(
@@ -409,9 +400,7 @@ def _decode_command(raw: object, *, index: int) -> CommandStateEntry:
 def _validate_state(state: RunState) -> None:
     """Validate state and command-level domain invariants."""
     if not isinstance(state, RunState):
-        raise TypeError(
-            f"state must be RunState, received {type(state).__name__}"
-        )
+        raise TypeError(f"state must be RunState, received {type(state).__name__}")
 
     _validate_path_component("competencia", state.competencia)
     _validate_path_component("orgao_selector", state.orgao_selector)
@@ -424,8 +413,7 @@ def _validate_state(state: RunState) -> None:
     for index, entry in enumerate(state.commands):
         if not isinstance(entry, CommandStateEntry):
             raise TypeError(
-                f"commands[{index}] must be CommandStateEntry, "
-                f"received {type(entry).__name__}"
+                f"commands[{index}] must be CommandStateEntry, received {type(entry).__name__}"
             )
 
         _validate_command_entry(entry, index=index)
@@ -433,8 +421,7 @@ def _validate_state(state: RunState) -> None:
         key = (entry.command, entry.orgao)
         if key in seen_commands:
             raise ValueError(
-                "duplicate command state for "
-                f"command={entry.command!r}, orgao={entry.orgao!r}"
+                f"duplicate command state for command={entry.command!r}, orgao={entry.orgao!r}"
             )
         seen_commands.add(key)
 
@@ -459,9 +446,7 @@ def _validate_command_entry(
         )
 
     if entry.status not in _VALID_STATES:
-        raise ValueError(
-            f"{context}.status has unknown value {entry.status!r}"
-        )
+        raise ValueError(f"{context}.status has unknown value {entry.status!r}")
 
     started_at = _parse_optional_timestamp(
         entry.started_at,
@@ -473,9 +458,7 @@ def _validate_command_entry(
     )
 
     if started_at is not None and finished_at is not None and finished_at < started_at:
-        raise ValueError(
-            f"{context}.finished_at must not precede started_at"
-        )
+        raise ValueError(f"{context}.finished_at must not precede started_at")
 
     if entry.error_message is not None:
         _validate_non_empty_string(
@@ -534,30 +517,23 @@ def _validate_path_component(field: str, value: str) -> None:
 
     if _STATE_COMPONENT_RE.fullmatch(value) is None:
         raise ValueError(
-            f"{field} must contain only ASCII letters, digits, '.', '_', "
-            f"and '-': {value!r}"
+            f"{field} must contain only ASCII letters, digits, '.', '_', and '-': {value!r}"
         )
 
     if value in {".", ".."}:
-        raise ValueError(
-            f"{field} must not be a path traversal component"
-        )
+        raise ValueError(f"{field} must not be a path traversal component")
 
 
 def _validate_non_empty_string(value: object, *, field: str) -> None:
     """Require a non-empty string without surrounding whitespace."""
     if not isinstance(value, str):
-        raise TypeError(
-            f"{field} must be a string, received {type(value).__name__}"
-        )
+        raise TypeError(f"{field} must be a string, received {type(value).__name__}")
 
     if not value:
         raise ValueError(f"{field} must not be empty")
 
     if value != value.strip():
-        raise ValueError(
-            f"{field} must not contain surrounding whitespace"
-        )
+        raise ValueError(f"{field} must not contain surrounding whitespace")
 
 
 def _parse_optional_timestamp(
@@ -571,23 +547,15 @@ def _parse_optional_timestamp(
 
     _validate_non_empty_string(value, field=field)
 
-    normalized = (
-        f"{value[:-1]}+00:00"
-        if value.endswith("Z")
-        else value
-    )
+    normalized = f"{value[:-1]}+00:00" if value.endswith("Z") else value
 
     try:
         timestamp = datetime.fromisoformat(normalized)
     except ValueError as exc:
-        raise ValueError(
-            f"{field} must be a valid ISO 8601 timestamp"
-        ) from exc
+        raise ValueError(f"{field} must be a valid ISO 8601 timestamp") from exc
 
     if timestamp.tzinfo is None or timestamp.utcoffset() is None:
-        raise ValueError(
-            f"{field} must include an explicit UTC offset"
-        )
+        raise ValueError(f"{field} must include an explicit UTC offset")
 
     return timestamp
 
@@ -600,10 +568,7 @@ def _require_present(
     """Require command fields to contain non-None values."""
     for field in fields:
         if getattr(entry, field) is None:
-            raise ValueError(
-                f"{context}.{field} is required for status "
-                f"{entry.status!r}"
-            )
+            raise ValueError(f"{context}.{field} is required for status {entry.status!r}")
 
 
 def _require_absent(
@@ -614,19 +579,13 @@ def _require_absent(
     """Require command fields to contain None."""
     for field in fields:
         if getattr(entry, field) is not None:
-            raise ValueError(
-                f"{context}.{field} must be absent for status "
-                f"{entry.status!r}"
-            )
+            raise ValueError(f"{context}.{field} must be absent for status {entry.status!r}")
 
 
 def _require_object(raw: object, *, context: str) -> JsonObject:
     """Require a JSON object with string keys."""
     if not isinstance(raw, dict):
-        raise TypeError(
-            f"{context} must be an object, "
-            f"received {type(raw).__name__}"
-        )
+        raise TypeError(f"{context} must be an object, received {type(raw).__name__}")
 
     if any(not isinstance(key, str) for key in raw):
         raise TypeError(f"{context} must contain only string keys")
@@ -647,14 +606,10 @@ def _require_exact_fields(
     extra = sorted(actual - expected)
 
     if missing:
-        raise ValueError(
-            f"{context} is missing required fields: {missing!r}"
-        )
+        raise ValueError(f"{context} is missing required fields: {missing!r}")
 
     if extra:
-        raise ValueError(
-            f"{context} contains unsupported fields: {extra!r}"
-        )
+        raise ValueError(f"{context} contains unsupported fields: {extra!r}")
 
 
 def _require_string(
@@ -666,9 +621,7 @@ def _require_string(
     """Return a required string from a JSON object."""
     value = raw[field]
     if not isinstance(value, str):
-        raise TypeError(
-            f"{context} field {field!r} must be a string"
-        )
+        raise TypeError(f"{context} field {field!r} must be a string")
     return value
 
 
@@ -683,9 +636,7 @@ def _require_optional_string(
     if value is None:
         return None
     if not isinstance(value, str):
-        raise TypeError(
-            f"{context} field {field!r} must be a string or null"
-        )
+        raise TypeError(f"{context} field {field!r} must be a string or null")
     return value
 
 
@@ -698,7 +649,5 @@ def _require_integer(
     """Return a required non-boolean integer from a JSON object."""
     value = raw[field]
     if isinstance(value, bool) or not isinstance(value, int):
-        raise TypeError(
-            f"{context} field {field!r} must be an integer"
-        )
+        raise TypeError(f"{context} field {field!r} must be an integer")
     return value

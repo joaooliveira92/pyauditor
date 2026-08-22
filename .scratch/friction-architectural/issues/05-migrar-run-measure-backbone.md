@@ -17,9 +17,22 @@ documentada no backbone (1x por dataset bruto).
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Caminho em-memória de `run_measure` usa `measurement_source()` para rows pós-filtro e fieldnames.
-- [ ] Dataset ausente → "não ativado"; `Grupo_executor`/`period_column` ausentes → hard-failure em todas as categorias derivadas (como hoje).
-- [ ] Avisos `in_values`/`outros` preservados.
-- [ ] Emissão de WARN de janela vazia unificada com o caminho single — sem duplicação quando `run` executa split+measure.
+- [x] Caminho em-memória de `run_measure` usa `measurement_source()` para rows pós-filtro e fieldnames.
+- [x] Dataset ausente → "não ativado"; `Grupo_executor`/`period_column` ausentes → hard-failure em todas as categorias derivadas (como hoje).
+- [x] Avisos `in_values`/`outros` preservados.
+- [x] Emissão de WARN de janela vazia unificada com o caminho single — sem duplicação quando `run` executa split+measure.
+
+## Comments
+
+- 2026-08-22 — Implementado. `run_measure` (caminho em-memória)
+  chama `measurement_source(..., emit_period_filter_logs=not already_split)`
+  (`cli/measure.py`) e usa `bundle.rows`/`fieldnames`/delimiter/encoding e os
+  contadores `dropped_out_of_period`/`undated_dropped` do `SourceBundle`. O
+  `emit_period_filter_logs` interage com `already_split` para não duplicar o
+  WARN/INFO quando `run` executa `split`+`measure` na mesma passada (ticket 11).
+  Dataset ausente vira `not_activated=True` ("não ativado"); `Grupo_executor`
+  ausente do header → hard-failure em todas as categorias derivadas;
+  avisos `in_values`/`outros` emitidos apenas quando `split` ainda não
+  cross-checkou os mesmos `real_values` (dedup ticket 11). Suíte completa verde.

@@ -12,7 +12,7 @@ deve ser preservada.
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] `run_split` usa `measurement_source()` para rows pós-filtro e fieldnames.
 - [x] Checagem de `Grupo_executor` e cross-check `in_values` preservados.

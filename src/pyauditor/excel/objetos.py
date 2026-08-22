@@ -145,9 +145,7 @@ def parse_brl_value(text: str) -> Decimal:
         ValueError: If the value does not match a supported monetary format.
     """
     if not isinstance(text, str):
-        raise TypeError(
-            f"Monetary value must be a string, received {type(text).__name__}."
-        )
+        raise TypeError(f"Monetary value must be a string, received {type(text).__name__}.")
 
     pt_br_match = _PT_BR_MONEY_RE.fullmatch(text)
     if pt_br_match is not None:
@@ -215,10 +213,7 @@ def read_objetos(path: Path) -> Objetos:
         if actual_headers != _EXPECTED_HEADERS:
             expected = OBJETOS_DELIMITER.join(_EXPECTED_HEADERS)
             actual = OBJETOS_DELIMITER.join(actual_headers)
-            raise ValueError(
-                f"{path}: invalid header: expected {expected!r}, "
-                f"received {actual!r}."
-            )
+            raise ValueError(f"{path}: invalid header: expected {expected!r}, received {actual!r}.")
 
         for row in reader:
             line_number = reader.line_num
@@ -254,16 +249,13 @@ def read_objetos(path: Path) -> Objetos:
             )
 
             if not categoria:
-                raise ValueError(
-                    f"{path}: line {line_number}: Categoria must not be empty."
-                )
+                raise ValueError(f"{path}: line {line_number}: Categoria must not be empty.")
 
             try:
                 valor = parse_brl_value(valor_raw)
             except (TypeError, ValueError) as exc:
                 raise ValueError(
-                    f"{path}: line {line_number}: invalid Valor for "
-                    f"item {item}: {valor_raw!r}."
+                    f"{path}: line {line_number}: invalid Valor for item {item}: {valor_raw!r}."
                 ) from exc
 
             indexed_values.append((item, valor))
@@ -304,9 +296,7 @@ def _to_decimal(normalized: str, *, original: str) -> Decimal:
         raise ValueError(f"Monetary value must be finite: {original!r}.")
 
     if value < _ZERO:
-        raise ValueError(
-            f"Monetary value must not be negative: {original!r}."
-        )
+        raise ValueError(f"Monetary value must not be negative: {original!r}.")
 
     return value
 
@@ -320,20 +310,12 @@ def _validate_row_structure(
     """Validate that a CSV row contains exactly the expected fields."""
     extra_fields = row.get(None)
     if extra_fields:
-        raise ValueError(
-            f"{path}: line {line_number}: unexpected extra fields: "
-            f"{extra_fields!r}."
-        )
+        raise ValueError(f"{path}: line {line_number}: unexpected extra fields: {extra_fields!r}.")
 
-    missing_headers = tuple(
-        header
-        for header in _EXPECTED_HEADERS
-        if row.get(header) is None
-    )
+    missing_headers = tuple(header for header in _EXPECTED_HEADERS if row.get(header) is None)
     if missing_headers:
         raise ValueError(
-            f"{path}: line {line_number}: missing fields for columns "
-            f"{missing_headers!r}."
+            f"{path}: line {line_number}: missing fields for columns {missing_headers!r}."
         )
 
 
@@ -348,15 +330,11 @@ def _required_field(
     value = row.get(header)
 
     if not isinstance(value, str):
-        raise ValueError(
-            f"{path}: line {line_number}: field {header!r} must be scalar."
-        )
+        raise ValueError(f"{path}: line {line_number}: field {header!r} must be scalar.")
 
     stripped = value.strip()
     if not stripped:
-        raise ValueError(
-            f"{path}: line {line_number}: field {header!r} must not be empty."
-        )
+        raise ValueError(f"{path}: line {line_number}: field {header!r} must not be empty.")
 
     return stripped
 
@@ -376,9 +354,6 @@ def _parse_item_index(
 
     item = int(value)
     if item < 1:
-        raise ValueError(
-            f"{path}: line {line_number}: Item must be at least 1, "
-            f"received {item}."
-        )
+        raise ValueError(f"{path}: line {line_number}: Item must be at least 1, received {item}.")
 
     return item

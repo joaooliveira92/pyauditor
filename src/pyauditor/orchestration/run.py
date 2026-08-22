@@ -80,11 +80,7 @@ __all__: Final[tuple[str, ...]] = (
 )
 
 type CommandResult = (
-    BootstrapResult
-    | SplitResult
-    | MeasureResult
-    | ReportResult
-    | ConsolidateResult
+    BootstrapResult | SplitResult | MeasureResult | ReportResult | ConsolidateResult
 )
 type FailureDecision = Literal[
     "retry",
@@ -134,10 +130,7 @@ _PHASE_ORDER: Final[tuple[str, ...]] = (
     "report",
     "consolidate",
 )
-_PHASE_INDEX: Final[dict[str, int]] = {
-    command: index
-    for index, command in enumerate(_PHASE_ORDER)
-}
+_PHASE_INDEX: Final[dict[str, int]] = {command: index for index, command in enumerate(_PHASE_ORDER)}
 
 _MAX_ERROR_MESSAGE_LENGTH: Final[int] = 2_000
 _DEFAULT_RUNS_DIR: Final[Path] = Path(".pyauditor/runs")
@@ -246,10 +239,7 @@ def _validate_request(request: RunRequest) -> PeriodoAfericao:
             or if the competence cannot be parsed.
     """
     if not isinstance(request, RunRequest):
-        raise TypeError(
-            "request must be RunRequest, "
-            f"received {type(request).__name__}"
-        )
+        raise TypeError(f"request must be RunRequest, received {type(request).__name__}")
 
     if request.orgao not in _SUPPORTED_ORGAO_SELECTORS:
         raise ValueError(
@@ -266,16 +256,12 @@ def _validate_request(request: RunRequest) -> PeriodoAfericao:
 
     unknown_commands = request.commands - _ALL_COMMANDS
     if unknown_commands:
-        raise ValueError(
-            f"commands contains unsupported values: "
-            f"{sorted(unknown_commands)!r}"
-        )
+        raise ValueError(f"commands contains unsupported values: {sorted(unknown_commands)!r}")
 
     unknown_forced_commands = request.force_commands - _ALL_COMMANDS
     if unknown_forced_commands:
         raise ValueError(
-            "force_commands contains unsupported values: "
-            f"{sorted(unknown_forced_commands)!r}"
+            f"force_commands contains unsupported values: {sorted(unknown_forced_commands)!r}"
         )
 
     if not request.competencia.strip():
@@ -287,15 +273,9 @@ def _validate_request(request: RunRequest) -> PeriodoAfericao:
 def _plan(orgao_selector: str) -> tuple[PlanStep, ...]:
     """Build the phase-major execution plan."""
     if orgao_selector not in _SUPPORTED_ORGAO_SELECTORS:
-        raise ValueError(
-            f"Unsupported organization selector: {orgao_selector!r}"
-        )
+        raise ValueError(f"Unsupported organization selector: {orgao_selector!r}")
 
-    organizations = (
-        ("MinC", "MTur")
-        if orgao_selector == "both"
-        else (orgao_selector,)
-    )
+    organizations = ("MinC", "MTur") if orgao_selector == "both" else (orgao_selector,)
 
     steps: list[PlanStep] = []
 
@@ -391,10 +371,7 @@ def _reconcile_state(
         )
 
     reset_state = reset_stale_running(existing)
-    entries = {
-        (entry.command, entry.orgao): entry
-        for entry in reset_state.commands
-    }
+    entries = {(entry.command, entry.orgao): entry for entry in reset_state.commands}
 
     commands = tuple(
         entries.get(
@@ -480,15 +457,10 @@ def _require_orgao(
 ) -> str:
     """Return the organization required by an organization-specific command."""
     if command not in _ORGANIZATION_COMMANDS:
-        raise ValueError(
-            f"Command {command!r} is not organization-specific"
-        )
+        raise ValueError(f"Command {command!r} is not organization-specific")
 
     if orgao not in {"MinC", "MTur"}:
-        raise ValueError(
-            f"Command {command!r} requires orgao 'MinC' or 'MTur', "
-            f"received {orgao!r}"
-        )
+        raise ValueError(f"Command {command!r} requires orgao 'MinC' or 'MTur', received {orgao!r}")
 
     return orgao
 
@@ -521,9 +493,7 @@ def dependency_missing(
 
     if command == "consolidate":
         if orgao is not None:
-            raise ValueError(
-                "consolidate must not receive an organization"
-            )
+            raise ValueError("consolidate must not receive an organization")
 
         check = check_consolidate_ready(
             request.competencia,
@@ -539,9 +509,7 @@ def dependency_missing(
 
     checker = CHECKERS.get(command)
     if checker is None:
-        raise ValueError(
-            f"No dependency checker registered for command {command!r}"
-        )
+        raise ValueError(f"No dependency checker registered for command {command!r}")
 
     return checker().missing
 
@@ -565,43 +533,27 @@ def _own_artifact_missing(
         )
 
         if not capa_path.is_file():
-            return (
-                f"capa de {organization} ausente em {capa_path}; "
-                "execute bootstrap novamente"
-            )
+            return f"capa de {organization} ausente em {capa_path}; execute bootstrap novamente"
 
         return None
 
     if command == "split":
         organization = _require_orgao(command, orgao)
         sintetico_path = (
-            request.report_dir
-            / organization
-            / request.competencia
-            / _SINTETICO_FILENAME
+            request.report_dir / organization / request.competencia / _SINTETICO_FILENAME
         )
 
         if not sintetico_path.is_file():
-            return (
-                f"artefato de split ausente em {sintetico_path}; "
-                "execute split novamente"
-            )
+            return f"artefato de split ausente em {sintetico_path}; execute split novamente"
 
         return None
 
     if command == "measure":
         organization = _require_orgao(command, orgao)
-        roms_dir = (
-            request.output_dir
-            / organization
-            / request.competencia
-        )
+        roms_dir = request.output_dir / organization / request.competencia
 
         if not roms_dir.is_dir():
-            return (
-                f"diretório de ROMs ausente em {roms_dir}; "
-                "execute measure novamente"
-            )
+            return f"diretório de ROMs ausente em {roms_dir}; execute measure novamente"
 
         return None
 
@@ -696,10 +648,7 @@ def _dispatch(
             output_dir=request.output_dir,
             orgao=organization,
         )
-        output_path = (
-            request.report_dir
-            / f"relatorio_{request.competencia}_{organization}.xlsx"
-        )
+        output_path = request.report_dir / f"relatorio_{request.competencia}_{organization}.xlsx"
 
         return run_report(
             competencia=request.competencia,
@@ -714,14 +663,9 @@ def _dispatch(
 
     if command == "consolidate":
         if orgao is not None:
-            raise ValueError(
-                "consolidate must not receive an organization"
-            )
+            raise ValueError("consolidate must not receive an organization")
 
-        output_path = (
-            request.report_dir
-            / f"relatorio_{request.competencia}_consolidado.xlsx"
-        )
+        output_path = request.report_dir / f"relatorio_{request.competencia}_consolidado.xlsx"
 
         return run_consolidate(
             competencia=request.competencia,
@@ -750,26 +694,14 @@ def _downstream(
     for later_command, later_orgao in plan:
         later_index = _PHASE_INDEX.get(later_command)
         if later_index is None:
-            raise ValueError(
-                f"Unsupported planned command: {later_command!r}"
-            )
+            raise ValueError(f"Unsupported planned command: {later_command!r}")
 
-        if (
-            later_command == "consolidate"
-            and command != "consolidate"
-        ):
-            downstream.append(
-                (later_command, later_orgao)
-            )
+        if later_command == "consolidate" and command != "consolidate":
+            downstream.append((later_command, later_orgao))
             continue
 
-        if (
-            later_orgao == orgao
-            and later_index > start_index
-        ):
-            downstream.append(
-                (later_command, later_orgao)
-            )
+        if later_orgao == orgao and later_index > start_index:
+            downstream.append((later_command, later_orgao))
 
     return tuple(downstream)
 
@@ -787,10 +719,7 @@ def _sanitize_error_message(
         sanitized = fallback
 
     if len(sanitized) > _MAX_ERROR_MESSAGE_LENGTH:
-        return (
-            sanitized[: _MAX_ERROR_MESSAGE_LENGTH - 3]
-            + "..."
-        )
+        return sanitized[: _MAX_ERROR_MESSAGE_LENGTH - 3] + "..."
 
     return sanitized
 
@@ -801,15 +730,11 @@ def _validate_failure_decision(
     """Validate a decision returned by the failure callback."""
     if not isinstance(decision, str):
         raise TypeError(
-            "on_failure must return a string decision, "
-            f"received {type(decision).__name__}"
+            f"on_failure must return a string decision, received {type(decision).__name__}"
         )
 
     if decision not in _FAILURE_DECISIONS:
-        raise ValueError(
-            "on_failure returned an unsupported decision: "
-            f"{decision!r}"
-        )
+        raise ValueError(f"on_failure returned an unsupported decision: {decision!r}")
 
     return cast(FailureDecision, decision)
 
@@ -827,11 +752,7 @@ def _ordered_results(
     results: dict[ResultKey, CommandResult],
 ) -> tuple[CommandResult, ...]:
     """Return latest command results in phase-major plan order."""
-    return tuple(
-        results[key]
-        for key in plan
-        if key in results
-    )
+    return tuple(results[key] for key in plan if key in results)
 
 
 def _notify_state_change(
@@ -996,9 +917,7 @@ def execute_run(
             error_entry,
         )
 
-        decision = _validate_failure_decision(
-            on_failure(error_entry)
-        )
+        decision = _validate_failure_decision(on_failure(error_entry))
 
         if decision == "skip":
             skipped_entry = CommandStateEntry(
@@ -1024,10 +943,7 @@ def execute_run(
                 path,
                 on_state_change,
                 skipped_steps,
-                reason=(
-                    f"etapa dependente de {command}"
-                    f" ({orgao or 'global'}) não executada"
-                ),
+                reason=(f"etapa dependente de {command} ({orgao or 'global'}) não executada"),
             )
 
         return decision
@@ -1041,9 +957,7 @@ def execute_run(
                 orgao=orgao,
                 status="skipped",
                 finished_at=_now(),
-                error_message=(
-                    "comando desabilitado para esta execução"
-                ),
+                error_message=("comando desabilitado para esta execução"),
             )
             state = _upsert(state, disabled_entry)
             save_state(path, state)
@@ -1094,8 +1008,7 @@ def execute_run(
                 decision = record_failure_and_decide(
                     command,
                     orgao,
-                    "dependência não satisfeita: "
-                    + "; ".join(missing),
+                    "dependência não satisfeita: " + "; ".join(missing),
                     started_at=failed_at,
                     finished_at=failed_at,
                 )
@@ -1128,9 +1041,7 @@ def execute_run(
                     request,
                     periodo,
                     already_split=(
-                        ("split", orgao) in executed_steps
-                        if command == "measure"
-                        else False
+                        ("split", orgao) in executed_steps if command == "measure" else False
                     ),
                 )
             except Exception as exc:
@@ -1144,15 +1055,9 @@ def execute_run(
                     orgao,
                     _sanitize_error_message(
                         str(exc),
-                        fallback=(
-                            f"{type(exc).__name__} durante "
-                            f"{command}"
-                        ),
+                        fallback=(f"{type(exc).__name__} durante {command}"),
                     ),
-                    started_at=(
-                        running_entry.started_at
-                        or _now()
-                    ),
+                    started_at=(running_entry.started_at or _now()),
                     finished_at=_now(),
                 )
 
@@ -1167,19 +1072,14 @@ def execute_run(
             if result.status == "done":
                 executed_steps.add(step)
 
-            latest_results[
-                _result_key(command, orgao)
-            ] = result
+            latest_results[_result_key(command, orgao)] = result
 
             if result.status == "done":
                 done_entry = CommandStateEntry(
                     command=command,
                     orgao=orgao,
                     status="done",
-                    started_at=(
-                        running_entry.started_at
-                        or _now()
-                    ),
+                    started_at=(running_entry.started_at or _now()),
                     finished_at=_now(),
                 )
                 state = _upsert(state, done_entry)
@@ -1194,10 +1094,7 @@ def execute_run(
                 command,
                 orgao,
                 result.error_message,
-                started_at=(
-                    running_entry.started_at
-                    or _now()
-                ),
+                started_at=(running_entry.started_at or _now()),
                 finished_at=_now(),
             )
 

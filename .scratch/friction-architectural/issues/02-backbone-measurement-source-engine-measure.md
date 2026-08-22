@@ -6,7 +6,7 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] `measurement_source()` existe em `engine` e encapsula resolve→valida→lê→filtra→gates.
 - [x] `SourceBundle` expõe config, csv_path, fieldnames, rows pós-filtro, gate_report, accepted_ids e os descartes (fora-de-período e sem data).

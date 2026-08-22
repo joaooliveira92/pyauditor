@@ -113,9 +113,7 @@ def new_sheet(
     while meaningful_columns and not meaningful_columns[-1].strip():
         meaningful_columns.pop()
 
-    if not meaningful_columns or any(
-        not column.strip() for column in meaningful_columns
-    ):
+    if not meaningful_columns or any(not column.strip() for column in meaningful_columns):
         raise ValueError("Worksheet column headings must not be empty.")
 
     if isinstance(width, bool) or width <= 0:

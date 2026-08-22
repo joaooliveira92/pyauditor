@@ -13,7 +13,7 @@ precisa no meio do pipeline).
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] `write_sintetico_workbook` usa `measurement_source()` e não reimplementa resolve/lê/filtra/gates.
 - [x] Imports package-private de `engine.strategies` removidos de `sintetico.py`.

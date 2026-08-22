@@ -63,16 +63,10 @@ __all__: Final[tuple[str, ...]] = (
 type OutputFormat = Literal["text", "json"]
 type JsonNumber = int | float
 type CommandResult = (
-    BootstrapResult
-    | SplitResult
-    | MeasureResult
-    | ReportResult
-    | ConsolidateResult
+    BootstrapResult | SplitResult | MeasureResult | ReportResult | ConsolidateResult
 )
 
-_STATE_PRESENTATION: Final[
-    dict[CommandState, tuple[str, str]]
-] = {
+_STATE_PRESENTATION: Final[dict[CommandState, tuple[str, str]]] = {
     "pending": ("[ ]", "dim"),
     "running": ("[>]", "cyan"),
     "done": ("[x]", "green"),
@@ -85,9 +79,7 @@ _UNKNOWN_STATE_PRESENTATION: Final[tuple[str, str]] = (
     "bold red",
 )
 
-_RESULT_TYPE_FOR_COMMAND: Final[
-    dict[str, type[CommandResult]]
-] = {
+_RESULT_TYPE_FOR_COMMAND: Final[dict[str, type[CommandResult]]] = {
     "bootstrap": BootstrapResult,
     "split": SplitResult,
     "measure": MeasureResult,
@@ -176,23 +168,16 @@ def exit_code_for_run(
     if any(entry.status == "error" for entry in state_commands):
         return 1
 
-    if any(
-        getattr(result, "glosa_calculada", True) is False
-        for result in results
-    ):
+    if any(getattr(result, "glosa_calculada", True) is False for result in results):
         return 4
 
     if any(
-        entry.status == "skipped"
-        and is_production_command(entry.command)
+        entry.status == "skipped" and is_production_command(entry.command)
         for entry in state_commands
     ):
         return 3
 
-    if any(
-        getattr(result, "publicable", True) is False
-        for result in results
-    ):
+    if any(getattr(result, "publicable", True) is False for result in results):
         return 3
 
     return 0
@@ -266,14 +251,10 @@ def _split_artifact(result: SplitResult) -> str:
 def _measure_artifact(result: MeasureResult) -> str:
     """Describe measured indicators and hard failures."""
     failing = [
-        indicator.contractual_id
-        for indicator in result.indicators
-        if indicator.hard_failure
+        indicator.contractual_id for indicator in result.indicators if indicator.hard_failure
     ]
 
-    description = (
-        f"{len(result.indicators)} indicador(es) apurado(s)"
-    )
+    description = f"{len(result.indicators)} indicador(es) apurado(s)"
 
     if failing:
         description += f" | falhas: {', '.join(failing)}"
@@ -283,20 +264,14 @@ def _measure_artifact(result: MeasureResult) -> str:
 
 def _report_artifact(result: ReportResult) -> str:
     """Describe an individual report artifact."""
-    return (
-        f"{result.output_path} "
-        f"({result.indicator_count} indicadores)"
-    )
+    return f"{result.output_path} ({result.indicator_count} indicadores)"
 
 
 def _consolidate_artifact(
     result: ConsolidateResult,
 ) -> str:
     """Describe the consolidated report artifact."""
-    return (
-        f"{result.output_path} "
-        f"({result.decisions_preserved} decisão(ões) preservada(s))"
-    )
+    return f"{result.output_path} ({result.decisions_preserved} decisão(ões) preservada(s))"
 
 
 def _artifact_line(
@@ -375,11 +350,7 @@ def _organization_summary(
         glosa_calculada = report.glosa_calculada
         report_generated = True
     else:
-        measured_count = (
-            len(measure.indicators)
-            if isinstance(measure, MeasureResult)
-            else 0
-        )
+        measured_count = len(measure.indicators) if isinstance(measure, MeasureResult) else 0
         publicable = False
         glosa_calculada = False
         report_generated = False
@@ -387,9 +358,7 @@ def _organization_summary(
     publication_reason: str | None = None
 
     if not report_generated:
-        publication_reason = (
-            f"relatório individual não gerado para {orgao}"
-        )
+        publication_reason = f"relatório individual não gerado para {orgao}"
     elif isinstance(report, ReportResult) and not report.publicable:
         publication_reason = (
             f"relatório gerado como rascunho para {orgao}: "
@@ -401,11 +370,7 @@ def _organization_summary(
             "aferidos": measured_count,
             "total_esperado": measured_count,
         },
-        "glosa": (
-            "calculada"
-            if glosa_calculada
-            else "não calculada"
-        ),
+        "glosa": ("calculada" if glosa_calculada else "não calculada"),
         "publicable": publicable,
         "motivo_publicacao": publication_reason,
         "relatorio_gerado": report_generated,
@@ -449,10 +414,7 @@ def _json_number(
             raise ValueError(f"{field} must be finite")
         return value
 
-    raise TypeError(
-        f"{field} must be int, float, or Decimal; "
-        f"received {type(value).__name__}"
-    )
+    raise TypeError(f"{field} must be int, float, or Decimal; received {type(value).__name__}")
 
 
 def _consolidated_info(
@@ -471,11 +433,7 @@ def _consolidated_info(
     return {
         "caminho": str(result.output_path),
         "decisoes_preservadas": result.decisions_preserved,
-        "glosa": (
-            "calculada"
-            if result.glosa_calculada
-            else "não calculada"
-        ),
+        "glosa": ("calculada" if result.glosa_calculada else "não calculada"),
         "total_pontos": _json_number(
             result.total_pontos,
             field="total_pontos",
@@ -486,7 +444,6 @@ def _consolidated_info(
 def _artifact_paths(
     run_result: RunResult,
 ) -> list[str]:
-    
     """Return unique artifact paths without truncation.
 
     Result types with a canonical artifact expose ``output_path``. Split
@@ -532,11 +489,7 @@ def _warnings_count(run_result: RunResult) -> int:
 
 def _errors_count(run_result: RunResult) -> int:
     """Count commands that ended in technical error."""
-    return sum(
-        1
-        for entry in run_result.state.commands
-        if entry.status == "error"
-    )
+    return sum(1 for entry in run_result.state.commands if entry.status == "error")
 
 
 def _parse_run_timestamp(
@@ -545,23 +498,15 @@ def _parse_run_timestamp(
     field: str,
 ) -> datetime:
     """Parse a timezone-aware ISO 8601 run timestamp."""
-    normalized = (
-        f"{value[:-1]}+00:00"
-        if value.endswith("Z")
-        else value
-    )
+    normalized = f"{value[:-1]}+00:00" if value.endswith("Z") else value
 
     try:
         timestamp = datetime.fromisoformat(normalized)
     except ValueError as exc:
-        raise ValueError(
-            f"{field} must be a valid ISO 8601 timestamp"
-        ) from exc
+        raise ValueError(f"{field} must be a valid ISO 8601 timestamp") from exc
 
     if timestamp.tzinfo is None or timestamp.utcoffset() is None:
-        raise ValueError(
-            f"{field} must include an explicit UTC offset"
-        )
+        raise ValueError(f"{field} must include an explicit UTC offset")
 
     return timestamp
 
@@ -591,9 +536,7 @@ def _duration_ms(run_result: RunResult) -> int | None:
     if finished_at < started_at:
         return None
 
-    return int(
-        (finished_at - started_at).total_seconds() * 1000
-    )
+    return int((finished_at - started_at).total_seconds() * 1000)
 
 
 def fmt_pt_br(
@@ -637,10 +580,7 @@ def fmt_pt_br(
             raise ValueError("value must be finite")
         raw = f"{value:.{decimals}f}"
     else:
-        raise TypeError(
-            "value must be float or Decimal, "
-            f"received {type(value).__name__}"
-        )
+        raise TypeError(f"value must be float or Decimal, received {type(value).__name__}")
 
     integer_part, separator, fractional_part = raw.partition(".")
     sign = ""
@@ -681,15 +621,9 @@ def _next_steps(run_result: RunResult) -> list[str]:
 
         if missing:
             organization = entry.orgao or "-"
-            steps.append(
-                f"{entry.command} ({organization}): "
-                f"{', '.join(missing)}"
-            )
+            steps.append(f"{entry.command} ({organization}): {', '.join(missing)}")
 
-        if (
-            entry.orgao is not None
-            and entry.status in {"error", "skipped"}
-        ):
+        if entry.orgao is not None and entry.status in {"error", "skipped"}:
             incomplete_organizations.add(entry.orgao)
 
     for organization in _orgaos_no_run(run_result):
@@ -750,8 +684,7 @@ def summary_json(
             "motivo": (
                 None
                 if publication_allowed
-                else publication_reason
-                or "etapa final de produção não gerada"
+                else publication_reason or "etapa final de produção não gerada"
             ),
         },
         "avisos": _warnings_count(run_result),
@@ -785,31 +718,18 @@ def _result_panel(
     if not indicator_counts:
         indicator_counts = "-"
 
-    generated_reports = sum(
-        1
-        for summary in organizations.values()
-        if summary["relatorio_gerado"]
-    )
+    generated_reports = sum(1 for summary in organizations.values() if summary["relatorio_gerado"])
     drafts = [
         organization
         for organization, summary in organizations.items()
-        if summary["relatorio_gerado"]
-        and not summary["publicable"]
+        if summary["relatorio_gerado"] and not summary["publicable"]
     ]
 
-    report_description = (
-        f"{generated_reports}/{len(organizations)} gerado(s)"
-    )
+    report_description = f"{generated_reports}/{len(organizations)} gerado(s)"
     if drafts:
-        report_description += (
-            f" | {len(drafts)} rascunho(s): "
-            f"{', '.join(drafts)}"
-        )
+        report_description += f" | {len(drafts)} rascunho(s): {', '.join(drafts)}"
 
-    glosa_states = {
-        summary["glosa"]
-        for summary in organizations.values()
-    }
+    glosa_states = {summary["glosa"] for summary in organizations.values()}
     if not glosa_states:
         glosa_description = "não disponível"
     elif "não calculada" in glosa_states:
@@ -820,9 +740,7 @@ def _result_panel(
     if exit_code == 0:
         publication = "liberada"
     elif exit_code == 4:
-        publication = (
-            "bloqueada: cálculo financeiro indisponível"
-        )
+        publication = "bloqueada: cálculo financeiro indisponível"
     elif exit_code == 3:
         reason = next(
             (
@@ -833,9 +751,7 @@ def _result_panel(
             None,
         )
         publication = (
-            f"bloqueada: {reason}"
-            if reason is not None
-            else "bloqueada: etapa final não gerada"
+            f"bloqueada: {reason}" if reason is not None else "bloqueada: etapa final não gerada"
         )
     else:
         publication = "não informada devido a falha técnica"
@@ -846,9 +762,7 @@ def _result_panel(
     if duration_ms is None:
         duration_description = "indisponível"
     else:
-        duration_description = (
-            f"{fmt_pt_br(duration_ms / 1000.0)} s"
-        )
+        duration_description = f"{fmt_pt_br(duration_ms / 1000.0)} s"
 
     total_points: str
     if consolidated is None:
@@ -874,11 +788,7 @@ def _result_panel(
     content.append("\nRelatórios individuais: ", style="bold")
     content.append(report_description)
     content.append("\nRelatório consolidado: ", style="bold")
-    content.append(
-        "gerado"
-        if consolidated is not None
-        else "não gerado"
-    )
+    content.append("gerado" if consolidated is not None else "não gerado")
     content.append(
         "\nTotal de pontos do consolidado: ",
         style="bold",
@@ -925,15 +835,9 @@ def _command_table(run_result: RunResult) -> Table:
             results=run_result.results,
         )
 
-        detail = Text(
-            entry.error_message
-            or _artifact_line(entry, result)
-        )
+        detail = Text(entry.error_message or _artifact_line(entry, result))
 
-        if (
-            isinstance(result, ReportResult)
-            and not result.publicable
-        ):
+        if isinstance(result, ReportResult) and not result.publicable:
             detail.append(
                 " (rascunho, não publicável)",
                 style="dim",
@@ -998,9 +902,7 @@ def render_summary(
         TypeError: If structured numeric values have unsupported types.
     """
     if output not in _VALID_OUTPUT_FORMATS:
-        raise ValueError(
-            f"Unsupported summary output format: {output!r}."
-        )
+        raise ValueError(f"Unsupported summary output format: {output!r}.")
 
     destination = console if console is not None else Console()
     exit_code = exit_code_for_run(
