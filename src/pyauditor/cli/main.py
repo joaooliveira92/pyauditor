@@ -1,8 +1,10 @@
 """CLI entry point. Subcommands per spec §6: `bootstrap` / `measure` /
-`report`, plus `consolidate` (2.1, .scratch/multi-org-pipeline map).
+`report`, plus `consolidate` (2.1, .scratch/multi-org-pipeline map) and
+`split`/`run`.
 
-`bootstrap` (ticket 08), `measure` (ticket 03), `report` (ticket 09),
-`consolidate` (multi-org-pipeline tickets 01/02/04) are all implemented.
+Após o split SRP (ticket 01): o schema do parser vive em `cli/parser.py`, a
+tradução argparse→request em `cli/requests.py` — este módulo fica com o
+`cli_main` e o dispatch multi-órgão.
 """
 
 from __future__ import annotations
@@ -10,27 +12,43 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
-from dataclasses import dataclass
 from pathlib import Path
-from typing import (
-    Final,
-    Literal,
-    NoReturn,
-    TypedDict,
-    TypeGuard,
-    assert_never,
-    cast,
-)
+from typing import Final, NoReturn, TypeGuard, assert_never, cast
 
 from pyauditor.capa_paths import resolve_capa_path
 from pyauditor.cli.bootstrap import run_bootstrap
 from pyauditor.cli.consolidate import run_consolidate
 from pyauditor.cli.measure import _MeasuredIndicator, run_measure, write_combined_roms
+from pyauditor.cli.parser import (
+    _CMD_BOOTSTRAP,
+    _CMD_CONSOLIDATE,
+    _CMD_MEASURE,
+    _CMD_REPORT,
+    _CMD_RUN,
+    _CMD_SPLIT,
+    Command,
+    Orgao,
+    build_parser,
+)
 from pyauditor.cli.report import run_report
+from pyauditor.cli.requests import (
+    ConsolidateRequest,
+    MeasureRequest,
+    ReportRequest,
+    SplitRequest,
+    _CAPA_COMUM,
+    extract_capa_path,
+    extract_consolidate_request,
+    extract_measure_request,
+    extract_report_request,
+    extract_split_request,
+    logging_kwargs,
+    require,
+)
 from pyauditor.cli.results import exit_code_for_results
 from pyauditor.cli.run import run_run
 from pyauditor.cli.split import run_split
-from pyauditor.config.resolution import per_orgao_paths, resolve_manifest_path
+from pyauditor.config.resolution import per_orgao_paths
 from pyauditor.excel.equipe import EQUIPE_FILENAME
 from pyauditor.excel.prazos import PRAZOS_FILENAME
 from pyauditor.logging import setup_logging
@@ -44,86 +62,10 @@ __all__: Final[tuple[str, ...]] = (
     "cli_main",
 )
 
-_PROG: Final[str] = "pyauditor"
-_CMD_MEASURE: Final[Literal["measure"]] = "measure"
-_CMD_BOOTSTRAP: Final[Literal["bootstrap"]] = "bootstrap"
-_CMD_REPORT: Final[Literal["report"]] = "report"
-_CMD_CONSOLIDATE: Final[Literal["consolidate"]] = "consolidate"
-_CMD_SPLIT: Final[Literal["split"]] = "split"
-_CMD_RUN: Final[Literal["run"]] = "run"
-
-type Command = Literal["measure", "bootstrap", "report", "consolidate", "split", "run"]
-
-type Orgao = Literal["MinC", "MTur", "both"]
-
-_DEFAULT_CONFIG_DIR: Final[Path] = Path("configs")
-_DEFAULT_DATA_DIR: Final[Path] = Path("input")
-_DEFAULT_OUTPUT_DIR: Final[Path] = Path("roms")
-_DEFAULT_CAPA_PATH: Final[Path] = Path("capa.xlsx")
-_DEFAULT_REPORT_DIR: Final[Path] = Path("reports")
-_SINGLE_ORGAOS: Final[tuple[str, str]] = ("MinC", "MTur")
-
-# Migração das capas para CSV (ticket 07): o capa comum é `capa.csv`, as
-# capas por órgão são `capa_{orgao}.csv` e o monetário vive em `objetos.csv`,
-# todos sob `--data-dir` (default `input`). `--capa-path` sobrescreve apenas
-# o capa comum; os por-órgão nunca ganham flag própria (Q6/Q9).
-_CAPA_COMUM: Final[str] = "capa.csv"
+# Migração das capas para CSV (ticket 07): o monetário vive em `objetos.csv`.
 _OBJETOS_FILENAME: Final[str] = "objetos.csv"
 
-
-@dataclass(frozen=True, slots=True)
-class MeasureRequest:
-    """Validated, immutable request for `measure`."""
-
-    competencia: str
-    config_dir: Path
-    data_dir: Path
-    output_dir: Path
-    manifest_path: Path
-    orgao: Orgao
-    strict: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class ReportRequest:
-    """Validated, immutable request for `report`."""
-
-    competencia: str
-    capa_path: Path  # capa.csv comum (ticket 07 Q6/Q9)
-    data_dir: Path  # onde vivem `capa_{orgao}.csv` e `objetos.csv`
-    roms_dir: Path
-    output_path: Path
-    config_dir: Path
-    orgao: Orgao
-    is_final_month: bool
-
-
-@dataclass(frozen=True, slots=True)
-class SplitRequest:
-    """Validated, immutable request for `split`."""
-
-    competencia: str
-    config_dir: Path
-    data_dir: Path
-    manifest_path: Path
-    report_dir: Path
-    orgao: Orgao
-    strict: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class ConsolidateRequest:
-    """Validated, immutable request for `consolidate` — CLI agnostic of
-    `--orgao`: it's the MinC+MTur fusion step by definition (ticket 04 Q2).
-    `data_dir` feeds `objetos.csv`, the monetary source (ticket 07).
-    """
-
-    competencia: str
-    report_dir: Path
-    roms_dir: Path
-    output_path: Path
-    data_dir: Path
-    is_final_month: bool = False
+_SINGLE_ORGAOS: Final[tuple[str, str]] = ("MinC", "MTur")
 
 
 def _is_command(value: str) -> TypeGuard[Command]:
@@ -135,281 +77,6 @@ def _is_command(value: str) -> TypeGuard[Command]:
         _CMD_SPLIT,
         _CMD_RUN,
     )
-
-
-def _require[T](ns: argparse.Namespace, name: str, expected: type[T]) -> T:
-    """Namespace attributes are `Any` by design — cast to `object` then
-    narrow with isinstance. Confined to this boundary, argparse guarantees
-    the attribute exists and has the type its `add_argument` declared.
-    """
-    value: object = cast(object, getattr(ns, name, None))
-    if not isinstance(value, expected):
-        raise TypeError(f"{name} must be {expected.__name__}")
-    return value
-
-
-def _add_orgao_argument(parser: argparse.ArgumentParser, *, default: Orgao = "MinC") -> None:
-    parser.add_argument(
-        "--orgao",
-        type=str,
-        choices=("MinC", "MTur", "both"),
-        default=default,
-        help="órgão da aferição (default: MinC). 'both' roda os dois, sequencial, sem cruzar",
-    )
-
-
-_STRICT_HELP = (
-    "descarta linhas sem prova de período (célula vazia ou formato "
-    "desconhecido) em vez de mantê-las para os quality gates"
-)
-
-
-def _add_strict_argument(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--strict", action="store_true", help=_STRICT_HELP)
-
-
-def _extract_strict(ns: argparse.Namespace) -> bool:
-    return bool(cast(object, getattr(ns, "strict", False)))
-
-
-def _add_logging_arguments(parser: argparse.ArgumentParser) -> None:
-    """Flags de observabilidade (ticket 05): verbosidade `-v`/`-vv`, nível
-    explícito e formato JSON para automação. Aplicado a todos os subcomandos
-    (Q8): o nível efetivo = `--log-level` se dado, senão a verbosidade."""
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="count",
-        default=0,
-        help="-v: um evento por indicador; -vv: detalhes de leitura/validação/cálculo",
-    )
-    parser.add_argument(
-        "--log-level",
-        type=str,
-        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
-        default=None,
-        help="nível de log manual (prevalece sobre -v; default INFO)",
-    )
-    parser.add_argument(
-        "--log-format",
-        type=str,
-        choices=("text", "json"),
-        default="text",
-        help="json: cada registro em stderr vira uma linha JSON ({time, level, event, ...})",
-    )
-
-
-class _LoggingKwargs(TypedDict):
-    """Flags de logging do argparse, com os tipos exatos que `setup_logging`
-    espera — TypedDict para o unpacking `**` passar pelo mypy strict."""
-
-    verbose: int
-    log_level_explicit: str | None
-    json_format: bool
-
-
-def _logging_kwargs(args: argparse.Namespace) -> _LoggingKwargs:
-    """Traduz os flags de logging do argparse para `setup_logging`."""
-    verbose = _require(args, "verbose", int)
-    log_level_raw: object = cast(object, getattr(args, "log_level", None))
-    return {
-        "verbose": verbose,
-        "log_level_explicit": cast(str | None, log_level_raw),
-        "json_format": cast(object, getattr(args, "log_format", "text")) == "json",
-    }
-
-
-def build_parser() -> argparse.ArgumentParser:
-    """Build strictly-typed parser for spec §6."""
-    parser = argparse.ArgumentParser(prog=_PROG)
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    measure_parser = subparsers.add_parser(
-        _CMD_MEASURE, help="apura os indicadores de uma competência"
-    )
-    measure_parser.add_argument("competencia", help='ex.: "2026-06"')
-    _add_orgao_argument(measure_parser)
-    measure_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
-    measure_parser.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA_DIR)
-    measure_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
-    measure_parser.add_argument(
-        "--manifest",
-        type=Path,
-        default=None,
-        help="caminho para datasets.yaml (default: resolvido a partir de "
-        "--config-dir — _shared se existir, senão <config-dir>/<órgão>)",
-    )
-    _add_strict_argument(measure_parser)
-    _add_logging_arguments(measure_parser)
-
-    bootstrap_parser = subparsers.add_parser(
-        _CMD_BOOTSTRAP,
-        help="cria as capas CSV do contrato (comum + por órgão), se ainda não existirem",
-    )
-    _add_orgao_argument(bootstrap_parser)
-    bootstrap_parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=_DEFAULT_DATA_DIR,
-        help=f"onde criar capa.csv e capa_{{orgao}}.csv (default: {_DEFAULT_DATA_DIR})",
-    )
-    bootstrap_parser.add_argument(
-        "--capa-path",
-        type=Path,
-        default=None,
-        help="caminho do capa comum (cap.csv); default: <data-dir>/capa.csv",
-    )
-    _add_logging_arguments(bootstrap_parser)
-
-    report_parser = subparsers.add_parser(
-        _CMD_REPORT, help="consolida os ROMs de uma competência no Excel final"
-    )
-    report_parser.add_argument("competencia", help='ex.: "2026-06"')
-    _add_orgao_argument(report_parser)
-    report_parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=_DEFAULT_DATA_DIR,
-        help="onde vivem capa_{orgao}.csv e objetos.csv (default: input)",
-    )
-    report_parser.add_argument(
-        "--capa-path",
-        type=Path,
-        default=None,
-        help="caminho do capa comum capa.csv (default: <data-dir>/capa.csv)",
-    )
-    report_parser.add_argument("--roms-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
-    report_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_REPORT_DIR)
-    report_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
-    report_parser.add_argument(
-        "--final-month",
-        action="store_true",
-        help="último mês de vigência do contrato — desliga o rollover de glosa (item 35 do TR)",
-    )
-    _add_logging_arguments(report_parser)
-
-    consolidate_parser = subparsers.add_parser(
-        _CMD_CONSOLIDATE,
-        help="funde os relatórios MinC+MTur já gerados na planilha financeira consolidada",
-    )
-    consolidate_parser.add_argument("competencia", help='ex.: "2026-06"')
-    consolidate_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
-    consolidate_parser.add_argument("--roms-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
-    consolidate_parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=_DEFAULT_DATA_DIR,
-        help="onde vive objetos.csv, a fonte do valor mensal (default: input)",
-    )
-    consolidate_parser.add_argument(
-        "--final-month",
-        action="store_true",
-        help="último mês de vigência do contrato — desliga o rollover de glosa (item 35 do TR)",
-    )
-    _add_logging_arguments(consolidate_parser)
-
-    split_parser = subparsers.add_parser(
-        _CMD_SPLIT,
-        help="gera CSVs filtrados + configs derivadas por Categoria (spec §14.3)",
-    )
-    split_parser.add_argument("competencia", help='ex.: "2026-06"')
-    _add_orgao_argument(split_parser)
-    split_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
-    split_parser.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA_DIR)
-    split_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
-    split_parser.add_argument(
-        "--manifest",
-        type=Path,
-        default=None,
-        help="caminho para datasets.yaml (default: resolvido a partir de "
-        "--config-dir — _shared se existir, senão <config-dir>/<órgão>)",
-    )
-    _add_strict_argument(split_parser)
-    _add_logging_arguments(split_parser)
-
-    run_parser = subparsers.add_parser(
-        _CMD_RUN,
-        help="encadeia bootstrap→measure→report→consolidate numa invocação scriptável",
-    )
-    run_parser.add_argument("competencia", help='ex.: "2026-06"')
-    _add_orgao_argument(run_parser)
-    run_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
-    run_parser.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA_DIR)
-    run_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
-    run_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
-    run_parser.add_argument("--capa-path", type=Path, default=None)
-    _add_strict_argument(run_parser)
-    run_parser.add_argument(
-        "--output",
-        type=str,
-        choices=("text", "json"),
-        default="text",
-        help="formato do resumo final: 'text' (painel rico, padrão) ou 'json' (automação/CI)",
-    )
-    _add_logging_arguments(run_parser)
-    run_parser.add_argument(
-        "--final-month",
-        action="store_true",
-        help="último mês de vigência do contrato — desliga o rollover de glosa (item 35 do TR)",
-    )
-    run_parser.add_argument(
-        "--force",
-        action="store_true",
-        help=(
-            "reprocessa tudo, mesmo etapas já concluídas numa tentativa anterior "
-            "(default: retoma de onde parou, pulando o que já está 'done')"
-        ),
-    )
-
-    return parser
-
-
-def _extract_measure_request(ns: argparse.Namespace) -> MeasureRequest:
-    config_dir = _require(ns, "config_dir", Path)
-    data_dir = _require(ns, "data_dir", Path)
-    orgao = _require(ns, "orgao", str)
-    manifest_arg: object = cast(object, getattr(ns, "manifest", None))
-    manifest_path = (
-        resolve_manifest_path(config_dir, orgao)
-        if manifest_arg is None
-        else _require(ns, "manifest", Path)
-    )
-    return MeasureRequest(
-        competencia=_require(ns, "competencia", str),
-        config_dir=config_dir,
-        data_dir=data_dir,
-        output_dir=_require(ns, "output_dir", Path),
-        manifest_path=manifest_path,
-        orgao=cast(Orgao, orgao),
-        strict=_extract_strict(ns),
-    )
-
-
-def _extract_split_request(ns: argparse.Namespace) -> SplitRequest:
-    config_dir = _require(ns, "config_dir", Path)
-    orgao = _require(ns, "orgao", str)
-    manifest_arg: object = cast(object, getattr(ns, "manifest", None))
-    manifest_path = (
-        resolve_manifest_path(config_dir, orgao)
-        if manifest_arg is None
-        else _require(ns, "manifest", Path)
-    )
-    return SplitRequest(
-        competencia=_require(ns, "competencia", str),
-        config_dir=config_dir,
-        data_dir=_require(ns, "data_dir", Path),
-        manifest_path=manifest_path,
-        report_dir=_require(ns, "report_dir", Path),
-        orgao=cast(Orgao, orgao),
-        strict=_extract_strict(ns),
-    )
-
-
-def _extract_capa_path(ns: argparse.Namespace, *, data_dir: Path | None = None) -> Path:
-    capa_arg: object = cast(object, getattr(ns, "capa_path", None))
-    if isinstance(capa_arg, Path):
-        return capa_arg
-    return (data_dir if data_dir is not None else _DEFAULT_DATA_DIR) / _CAPA_COMUM
 
 
 def _run_log_path(log_dir: Path, command: str, competencia: str | None = None) -> Path:
@@ -426,36 +93,6 @@ def _run_log_path(log_dir: Path, command: str, competencia: str | None = None) -
     return log_dir / f"pyauditor-{command}{suffix}-{{time:YYYYMMDD-HHmmss}}.log"
 
 
-def _extract_report_request(ns: argparse.Namespace) -> ReportRequest:
-    competencia = _require(ns, "competencia", str)
-    output_dir = _require(ns, "output_dir", Path)
-    data_dir = _require(ns, "data_dir", Path)
-    orgao = _require(ns, "orgao", str)
-    return ReportRequest(
-        competencia=competencia,
-        capa_path=_extract_capa_path(ns, data_dir=data_dir),
-        data_dir=data_dir,
-        roms_dir=_require(ns, "roms_dir", Path),
-        output_path=output_dir / f"relatorio_{competencia}_{orgao}.xlsx",
-        config_dir=_require(ns, "config_dir", Path),
-        orgao=cast(Orgao, orgao),
-        is_final_month=bool(cast(object, getattr(ns, "final_month", False))),
-    )
-
-
-def _extract_consolidate_request(ns: argparse.Namespace) -> ConsolidateRequest:
-    competencia = _require(ns, "competencia", str)
-    report_dir = _require(ns, "report_dir", Path)
-    return ConsolidateRequest(
-        competencia=competencia,
-        report_dir=report_dir,
-        roms_dir=_require(ns, "roms_dir", Path),
-        output_path=report_dir / f"relatorio_{competencia}_consolidado.xlsx",
-        data_dir=_require(ns, "data_dir", Path),
-        is_final_month=bool(cast(object, getattr(ns, "final_month", False))),
-    )
-
-
 def _each_single_orgao(orgao: str) -> tuple[str, ...]:
     return _SINGLE_ORGAOS if orgao == "both" else (orgao,)
 
@@ -463,7 +100,7 @@ def _each_single_orgao(orgao: str) -> tuple[str, ...]:
 def _dispatch_measure(args: argparse.Namespace) -> int:
     from pyauditor.cli.results import validate_competencia
 
-    request = _extract_measure_request(args)
+    request = extract_measure_request(args)
     if (msg := validate_competencia(request.competencia)) is not None:
         print(msg, file=sys.stderr)
         return 2
@@ -478,7 +115,7 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
             _CMD_MEASURE,
             request.competencia,
         ),
-        **_logging_kwargs(args),
+        **logging_kwargs(args),
     )
     measure_results = []
     per_orgao: dict[str, list[_MeasuredIndicator]] = {}
@@ -515,7 +152,7 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
 def _dispatch_split(args: argparse.Namespace) -> int:
     from pyauditor.cli.results import validate_competencia
 
-    request = _extract_split_request(args)
+    request = extract_split_request(args)
     if (msg := validate_competencia(request.competencia)) is not None:
         print(msg, file=sys.stderr)
         return 2
@@ -536,7 +173,7 @@ def _dispatch_split(args: argparse.Namespace) -> int:
                 _CMD_SPLIT,
                 request.competencia,
             ),
-            **_logging_kwargs(args),
+            **logging_kwargs(args),
         )
         paths = per_orgao_paths(
             config_dir=request.config_dir,
@@ -566,16 +203,16 @@ def _dispatch_split(args: argparse.Namespace) -> int:
 
 
 def _dispatch_bootstrap(args: argparse.Namespace) -> int:
-    data_dir = _require(args, "data_dir", Path)
-    capa_path = _extract_capa_path(args, data_dir=data_dir)
-    orgao = _require(args, "orgao", str)
+    data_dir = require(args, "data_dir", Path)
+    capa_path = extract_capa_path(args, data_dir=data_dir)
+    orgao = require(args, "orgao", str)
     # bootstrap não tem competencia, nada a validar previamente
     bootstrap_results = []
     for single_orgao in _each_single_orgao(orgao):
         per_orgao_capa = resolve_capa_path(capa_path, cast(Orgao, single_orgao))
         setup_logging(
             log_path=_run_log_path(per_orgao_capa.parent, _CMD_BOOTSTRAP),
-            **_logging_kwargs(args),
+            **logging_kwargs(args),
         )
         bootstrap_results.append(run_bootstrap(per_orgao_capa, single_orgao))
     return exit_code_for_results(bootstrap_results)
@@ -584,7 +221,7 @@ def _dispatch_bootstrap(args: argparse.Namespace) -> int:
 def _dispatch_report(args: argparse.Namespace) -> int:
     from pyauditor.cli.results import validate_competencia
 
-    report_request = _extract_report_request(args)
+    report_request = extract_report_request(args)
     if (msg := validate_competencia(report_request.competencia)) is not None:
         print(msg, file=sys.stderr)
         return 2
@@ -592,7 +229,7 @@ def _dispatch_report(args: argparse.Namespace) -> int:
         log_path=_run_log_path(
             report_request.output_path.parent, _CMD_REPORT, report_request.competencia
         ),
-        **_logging_kwargs(args),
+        **logging_kwargs(args),
     )
     report_results = []
     for orgao in _each_single_orgao(report_request.orgao):
@@ -626,7 +263,7 @@ def _dispatch_report(args: argparse.Namespace) -> int:
 def _dispatch_consolidate(args: argparse.Namespace) -> int:
     from pyauditor.cli.results import validate_competencia
 
-    consolidate_request = _extract_consolidate_request(args)
+    consolidate_request = extract_consolidate_request(args)
     if (msg := validate_competencia(consolidate_request.competencia)) is not None:
         print(msg, file=sys.stderr)
         return 2
@@ -636,7 +273,7 @@ def _dispatch_consolidate(args: argparse.Namespace) -> int:
             _CMD_CONSOLIDATE,
             consolidate_request.competencia,
         ),
-        **_logging_kwargs(args),
+        **logging_kwargs(args),
     )
     # `run_consolidate` checa `check_consolidate_ready` internamente
     # (defense-in-depth única, ticket 12) — sem pre-flight duplicado aqui.
@@ -654,30 +291,30 @@ def _dispatch_consolidate(args: argparse.Namespace) -> int:
 def _dispatch_run(args: argparse.Namespace) -> int:
     from pyauditor.cli.results import validate_competencia
 
-    competencia = _require(args, "competencia", str)
+    competencia = require(args, "competencia", str)
     if (msg := validate_competencia(competencia)) is not None:
         print(msg, file=sys.stderr)
         return 2
-    orgao = _require(args, "orgao", str)
-    output_dir = _require(args, "output_dir", Path)
-    report_dir = _require(args, "report_dir", Path)
+    orgao = require(args, "orgao", str)
+    output_dir = require(args, "output_dir", Path)
+    report_dir = require(args, "report_dir", Path)
     setup_logging(
         log_path=_run_log_path(report_dir, _CMD_RUN, competencia),
-        **_logging_kwargs(args),
+        **logging_kwargs(args),
     )
-    output_raw = _require(args, "output", str)
+    output_raw = require(args, "output", str)
     return run_run(
         competencia=competencia,
         orgao=orgao,
-        config_dir=_require(args, "config_dir", Path),
-        data_dir=_require(args, "data_dir", Path),
+        config_dir=require(args, "config_dir", Path),
+        data_dir=require(args, "data_dir", Path),
         output_dir=output_dir,
         report_dir=report_dir,
-        capa_path=_extract_capa_path(args, data_dir=_require(args, "data_dir", Path)),
+        capa_path=extract_capa_path(args, data_dir=require(args, "data_dir", Path)),
         final_month=bool(cast(object, getattr(args, "final_month", False))),
         output="json" if output_raw == "json" else "text",
         force=bool(cast(object, getattr(args, "force", False))),
-        strict=_extract_strict(args),
+        strict=bool(cast(object, getattr(args, "strict", False))),
     )
 
 
