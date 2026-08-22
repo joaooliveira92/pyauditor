@@ -23,7 +23,9 @@ __all__: Final[tuple[str, ...]] = (
     "GRUPO_EXECUTOR_COLUMN",
     "base_config_stem",
     "compute_categoria_values",
+    "outros_warning",
     "read_raw_csv",
+    "unmatched_in_values_warnings",
 )
 
 GRUPO_EXECUTOR_COLUMN: Final[str] = "Grupo_executor"
@@ -130,3 +132,59 @@ def compute_categoria_values(
 
     outros_values = real_values - claimed_overall
     return per_categoria, outros_values
+
+
+def unmatched_in_values_warnings(
+    *,
+    inms_key: str,
+    orgao: str,
+    competencia: str,
+    entries: list[tuple[str, GrupoExecutorMode]],
+    real_values: set[str],
+    raw_csv_path: Path,
+) -> list[str]:
+    """Cross-check (issue 09): `in_values` de *entries* contra os literais
+    reais de `Grupo_executor` do CSV bruto. Um typo/renomeação no export gera
+    categoria sem linhas — indistinguível de zero atividade, por isso o aviso.
+
+    Devolve as mensagens prontas (strings verbatim — as mesmas que
+    `cli/measure.py` e `cli/split.py` emitiam cada um no seu bloco), para o
+    chamador logar e acumular. Sem efeito colateral de log aqui para o mesmo
+    texto servir aos dois consumidores.
+    """
+    warnings: list[str] = []
+    for cat_key, entry in entries:
+        if entry.in_values is None:
+            continue
+        unmatched = [v for v in entry.in_values if v not in real_values]
+        if not unmatched:
+            continue
+        prefixo = f"INMS {inms_key} ({orgao}/{competencia}), categoria {cat_key}: "
+        if not (set(entry.in_values) & real_values):
+            warnings.append(
+                f"{prefixo}in_values {unmatched!r} sem correspondência em "
+                f"Grupo_executor do CSV ({raw_csv_path}) — possível "
+                "typo/renomeação, categoria ficará sem linhas"
+            )
+        elif unmatched:
+            warnings.append(
+                f"{prefixo}in_values {unmatched!r} sem correspondência — "
+                "valores não encontrados no CSV"
+            )
+    return warnings
+
+
+def outros_warning(
+    *,
+    inms_key: str,
+    orgao: str,
+    competencia: str,
+    outros_count: int,
+) -> str:
+    """Warning monolótono de linhas `outros` (não classificadas em nenhuma
+    categoria) — mesma mensagem emitida por `split` e `measure`."""
+    return (
+        f"INMS {inms_key} ({orgao}/{competencia}), categoria outros: "
+        f"{outros_count} linha(s) não classificada(s) em nenhuma categoria — "
+        "revisar categorias.yaml"
+    )
