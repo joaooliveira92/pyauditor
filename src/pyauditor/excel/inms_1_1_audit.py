@@ -187,11 +187,11 @@ def _add_situacao_conditional_formatting(sheet: Worksheet, coordinate: str) -> N
     2 (resultado consolidado) e na Seção 7 (cada metodologia de controle)."""
     sheet.conditional_formatting.add(
         coordinate,
-        CellIsRule(operator="equal", formula=['"Meta atingida"'], fill=GREEN_FILL),  # type: ignore[no-untyped-call]
+        CellIsRule(operator="equal", formula=['"Meta atingida"'], fill=GREEN_FILL),  # type: ignore[no-untyped-call]  # openpyxl não publica stub tipado para `CellIsRule`
     )
     sheet.conditional_formatting.add(
         coordinate,
-        CellIsRule(operator="equal", formula=['"Meta não atingida"'], fill=RED_FILL),  # type: ignore[no-untyped-call]
+        CellIsRule(operator="equal", formula=['"Meta não atingida"'], fill=RED_FILL),  # type: ignore[no-untyped-call]  # openpyxl não publica stub tipado para `CellIsRule`
     )
 
 
@@ -204,8 +204,15 @@ def _protect_support_columns(sheet: Worksheet) -> None:
     deliberada por quem tem o arquivo (ticket 20 / B-03). Não afeta a
     leitura das fórmulas pelo pipeline — proteção de planilha do Excel só
     bloqueia edição interativa, nunca o cálculo/leitura de valores por
-    openpyxl ou por qualquer motor de recálculo."""
+    openpyxl ou por qualquer motor de recálculo.
+
+    A coluna `AJ` (Situação dos dados) fica de fora do ocultamento: é
+    preenchida em Python, não alimenta fórmula alguma, e é o indicador
+    visual de linhas com data ausente/inválida exigido pelo ticket 02
+    (C-02) — ocultá-la anularia a sinalização (consenso C-02 × B-03)."""
     for col in range(_R, _AM + 1):
+        if col == _AJ:
+            continue
         sheet.column_dimensions[cl(col)].hidden = True
     sheet.protection.sheet = True
     sheet.protection.formatCells = False
@@ -337,6 +344,8 @@ def _write_raw_block(
 
         if solicitacao.is_malformed:
             qualidade = "Data de abertura inválida"
+        elif solicitacao.is_blank:
+            qualidade = "Data de abertura ausente"
         elif limite.is_malformed:
             qualidade = "Data limite inválida"
         elif fim.is_malformed:

@@ -221,6 +221,8 @@ def test_enriched_sheet_flags_invalid_and_inconsistent_dates(tmp_path: Path) -> 
         "3;Restart;01/06/2026 12:00;01/06/2026 14:00;01/06/2026 10:00;N;N1;Fulano\n"
         # Linha 5: tudo válido.
         "4;Acesso;01/06/2026 08:00;01/06/2026 10:00;01/06/2026 09:00;S;N1;Fulano\n"
+        # Linha 6: data de abertura ausente (mas com encerramento) — sinalizada.
+        "5;Acesso;;01/06/2026 10:00;01/06/2026 09:00;S;N1;Fulano\n"
     )
     (data_dir / "inms-01.csv").write_text(csv_with_bad_dates, encoding="utf-8")
     categorias_file = load_categorias(config_dir / "categorias.yaml")
@@ -239,6 +241,7 @@ def test_enriched_sheet_flags_invalid_and_inconsistent_dates(tmp_path: Path) -> 
     assert sheet["AJ3"].value == "OK"
     assert sheet["AJ4"].value == "Encerramento anterior à abertura"
     assert sheet["AJ5"].value == "OK"
+    assert sheet["AJ6"].value == "Data de abertura ausente"
 
     # U2 vazia (data de abertura malformada -> não gravada) protege AB2/AG2
     # contra tratar célula vazia como zero.
@@ -791,6 +794,10 @@ def test_support_columns_are_hidden_and_sheet_is_protected(tmp_path: Path) -> No
     sheet = wb["INMS 1.1"]
     assert sheet.column_dimensions["R"].hidden is True
     assert sheet.column_dimensions["AM"].hidden is True
+    # C-02 × B-03: a coluna de qualidade dos dados (AJ) fica visível de
+    # propósito — não é fonte de fórmula, é o indicador visual de linhas
+    # com data ausente/inválida que o ticket C-02 exige na planilha.
+    assert sheet.column_dimensions["AJ"].hidden is not True
     assert sheet.protection.sheet is True
     # Coluna 10 (Justificativa de exclusão) da Seção 4 continua editável.
     justificativa_row = next(
