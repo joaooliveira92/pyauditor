@@ -12,6 +12,7 @@ import pytest
 from pyauditor.cli.main import (
     MeasureRequest,
     _dispatch_bootstrap,
+    _dispatch_consolidate,
     _dispatch_measure,
     build_parser,
     cli_main,
@@ -221,10 +222,8 @@ def test_cli_main_report_dispatches_with_output_filename(tmp_path: Path) -> None
     roms_dir = tmp_path / "roms"
     out_dir = tmp_path / "reports"
     config_dir = tmp_path / "configs"
-    satisfied = SimpleNamespace(satisfied=True, missing=())
     with (
         patch("pyauditor.cli.main.run_report", return_value=SimpleNamespace(status="done")) as m,
-        patch("pyauditor.cli.main.check_report_ready", return_value=satisfied),
     ):
         code = cli_main(
             [
@@ -314,6 +313,37 @@ def test_dispatch_bootstrap_is_callable_directly_without_argparse(tmp_path: Path
         code = _dispatch_bootstrap(args)
         assert code == 0
         assert m.call_args.args[0] == capa_path.parent / "capa_MinC.csv"
+
+
+def test_cli_main_consolidate_final_month_reaches_run_consolidate(tmp_path: Path) -> None:
+    """Ticket 10 — `consolidate --final-month` percola o parser até
+    `run_consolidate(is_final_month=True)`: no mês final, `consolidado.xlsx`
+    e `report.xlsx` desligam o rollover de glosa do mesmo jeito."""
+    report_dir = tmp_path / "reports"
+    roms_dir = tmp_path / "roms"
+    data_dir = tmp_path / "input"
+    for p in (report_dir, roms_dir, data_dir):
+        p.mkdir()
+    args = build_parser().parse_args(
+        [
+            "consolidate",
+            "2026-06",
+            "--report-dir",
+            str(report_dir),
+            "--roms-dir",
+            str(roms_dir),
+            "--data-dir",
+            str(data_dir),
+            "--final-month",
+        ]
+    )
+    with patch(
+        "pyauditor.cli.main.run_consolidate",
+        return_value=SimpleNamespace(status="done"),
+    ) as m:
+        code = _dispatch_consolidate(args)
+        assert code == 0
+        assert m.call_args.kwargs["is_final_month"] is True
 
 
 def test_cli_main_no_args_without_tty_exits_2(monkeypatch: pytest.MonkeyPatch) -> None:

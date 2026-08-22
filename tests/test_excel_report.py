@@ -87,6 +87,29 @@ def test_inms_base_row_matches_summary_and_leaves_fiscal_columns_blank() -> None
     assert row["Percentual de glosa"] is None
 
 
+def test_inms_base_uses_shared_rule_for_max_target_direction() -> None:
+    """Ticket 08 — o `report` e o `consolidate` derivam a linha `INMS_BASE` da
+    mesma regra única: a "Diferença para a meta" respeita o sentido do operador
+    (meta máxima `<=` ⇒ `result - target`), não `target - result` cego."""
+    summaries = [
+        _summary(
+            "INMS-1.1",
+            "INMS 1.1",
+            result_pct=2.5,
+            target_operator="<=",
+            target_value=2.0,
+            conforms=False,
+        )
+    ]
+
+    workbook = build_report_workbook("2026-06", summaries)
+    sheet = workbook[INMS_BASE_SHEET]
+
+    header = [cell.value for cell in sheet[1]]
+    row = {header[i]: sheet.cell(row=2, column=i + 1).value for i in range(len(header))}
+    assert row["Diferença para a meta"] == 0.5  # 2.5 - 2.0, sentido invertido
+
+
 def test_group_tabs_only_contain_their_indicators() -> None:
     summaries = [_summary("INMS-1.1", "INMS 1.1"), _summary("INMS-1.4", "INMS 1.4")]
 

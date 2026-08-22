@@ -11,9 +11,17 @@ mudar o teto ou o fator, hoje são 4 pontos de edição; após o ticket, um só.
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `consolidate.py` usa `POINTS_TO_PERCENT`/`CAP_PCT`/`compute_glosa` de `glosas.py`; `LIMITE_PCT` local removida.
-- [ ] Aritmética das células de `build_calculo` deriva da mesma fonte (sem `0.001`/`30` literais fora de `glosas.py`).
-- [ ] Nenhum valor mágico de teto/fator de glosa duplicado no código (grep confirma).
-- [ ] `test_excel_consolidate.py` e `test_excel_glosas.py` verdes.
+- [x] `consolidate.py` usa `POINTS_TO_PERCENT`/`CAP_PCT`/`compute_glosa` de `glosas.py`; `LIMITE_PCT` local removida.
+- [x] Aritmética das células de `build_calculo` deriva da mesma fonte (sem `0.001`/`30` literais fora de `glosas.py`).
+- [x] Nenhum valor mágico de teto/fator de glosa duplicado no código (grep confirma).
+- [x] `test_excel_consolidate.py` e `test_excel_glosas.py` verdes.
+
+## Comments
+
+- 2026-08-22 — Implementado. `consolidate.py` importa `POINTS_TO_PERCENT`/`CAP_PCT` de
+  `glosas.py` e remove `LIMITE_PCT` local. O `0.001`/`30.0` das células de
+  `CALCULO_PAGAMENTO` agora deriva de `_glosa_bruto` (wrapper sobre
+  `compute_glosa`, fonte única). Grep confirma zero literais de fator/teto fora de
+  `glosas.py`. Testes: 32 passed (`test_excel_consolidate` + `test_glosas`).

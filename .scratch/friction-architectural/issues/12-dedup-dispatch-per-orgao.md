@@ -18,10 +18,27 @@ Hoje ela é feita duas vezes com sémântica própria: `main` usa
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Um único dispatch per-órgão usado por `main` e `run` (config_dir/data_dir/output_dir/manifest derivados igualmente).
-- [ ] `_capa_path_for` duplicado removido (um só wrapper).
-- [ ] `materialize=True`/`False` reconciliado e coberto por teste — ambos os caminhos do split exercitados.
-- [ ] Defense-in-depth de `check_report_ready`/`check_consolidate_ready` executada uma vez por comando.
-- [ ] Suíte completa verde.
+- [x] Um único dispatch per-órgão usado por `main` e `run` (config_dir/data_dir/output_dir/manifest derivados igualmente).
+- [x] `_capa_path_for` duplicado removido (um só wrapper).
+- [x] `materialize=True`/`False` reconciliado e coberto por teste — ambos os caminhos do split exercitados.
+- [x] Defense-in-depth de `check_report_ready`/`check_consolidate_ready` executada uma vez por comando.
+- [x] Suíte completa verde.
+
+## Comments
+
+- 2026-08-22 — Implementado. (a) Novo `per_orgao_paths()` em
+  `config/resolution.py` (`PerOrgaoPaths`) — expansão per-órgão única
+  (config_dir ADR 3 + data/output/report `/<orgao>` + manifest) usada por
+  `cli/main.py` (measure/split/report) e `orchestration/run.py` (split/
+  measure/report) em vez de cada entry point reimplementar a derivação.
+  (b) `_capa_path_for` de `cli/main.py` removido — todos usam
+  `capa_paths.resolve_capa_path` diretamente. (c) `materialize` explícito:
+  `main` passa `True` (CLI standalone grava artefatos), `orchestration`
+  `False` (in-memory), e novo teste `test_run_split_materialize_false_computa_sem_gravar_artefatos`
+  em `test_cli_split.py` exercita o caminho outrora só exercido via `run`.
+  (d) Pre-flight duplicado de `check_report_ready`/`check_consolidate_ready`
+  removido de `cli/main.py` — `run_report`/`run_consolidate` são o defense-in-
+  depth único por comando. Suíte completa: 499 passed, 86.33% coverage;
+  mypy strict e ruff limpos.

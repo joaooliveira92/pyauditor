@@ -79,6 +79,8 @@ def run_consolidate(
     roms_dir: Path,
     output_path: Path,
     data_dir: Path | None = None,
+    *,
+    is_final_month: bool = False,
 ) -> ConsolidateResult:
     data_dir = data_dir or report_dir.parent
 
@@ -153,6 +155,7 @@ def run_consolidate(
             itens=itens,
             periodo=periodo,
             responsaveis=responsaveis,
+            is_final_month=is_final_month,
         )
     except Exception as exc:  # boundary: never leak a raw traceback past the CLI
         return _error(f"falha inesperada ao montar consolidado de {competencia}: {exc}")

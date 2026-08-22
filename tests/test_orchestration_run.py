@@ -395,3 +395,44 @@ def test_execute_run_isolate_on_split_failure_blocks_only_that_orgaos_measure(
     assert by_command[("measure", "MTur")] == "done"
     assert by_command[("report", "MTur")] == "done"
     assert by_command[("consolidate", None)] == "skipped"
+
+
+def test_execute_run_measure_reused_split_does_not_suppress_in_values_warnings(
+    tmp_path: Path,
+) -> None:
+    """Ticket 11 — `already_split` reflete a passada atual, não o estado
+    persistido: se `split` foi reutilizado (done numa invocação anterior) e só
+    `measure` re-executou, os avisos de `in_values`/`outros` NÃO são
+    suprimidos — `split` não os emitiu nesta passada."""
+    request = _scaffold(tmp_path, csv_body=_GOOD_CSV)
+    with patch(
+        "pyauditor.orchestration.run.run_measure",
+        return_value=SimpleNamespace(status="done", error_message=None),
+    ):
+        execute_run(request)
+
+    # Segunda invocação: `split` está persistido como done — reutilizado, não
+    # executado nesta passada. `measure` roda de novo (force_commands) com
+    # already_split=False, então os avisos não são silenciados.
+    resumed = replace(request, force_commands=frozenset({"measure"}))
+    with patch(
+        "pyauditor.orchestration.run.run_measure",
+        return_value=SimpleNamespace(status="done", error_message=None),
+    ) as m2:
+        execute_run(resumed)
+
+    assert m2.call_args.kwargs["already_split"] is False
+
+
+def test_execute_run_measure_same_passada_split_sets_already_split(tmp_path: Path) -> None:
+    """Ticket 11 — numa passada única `run` (split→measure na mesma
+    invocação), `measure` recebe `already_split=True`: `split` acabou de rodar
+    e já emitiu os avisos de `in_values`/`outros` para o mesmo dataset."""
+    request = _scaffold(tmp_path, csv_body=_GOOD_CSV)
+    with patch(
+        "pyauditor.orchestration.run.run_measure",
+        return_value=SimpleNamespace(status="done", error_message=None),
+    ) as m:
+        execute_run(request)
+
+    assert m.call_args.kwargs["already_split"] is True

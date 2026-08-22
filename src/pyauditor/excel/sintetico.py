@@ -73,6 +73,7 @@ from pyauditor.config.categorias import (
 )
 from pyauditor.config.manifest import DatasetManifest
 from pyauditor.config.models import PrecomputedTableCalculation, RatioCalculation
+from pyauditor.config.niveis import NIVEL_BY_CATEGORIA, NIVEL_ORDER
 from pyauditor.engine.pipeline import load_config, measurement_source
 from pyauditor.engine.strategies import filter_rows, meets_target, parse_decimal, safe_pct
 from pyauditor.excel import inms_1_1_audit
@@ -113,13 +114,10 @@ _SUBTOTAL_COLUMNS: Final[tuple[str, ...]] = (
     "% bruto",
     "Tempo médio criação→resolução",
 )
-_NIVEL_ORDER: Final[tuple[str, ...]] = ("N1", "N2", "N3")
-_NIVEL_BY_CATEGORIA: Final[dict[str, str]] = {
-    "ATENDIMENTO_N1": "N1",
-    "ATENDIMENTO_N2": "N2",
-    "OPERACAO_N3": "N3",
-    "MONITORAMENTO_NOC_SOC": "N3",
-}
+# Categoria→Nível é dono único em `config/niveis.py` (ticket 11) — mesma
+# regra de `excel/inms_1_1_audit.py`/`excel/groups.py`, não uma cópia local.
+_NIVEL_ORDER = NIVEL_ORDER
+_NIVEL_BY_CATEGORIA = NIVEL_BY_CATEGORIA
 
 _ATIVO_COLUMNS: Final[tuple[str, ...]] = (
     "Categoria",

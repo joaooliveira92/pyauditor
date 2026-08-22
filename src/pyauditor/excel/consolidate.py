@@ -38,7 +38,14 @@ from pyauditor.excel._style import UNIT_BY_SHAPE as _UNIT_BY_SHAPE
 from pyauditor.excel._style import new_sheet as _new_sheet
 from pyauditor.excel._style import write_row as _write
 from pyauditor.excel.equipe import RESPONSAVEL_LABELS
-from pyauditor.excel.glosas import Historico, compute_glosa, saldo_anterior_pct_de
+from pyauditor.excel.glosas import (
+    CAP_PCT,
+    POINTS_TO_PERCENT,
+    Historico,
+    compute_glosa,
+    saldo_anterior_pct_de,
+)
+from pyauditor.excel.inms_base import inms_base_fields
 from pyauditor.excel.orgao_consolidation import with_orgao_consolidation
 from pyauditor.logging import logger
 from pyauditor.periodo import PeriodoAfericao, format_date_br
@@ -51,7 +58,6 @@ INMS_BASE_SHEET: Final = "INMS_BASE"
 GLOSAS_SHEET: Final = "GLOSAS"
 CALCULO_SHEET: Final = "CALCULO_PAGAMENTO"
 
-LIMITE_PCT: Final = 30.0  # teto único sobre o agregado dos dois órgãos (ticket 02)
 RATEIO_PADRAO: Final = 0.5  # provisório, até fonte oficial (ticket 01/02)
 
 # docs/styleguide.md number formats — currency and percent, zero as "-".
@@ -102,11 +108,12 @@ _DECISION_TEXT_COLUMNS: Final[tuple[int, ...]] = tuple(
 )
 
 _CALCULO_COLUMNS: Final[tuple[str, ...]] = ("Componente", "MinC", "MTur", "Consolidado")
+_FATOR_PCT_TEXTO: Final[str] = f"{POINTS_TO_PERCENT:g}".replace(".", ",")
 _CALCULO_LINHAS: Final[tuple[str, ...]] = (
     "Percentual de rateio",
     "Valor bruto (= mensal x rateio)",
     "Pontos de glosa",
-    "Valor da glosa (= MIN(pontos x 0,001, 30%)/100 x bruto)",
+    f"Valor da glosa (= MIN(pontos x {_FATOR_PCT_TEXTO}, {CAP_PCT:g}%)/100 x bruto)",
     "Outros ajustes",
     "Valor recomendado (= max(0, bruto - glosa - outros))",
 )
@@ -358,25 +365,23 @@ _INMS_BASE_COLUMNS: Final[tuple[str, ...]] = (
 
 
 def _inms_base_row(competencia: str, summary: IndicatorSummary) -> tuple[CellValue, ...]:
-    dif = None
-    if summary.target_value is not None:
-        dif = round(summary.target_value - summary.result_pct, 2)
+    row = inms_base_fields(summary, competencia, grupo_operacional=None)
     return (
-        competencia,
+        row.competencia,
         None,
-        summary.asset,
-        None,
-        format_inms_code(summary.contractual_id),
-        summary.name,
-        summary.orgao,
-        summary.target_value,
-        summary.target_operator,
-        summary.numerator,
-        summary.denominator,
-        round(summary.result_pct, 2),
-        _UNIT_BY_SHAPE.get(summary.shape, ""),
-        "Conforme" if summary.conforms else "Não conforme",
-        dif,
+        row.servico,
+        row.grupo_operacional,
+        row.codigo_inms,
+        row.descricao,
+        row.orgao,
+        row.meta,
+        row.sentido,
+        row.numerador,
+        row.denominador,
+        row.resultado,
+        row.unidade,
+        row.conformidade,
+        row.diferenca,
     )
 
 
@@ -464,7 +469,7 @@ def build_glosas(
         pontos = summary.penalty_points
         if not is_amnestied:
             pontos_por_orgao[summary.orgao] = pontos_por_orgao.get(summary.orgao, 0.0) + pontos
-        pct = pontos * 0.001
+        pct = pontos * POINTS_TO_PERCENT
         valor_glosa = round((valor_base or 0.0) * pct / 100, 2) if valor_base is not None else None
 
         _write(
@@ -539,14 +544,14 @@ def build_glosas(
     total_pontos = glosa_minc.total_points + glosa_mtur.total_points
     glosa_final = (glosa_minc.valor_da_glosa or 0.0) + (glosa_mtur.valor_da_glosa or 0.0)
     # Fallback se valor_base is None: glosa_final já é 0 via compute_glosa
-    pct_bruto = total_pontos * 0.001 + saldo_anterior
-    aplicado = min(pct_bruto, LIMITE_PCT)
+    pct_bruto = total_pontos * POINTS_TO_PERCENT + saldo_anterior
+    aplicado = min(pct_bruto, CAP_PCT)
 
     r = row + 2
     for label, value in (
         ("Total de Pontos", round(total_pontos, 2)),
-        ("Fórmula (pontos x 0,001)", f"{pct_bruto:.4f}%"),
-        ("Limite", f"{LIMITE_PCT:.1f}%"),
+        (f"Fórmula (pontos x {_FATOR_PCT_TEXTO})", f"{pct_bruto:.4f}%"),
+        ("Limite", f"{CAP_PCT:.1f}%"),
         ("Percentual Aplicado", f"{aplicado:.2f}%"),
         ("Valor Glosa", round(glosa_final, 2) if valor_base is not None else None),
     ):
@@ -565,6 +570,15 @@ def build_glosas(
     return total_pontos, glosa_final
 
 
+def _glosa_bruto(pontos: float, bruto: float) -> float:
+    """Valor da glosa sobre um bruto — a mesma aritmética de
+    ``glosas.compute_glosa`` (fonte única, ticket 09), sem rollover
+    (``is_final_month=True``) porque as células de ``CALCULO_PAGAMENTO``
+    computam o ajuste do mês corrente, não o saldo rolado."""
+    glosa = compute_glosa(pontos, bruto, is_final_month=True)
+    return glosa.valor_da_glosa or 0.0
+
+
 def build_calculo(
     wb: Workbook,
     valor_base: float | None,
@@ -581,7 +595,7 @@ def build_calculo(
     base = valor_base or 0.0
     params: tuple[tuple[str, float, str], ...] = (
         ("Valor mensal vigente", base, _CURRENCY_FMT),
-        ("Limite máximo de glosa (%)", LIMITE_PCT, _PERCENT_FMT_SCALED),
+        ("Limite máximo de glosa (%)", CAP_PCT, _PERCENT_FMT_SCALED),
         ("Rateio MinC (provisório)", rateio_minc, _PERCENT_FMT_FRACTION),
         ("Rateio MTur (provisório)", rateio_mtur, _PERCENT_FMT_FRACTION),
     )
@@ -629,16 +643,12 @@ def build_calculo(
             elif label.startswith("Pontos de glosa"):
                 value = round(pontos, 2)
             elif label.startswith("Valor da glosa"):
-                value = (
-                    round(min(pontos * 0.001, LIMITE_PCT) / 100 * base * rateio, 2)
-                    if pontos
-                    else 0.0
-                )
+                value = round(_glosa_bruto(pontos, base * rateio), 2)
             elif label.startswith("Outros ajustes"):
                 value = 0
             else:
                 bruto = base * rateio
-                glosa = min(pontos * 0.001, LIMITE_PCT) / 100 * bruto if pontos else 0.0
+                glosa = _glosa_bruto(pontos, bruto)
                 value = round(max(0.0, bruto - glosa), 2)
             value_cell = ws.cell(row=row, column=col, value=value)
             value_cell.font = Font(bold=True) if bold else BODY_FONT

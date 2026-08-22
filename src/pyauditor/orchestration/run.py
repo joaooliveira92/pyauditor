@@ -54,10 +54,7 @@ from pyauditor.cli.split import (
     SplitResult,
     run_split,
 )
-from pyauditor.config.resolution import (
-    load_manifest_for,
-    resolve_config_dir,
-)
+from pyauditor.config.resolution import per_orgao_paths
 from pyauditor.excel.equipe import EQUIPE_FILENAME
 from pyauditor.excel.objetos import OBJETOS_FILENAME
 from pyauditor.excel.prazos import PRAZOS_FILENAME
@@ -619,8 +616,16 @@ def _dispatch(
     orgao: str | None,
     request: RunRequest,
     periodo: PeriodoAfericao,
+    *,
+    already_split: bool = False,
 ) -> CommandResult:
-    """Execute one planned command using validated arguments."""
+    """Execute one planned command using validated arguments.
+
+    ``already_split`` (ticket 05/11): only honored by `measure` — whether
+    `split` actually ran in this invocation, so the in-memory categorical
+    path can suppress the duplicate `in_values`/`outros` warnings it would
+    otherwise re-emit for the same raw dataset.
+    """
     if command == "bootstrap":
         organization = _require_orgao(command, orgao)
         capa_path = resolve_capa_path(
@@ -631,22 +636,21 @@ def _dispatch(
 
     if command == "split":
         organization = _require_orgao(command, orgao)
-        config_dir = resolve_config_dir(
-            request.config_dir,
-            organization,
-        )
-        manifest = load_manifest_for(
-            request.config_dir,
-            organization,
+        paths = per_orgao_paths(
+            config_dir=request.config_dir,
+            data_dir=request.data_dir,
+            output_dir=request.output_dir,
+            report_dir=request.report_dir,
+            orgao=organization,
         )
 
         return run_split(
             request.competencia,
-            config_dir,
-            request.data_dir / organization,
+            paths.config_dir,
+            paths.data_dir,
             expected_orgao=organization,
-            manifest=manifest,
-            report_dir=request.report_dir / organization,
+            manifest=paths.manifest,
+            report_dir=paths.report_dir,
             materialize=False,
             periodo=periodo,
             strict=request.strict,
@@ -658,37 +662,39 @@ def _dispatch(
 
     if command == "measure":
         organization = _require_orgao(command, orgao)
-        config_dir = resolve_config_dir(
-            request.config_dir,
-            organization,
-        )
-        manifest = load_manifest_for(
-            request.config_dir,
-            organization,
+        paths = per_orgao_paths(
+            config_dir=request.config_dir,
+            data_dir=request.data_dir,
+            output_dir=request.output_dir,
+            orgao=organization,
         )
 
         return run_measure(
             competencia=request.competencia,
-            config_dir=config_dir,
-            data_dir=request.data_dir / organization,
-            output_dir=request.output_dir / organization,
-            manifest=manifest,
+            config_dir=paths.config_dir,
+            data_dir=paths.data_dir,
+            output_dir=paths.output_dir,
+            manifest=paths.manifest,
             expected_orgao=organization,
             equipe_path=request.data_dir / EQUIPE_FILENAME,
             periodo=periodo,
             strict=request.strict,
             # `run` always dispatches split immediately before measure for the
             # same organization/competência (ticket 05) — split already
-            # logged the empty-window WARN/discard INFO for the same raw
-            # dataset, so measure's in-memory categorical path skips it.
-            already_split=True,
+            # logged the empty-window WARN/discard INFO and the in_values/
+            # outros avisos for the same raw dataset, so measure's in-memory
+            # categorical path skips them. Só quando `split` rodou de fato
+            # nesta invocação (não numa retomada em que foi reutilizado).
+            already_split=already_split,
         )
 
     if command == "report":
         organization = _require_orgao(command, orgao)
-        config_dir = resolve_config_dir(
-            request.config_dir,
-            organization,
+        paths = per_orgao_paths(
+            config_dir=request.config_dir,
+            data_dir=request.data_dir,
+            output_dir=request.output_dir,
+            orgao=organization,
         )
         output_path = (
             request.report_dir
@@ -698,9 +704,9 @@ def _dispatch(
         return run_report(
             competencia=request.competencia,
             capa_path=request.capa_path,
-            roms_dir=request.output_dir / organization,
+            roms_dir=paths.output_dir,
             output_path=output_path,
-            config_dir=config_dir,
+            config_dir=paths.config_dir,
             expected_orgao=organization,
             is_final_month=request.final_month,
             data_dir=request.data_dir,
@@ -723,6 +729,7 @@ def _dispatch(
             roms_dir=request.output_dir,
             output_path=output_path,
             data_dir=request.data_dir,
+            is_final_month=request.final_month,
         )
 
     raise ValueError(f"Unsupported command: {command!r}")
@@ -939,6 +946,12 @@ def execute_run(
 
     latest_results: dict[ResultKey, CommandResult] = {}
     skipped_steps: set[PlanStep] = set()
+    # Etapas efetivamente executadas nesta invocação (não apenas reutilizadas
+    # de uma passada anterior) — ticket 11: `already_split` de `measure` só
+    # suprime os avisos de `in_values`/`outros` quando `split` rodou de fato
+    # na mesma passada; numa retomada em que o `split` foi reutilizado
+    # (done/skipped) e só o `measure` re-executou, os avisos continuam saindo.
+    executed_steps: set[PlanStep] = set()
 
     def finish_result() -> RunResult:
         return RunResult(
@@ -1114,6 +1127,11 @@ def execute_run(
                     orgao,
                     request,
                     periodo,
+                    already_split=(
+                        ("split", orgao) in executed_steps
+                        if command == "measure"
+                        else False
+                    ),
                 )
             except Exception as exc:
                 logger.exception(
@@ -1145,6 +1163,9 @@ def execute_run(
                     break
 
                 return finish_result()
+
+            if result.status == "done":
+                executed_steps.add(step)
 
             latest_results[
                 _result_key(command, orgao)

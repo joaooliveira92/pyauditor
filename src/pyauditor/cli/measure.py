@@ -447,27 +447,32 @@ def run_measure(
                 continue
 
             real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
-            for cat_key, entry in entries:
-                prefixo = (
-                    f"INMS {inms_key} ({config.scope.orgao}/{competencia}), categoria {cat_key}: "
-                )
-                if entry.in_values is not None:
-                    unmatched = [v for v in entry.in_values if v not in real_values]
-                    if unmatched and not (set(entry.in_values) & real_values):
-                        w = (
-                            f"{prefixo}in_values {unmatched!r} sem correspondência em "
-                            f"Grupo_executor do CSV ({raw_csv_path}) — possível "
-                            "typo/renomeação, categoria ficará sem linhas"
-                        )
-                        logger.warning(w)
-                        warnings.append(w)
-                    elif unmatched:
-                        w = (
-                            f"{prefixo}in_values {unmatched!r} sem correspondência — "
-                            "valores não encontrados no CSV"
-                        )
-                        logger.warning(w)
-                        warnings.append(w)
+            # `already_split` (run na mesma passada): split já cross-checkou
+            # in_values/outros contra os mesmos real_values e logou os avisos
+            # — emitir aqui de novo duplicaria o aviso no mesmo output (ticket 11).
+            if not already_split:
+                for cat_key, entry in entries:
+                    prefixo = (
+                        f"INMS {inms_key} ({config.scope.orgao}/{competencia}), "
+                        f"categoria {cat_key}: "
+                    )
+                    if entry.in_values is not None:
+                        unmatched = [v for v in entry.in_values if v not in real_values]
+                        if unmatched and not (set(entry.in_values) & real_values):
+                            w = (
+                                f"{prefixo}in_values {unmatched!r} sem correspondência em "
+                                f"Grupo_executor do CSV ({raw_csv_path}) — possível "
+                                "typo/renomeação, categoria ficará sem linhas"
+                            )
+                            logger.warning(w)
+                            warnings.append(w)
+                        elif unmatched:
+                            w = (
+                                f"{prefixo}in_values {unmatched!r} sem correspondência — "
+                                "valores não encontrados no CSV"
+                            )
+                            logger.warning(w)
+                            warnings.append(w)
             per_categoria_values, outros_values = compute_categoria_values(entries, real_values)
             # mede cada categoria filtrada em memória
             for cat_key, effective_values in per_categoria_values.items():
@@ -535,9 +540,11 @@ def run_measure(
                     derived_config.indicator.id,
                     derived_config.scope.orgao,
                 )
-            # outros contábil — warning se houver linhas não classificadas
+            # outros contábil — warning se houver linhas não classificadas.
+            # `already_split` (run na mesma passada): split já logou o mesmo
+            # aviso para o mesmo dataset bruto (ticket 11).
             outros_rows = [r for r in rows if r[GRUPO_EXECUTOR_COLUMN] in outros_values]
-            if outros_rows:
+            if outros_rows and not already_split:
                 w = (
                     f"INMS {inms_key} ({config.scope.orgao}/{competencia}), "
                     f"categoria outros: {len(outros_rows)} linha(s) não "

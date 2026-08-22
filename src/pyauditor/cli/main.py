@@ -22,21 +22,18 @@ from typing import (
     cast,
 )
 
+from pyauditor.capa_paths import resolve_capa_path
 from pyauditor.cli.bootstrap import run_bootstrap
-from pyauditor.cli.consolidate import check_consolidate_ready, run_consolidate
+from pyauditor.cli.consolidate import run_consolidate
 from pyauditor.cli.measure import _MeasuredIndicator, run_measure, write_combined_roms
-from pyauditor.cli.report import ReportResult, check_report_ready, run_report
-from pyauditor.cli.results import exit_code_for, exit_code_for_results
+from pyauditor.cli.report import run_report
+from pyauditor.cli.results import exit_code_for_results
 from pyauditor.cli.run import run_run
 from pyauditor.cli.split import run_split
-from pyauditor.config.resolution import (
-    load_manifest_for,
-    resolve_config_dir,
-    resolve_manifest_path,
-)
+from pyauditor.config.resolution import per_orgao_paths, resolve_manifest_path
 from pyauditor.excel.equipe import EQUIPE_FILENAME
 from pyauditor.excel.prazos import PRAZOS_FILENAME
-from pyauditor.logging import logger, setup_logging
+from pyauditor.logging import setup_logging
 from pyauditor.periodo import PeriodoAfericao, month_bounds
 
 __all__: Final[tuple[str, ...]] = (
@@ -126,6 +123,7 @@ class ConsolidateRequest:
     roms_dir: Path
     output_path: Path
     data_dir: Path
+    is_final_month: bool = False
 
 
 def _is_command(value: str) -> TypeGuard[Command]:
@@ -303,6 +301,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=_DEFAULT_DATA_DIR,
         help="onde vive objetos.csv, a fonte do valor mensal (default: input)",
     )
+    consolidate_parser.add_argument(
+        "--final-month",
+        action="store_true",
+        help="último mês de vigência do contrato — desliga o rollover de glosa (item 35 do TR)",
+    )
     _add_logging_arguments(consolidate_parser)
 
     split_parser = subparsers.add_parser(
@@ -409,14 +412,6 @@ def _extract_capa_path(ns: argparse.Namespace, *, data_dir: Path | None = None) 
     return (data_dir if data_dir is not None else _DEFAULT_DATA_DIR) / _CAPA_COMUM
 
 
-def _capa_path_for(capa_path: Path, orgao: Orgao) -> Path:
-    """Delegates to ``pyauditor.capa_paths.resolve_capa_path`` — single
-    implementation shared with ``orchestration/run.py`` (issue 05)."""
-    from pyauditor.capa_paths import resolve_capa_path
-
-    return resolve_capa_path(capa_path, orgao)
-
-
 def _run_log_path(log_dir: Path, command: str, competencia: str | None = None) -> Path:
     """Timestamped per-run log file next to the command's outputs — every
     execution leaves a trace the user can consult to rastrear errors.
@@ -457,6 +452,7 @@ def _extract_consolidate_request(ns: argparse.Namespace) -> ConsolidateRequest:
         roms_dir=_require(ns, "roms_dir", Path),
         output_path=report_dir / f"relatorio_{competencia}_consolidado.xlsx",
         data_dir=_require(ns, "data_dir", Path),
+        is_final_month=bool(cast(object, getattr(ns, "final_month", False))),
     )
 
 
@@ -487,18 +483,20 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
     measure_results = []
     per_orgao: dict[str, list[_MeasuredIndicator]] = {}
     for orgao in _each_single_orgao(request.orgao):
-        per_orgao_config_dir = resolve_config_dir(request.config_dir, orgao)
-        per_orgao_data_dir = request.data_dir / orgao
-        per_orgao_output_dir = request.output_dir / orgao
-        manifest = load_manifest_for(request.config_dir, orgao)
+        paths = per_orgao_paths(
+            config_dir=request.config_dir,
+            data_dir=request.data_dir,
+            output_dir=request.output_dir,
+            orgao=orgao,
+        )
         collect: list[_MeasuredIndicator] = []
         measure_results.append(
             run_measure(
                 competencia=request.competencia,
-                config_dir=per_orgao_config_dir,
-                data_dir=per_orgao_data_dir,
-                output_dir=per_orgao_output_dir,
-                manifest=manifest,
+                config_dir=paths.config_dir,
+                data_dir=paths.data_dir,
+                output_dir=paths.output_dir,
+                manifest=paths.manifest,
                 expected_orgao=orgao,
                 equipe_path=equipe_path,
                 periodo=periodo,
@@ -540,17 +538,22 @@ def _dispatch_split(args: argparse.Namespace) -> int:
             ),
             **_logging_kwargs(args),
         )
-        per_orgao_config_dir = resolve_config_dir(request.config_dir, orgao)
-        per_orgao_data_dir = request.data_dir / orgao
-        manifest = load_manifest_for(request.config_dir, orgao)
+        paths = per_orgao_paths(
+            config_dir=request.config_dir,
+            data_dir=request.data_dir,
+            output_dir=request.data_dir,
+            orgao=orgao,
+            report_dir=request.report_dir,
+        )
         split_results.append(
             run_split(
                 competencia=request.competencia,
-                config_dir=per_orgao_config_dir,
-                data_dir=per_orgao_data_dir,
+                config_dir=paths.config_dir,
+                data_dir=paths.data_dir,
                 expected_orgao=orgao,
-                manifest=manifest,
-                report_dir=request.report_dir / orgao,
+                manifest=paths.manifest,
+                report_dir=paths.report_dir,
+                materialize=True,  # CLI standalone grava os artefatos _split
                 periodo=periodo,
                 strict=request.strict,
                 prazos_path=prazos_path,
@@ -569,7 +572,7 @@ def _dispatch_bootstrap(args: argparse.Namespace) -> int:
     # bootstrap não tem competencia, nada a validar previamente
     bootstrap_results = []
     for single_orgao in _each_single_orgao(orgao):
-        per_orgao_capa = _capa_path_for(capa_path, cast(Orgao, single_orgao))
+        per_orgao_capa = resolve_capa_path(capa_path, cast(Orgao, single_orgao))
         setup_logging(
             log_path=_run_log_path(per_orgao_capa.parent, _CMD_BOOTSTRAP),
             **_logging_kwargs(args),
@@ -597,38 +600,21 @@ def _dispatch_report(args: argparse.Namespace) -> int:
             report_request.output_path.parent
             / f"relatorio_{report_request.competencia}_{orgao}.xlsx"
         )
-        # Pre-flight (ticket "Dependency enforcement"): same checker `run_report`
-        # calls internally — fast, actionable error before touching the pipeline.
-        per_orgao_roms_dir = report_request.roms_dir / orgao
-        dependency_check = check_report_ready(
-            report_request.competencia,
-            orgao,
-            report_request.capa_path,
-            per_orgao_roms_dir,
+        paths = per_orgao_paths(
+            config_dir=report_request.config_dir,
             data_dir=report_request.data_dir,
+            output_dir=report_request.roms_dir,
+            orgao=orgao,
         )
-        if not dependency_check.satisfied:
-            message = "dependência não satisfeita: " + "; ".join(dependency_check.missing)
-            logger.error(message)
-            report_results.append(
-                ReportResult(
-                    status="error",
-                    competencia=report_request.competencia,
-                    orgao=orgao,
-                    output_path=output_path,
-                    indicator_count=0,
-                    warnings=(),
-                    error_message=message,
-                )
-            )
-            continue
+        # `run_report` checa `check_report_ready` internamente (defense-in-depth
+        # única, ticket 12) — sem pre-flight duplicado aqui.
         report_results.append(
             run_report(
                 competencia=report_request.competencia,
                 capa_path=report_request.capa_path,
-                roms_dir=per_orgao_roms_dir,
+                roms_dir=paths.output_dir,
                 output_path=output_path,
-                config_dir=resolve_config_dir(report_request.config_dir, orgao),
+                config_dir=paths.config_dir,
                 expected_orgao=orgao,
                 is_final_month=report_request.is_final_month,
                 data_dir=report_request.data_dir,
@@ -652,23 +638,15 @@ def _dispatch_consolidate(args: argparse.Namespace) -> int:
         ),
         **_logging_kwargs(args),
     )
-    # Pre-flight (ticket "Dependency enforcement"): same checker `run_consolidate`
-    # calls internally — fast, actionable error before touching the pipeline.
-    dependency_check = check_consolidate_ready(
-        consolidate_request.competencia,
-        consolidate_request.report_dir,
-        consolidate_request.roms_dir,
-    )
-    if not dependency_check.satisfied:
-        message = "dependência não satisfeita: " + "; ".join(dependency_check.missing)
-        logger.error(message)
-        return exit_code_for("error")
+    # `run_consolidate` checa `check_consolidate_ready` internamente
+    # (defense-in-depth única, ticket 12) — sem pre-flight duplicado aqui.
     consolidate_result = run_consolidate(
         competencia=consolidate_request.competencia,
         report_dir=consolidate_request.report_dir,
         roms_dir=consolidate_request.roms_dir,
         output_path=consolidate_request.output_path,
         data_dir=consolidate_request.data_dir,
+        is_final_month=consolidate_request.is_final_month,
     )
     return exit_code_for_results((consolidate_result,))
 

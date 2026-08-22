@@ -88,6 +88,40 @@ def _build_orgao_report(tmp_path: Path, orgao: str) -> None:
     assert exit_code.status == "done"
 
 
+def test_run_consolidate_forwards_is_final_month_to_workbook(tmp_path: Path) -> None:
+    """Ticket 10: `consolidate --final-month` chega até
+    `build_consolidated_workbook` — o rollover de glosa desliga no mês final
+    como no `report`."""
+    _scaffold_capas(tmp_path)
+    _build_orgao_report(tmp_path, "MinC")
+    _build_orgao_report(tmp_path, "MTur")
+    output_path = tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx"
+    captured: dict[str, object] = {}
+
+    from unittest.mock import patch
+
+    import pyauditor.cli.consolidate as consolidate_mod
+
+    real_build = consolidate_mod.build_consolidated_workbook
+
+    def _spy(*args: object, **kwargs: object) -> object:
+        captured.update(kwargs)
+        return real_build(*args, **kwargs)
+
+    with patch.object(consolidate_mod, "build_consolidated_workbook", side_effect=_spy):
+        exit_code = run_consolidate(
+            "2026-06",
+            tmp_path / "reports",
+            tmp_path / "roms",
+            output_path,
+            data_dir=tmp_path,
+            is_final_month=True,
+        )
+
+    assert exit_code.status == "done"
+    assert captured.get("is_final_month") is True
+
+
 def test_run_consolidate_rejects_malformed_competencia(tmp_path: Path) -> None:
     result = run_consolidate(
         "../../etc",

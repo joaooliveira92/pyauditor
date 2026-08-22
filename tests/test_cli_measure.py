@@ -416,3 +416,51 @@ def test_run_measure_categoria_already_split_suppresses_duplicate_warn(tmp_path:
 
     assert result.status == "done"
     assert "nenhuma linha no período" not in buf.getvalue()
+
+
+def test_run_measure_already_split_dedups_in_values_e_outros_warning(tmp_path: Path) -> None:
+    """Ticket 11 — quando `run` roda split+measure na mesma passada, os avisos
+    de `in_values` sem correspondência e de `outros` saem 1x por passada:
+    `split` já os emitiu sobre os mesmos `real_values`, `run_measure`
+    (`already_split=True`) não duplica."""
+    import sys
+    from datetime import date
+    from io import StringIO
+
+    from pyauditor.logging import setup_logging
+    from pyauditor.periodo import PeriodoAfericao
+
+    config_dir, data_dir, output_dir = _write_categoria_fixture_with_empty_window(tmp_path)
+    # in_values N1 existe no dataset; "outros" não se aplica — usa um in_values
+    # órfão para forçar o aviso de sem-correspondência nos dois caminhos.
+    csv_path = data_dir / "2026" / "06" / "inms-01.csv"
+    csv_path.write_text(
+        "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n"
+        "1;2026-06-01;S;N0\n",
+        encoding="utf-8",
+    )
+    periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
+    buf = StringIO()
+    setup_logging(sink=buf, level="INFO")
+
+    try:
+        split_result = run_split(
+            "2026-06", config_dir, data_dir, expected_orgao="MinC", periodo=periodo
+        )
+        measure_result = run_measure(
+            "2026-06",
+            config_dir,
+            data_dir,
+            output_dir,
+            expected_orgao="MinC",
+            periodo=periodo,
+            already_split=True,
+        )
+    finally:
+        setup_logging(sink=sys.stderr, level="INFO")
+
+    output = buf.getvalue()
+    assert split_result.status == "done"
+    assert measure_result.status == "done"
+    said = output.count("sem correspondência")
+    assert said == 1  # split emitiu; measure (already_split) não duplica

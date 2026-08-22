@@ -11,17 +11,25 @@ Resolution follows ADR 0003:
 
 Keeping this logic in one module prevents commands from selecting configuration
 files from different roots for the same organization.
+
+It also owns the per-órgão expansion (ticket 12): `cli/main.py` e
+`orchestration/run.py` derivam os caminhos por órgão de uma única fonte
+(`per_orgao_paths`) em vez de cada um reimplementar a expansão com sémântica
+própria.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
 from pyauditor.config.manifest import DatasetManifest, load_manifest
 
 __all__: Final[tuple[str, ...]] = (
+    "PerOrgaoPaths",
     "load_manifest_for",
+    "per_orgao_paths",
     "resolve_config_dir",
     "resolve_manifest_path",
 )
@@ -86,3 +94,47 @@ def load_manifest_for(base: Path, orgao: str) -> DatasetManifest | None:
     if not path.is_file():
         return None
     return load_manifest(path)
+
+
+@dataclass(frozen=True, slots=True)
+class PerOrgaoPaths:
+    """Derived per-órgão paths shared by every consumer of the expansion.
+
+    ``config_dir`` é o diretório de configurações canônico do órgão (via
+    ADR 0003); ``data_dir``/``output_dir`` são as raízes anexadas com
+    ``/ <orgao>``; ``manifest`` é o manifest do órgão (``None`` quando a
+    resolução não é um arquivo regular). ``report_dir`` só existe quando o
+    chamador tem uma raiz de relatórios per-órgão (ex.: o ``split``).
+    """
+
+    config_dir: Path
+    data_dir: Path
+    output_dir: Path
+    manifest: DatasetManifest | None
+    report_dir: Path | None = None
+
+
+def per_orgao_paths(
+    *,
+    config_dir: Path,
+    data_dir: Path,
+    output_dir: Path,
+    orgao: str,
+    report_dir: Path | None = None,
+) -> PerOrgaoPaths:
+    """Compute the canonical per-órgão paths + manifest (ticket 12).
+
+    Only the per-órgão variance lives here: the config root, data root and
+    output root are passed in exactly as the caller received them (the base,
+    before the ``/ <orgao>`` suffix); this resolver applies the órgão once so
+    `main` e `run` can't diverge de novo. ``config_dir`` resolves com a regra
+    única de precedência (ADR 0003) e qualquer ``report_dir`` informado vira
+    uma raiz per-órgão própria.
+    """
+    return PerOrgaoPaths(
+        config_dir=resolve_config_dir(config_dir, orgao),
+        data_dir=data_dir / orgao,
+        output_dir=output_dir / orgao,
+        manifest=load_manifest_for(config_dir, orgao),
+        report_dir=report_dir / orgao if report_dir is not None else None,
+    )

@@ -38,6 +38,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.categoria_filter import GRUPO_EXECUTOR_COLUMN, compute_categoria_values
 from pyauditor.config.categorias import CategoriasFile, GrupoExecutorMode, WholeIndicatorMode
+from pyauditor.config.niveis import NIVEL_BY_CATEGORIA, NIVEL_ORDER
 from pyauditor.excel._datetime import PRAZO_TOLERANCIA_MINUTOS, parse_dt
 from pyauditor.excel._safety import safe_excel_text
 from pyauditor.excel._workbook import create_sheet_atomic, force_recalc, unique_table_name
@@ -73,13 +74,8 @@ _REQUIRED_COLUMNS: Final[tuple[str, ...]] = (
 # contratual bruto; nenhum outro shape do pipeline usa "2 horas corridas".
 _PRAZO_HORAS_CORRIDAS: Final[float] = 2.0
 
-_NIVEL_BY_CATEGORIA: Final[dict[str, str]] = {
-    "ATENDIMENTO_N1": "N1",
-    "ATENDIMENTO_N2": "N2",
-    "OPERACAO_N3": "N3",
-    "MONITORAMENTO_NOC_SOC": "N3",
-}
-_NIVEL_ORDER: Final[tuple[str, ...]] = ("N1", "N2", "N3")
+_NIVEL_BY_CATEGORIA = NIVEL_BY_CATEGORIA
+_NIVEL_ORDER = NIVEL_ORDER
 _AUDIT_REVIEW_LABEL: Final[str] = "Grupo sob análise de responsabilidade"
 # Sentinela para grupos sem Nível (categoria "outros") — não usar "" como
 # valor de célula: o Excel/openpyxl trata célula com "" como vazia, e

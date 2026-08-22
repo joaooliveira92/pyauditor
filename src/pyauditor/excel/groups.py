@@ -14,6 +14,22 @@ tab, not duplicated across every tab that mentions it.
 
 from typing import Final
 
+from pyauditor.config.niveis import NIVEL_BY_CATEGORIA, NIVEL_ORDER
+
+__all__: Final[tuple[str, ...]] = (
+    "ATENDIMENTO_N1",
+    "ATENDIMENTO_N2",
+    "GROUP_TABS",
+    "MONITORAMENTO_NOC_SOC",
+    "NIVEL_BY_CATEGORIA",
+    "NIVEL_ORDER",
+    "OPERACAO_N3",
+    "PER_ASSET_CONTRACTUAL_IDS",
+    "categoria_from_indicator_id",
+    "group_for_summary",
+    "primary_group",
+)
+
 ATENDIMENTO_N1: Final = "ATENDIMENTO_N1"
 MONITORAMENTO_NOC_SOC: Final = "MONITORAMENTO_NOC_SOC"
 ATENDIMENTO_N2: Final = "ATENDIMENTO_N2"

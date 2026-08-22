@@ -9,6 +9,7 @@ from pyauditor.excel.consolidate import (
     build_consolidated_workbook,
     read_existing_decisions,
 )
+from pyauditor.excel.inms_base import compliance_margin, inms_base_fields
 from pyauditor.rom.summary import IndicatorSummary
 
 CAPA: dict[str, object] = {"Número do contrato": "40/2022"}
@@ -89,6 +90,37 @@ def test_per_asset_indicators_never_get_a_consolidado_row() -> None:
     assert set(orgaos) == {"MinC", "MTur"}
 
 
+def test_inms_base_row_shared_rule_honors_operator_direction() -> None:
+    """A linha `INMS_BASE` do consolidate é a mesma regra do `report` (ticket
+    08): a "Diferença para a meta" respeita o sentido do operador — para meta
+    máxima (`<=`), o déficit é `result - target`, não `target - result`."""
+    resumo = _summary("INMS 1.6", orgao="MinC", target_operator="<=", target_value=2.0,
+                      result_pct=2.5)
+
+    row = inms_base_fields(resumo, "2026-06", grupo_operacional=None)
+
+    assert row.resultado == 2.5
+    assert row.diferenca == pytest.approx(0.5)  # 2.5 - 2.0, sentido invertido
+    assert row.conformidade == ("Conforme" if resumo.conforms else "Não conforme")
+    assert compliance_margin(97.5, 98.0, ">=") == pytest.approx(0.5)
+    with pytest.raises(ValueError, match="Unsupported target operator"):
+        compliance_margin(97.5, 98.0, "??")
+
+
+def test_inms_base_conformidade_comes_from_shared_rule() -> None:
+    # A regra única decide "Conforme"/"Não conforme" — cada renderer apenas
+    # reposiciona o campo no shape de colunas (26 vs 15).
+    conforme = _summary("INMS 1.1", orgao="MinC", conforms=True)
+    nao_conforme = _summary("INMS 1.1", orgao="MinC", conforms=False)
+
+    for summary, conformidade in (
+        (conforme, "Conforme"),
+        (nao_conforme, "Não conforme"),
+    ):
+        fields = inms_base_fields(summary, "2026-06", grupo_operacional=None)
+        assert fields.conformidade == conformidade
+
+
 def test_glosas_has_one_row_per_indicator_times_orgao_with_breaches() -> None:
     minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
     mtur = [_summary("INMS 1.6", orgao="MTur", conforms=False, penalty_points=50.0)]
@@ -113,6 +145,76 @@ def test_glosa_capped_at_30_percent_of_aggregate() -> None:
     result = build_consolidated_workbook("2026-06", minc, mtur, {}, valor_base=100000.0)
 
     assert result.glosa_final == 100000.0 * 20.0 / 100 + 100000.0 * 20.0 / 100
+
+
+def test_is_final_month_reaches_compute_glosa() -> None:
+    """Ticket 10: `is_final_month` deixa de ser morto — consolidação e report
+    desligam o rollover de glosa no mês final (os 2 artefatos divergem do mesmo
+    jeito)."""
+    calls: list[dict[str, object]] = []
+    from unittest.mock import patch
+
+    import pyauditor.excel.consolidate as consolidate_mod
+
+    real_compute_glosa = consolidate_mod.compute_glosa
+
+    def _spy_compute(*args: object, **kwargs: object) -> object:
+        calls.append(kwargs)
+        return real_compute_glosa(*args, **kwargs)
+
+    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=40000.0)]
+    mtur = [_summary("INMS 1.6", orgao="MTur", conforms=False, penalty_points=40000.0)]
+
+    with patch.object(consolidate_mod, "compute_glosa", side_effect=_spy_compute):
+        build_consolidated_workbook(
+            "2026-06", minc, mtur, {}, valor_base=100000.0, is_final_month=True
+        )
+
+    assert calls
+    assert all(call.get("is_final_month") is True for call in calls)
+
+
+@pytest.mark.parametrize(
+    ("is_final_month", "expected_saldo"),
+    [
+        (False, 10.0),  # 40k ptos +40% > cap, excedente de 10pp rola
+        (True, 0.0),  # mês final não transporta saldo para o mês seguinte
+    ],
+)
+def test_saldo_rolado_honors_final_month(
+    is_final_month: bool, expected_saldo: float
+) -> None:
+    """`consolidado.xlsx` no mês final não transporta saldo de glosa — o mesmo
+    comportamento de `report.xlsx` (ticket 10)."""
+    from unittest.mock import patch
+
+    import pyauditor.excel.consolidate as consolidate_mod
+
+    real_compute_glosa = consolidate_mod.compute_glosa
+    captured: list[object] = []
+
+    def _spy(*args: object, **kwargs: object) -> object:
+        result = real_compute_glosa(*args, **kwargs)
+        captured.append(result)
+        return result
+
+    minc = [_summary("INMS 1.1", orgao="MinC", conforms=False, penalty_points=40000.0)]
+    mtur: list[IndicatorSummary] = []
+
+    with patch.object(consolidate_mod, "compute_glosa", side_effect=_spy):
+        build_consolidated_workbook(
+            "2026-06",
+            minc,
+            mtur,
+            {},
+            valor_base=100000.0,
+            is_final_month=is_final_month,
+        )
+
+    assert captured
+    assert sum(getattr(g, "saldo_rolado_pct", 0.0) for g in captured) == pytest.approx(
+        expected_saldo
+    )
 
 
 def test_capa_uses_valor_base_from_objetos() -> None:
@@ -231,6 +333,19 @@ def test_glosas_summary_only_bolds_total_and_valor_glosa_rows() -> None:
     assert labels_bold["Fórmula (pontos x 0,001)"] is not True
     assert labels_bold["Limite"] is not True
     assert labels_bold["Percentual Aplicado"] is not True
+
+
+def test_glosas_summary_formula_label_derives_from_glosa_fator() -> None:
+    """Ticket 09 — a fórmula de glosa vive em `glosas.py` (`POINTS_TO_PERCENT`,
+    `CAP_PCT`); a label do resumo deriva da fonte única, sem literal `0,001`."""
+    from pyauditor.excel.consolidate import _FATOR_PCT_TEXTO
+
+    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
+    result = build_consolidated_workbook("2026-06", minc, [], {}, valor_base=100000.0)
+
+    sheet = result.workbook[GLOSAS_SHEET]
+    labels = {sheet.cell(row=r, column=1).value for r in range(5, 10)}
+    assert f"Fórmula (pontos x {_FATOR_PCT_TEXTO})" in labels
 
 
 def test_decision_columns_are_text_formatted_against_formula_injection() -> None:

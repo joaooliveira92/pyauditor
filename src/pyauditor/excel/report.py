@@ -34,7 +34,6 @@ from openpyxl.worksheet.worksheet import Worksheet
 from pyauditor.atomic_write import atomic_write
 from pyauditor.codes import contractual_sort_key, format_inms_code
 from pyauditor.config.models import IndicatorConfig
-from pyauditor.excel._style import UNIT_BY_SHAPE as _UNIT_BY_SHAPE
 from pyauditor.excel._style import CellValue
 from pyauditor.excel._style import new_sheet as _new_sheet
 from pyauditor.excel._style import write_row as _write_row
@@ -48,6 +47,7 @@ from pyauditor.excel.glosas import (
     saldo_anterior_pct_de,
 )
 from pyauditor.excel.groups import GROUP_TABS, group_for_summary
+from pyauditor.excel.inms_base import inms_base_fields
 from pyauditor.rom.dedup import deduplicate_summaries
 from pyauditor.rom.summary import IndicatorSummary
 
@@ -323,47 +323,6 @@ def _build_evidencias_sheet(
     _add_evidencias_validations(sheet, last_row)
 
 
-def _compliance_margin(
-    result: float,
-    target: float | None,
-    operator: str | None,
-) -> float | None:
-    """Calculate the distance from the target boundary.
-
-    The value is positive in the noncompliant direction — how far the result
-    must move to reach the target — matching the "Diferença para a meta"
-    column and the consolidated view: for minimum targets the margin is
-    ``target - result``, for maximum targets it is ``result - target``.
-
-    Args:
-        result: Calculated indicator result.
-        target: Configured target boundary, if present.
-        operator: Target comparison operator.
-
-    Returns:
-        The target distance, or ``None`` when no target is configured.
-
-    Raises:
-        ValueError: If a target exists but its operator is missing or
-            unsupported.
-    """
-    if target is None:
-        return None
-
-    if operator in {">", ">="}:
-        return target - result
-
-    if operator in {"<", "<="}:
-        return result - target
-
-    if operator in {"=", "=="}:
-        return abs(result - target)
-
-    raise ValueError(
-        f"Unsupported target operator for compliance margin: {operator!r}."
-    )
-
-
 def _inms_base_row(
     competencia: str,
     summary: IndicatorSummary,
@@ -373,30 +332,26 @@ def _inms_base_row(
         summary.indicator_id,
         summary.contractual_id,
     )
-    margin = _compliance_margin(
-        summary.result_pct,
-        summary.target_value,
-        summary.target_operator,
-    )
+    row = inms_base_fields(summary, competencia, grupo_operacional=group)
 
     return (
-        competencia,
+        row.competencia,
         None,
-        summary.asset,
-        group,
-        format_inms_code(summary.contractual_id),
-        summary.name,
-        summary.orgao,
-        summary.target_value,
-        summary.target_operator,
-        summary.numerator,
-        summary.denominator,
-        round(summary.result_pct, 2),
-        _UNIT_BY_SHAPE.get(summary.shape, ""),
+        row.servico,
+        row.grupo_operacional,
+        row.codigo_inms,
+        row.descricao,
+        row.orgao,
+        row.meta,
+        row.sentido,
+        row.numerador,
+        row.denominador,
+        row.resultado,
+        row.unidade,
         None,
         None,
-        "Conforme" if summary.conforms else "Não conforme",
-        round(margin, 2) if margin is not None else None,
+        row.conformidade,
+        row.diferenca,
         None,
         None,
         None,

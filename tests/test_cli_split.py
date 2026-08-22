@@ -310,6 +310,28 @@ def test_run_split_filtra_janela_antes_da_segregacao(tmp_path: Path) -> None:
     assert {r["DataHoraFim"] for r in rows} == {"01/06/2026 10:00", "02/06/2026 10:00"}
 
 
+def test_run_split_materialize_false_computa_sem_gravar_artefatos(tmp_path: Path) -> None:
+    """`materialize=False` (caminho do `run`, ticket 12) computa os mesmos
+    outcomes/avisos mas não grava `_split`/configs derivadas no disco."""
+    config_dir, data_dir = _write_fixture(tmp_path)
+
+    result = run_split(
+        "2026-06",
+        config_dir,
+        data_dir,
+        expected_orgao="MinC",
+        materialize=False,
+    )
+
+    assert result.status == "done"
+    assert len(result.categorias) == 3  # N1 + N3-outros
+    n1 = next(o for o in result.categorias if o.categoria == "ATENDIMENTO_N1")
+    assert n1.row_count == 2
+    assert n1.config_path is None  # derivada nunca materializada
+    assert n1.csv_path.exists() is False  # csv filtrado não gravado
+    assert not (data_dir / "2026" / "06" / "_split").exists()
+
+
 def test_run_split_janela_vazia_warns_e_segue(tmp_path: Path) -> None:
     from datetime import date
 
