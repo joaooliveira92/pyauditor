@@ -23,19 +23,22 @@ from pyauditor.rom.dedup import deduplicate_summaries
 from pyauditor.rom.summary import IndicatorSummary
 
 __all__: Final[tuple[str, ...]] = (
-    "GlosaAggregation",
-    "accumulate_pontos_por_orgao",
-    "compute_aggregation",
+    'GlosaAggregation',
+    'accumulate_pontos_por_orgao',
+    'compute_aggregation',
 )
 
-_DECISAO_ACEITA: Final[str] = "aceita"
+_DECISAO_ACEITA: Final[str] = 'aceita'
 
 
 def is_amnestied(decision: dict[str, object]) -> bool:
     """O fiscal aceitou a justificativa do fornecedor (`Decisão Fiscal`
     começando com "aceita") → ocorrência sai da base de pontos."""
     return (
-        str(decision.get("Decisão Fiscal") or "").strip().lower().startswith(_DECISAO_ACEITA)
+        str(decision.get('Decisão Fiscal') or '')
+        .strip()
+        .lower()
+        .startswith(_DECISAO_ACEITA)
     )
 
 
@@ -63,7 +66,7 @@ def accumulate_pontos_por_orgao(
     (indicador_formatado, órgão) com ocorrência; o chamador usa para detectar
     decisões órfãs no workbook anterior.
     """
-    pontos_por_orgao: dict[str, float] = {"MinC": 0.0, "MTur": 0.0}
+    pontos_por_orgao: dict[str, float] = {'MinC': 0.0, 'MTur': 0.0}
     seen_keys: set[tuple[str, str]] = set()
 
     for summary in deduplicate_summaries(minc) + deduplicate_summaries(mtur):
@@ -74,7 +77,8 @@ def accumulate_pontos_por_orgao(
         decision = existing_decisions.get(key, {})
         if not is_amnestied(decision):
             pontos_por_orgao[summary.orgao] = (
-                pontos_por_orgao.get(summary.orgao, 0.0) + summary.penalty_points
+                pontos_por_orgao.get(summary.orgao, 0.0)
+                + summary.penalty_points
             )
     return pontos_por_orgao, seen_keys
 
@@ -93,25 +97,31 @@ def compute_aggregation(
     saldo_anterior = saldo_anterior_pct_de(historico, competencia)
     total_pontos_bruto = sum(pontos_por_orgao.values())
     if total_pontos_bruto > 0:
-        saldo_minc = saldo_anterior * (pontos_por_orgao.get("MinC", 0.0) / total_pontos_bruto)
-        saldo_mtur = saldo_anterior * (pontos_por_orgao.get("MTur", 0.0) / total_pontos_bruto)
+        saldo_minc = saldo_anterior * (
+            pontos_por_orgao.get('MinC', 0.0) / total_pontos_bruto
+        )
+        saldo_mtur = saldo_anterior * (
+            pontos_por_orgao.get('MTur', 0.0) / total_pontos_bruto
+        )
     else:
         saldo_minc = saldo_mtur = 0.0
 
     glosa_minc = compute_glosa(
-        pontos_por_orgao.get("MinC", 0.0),
+        pontos_por_orgao.get('MinC', 0.0),
         valor_base,
         is_final_month=is_final_month,
         saldo_anterior_pct=saldo_minc,
     )
     glosa_mtur = compute_glosa(
-        pontos_por_orgao.get("MTur", 0.0),
+        pontos_por_orgao.get('MTur', 0.0),
         valor_base,
         is_final_month=is_final_month,
         saldo_anterior_pct=saldo_mtur,
     )
     total_pontos = glosa_minc.total_points + glosa_mtur.total_points
-    glosa_final = (glosa_minc.valor_da_glosa or 0.0) + (glosa_mtur.valor_da_glosa or 0.0)
+    glosa_final = (glosa_minc.valor_da_glosa or 0.0) + (
+        glosa_mtur.valor_da_glosa or 0.0
+    )
     pct_bruto = total_pontos * POINTS_TO_PERCENT + saldo_anterior
     aplicado = min(pct_bruto, CAP_PCT)
     return GlosaAggregation(

@@ -5,7 +5,7 @@ qualquer renderer de `excel/` que grave texto vindo de CSV/YAML externo
 
 from __future__ import annotations
 
-_FORMULA_PREFIXES: tuple[str, ...] = ("=", "+", "-", "@")
+_FORMULA_PREFIXES: tuple[str, ...] = ('=', '+', '-', '@')
 
 
 def safe_excel_text(value: str) -> str:

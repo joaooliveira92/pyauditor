@@ -49,7 +49,6 @@ from typing import Final, TextIO, cast
 from loguru import logger
 
 from pyauditor.log_contract import (
-    JsonValue,
     format_text_value,
     normalize_context,
     normalize_level,
@@ -60,25 +59,22 @@ from pyauditor.log_contract import (
 from pyauditor.log_json_sink import FlatJsonSink
 
 __all__: Final[tuple[str, ...]] = (
-    "LoggingHandlers",
-    "log_event",
-    "logger",
-    "resolve_log_level",
-    "setup_logging",
+    'LoggingHandlers',
+    'log_event',
+    'logger',
+    'resolve_log_level',
+    'setup_logging',
 )
 
 type Sink = TextIO | str | Path
 
-_DEFAULT_LOG_LEVEL: Final[str] = "INFO"
+_DEFAULT_LOG_LEVEL: Final[str] = 'INFO'
 _DEFAULT_DETAIL_LEVEL: Final[int] = 0
 _MAX_DETAIL_LEVEL: Final[int] = 2
 
-_STREAM_LOG_FORMAT: Final[str] = (
-    "{time:HH:mm:ss} | {level: <8} | {message}"
-)
+_STREAM_LOG_FORMAT: Final[str] = '{time:HH:mm:ss} | {level: <8} | {message}'
 _FILE_LOG_FORMAT: Final[str] = (
-    "{time:YYYY-MM-DD HH:mm:ss.SSS} | "
-    "{level: <8} | {name}:{line} | {message}"
+    '{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{line} | {message}'
 )
 
 _LOG_RETENTION: Final[int] = 5
@@ -131,17 +127,17 @@ def resolve_log_level(
     normalized_verbosity = _validate_verbosity(verbosity)
     normalized_default = normalize_level(
         default,
-        field="default",
+        field='default',
     )
 
     if explicit is not None:
         return normalize_level(
             explicit,
-            field="explicit",
+            field='explicit',
         )
 
     if normalized_verbosity > 0:
-        return "DEBUG"
+        return 'DEBUG'
 
     return normalized_default
 
@@ -186,21 +182,21 @@ def log_event(
     normalized_event = validate_event(event)
     normalized_verb = validate_single_line_text(
         verb,
-        field="verb",
+        field='verb',
     )
     normalized_level = normalize_level(
         level,
-        field="level",
+        field='level',
     )
     normalized_detail = validate_detail(detail)
     normalized_context = normalize_context(context)
 
-    readable_context = " ".join(
-        f"{key}={format_text_value(value)}"
+    readable_context = ' '.join(
+        f'{key}={format_text_value(value)}'
         for key, value in normalized_context.items()
     )
     readable_message = (
-        f"{normalized_verb} | {readable_context}"
+        f'{normalized_verb} | {readable_context}'
         if readable_context
         else normalized_verb
     )
@@ -273,24 +269,23 @@ def setup_logging(
     )
 
     if not format_:
-        raise ValueError("format_ must not be empty.")
+        raise ValueError('format_ must not be empty.')
 
     if type(json_format) is not bool:
         raise TypeError(
-            "json_format must be bool, "
-            f"received {type(json_format).__name__}."
+            f'json_format must be bool, received {type(json_format).__name__}.'
         )
 
     if json_format and isinstance(sink, (str, Path)):
         raise ValueError(
-            "JSON log format requires a writable file-like stream, "
-            "such as sys.stderr."
+            'JSON log format requires a writable file-like stream, '
+            'such as sys.stderr.'
         )
 
-    _validate_sink(sink, field="sink")
+    _validate_sink(sink, field='sink')
 
     if log_path is not None:
-        _validate_sink(log_path, field="log_path")
+        _validate_sink(log_path, field='log_path')
 
     if isinstance(log_path, (str, Path)):
         Path(log_path).parent.mkdir(
@@ -301,11 +296,7 @@ def setup_logging(
     detail_filter = _build_detail_filter(
         maximum_detail=maximum_detail,
     )
-    json_sink = (
-        FlatJsonSink(cast(TextIO, sink))
-        if json_format
-        else None
-    )
+    json_sink = FlatJsonSink(cast(TextIO, sink)) if json_format else None
 
     logger.remove()
 
@@ -346,7 +337,7 @@ def setup_logging(
                     diagnose=False,
                     enqueue=False,
                     catch=False,
-                    encoding="utf-8",
+                    encoding='utf-8',
                     retention=_LOG_RETENTION,
                 )
             else:
@@ -382,13 +373,13 @@ def _build_detail_filter(
     """Build a Loguru filter for the configured detail depth."""
 
     def filter_record(record: Mapping[str, object]) -> bool:
-        extra = record.get("extra", {})
+        extra = record.get('extra', {})
         if not isinstance(extra, Mapping):
             return True
 
         extra_values = cast(Mapping[str, object], extra)
         detail = extra_values.get(
-            "detail",
+            'detail',
             _DEFAULT_DETAIL_LEVEL,
         )
         if isinstance(detail, bool) or not isinstance(detail, int):
@@ -403,13 +394,13 @@ def _validate_verbosity(verbosity: int) -> int:
     """Validate and normalize a CLI verbosity count."""
     if type(verbosity) is not int:
         raise TypeError(
-            "verbosity must be an integer, "
-            f"received {type(verbosity).__name__}."
+            'verbosity must be an integer, '
+            f'received {type(verbosity).__name__}.'
         )
 
     if verbosity < 0:
         raise ValueError(
-            f"verbosity must not be negative, received {verbosity}."
+            f'verbosity must not be negative, received {verbosity}.'
         )
 
     return min(verbosity, _MAX_DETAIL_LEVEL)
@@ -423,11 +414,11 @@ def _validate_sink(
     """Validate a supported Loguru sink value."""
     if isinstance(sink, (str, Path)):
         if not str(sink):
-            raise ValueError(f"{field} path must not be empty.")
+            raise ValueError(f'{field} path must not be empty.')
         return
 
-    if not callable(getattr(sink, "write", None)):
+    if not callable(getattr(sink, 'write', None)):
         raise TypeError(
-            f"{field} must be a path or writable text stream, "
-            f"received {type(sink).__name__}."
+            f'{field} must be a path or writable text stream, '
+            f'received {type(sink).__name__}.'
         )

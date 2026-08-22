@@ -21,7 +21,11 @@ from pyauditor.orchestration.state import (
     state_path,
 )
 
-__all__: Final[tuple[str, ...]] = ("PlannedStep", "ensure_state", "reconcile_state")
+__all__: Final[tuple[str, ...]] = (
+    'PlannedStep',
+    'ensure_state',
+    'reconcile_state',
+)
 
 PlannedStep = tuple[str, str | None]
 
@@ -39,7 +43,7 @@ def _fresh_state(
             CommandStateEntry(
                 command=command,
                 orgao=orgao,
-                status="pending",
+                status='pending',
             )
             for command, orgao in plan
         ),
@@ -66,7 +70,7 @@ def reconcile_state(
                 orgao_selector,
                 runs_dir,
             ),
-            "persisted competencia does not match the current request",
+            'persisted competencia does not match the current request',
         )
 
     if existing.orgao_selector != orgao_selector:
@@ -76,11 +80,13 @@ def reconcile_state(
                 orgao_selector,
                 runs_dir,
             ),
-            "persisted orgao_selector does not match the current request",
+            'persisted orgao_selector does not match the current request',
         )
 
     reset_state = reset_stale_running(existing)
-    entries = {(entry.command, entry.orgao): entry for entry in reset_state.commands}
+    entries = {
+        (entry.command, entry.orgao): entry for entry in reset_state.commands
+    }
 
     commands = tuple(
         entries.get(
@@ -88,7 +94,7 @@ def reconcile_state(
             CommandStateEntry(
                 command=command,
                 orgao=orgao,
-                status="pending",
+                status='pending',
             ),
         )
         for command, orgao in plan
@@ -118,7 +124,7 @@ def ensure_state(
         existing = load_state(path)
     except RunStateCorrupted as exc:
         logger.warning(
-            "%s; starting the run from filesystem state",
+            '%s; starting the run from filesystem state',
             exc,
         )
         existing = None
@@ -136,7 +142,7 @@ def ensure_state(
         )
     except RunStateCorrupted as exc:
         logger.warning(
-            "%s; starting the run from filesystem state",
+            '%s; starting the run from filesystem state',
             exc,
         )
         return _fresh_state(competencia, orgao_selector, plan)

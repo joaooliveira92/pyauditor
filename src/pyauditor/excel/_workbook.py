@@ -2,7 +2,7 @@
 reusáveis por qualquer renderer de `excel/` que grave fórmulas, tabelas
 nativas ou abas em múltiplas etapas: `force_recalc()` garante que um leitor
 externo (openpyxl `data_only=True`, conversor headless, serviço de extração)
-recalcule as fórmulas em vez de mostrar cache vazio/antigo; `unique_table_name()`
+recalcule as fórmulas em vez de mostrar cache velho; `unique_table_name()`
 evita colisão de nome de `Table` quando o mesmo renderer é chamado mais de uma
 vez no mesmo workbook (nomes de tabela são únicos por pasta de trabalho, não
 por aba); `create_sheet_atomic()` evita deixar uma aba parcialmente escrita no
@@ -25,7 +25,7 @@ def force_recalc(workbook: Workbook) -> None:
     células vazias ou com cache desatualizado para fórmulas gravadas aqui."""
     workbook.calculation.fullCalcOnLoad = True
     workbook.calculation.forceFullCalc = True
-    workbook.calculation.calcMode = "auto"
+    workbook.calculation.calcMode = 'auto'
 
 
 def unique_table_name(workbook: Workbook, base_name: str) -> str:
@@ -42,13 +42,15 @@ def unique_table_name(workbook: Workbook, base_name: str) -> str:
     if base_name not in existing:
         return base_name
     suffix = 2
-    while f"{base_name}_{suffix}" in existing:
+    while f'{base_name}_{suffix}' in existing:
         suffix += 1
-    return f"{base_name}_{suffix}"
+    return f'{base_name}_{suffix}'
 
 
 @contextmanager
-def create_sheet_atomic(workbook: Workbook, sheet_name: str) -> Iterator[Worksheet]:
+def create_sheet_atomic(
+    workbook: Workbook, sheet_name: str
+) -> Iterator[Worksheet]:
     """Cria a aba `sheet_name` e a remove do workbook se qualquer exceção
     escapar do bloco `with` — evita deixar uma aba parcialmente preenchida
     (criada, mas com escrita interrompida por um erro) no arquivo final."""

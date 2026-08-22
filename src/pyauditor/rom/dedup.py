@@ -22,19 +22,25 @@ def is_categoria_derived(summary: IndicatorSummary) -> bool:
     """`indicator_id` é a base (`contractual_id`) seguida de um sufixo de
     categoria separado por ponto — não apenas conter um ponto, já que
     `contractual_id` (ex.: `"1.7"`) contém um por si só."""
-    return summary.indicator_id.startswith(f"{summary.contractual_id}.")
+    return summary.indicator_id.startswith(f'{summary.contractual_id}.')
 
 
-def deduplicate_summaries(summaries: Sequence[IndicatorSummary]) -> list[IndicatorSummary]:
+def deduplicate_summaries(
+    summaries: Sequence[IndicatorSummary],
+) -> list[IndicatorSummary]:
     """Agrupa por `(contractual_id, asset)`; quando o grupo tem categorias
     derivadas, mantém só as derivadas (a base fica implícita nelas).
     Grupos sem derivados passam inalterados."""
     grouped: dict[tuple[str, str | None], list[IndicatorSummary]] = {}
     for summary in summaries:
-        grouped.setdefault((summary.contractual_id, summary.asset), []).append(summary)
+        grouped.setdefault((summary.contractual_id, summary.asset), []).append(
+            summary
+        )
 
     deduped: list[IndicatorSummary] = []
     for group in grouped.values():
-        derived = [summary for summary in group if is_categoria_derived(summary)]
+        derived = [
+            summary for summary in group if is_categoria_derived(summary)
+        ]
         deduped.extend(derived if derived else group)
     return deduped

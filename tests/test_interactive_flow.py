@@ -1,8 +1,19 @@
 from pathlib import Path
 
-from pyauditor.excel.capa import COMMON_FIELD_LABELS, ORGAO_FIELD_LABELS, bootstrap_capa_csv
-from pyauditor.interactive.flow import collect_answers, run_guided_flow, select_commands
-from tests.support.fake_interaction_provider import CANCEL, FakeInteractionProvider
+from pyauditor.excel.capa import (
+    COMMON_FIELD_LABELS,
+    ORGAO_FIELD_LABELS,
+    bootstrap_capa_csv,
+)
+from pyauditor.interactive.flow import (
+    collect_answers,
+    run_guided_flow,
+    select_commands,
+)
+from tests.support.fake_interaction_provider import (
+    CANCEL,
+    FakeInteractionProvider,
+)
 
 OBJETOS_CSV = """Item,Categoria,Valor
 1,Central de Serviços,"R$ 148.205,54"
@@ -20,72 +31,73 @@ OBJETOS_CSV = """Item,Categoria,Valor
 def test_collect_answers_returns_scripted_values() -> None:
     provider = FakeInteractionProvider(
         answers=[
-            "2026-06",  # competencia
-            "MinC",  # orgao
-            "configs",  # config_dir
-            "input",  # data_dir
-            "roms",  # output_dir
-            "reports",  # report_dir
-            "input/capa.csv",  # capa_path
+            '2026-06',  # competencia
+            'MinC',  # orgao
+            'configs',  # config_dir
+            'input',  # data_dir
+            'roms',  # output_dir
+            'reports',  # report_dir
+            'input/capa.csv',  # capa_path
             True,  # confirm
         ]
     )
 
     answers = collect_answers(provider)
 
-    assert answers.competencia == "2026-06"
-    assert answers.orgao == "MinC"
-    assert answers.config_dir == Path("configs")
+    assert answers.competencia == '2026-06'
+    assert answers.orgao == 'MinC'
+    assert answers.config_dir == Path('configs')
 
 
 def test_collect_answers_reentries_on_declined_confirmation() -> None:
     provider = FakeInteractionProvider(
         answers=[
-            "2026-06",
-            "MinC",
-            "configs",
-            "input",
-            "roms",
-            "reports",
-            "input/capa.csv",
+            '2026-06',
+            'MinC',
+            'configs',
+            'input',
+            'roms',
+            'reports',
+            'input/capa.csv',
             False,  # first confirm: declined -> re-collect
-            "2026-07",
-            "MTur",
-            "configs",
-            "input",
-            "roms",
-            "reports",
-            "input/capa.csv",
+            '2026-07',
+            'MTur',
+            'configs',
+            'input',
+            'roms',
+            'reports',
+            'input/capa.csv',
             True,
         ]
     )
 
     answers = collect_answers(provider)
 
-    assert answers.competencia == "2026-07"
-    assert answers.orgao == "MTur"
+    assert answers.competencia == '2026-07'
+    assert answers.orgao == 'MTur'
 
 
 def test_cancel_during_collect_answers_exits_cleanly_without_raising() -> None:
-    provider = FakeInteractionProvider(answers=["2026-06", CANCEL])
+    provider = FakeInteractionProvider(answers=['2026-06', CANCEL])
 
     exit_code = run_guided_flow(provider)
 
     assert exit_code == 130
-    assert any("encerrada" in text for text, _ in provider.messages)
+    assert any('encerrada' in text for text, _ in provider.messages)
 
 
 def test_cancel_at_final_confirm_exits_instead_of_looping() -> None:
     provider = FakeInteractionProvider(
         answers=[
-            "2026-06",
-            "MinC",
-            "configs",
-            "input",
-            "roms",
-            "reports",
-            "input/capa.csv",
-            CANCEL,  # Ctrl+C at "Está correto?" — must exit, not loop as a fake "No"
+            '2026-06',
+            'MinC',
+            'configs',
+            'input',
+            'roms',
+            'reports',
+            'input/capa.csv',
+            CANCEL,  # Ctrl+C at "Está correto?" — sai, não loopa
+            # como um "No" falso
         ]
     )
 
@@ -95,41 +107,45 @@ def test_cancel_at_final_confirm_exits_instead_of_looping() -> None:
 
 
 def test_select_commands_disables_consolidate_when_not_both_orgaos() -> None:
-    provider = FakeInteractionProvider(answers=[["bootstrap", "split", "measure", "report"]])
+    provider = FakeInteractionProvider(
+        answers=[['bootstrap', 'split', 'measure', 'report']]
+    )
 
-    selected = select_commands(provider, "MinC")
+    selected = select_commands(provider, 'MinC')
 
-    assert selected == frozenset({"bootstrap", "split", "measure", "report"})
+    assert selected == frozenset({'bootstrap', 'split', 'measure', 'report'})
 
 
 def test_help_token_shows_help_and_reasks() -> None:
     provider = FakeInteractionProvider(
         answers=[
-            "?",
-            "2026-06",  # competencia: help then real answer
-            "MinC",
-            "configs",
-            "input",
-            "roms",
-            "reports",
-            "input/capa.csv",
+            '?',
+            '2026-06',  # competencia: help then real answer
+            'MinC',
+            'configs',
+            'input',
+            'roms',
+            'reports',
+            'input/capa.csv',
             True,
         ]
     )
 
     answers = collect_answers(provider)
 
-    assert answers.competencia == "2026-06"
+    assert answers.competencia == '2026-06'
     assert provider.messages  # help text was shown
 
 
-def test_run_guided_flow_end_to_end_happy_path(tmp_path: Path, monkeypatch: object) -> None:
+def test_run_guided_flow_end_to_end_happy_path(
+    tmp_path: Path, monkeypatch: object
+) -> None:
     import os
 
     os.chdir(tmp_path)
-    (tmp_path / "configs" / "MinC").mkdir(parents=True)
-    (tmp_path / "input" / "MinC" / "2026" / "06").mkdir(parents=True)
-    (tmp_path / "configs" / "MinC" / "inms-test.yaml").write_text(
+    (tmp_path / 'configs' / 'MinC').mkdir(parents=True)
+    (tmp_path / 'input' / 'MinC' / '2026' / '06').mkdir(parents=True)
+    (tmp_path / 'configs' / 'MinC' / 'inms-test.yaml').write_text(
         """\
 indicator:
   id: INMS-TEST
@@ -161,9 +177,9 @@ penalty:
   step_points: 10
   step_size_pct: 1.0
 """,
-        encoding="utf-8",
+        encoding='utf-8',
     )
-    (tmp_path / "configs" / "MinC" / "categorias.yaml").write_text(
+    (tmp_path / 'configs' / 'MinC' / 'categorias.yaml').write_text(
         """\
 categorias:
   DUMMY:
@@ -171,26 +187,29 @@ categorias:
     inms:
       "1.99": {mode: whole_indicator}
 """,
-        encoding="utf-8",
+        encoding='utf-8',
     )
-    (tmp_path / "input" / "MinC" / "2026" / "06" / "data.csv").write_text(
-        "Nº Solicitacao;DataHoraFim;No prazo\n1;2026-06-01;S\n2;2026-06-02;N\n", encoding="utf-8"
+    (tmp_path / 'input' / 'MinC' / '2026' / '06' / 'data.csv').write_text(
+        'Nº Solicitacao;DataHoraFim;No prazo\n1;2026-06-01;S\n2;2026-06-02;N\n',
+        encoding='utf-8',
     )
-    bootstrap_capa_csv(tmp_path / "input" / "capa.csv", COMMON_FIELD_LABELS)
-    bootstrap_capa_csv(tmp_path / "input" / "capa_MinC.csv", ORGAO_FIELD_LABELS)
-    (tmp_path / "input" / "objetos.csv").write_text(OBJETOS_CSV, encoding="utf-8-sig")
+    bootstrap_capa_csv(tmp_path / 'input' / 'capa.csv', COMMON_FIELD_LABELS)
+    bootstrap_capa_csv(tmp_path / 'input' / 'capa_MinC.csv', ORGAO_FIELD_LABELS)
+    (tmp_path / 'input' / 'objetos.csv').write_text(
+        OBJETOS_CSV, encoding='utf-8-sig'
+    )
 
     provider = FakeInteractionProvider(
         answers=[
-            "2026-06",
-            "MinC",
-            "configs",
-            "input",
-            "roms",
-            "reports",
-            "input/capa.csv",
+            '2026-06',
+            'MinC',
+            'configs',
+            'input',
+            'roms',
+            'reports',
+            'input/capa.csv',
             True,
-            ["bootstrap", "split", "measure", "report"],
+            ['bootstrap', 'split', 'measure', 'report'],
         ]
     )
 
@@ -198,7 +217,7 @@ categorias:
 
     assert exit_code == 0
     assert len(provider.summaries) == 1
-    assert all(e.status == "done" for e in provider.summaries[0].state.commands)
+    assert all(e.status == 'done' for e in provider.summaries[0].state.commands)
 
 
 def test_force_commands_for_only_forces_selected_and_applicable() -> None:
@@ -206,13 +225,15 @@ def test_force_commands_for_only_forces_selected_and_applicable() -> None:
     só quando o plano é `both`; comandos não selecionados nunca são forçados."""
     from pyauditor.interactive.commands import force_commands_for
 
-    assert force_commands_for("MinC", frozenset({"report"})) == frozenset({"report"})
+    assert force_commands_for('MinC', frozenset({'report'})) == frozenset(
+        {'report'}
+    )
     assert force_commands_for(
-        "both", frozenset({"report", "consolidate"})
-    ) == frozenset({"report", "consolidate"})
+        'both', frozenset({'report', 'consolidate'})
+    ) == frozenset({'report', 'consolidate'})
     # MinC nunca força consolidate (disponível só em both).
-    assert force_commands_for("MinC", frozenset({"consolidate"})) == frozenset()
-    assert force_commands_for("MinC", frozenset({"measure"})) == frozenset()
+    assert force_commands_for('MinC', frozenset({'consolidate'})) == frozenset()
+    assert force_commands_for('MinC', frozenset({'measure'})) == frozenset()
 
 
 def test_is_pre_dispatch_failure_recognizes_dependency_prefix() -> None:
@@ -220,27 +241,27 @@ def test_is_pre_dispatch_failure_recognizes_dependency_prefix() -> None:
     from pyauditor.orchestration.state import CommandStateEntry
 
     failure = CommandStateEntry(
-        command="report",
-        orgao="MinC",
-        status="error",
-        started_at="2026-06-01T00:00:00+00:00",
-        finished_at="2026-06-01T00:00:01+00:00",
-        error_message="dependência não satisfeita: measure pendente",
+        command='report',
+        orgao='MinC',
+        status='error',
+        started_at='2026-06-01T00:00:00+00:00',
+        finished_at='2026-06-01T00:00:01+00:00',
+        error_message='dependência não satisfeita: measure pendente',
     )
     technical = CommandStateEntry(
-        command="report",
-        orgao="MinC",
-        status="error",
-        started_at="2026-06-01T00:00:00+00:00",
-        finished_at="2026-06-01T00:00:01+00:00",
-        error_message="falha de escrita: disco cheio",
+        command='report',
+        orgao='MinC',
+        status='error',
+        started_at='2026-06-01T00:00:00+00:00',
+        finished_at='2026-06-01T00:00:01+00:00',
+        error_message='falha de escrita: disco cheio',
     )
     no_message = CommandStateEntry(
-        command="report",
-        orgao="MinC",
-        status="error",
-        started_at="2026-06-01T00:00:00+00:00",
-        finished_at="2026-06-01T00:00:01+00:00",
+        command='report',
+        orgao='MinC',
+        status='error',
+        started_at='2026-06-01T00:00:00+00:00',
+        finished_at='2026-06-01T00:00:01+00:00',
     )
 
     assert _is_pre_dispatch_failure(failure) is True
@@ -255,46 +276,49 @@ def test_select_commands_reselects_when_empty(tmp_path: Path) -> None:
     provider = FakeInteractionProvider(
         answers=[
             [],  # vazio → mostra aviso e re-cobra
-            ["bootstrap", "measure"],
+            ['bootstrap', 'measure'],
         ]
     )
 
-    selected = select_commands(provider, "MinC")
+    selected = select_commands(provider, 'MinC')
 
-    assert selected == frozenset({"bootstrap", "measure"})
-    assert any("ao menos uma etapa" in text for text, _ in provider.messages)
+    assert selected == frozenset({'bootstrap', 'measure'})
+    assert any('ao menos uma etapa' in text for text, _ in provider.messages)
 
 
 def test_validate_competencia_rejects_invalid_period() -> None:
     from pyauditor.interactive.fields import validate_competencia
 
-    assert validate_competencia("2026-06") is True
-    invalid = validate_competencia("2026-13")
+    assert validate_competencia('2026-06') is True
+    invalid = validate_competencia('2026-13')
     assert isinstance(invalid, str)
-    assert "Competência inválida" in invalid
-    assert validate_competencia("?") is True  # help token aceito
+    assert 'Competência inválida' in invalid
+    assert validate_competencia('?') is True  # help token aceito
 
 
 def test_select_commands_unsupported_orgao_raises() -> None:
     from pyauditor.interactive.flow import select_commands
 
-    provider = FakeInteractionProvider(answers=[["measure"]])
+    provider = FakeInteractionProvider(answers=[['measure']])
     try:
-        select_commands(provider, "Mars")
+        select_commands(provider, 'Mars')
     except ValueError as exc:
-        assert "Seletor de órgão não suportado" in str(exc)
+        assert 'Seletor de órgão não suportado' in str(exc)
     else:
-        raise AssertionError("esperava ValueError")
+        raise AssertionError('esperava ValueError')
 
 
 def test_state_presentation_renders_line(tmp_path: Path) -> None:
     from pyauditor.interactive.status_view import render_state_line
     from pyauditor.orchestration.state import CommandStateEntry
 
-    entry = CommandStateEntry(command="measure", orgao="MinC", status="done")
+    entry = CommandStateEntry(command='measure', orgao='MinC', status='done')
     text, _style = render_state_line(entry)
-    assert "[x]" in text
-    assert "measure (MinC)" in text
-    assert render_state_line(
-        CommandStateEntry(command="report", orgao=None, status="pending")
-    )[0] == "[ ] report (consolidado)"
+    assert '[x]' in text
+    assert 'measure (MinC)' in text
+    assert (
+        render_state_line(
+            CommandStateEntry(command='report', orgao=None, status='pending')
+        )[0]
+        == '[ ] report (consolidado)'
+    )

@@ -12,7 +12,7 @@ import importlib.metadata
 import subprocess
 from typing import Final
 
-__all__: Final[tuple[str, ...]] = ("pipeline_version",)
+__all__: Final[tuple[str, ...]] = ('pipeline_version',)
 
 
 @functools.lru_cache(maxsize=1)
@@ -20,12 +20,12 @@ def pipeline_version() -> str:
     """Installed package version, falling back to the git commit for
     non-installed (source tree) execution, and finally a fixed marker."""
     try:
-        return importlib.metadata.version("pyauditor")
+        return importlib.metadata.version('pyauditor')
     except importlib.metadata.PackageNotFoundError:
         pass
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
+            ['git', 'rev-parse', '--short', 'HEAD'],
             capture_output=True,
             text=True,
             timeout=5,
@@ -33,4 +33,4 @@ def pipeline_version() -> str:
         )
         return result.stdout.strip()
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return "dev"
+        return 'dev'

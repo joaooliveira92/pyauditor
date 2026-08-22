@@ -11,25 +11,25 @@ from __future__ import annotations
 from typing import Final
 
 __all__: Final[tuple[str, ...]] = (
-    "ALL_COMMANDS",
-    "COMMAND_LABELS",
-    "force_commands_for",
+    'ALL_COMMANDS',
+    'COMMAND_LABELS',
+    'force_commands_for',
 )
 
 ALL_COMMANDS: Final[tuple[str, ...]] = (
-    "bootstrap",
-    "split",
-    "measure",
-    "report",
-    "consolidate",
+    'bootstrap',
+    'split',
+    'measure',
+    'report',
+    'consolidate',
 )
 
 COMMAND_LABELS: Final[dict[str, str]] = {
-    "bootstrap": "bootstrap: cria ou atualiza a capa do contrato",
-    "split": "split: prepara categorias e gera o arquivo sintético",
-    "measure": "measure: apura os indicadores INMS",
-    "report": "report: gera o relatório da competência",
-    "consolidate": ("consolidate: reúne MinC e MTur no relatório consolidado"),
+    'bootstrap': 'bootstrap: cria ou atualiza a capa do contrato',
+    'split': 'split: prepara categorias e gera o arquivo sintético',
+    'measure': 'measure: apura os indicadores INMS',
+    'report': 'report: gera o relatório da competência',
+    'consolidate': ('consolidate: reúne MinC e MTur no relatório consolidado'),
 }
 
 
@@ -46,10 +46,10 @@ def force_commands_for(
     """
     forced: set[str] = set()
 
-    if "report" in commands:
-        forced.add("report")
+    if 'report' in commands:
+        forced.add('report')
 
-    if orgao == "both" and "consolidate" in commands:
-        forced.add("consolidate")
+    if orgao == 'both' and 'consolidate' in commands:
+        forced.add('consolidate')
 
     return frozenset(forced)

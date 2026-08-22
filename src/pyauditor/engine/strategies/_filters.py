@@ -11,14 +11,16 @@ from pyauditor.config.models import (
 )
 
 
-def filter_rows(rows: list[dict[str, str]], column_filter: Filter | None) -> list[dict[str, str]]:
+def filter_rows(
+    rows: list[dict[str, str]], column_filter: Filter | None
+) -> list[dict[str, str]]:
     if column_filter is None:
         return rows
     return [row for row in rows if _matches(row, column_filter)]
 
 
 def _matches(row: dict[str, str], column_filter: Filter) -> bool:
-    value = row.get(column_filter.column, "")
+    value = row.get(column_filter.column, '')
     if isinstance(column_filter, ColumnEquals):
         return value.strip() == column_filter.equals
     if isinstance(column_filter, ColumnNotEquals):
@@ -37,7 +39,7 @@ def _parse_duration_seconds(value: str) -> int | None:
     field (`D:HH:MM:SS`, as seen in the availability CSVs) would be parsed
     incorrectly, but no `DurationAtMost` filter is used against those.
     """
-    parts = value.strip().split(":")
+    parts = value.strip().split(':')
     if len(parts) != 3 or not all(p.isdigit() for p in parts):
         return None
     hours, minutes, secs = (int(p) for p in parts)

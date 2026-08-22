@@ -18,9 +18,9 @@ from pyauditor.cli.results import DependencyCheck
 from pyauditor.cli.split import check_split_ready
 
 CHECKERS: Final[dict[str, Callable[..., DependencyCheck]]] = {
-    "bootstrap": check_bootstrap_ready,
-    "split": check_split_ready,
-    "measure": check_measure_ready,
-    "report": check_report_ready,
-    "consolidate": check_consolidate_ready,
+    'bootstrap': check_bootstrap_ready,
+    'split': check_split_ready,
+    'measure': check_measure_ready,
+    'report': check_report_ready,
+    'consolidate': check_consolidate_ready,
 }

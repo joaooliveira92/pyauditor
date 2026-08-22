@@ -14,24 +14,24 @@ from datetime import datetime
 from typing import Final
 
 __all__: Final[tuple[str, ...]] = (
-    "DATAHORA_FORMAT",
-    "DATA_FIM",
-    "DATA_SOLICITACAO",
-    "NO_PRAZO_COLUMN",
-    "NivelAccumulator",
-    "Stats",
-    "compute_stats",
-    "fmt_pt_br",
-    "format_duracao",
-    "format_pct_bruto",
-    "format_row",
-    "parse_datahora",
+    'DATAHORA_FORMAT',
+    'DATA_FIM',
+    'DATA_SOLICITACAO',
+    'NO_PRAZO_COLUMN',
+    'NivelAccumulator',
+    'Stats',
+    'compute_stats',
+    'fmt_pt_br',
+    'format_duracao',
+    'format_pct_bruto',
+    'format_row',
+    'parse_datahora',
 )
 
-NO_PRAZO_COLUMN: Final[str] = "No prazo"
-DATA_SOLICITACAO: Final[str] = "DataHoraSolicitacao"
-DATA_FIM: Final[str] = "DataHoraFim"
-DATAHORA_FORMAT: Final[str] = "%d/%m/%Y %H:%M"
+NO_PRAZO_COLUMN: Final[str] = 'No prazo'
+DATA_SOLICITACAO: Final[str] = 'DataHoraSolicitacao'
+DATA_FIM: Final[str] = 'DataHoraFim'
+DATAHORA_FORMAT: Final[str] = '%d/%m/%Y %H:%M'
 
 
 def parse_datahora(raw: str) -> datetime | None:
@@ -59,8 +59,8 @@ def compute_stats(
     dentro: int | None = None
     fora: int | None = None
     if NO_PRAZO_COLUMN in fieldnames:
-        dentro = sum(1 for row in rows if row.get(NO_PRAZO_COLUMN) == "S")
-        fora = sum(1 for row in rows if row.get(NO_PRAZO_COLUMN) == "N")
+        dentro = sum(1 for row in rows if row.get(NO_PRAZO_COLUMN) == 'S')
+        fora = sum(1 for row in rows if row.get(NO_PRAZO_COLUMN) == 'N')
 
     duracao_total = 0.0
     duracao_contagem = 0
@@ -68,8 +68,8 @@ def compute_stats(
         for row in rows:
             if id(row) not in accepted_ids:
                 continue
-            inicio = parse_datahora(row.get(DATA_SOLICITACAO, ""))
-            fim = parse_datahora(row.get(DATA_FIM, ""))
+            inicio = parse_datahora(row.get(DATA_SOLICITACAO, ''))
+            fim = parse_datahora(row.get(DATA_FIM, ''))
             if inicio is None or fim is None:
                 continue
             duracao_total += (fim - inicio).total_seconds()
@@ -88,7 +88,7 @@ def format_duracao(segundos: float) -> str:
     total_minutos = round(segundos / 60)
     dias, resto_minutos = divmod(total_minutos, 24 * 60)
     horas = resto_minutos // 60
-    return f"{dias}d {horas:02d}h"
+    return f'{dias}d {horas:02d}h'
 
 
 def fmt_pt_br(value: float, *, decimals: int = 1) -> str:
@@ -96,26 +96,34 @@ def fmt_pt_br(value: float, *, decimals: int = 1) -> str:
     `orchestration/summary.py.fmt_pt_br`, duplicada aqui em miniatura pra
     `excel/` não depender de `orchestration/` (que por sua vez depende de
     `cli/split.py`, o chamador deste módulo — importar de volta ciclaria)."""
-    return f"{value:.{decimals}f}".replace(".", ",")
+    return f'{value:.{decimals}f}'.replace('.', ',')
 
 
 def format_pct_bruto(dentro: int | None, fora: int | None) -> str:
     if dentro is None or fora is None or (dentro + fora) == 0:
-        return "—"
+        return '—'
     pct = dentro / (dentro + fora) * 100
-    return f"{fmt_pt_br(pct)}%"
+    return f'{fmt_pt_br(pct)}%'
 
 
 def format_row(stats: Stats) -> tuple[int, str | int, str | int, str, str]:
-    dentro_display: str | int = stats.dentro if stats.dentro is not None else "—"
-    fora_display: str | int = stats.fora if stats.fora is not None else "—"
+    dentro_display: str | int = (
+        stats.dentro if stats.dentro is not None else '—'
+    )
+    fora_display: str | int = stats.fora if stats.fora is not None else '—'
     pct_display = format_pct_bruto(stats.dentro, stats.fora)
     tempo_display = (
         format_duracao(stats.duracao_total_segundos / stats.duracao_contagem)
         if stats.duracao_contagem > 0
-        else "—"
+        else '—'
     )
-    return stats.linhas, dentro_display, fora_display, pct_display, tempo_display
+    return (
+        stats.linhas,
+        dentro_display,
+        fora_display,
+        pct_display,
+        tempo_display,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +141,7 @@ class NivelAccumulator:
             dentro=self.dentro + (stats.dentro or 0),
             fora=self.fora + (stats.fora or 0),
             tem_prazo=self.tem_prazo or stats.dentro is not None,
-            duracao_total_segundos=self.duracao_total_segundos + stats.duracao_total_segundos,
+            duracao_total_segundos=self.duracao_total_segundos
+            + stats.duracao_total_segundos,
             duracao_contagem=self.duracao_contagem + stats.duracao_contagem,
         )

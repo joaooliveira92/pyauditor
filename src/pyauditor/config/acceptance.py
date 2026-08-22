@@ -17,21 +17,21 @@ from typing import Annotated, Final, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 __all__: Final[tuple[str, ...]] = (
-    "AcceptanceTest",
-    "AcceptanceTestCategoryExpected",
-    "AcceptanceTestExpected",
-    "AcceptanceTestOccurrenceExpected",
-    "CountDifferenceAcceptanceExpected",
-    "ExternalCatalogSumAcceptanceExpected",
-    "PrecomputedTableAcceptanceExpected",
-    "RatioAcceptanceExpected",
-    "SegmentedRatioAcceptanceExpected",
+    'AcceptanceTest',
+    'AcceptanceTestCategoryExpected',
+    'AcceptanceTestExpected',
+    'AcceptanceTestOccurrenceExpected',
+    'CountDifferenceAcceptanceExpected',
+    'ExternalCatalogSumAcceptanceExpected',
+    'PrecomputedTableAcceptanceExpected',
+    'RatioAcceptanceExpected',
+    'SegmentedRatioAcceptanceExpected',
 )
 
 _StrictFrozen: Final[ConfigDict] = ConfigDict(
     frozen=True,
     strict=True,
-    extra="forbid",
+    extra='forbid',
     str_strip_whitespace=True,
 )
 
@@ -54,7 +54,7 @@ class AcceptanceTestOccurrenceExpected(BaseModel):
 
 class RatioAcceptanceExpected(BaseModel):
     model_config = _StrictFrozen
-    shape: Literal["ratio"]
+    shape: Literal['ratio']
     numerator: float = Field(ge=0)
     denominator: float = Field(ge=0)
     result_pct: float = Field(ge=0, le=100)
@@ -64,7 +64,7 @@ class RatioAcceptanceExpected(BaseModel):
 
 class SegmentedRatioAcceptanceExpected(BaseModel):
     model_config = _StrictFrozen
-    shape: Literal["segmented_ratio"]
+    shape: Literal['segmented_ratio']
     result_pct: float = Field(ge=0, le=100)
     conforms: bool
     penalty_points: float = Field(ge=0)
@@ -73,7 +73,7 @@ class SegmentedRatioAcceptanceExpected(BaseModel):
 
 class CountDifferenceAcceptanceExpected(BaseModel):
     model_config = _StrictFrozen
-    shape: Literal["count_difference"]
+    shape: Literal['count_difference']
     result_pct: float = Field(ge=0, le=100)
     conforms: bool
     penalty_points: float = Field(ge=0)
@@ -84,17 +84,19 @@ class CountDifferenceAcceptanceExpected(BaseModel):
 
 class ExternalCatalogSumAcceptanceExpected(BaseModel):
     model_config = _StrictFrozen
-    shape: Literal["external_catalog_sum"]
+    shape: Literal['external_catalog_sum']
     result_pct: float = Field(ge=0, le=100)
     conforms: bool
     penalty_points: float = Field(ge=0)
     total_points: int = Field(ge=0)
-    occurrences: list[AcceptanceTestOccurrenceExpected] = Field(default_factory=list)
+    occurrences: list[AcceptanceTestOccurrenceExpected] = Field(
+        default_factory=list
+    )
 
 
 class PrecomputedTableAcceptanceExpected(BaseModel):
     model_config = _StrictFrozen
-    shape: Literal["precomputed_table"]
+    shape: Literal['precomputed_table']
     result_pct: float = Field(ge=0, le=100)
     conforms: bool
     penalty_points: float = Field(ge=0)
@@ -106,7 +108,7 @@ type AcceptanceTestExpected = Annotated[
     | CountDifferenceAcceptanceExpected
     | ExternalCatalogSumAcceptanceExpected
     | PrecomputedTableAcceptanceExpected,
-    Field(discriminator="shape"),
+    Field(discriminator='shape'),
 ]
 
 

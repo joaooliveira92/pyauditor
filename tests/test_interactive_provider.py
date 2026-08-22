@@ -3,7 +3,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pyauditor.interactive.provider import InteractionCancelled, RichQuestionaryProvider
+from pyauditor.interactive.provider import (
+    InteractionCancelled,
+    RichQuestionaryProvider,
+)
 
 
 def _cancelled_ask() -> MagicMock:
@@ -15,15 +18,24 @@ def _cancelled_ask() -> MagicMock:
 
 
 @pytest.mark.parametrize(
-    "questionary_target,call",
+    'questionary_target,call',
     [
-        ("pyauditor.interactive.provider.questionary.text", lambda p: p.ask_text("x")),
-        ("pyauditor.interactive.provider.questionary.select", lambda p: p.ask_choice("x", ["a"])),
         (
-            "pyauditor.interactive.provider.questionary.checkbox",
-            lambda p: p.ask_multi_choice("x", [("a", "a", True, None)]),
+            'pyauditor.interactive.provider.questionary.text',
+            lambda p: p.ask_text('x'),
         ),
-        ("pyauditor.interactive.provider.questionary.confirm", lambda p: p.confirm("x")),
+        (
+            'pyauditor.interactive.provider.questionary.select',
+            lambda p: p.ask_choice('x', ['a']),
+        ),
+        (
+            'pyauditor.interactive.provider.questionary.checkbox',
+            lambda p: p.ask_multi_choice('x', [('a', 'a', True, None)]),
+        ),
+        (
+            'pyauditor.interactive.provider.questionary.confirm',
+            lambda p: p.confirm('x'),
+        ),
     ],
 )
 def test_ctrl_c_raises_interaction_cancelled_instead_of_a_fake_answer(

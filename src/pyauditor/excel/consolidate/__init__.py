@@ -15,11 +15,11 @@ from pyauditor.excel.consolidate.workbook import (
 )
 
 __all__ = (
-    "CALCULO_SHEET",
-    "CAPA_SHEET",
-    "GLOSAS_SHEET",
-    "INMS_BASE_SHEET",
-    "SERVICOS_SHEET",
-    "build_consolidated_workbook",
-    "read_existing_decisions",
+    'CALCULO_SHEET',
+    'CAPA_SHEET',
+    'GLOSAS_SHEET',
+    'INMS_BASE_SHEET',
+    'SERVICOS_SHEET',
+    'build_consolidated_workbook',
+    'read_existing_decisions',
 )

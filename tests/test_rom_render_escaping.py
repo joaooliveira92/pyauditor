@@ -17,13 +17,13 @@ def test_segmented_ratio_escapes_pipe_in_category_name() -> None:
         conforms=True,
         penalty_points=0.0,
         memoria={
-            "categories": [
+            'categories': [
                 {
-                    "name": "Alta | maliciosa",
-                    "numerator": 1,
-                    "denominator": 1,
-                    "result_pct": 100.0,
-                    "penalty_points": 0.0,
+                    'name': 'Alta | maliciosa',
+                    'numerator': 1,
+                    'denominator': 1,
+                    'result_pct': 100.0,
+                    'penalty_points': 0.0,
                 }
             ]
         },
@@ -31,9 +31,9 @@ def test_segmented_ratio_escapes_pipe_in_category_name() -> None:
 
     markdown = render_segmented_ratio_memoria(calculation)
 
-    assert "Alta \\| maliciosa" in markdown
+    assert 'Alta \\| maliciosa' in markdown
     # The escaped row must still be exactly one table row (one line).
-    assert "Alta | maliciosa" not in markdown.replace("Alta \\| maliciosa", "")
+    assert 'Alta | maliciosa' not in markdown.replace('Alta \\| maliciosa', '')
 
 
 def test_external_catalog_sum_escapes_pipe_and_newline_in_descricao() -> None:
@@ -42,22 +42,22 @@ def test_external_catalog_sum_escapes_pipe_and_newline_in_descricao() -> None:
         conforms=True,
         penalty_points=5.0,
         memoria={
-            "occurrences": [
+            'occurrences': [
                 {
-                    "occurrence_id": "OC-1",
-                    "catalog_id": "E-001",
-                    "descricao": "linha 1\nlinha 2 | forjada",
-                    "pontos": 5,
+                    'occurrence_id': 'OC-1',
+                    'catalog_id': 'E-001',
+                    'descricao': 'linha 1\nlinha 2 | forjada',
+                    'pontos': 5,
                 }
             ],
-            "total_points": 5,
+            'total_points': 5,
         },
     )
 
     markdown = render_external_catalog_sum_memoria(calculation)
 
-    assert "\n" not in markdown.split("| OC-1 |", 1)[1].split("\n", 1)[0]
-    assert "\\|" in markdown
+    assert '\n' not in markdown.split('| OC-1 |', 1)[1].split('\n', 1)[0]
+    assert '\\|' in markdown
 
 
 def test_precomputed_table_escapes_pipe_in_asset_name() -> None:
@@ -66,13 +66,19 @@ def test_precomputed_table_escapes_pipe_in_asset_name() -> None:
         conforms=True,
         penalty_points=0.0,
         memoria={
-            "categories": [{"name": "WI-FI | forjado", "result_pct": 99.0, "penalty_points": 0.0}]
+            'categories': [
+                {
+                    'name': 'WI-FI | forjado',
+                    'result_pct': 99.0,
+                    'penalty_points': 0.0,
+                }
+            ]
         },
     )
 
     markdown = render_precomputed_table_memoria(calculation)
 
-    assert "WI-FI \\| forjado" in markdown
+    assert 'WI-FI \\| forjado' in markdown
 
 
 def test_segmented_ratio_rejects_malformed_categories_shape() -> None:
@@ -83,8 +89,8 @@ def test_segmented_ratio_rejects_malformed_categories_shape() -> None:
         result_pct=0.0,
         conforms=True,
         penalty_points=0.0,
-        memoria={"categories": "not-a-list"},
+        memoria={'categories': 'not-a-list'},
     )
 
-    with pytest.raises(TypeError, match="categories"):
+    with pytest.raises(TypeError, match='categories'):
         render_segmented_ratio_memoria(calculation)

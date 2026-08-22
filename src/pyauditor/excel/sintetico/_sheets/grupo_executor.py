@@ -54,13 +54,27 @@ def _write_grupo_executor_sheet(
     )
 
     def _emit(
-        categoria_label: str, nivel: str | None, grupo: str, group_rows: list[dict[str, str]]
+        categoria_label: str,
+        nivel: str | None,
+        grupo: str,
+        group_rows: list[dict[str, str]],
     ) -> None:
         nonlocal row_idx
         stats = compute_stats(group_rows, fieldnames, accepted_ids)
         linhas, dentro, fora, pct, tempo = format_row(stats)
         write_row(
-            sheet, row_idx, (categoria_label, nivel or "", grupo, linhas, dentro, fora, pct, tempo)
+            sheet,
+            row_idx,
+            (
+                categoria_label,
+                nivel or '',
+                grupo,
+                linhas,
+                dentro,
+                fora,
+                pct,
+                tempo,
+            ),
         )
         row_idx += 1
         if nivel is not None:
@@ -71,7 +85,9 @@ def _write_grupo_executor_sheet(
         categoria = categorias_file.categorias[categoria_key]
         nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
         for grupo in sorted(effective_values):
-            group_rows = [row for row in rows if row[GRUPO_EXECUTOR_COLUMN] == grupo]
+            group_rows = [
+                row for row in rows if row[GRUPO_EXECUTOR_COLUMN] == grupo
+            ]
             _emit(categoria.label, nivel, grupo, group_rows)
 
     for categoria_key, _entry in whole_indicator_entries:
@@ -80,16 +96,21 @@ def _write_grupo_executor_sheet(
         _emit(categoria.label, nivel, _WHOLE_INDICATOR_LABEL, rows)
 
     for grupo in sorted(outros_values):
-        group_rows = [row for row in rows if row[GRUPO_EXECUTOR_COLUMN] == grupo]
+        group_rows = [
+            row for row in rows if row[GRUPO_EXECUTOR_COLUMN] == grupo
+        ]
         _emit(_OUTROS_LABEL, None, grupo, group_rows)
 
     if accumulators:
         _write_subtotals(sheet, row_idx + 1, accumulators)
 
+
 def _write_subtotals(
     sheet: Worksheet, start_row: int, accumulators: dict[str, NivelAccumulator]
 ) -> None:
-    header_cell = sheet.cell(row=start_row, column=1, value="Subtotais por Nível")
+    header_cell = sheet.cell(
+        row=start_row, column=1, value='Subtotais por Nível'
+    )
     header_cell.font = LABEL_FONT
     for col_idx, column in enumerate(_SUBTOTAL_COLUMNS, start=1):
         cell = sheet.cell(row=start_row + 1, column=col_idx, value=column)
@@ -106,7 +127,7 @@ def _write_subtotals(
         tempo_display = (
             format_duracao(acc.duracao_total_segundos / acc.duracao_contagem)
             if acc.duracao_contagem > 0
-            else "—"
+            else '—'
         )
         write_row(
             sheet,
@@ -114,14 +135,15 @@ def _write_subtotals(
             (
                 nivel,
                 acc.linhas,
-                dentro if dentro is not None else "—",
-                fora if fora is not None else "—",
+                dentro if dentro is not None else '—',
+                fora if fora is not None else '—',
                 pct_display,
                 tempo_display,
             ),
             expected_columns=len(_SUBTOTAL_COLUMNS),
         )
         row_idx += 1
+
 
 def _write_whole_indicator_sheet(
     workbook: Workbook,
@@ -144,7 +166,7 @@ def _write_whole_indicator_sheet(
             row_idx,
             (
                 categoria.label,
-                nivel or "",
+                nivel or '',
                 _WHOLE_INDICATOR_LABEL,
                 linhas,
                 dentro,

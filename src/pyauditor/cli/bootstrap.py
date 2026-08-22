@@ -28,18 +28,20 @@ from pyauditor.excel.equipe import (
 )
 from pyauditor.logging import log_event, logger
 
-CAPA_COMUM_NAME = "capa.csv"
+CAPA_COMUM_NAME = 'capa.csv'
 
-_SUBSTITUTO_LABEL_SUFFIX = " - Substituto"
+_SUBSTITUTO_LABEL_SUFFIX = ' - Substituto'
 
 
 def _equipe_csv_text() -> str:
     """Esqueleto hand-fill do `equipe.csv`: 4 titulares + 4 substitutos."""
-    linhas = ["FUNÇÃO,NOME,SIAPE"]
-    substitutos = (f"{label}{_SUBSTITUTO_LABEL_SUFFIX}" for label in RESPONSAVEL_LABELS)
+    linhas = ['FUNÇÃO,NOME,SIAPE']
+    substitutos = (
+        f'{label}{_SUBSTITUTO_LABEL_SUFFIX}' for label in RESPONSAVEL_LABELS
+    )
     for label in (*RESPONSAVEL_LABELS, *substitutos):
-        linhas.append(f"{label},,")
-    return "\n".join(linhas) + "\n"
+        linhas.append(f'{label},,')
+    return '\n'.join(linhas) + '\n'
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,26 +79,32 @@ def run_bootstrap(capa_path: Path, orgao: str) -> BootstrapResult:
         if not equipe_path.exists():
             atomic_write(
                 equipe_path,
-                lambda p: p.write_text(_equipe_csv_text(), encoding=EQUIPE_ENCODING),
+                lambda p: p.write_text(
+                    _equipe_csv_text(), encoding=EQUIPE_ENCODING
+                ),
             )
             created_equipe = True
             created = True
     except OSError as exc:
-        message = f"falha ao criar capa em {data_dir}: {exc} — {WRITE_FAILURE_HINT}"
+        message = (
+            f'falha ao criar capa em {data_dir}: {exc} — {WRITE_FAILURE_HINT}'
+        )
         logger.error(message)
         return BootstrapResult(
-            status="error",
+            status='error',
             orgao=orgao,
             capa_path=orgao_path,
             created=False,
             warnings=(),
             error_message=message,
         )
-    except Exception as exc:  # boundary: never leak a raw traceback past the CLI
-        message = f"falha inesperada ao criar capa em {data_dir}: {exc}"
+    except (
+        Exception
+    ) as exc:  # boundary: never leak a raw traceback past the CLI
+        message = f'falha inesperada ao criar capa em {data_dir}: {exc}'
         logger.error(message)
         return BootstrapResult(
-            status="error",
+            status='error',
             orgao=orgao,
             capa_path=orgao_path,
             created=False,
@@ -105,20 +113,31 @@ def run_bootstrap(capa_path: Path, orgao: str) -> BootstrapResult:
         )
 
     if created_orgao:
-        log_event("capa_created", "capa criada", "INFO", orgao=orgao, arquivo=str(orgao_path))
+        log_event(
+            'capa_created',
+            'capa criada',
+            'INFO',
+            orgao=orgao,
+            arquivo=str(orgao_path),
+        )
     else:
         # Revisão §3: "nada a fazer" era impreciso — o arquivo é reutilizado.
         log_event(
-            "capa_reused",
-            "capa existente será reutilizada",
-            "INFO",
+            'capa_reused',
+            'capa existente será reutilizada',
+            'INFO',
             orgao=orgao,
             arquivo=str(orgao_path),
         )
     if created_equipe:
-        log_event("equipe_created", "esqueleto de equipe criado", "INFO", arquivo=str(equipe_path))
+        log_event(
+            'equipe_created',
+            'esqueleto de equipe criado',
+            'INFO',
+            arquivo=str(equipe_path),
+        )
     return BootstrapResult(
-        status="done",
+        status='done',
         orgao=orgao,
         capa_path=orgao_path,
         created=created,

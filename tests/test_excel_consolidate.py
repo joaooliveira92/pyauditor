@@ -15,26 +15,26 @@ from pyauditor.excel.glosas import compute_glosa
 from pyauditor.excel.inms_base import compliance_margin, inms_base_fields
 from pyauditor.rom.summary import IndicatorSummary
 
-CAPA: dict[str, object] = {"Número do contrato": "40/2022"}
+CAPA: dict[str, object] = {'Número do contrato': '40/2022'}
 
 
 def _summary(
     contractual_id: str,
     *,
-    orgao: str = "MinC",
-    shape: str = "ratio",
+    orgao: str = 'MinC',
+    shape: str = 'ratio',
     result_pct: float = 97.5,
     conforms: bool = True,
     penalty_points: float = 0.0,
     numerator: float | None = 171,
     denominator: float | None = 175,
-    target_operator: str | None = ">=",
+    target_operator: str | None = '>=',
     target_value: float | None = 98.0,
 ) -> IndicatorSummary:
     return IndicatorSummary(
-        indicator_id=f"{contractual_id}-IND",
+        indicator_id=f'{contractual_id}-IND',
         contractual_id=contractual_id,
-        name=f"Indicador {contractual_id}",
+        name=f'Indicador {contractual_id}',
         asset=None,
         orgao=orgao,
         shape=shape,
@@ -50,11 +50,11 @@ def _summary(
 
 
 def test_builds_all_five_financial_sheets() -> None:
-    minc = [_summary("INMS 1.1", orgao="MinC")]
-    mtur = [_summary("INMS 1.1", orgao="MTur")]
+    minc = [_summary('INMS 1.1', orgao='MinC')]
+    mtur = [_summary('INMS 1.1', orgao='MTur')]
 
     result = build_consolidated_workbook(
-        "2026-06",
+        '2026-06',
         minc,
         mtur,
         CAPA,
@@ -72,25 +72,29 @@ def test_builds_all_five_financial_sheets() -> None:
 
 
 def test_inms_base_pools_minc_and_mtur_into_a_consolidado_row() -> None:
-    minc = [_summary("INMS 1.1", orgao="MinC", numerator=90, denominator=100)]
-    mtur = [_summary("INMS 1.1", orgao="MTur", numerator=10, denominator=100)]
+    minc = [_summary('INMS 1.1', orgao='MinC', numerator=90, denominator=100)]
+    mtur = [_summary('INMS 1.1', orgao='MTur', numerator=10, denominator=100)]
 
-    result = build_consolidated_workbook("2026-06", minc, mtur, {})
+    result = build_consolidated_workbook('2026-06', minc, mtur, {})
 
     sheet = result.workbook[INMS_BASE_SHEET]
-    orgaos = [sheet.cell(row=r, column=7).value for r in range(2, sheet.max_row + 1)]
-    assert set(orgaos) == {"Consolidado", "MinC", "MTur"}
+    orgaos = [
+        sheet.cell(row=r, column=7).value for r in range(2, sheet.max_row + 1)
+    ]
+    assert set(orgaos) == {'Consolidado', 'MinC', 'MTur'}
 
 
 def test_per_asset_indicators_never_get_a_consolidado_row() -> None:
-    minc = [_summary("INMS 1.4", orgao="MinC")]
-    mtur = [_summary("INMS 1.4", orgao="MTur")]
+    minc = [_summary('INMS 1.4', orgao='MinC')]
+    mtur = [_summary('INMS 1.4', orgao='MTur')]
 
-    result = build_consolidated_workbook("2026-06", minc, mtur, {})
+    result = build_consolidated_workbook('2026-06', minc, mtur, {})
 
     sheet = result.workbook[INMS_BASE_SHEET]
-    orgaos = [sheet.cell(row=r, column=7).value for r in range(2, sheet.max_row + 1)]
-    assert set(orgaos) == {"MinC", "MTur"}
+    orgaos = [
+        sheet.cell(row=r, column=7).value for r in range(2, sheet.max_row + 1)
+    ]
+    assert set(orgaos) == {'MinC', 'MTur'}
 
 
 def test_inms_base_row_shared_rule_honors_operator_direction() -> None:
@@ -98,55 +102,79 @@ def test_inms_base_row_shared_rule_honors_operator_direction() -> None:
     08): a "Diferença para a meta" respeita o sentido do operador — para meta
     máxima (`<=`), o déficit é `result - target`, não `target - result`."""
     resumo = _summary(
-        "INMS 1.6", orgao="MinC", target_operator="<=", target_value=2.0, result_pct=2.5
+        'INMS 1.6',
+        orgao='MinC',
+        target_operator='<=',
+        target_value=2.0,
+        result_pct=2.5,
     )
 
-    row = inms_base_fields(resumo, "2026-06", grupo_operacional=None)
+    row = inms_base_fields(resumo, '2026-06', grupo_operacional=None)
 
     assert row.resultado == 2.5
     assert row.diferenca == pytest.approx(0.5)  # 2.5 - 2.0, sentido invertido
-    assert row.conformidade == ("Conforme" if resumo.conforms else "Não conforme")
-    assert compliance_margin(97.5, 98.0, ">=") == pytest.approx(0.5)
-    with pytest.raises(ValueError, match="operador de meta insuportado"):
-        compliance_margin(97.5, 98.0, "??")
+    assert row.conformidade == (
+        'Conforme' if resumo.conforms else 'Não conforme'
+    )
+    assert compliance_margin(97.5, 98.0, '>=') == pytest.approx(0.5)
+    with pytest.raises(ValueError, match='operador de meta insuportado'):
+        compliance_margin(97.5, 98.0, '??')
 
 
 def test_inms_base_conformidade_comes_from_shared_rule() -> None:
     # A regra única decide "Conforme"/"Não conforme" — cada renderer apenas
     # reposiciona o campo no shape de colunas (26 vs 15).
-    conforme = _summary("INMS 1.1", orgao="MinC", conforms=True)
-    nao_conforme = _summary("INMS 1.1", orgao="MinC", conforms=False)
+    conforme = _summary('INMS 1.1', orgao='MinC', conforms=True)
+    nao_conforme = _summary('INMS 1.1', orgao='MinC', conforms=False)
 
     for summary, conformidade in (
-        (conforme, "Conforme"),
-        (nao_conforme, "Não conforme"),
+        (conforme, 'Conforme'),
+        (nao_conforme, 'Não conforme'),
     ):
-        fields = inms_base_fields(summary, "2026-06", grupo_operacional=None)
+        fields = inms_base_fields(summary, '2026-06', grupo_operacional=None)
         assert fields.conformidade == conformidade
 
 
 def test_glosas_has_one_row_per_indicator_times_orgao_with_breaches() -> None:
-    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
-    mtur = [_summary("INMS 1.6", orgao="MTur", conforms=False, penalty_points=50.0)]
+    minc = [
+        _summary('INMS 1.6', orgao='MinC', conforms=False, penalty_points=100.0)
+    ]
+    mtur = [
+        _summary('INMS 1.6', orgao='MTur', conforms=False, penalty_points=50.0)
+    ]
 
-    result = build_consolidated_workbook("2026-06", minc, mtur, {}, valor_base=100000.0)
+    result = build_consolidated_workbook(
+        '2026-06', minc, mtur, {}, valor_base=100000.0
+    )
 
     sheet = result.workbook[GLOSAS_SHEET]
     rows = [
-        (sheet.cell(row=r, column=5).value, sheet.cell(row=r, column=2).value) for r in range(2, 4)
+        (sheet.cell(row=r, column=5).value, sheet.cell(row=r, column=2).value)
+        for r in range(2, 4)
     ]
-    assert set(rows) == {("INMS 1.06", "MinC"), ("INMS 1.06", "MTur")}
+    assert set(rows) == {('INMS 1.06', 'MinC'), ('INMS 1.06', 'MTur')}
     assert result.total_pontos == 150.0
     assert result.glosa_final == 100000.0 * 0.15 / 100
 
 
 def test_glosa_capped_at_30_percent_of_aggregate() -> None:
-    # Cap é por-órgão (issue 07): 20k pts = 20% por órgão, nenhum atinge 30% isolado,
+    # Cap é por-órgão (issue 07): 20k pts = 20% por órgão, nenhum atinge 30%
+    # isolado,
     # então soma = 40% do valor base, não 30% do agregado.
-    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=20000.0)]
-    mtur = [_summary("INMS 1.6", orgao="MTur", conforms=False, penalty_points=20000.0)]
+    minc = [
+        _summary(
+            'INMS 1.6', orgao='MinC', conforms=False, penalty_points=20000.0
+        )
+    ]
+    mtur = [
+        _summary(
+            'INMS 1.6', orgao='MTur', conforms=False, penalty_points=20000.0
+        )
+    ]
 
-    result = build_consolidated_workbook("2026-06", minc, mtur, {}, valor_base=100000.0)
+    result = build_consolidated_workbook(
+        '2026-06', minc, mtur, {}, valor_base=100000.0
+    )
 
     assert result.glosa_final == 100000.0 * 20.0 / 100 + 100000.0 * 20.0 / 100
 
@@ -166,26 +194,36 @@ def test_is_final_month_reaches_compute_glosa() -> None:
         calls.append(kwargs)
         return real_compute_glosa(*args, **kwargs)
 
-    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=40000.0)]
-    mtur = [_summary("INMS 1.6", orgao="MTur", conforms=False, penalty_points=40000.0)]
+    minc = [
+        _summary(
+            'INMS 1.6', orgao='MinC', conforms=False, penalty_points=40000.0
+        )
+    ]
+    mtur = [
+        _summary(
+            'INMS 1.6', orgao='MTur', conforms=False, penalty_points=40000.0
+        )
+    ]
 
-    with patch.object(glosa_calcs, "compute_glosa", side_effect=_spy_compute):
+    with patch.object(glosa_calcs, 'compute_glosa', side_effect=_spy_compute):
         build_consolidated_workbook(
-            "2026-06", minc, mtur, {}, valor_base=100000.0, is_final_month=True
+            '2026-06', minc, mtur, {}, valor_base=100000.0, is_final_month=True
         )
 
     assert calls
-    assert all(call.get("is_final_month") is True for call in calls)
+    assert all(call.get('is_final_month') is True for call in calls)
 
 
 @pytest.mark.parametrize(
-    ("is_final_month", "expected_saldo"),
+    ('is_final_month', 'expected_saldo'),
     [
         (False, 10.0),  # 40k ptos +40% > cap, excedente de 10pp rola
         (True, 0.0),  # mês final não transporta saldo para o mês seguinte
     ],
 )
-def test_saldo_rolado_honors_final_month(is_final_month: bool, expected_saldo: float) -> None:
+def test_saldo_rolado_honors_final_month(
+    is_final_month: bool, expected_saldo: float
+) -> None:
     """`consolidado.xlsx` no mês final não transporta saldo de glosa — o mesmo
     comportamento de `report.xlsx` (ticket 10)."""
     from unittest.mock import patch
@@ -200,12 +238,16 @@ def test_saldo_rolado_honors_final_month(is_final_month: bool, expected_saldo: f
         captured.append(result)
         return result
 
-    minc = [_summary("INMS 1.1", orgao="MinC", conforms=False, penalty_points=40000.0)]
+    minc = [
+        _summary(
+            'INMS 1.1', orgao='MinC', conforms=False, penalty_points=40000.0
+        )
+    ]
     mtur: list[IndicatorSummary] = []
 
-    with patch.object(glosa_calcs, "compute_glosa", side_effect=_spy):
+    with patch.object(glosa_calcs, 'compute_glosa', side_effect=_spy):
         build_consolidated_workbook(
-            "2026-06",
+            '2026-06',
             minc,
             mtur,
             {},
@@ -214,61 +256,70 @@ def test_saldo_rolado_honors_final_month(is_final_month: bool, expected_saldo: f
         )
 
     assert captured
-    assert sum(getattr(g, "saldo_rolado_pct", 0.0) for g in captured) == pytest.approx(
-        expected_saldo
-    )
+    assert sum(
+        getattr(g, 'saldo_rolado_pct', 0.0) for g in captured
+    ) == pytest.approx(expected_saldo)
 
 
 def test_capa_uses_valor_base_from_objetos() -> None:
-    minc = [_summary("INMS 1.1")]
-    mtur = [_summary("INMS 1.1", orgao="MTur")]
+    minc = [_summary('INMS 1.1')]
+    mtur = [_summary('INMS 1.1', orgao='MTur')]
 
-    result = build_consolidated_workbook("2026-06", minc, mtur, CAPA, valor_base=461063.58)
+    result = build_consolidated_workbook(
+        '2026-06', minc, mtur, CAPA, valor_base=461063.58
+    )
 
     sheet = result.workbook[CAPA_SHEET]
     campos = {
-        sheet.cell(row=r, column=1).value: sheet.cell(row=r, column=2).value for r in range(4, 11)
+        sheet.cell(row=r, column=1).value: sheet.cell(row=r, column=2).value
+        for r in range(4, 11)
     }
-    assert campos["Valor mensal vigente"] == 461063.58
-    assert campos["Valor global anual"] == 461063.58 * 12
-    assert all("diverge" not in w for w in result.warnings)
+    assert campos['Valor mensal vigente'] == 461063.58
+    assert campos['Valor global anual'] == 461063.58 * 12
+    assert all('diverge' not in w for w in result.warnings)
 
 
 def test_servicos_carries_item_values_by_index() -> None:
-    minc = [_summary("INMS 1.1")]
+    minc = [_summary('INMS 1.1')]
     itens = (1.0, 2.0, 3.0)
-    result = build_consolidated_workbook("2026-06", minc, [], {}, itens=itens)
+    result = build_consolidated_workbook('2026-06', minc, [], {}, itens=itens)
 
     sheet = result.workbook[SERVICOS_SHEET]
     header = [cell.value for cell in sheet[1]]
-    valor_col = header.index("Valor Mensal (R$)") + 1
+    valor_col = header.index('Valor Mensal (R$)') + 1
     valores = {
-        sheet.cell(row=r, column=1).value: sheet.cell(row=r, column=valor_col).value
+        sheet.cell(row=r, column=1).value: sheet.cell(
+            row=r, column=valor_col
+        ).value
         for r in range(2, 5)
     }
     assert valores == {1: 1.0, 2: 2.0, 3: 3.0}
 
 
 def test_servicos_leaves_value_blank_when_itens_absent() -> None:
-    result = build_consolidated_workbook("2026-06", [_summary("INMS 1.1")], [], {})
+    result = build_consolidated_workbook(
+        '2026-06', [_summary('INMS 1.1')], [], {}
+    )
 
     sheet = result.workbook[SERVICOS_SHEET]
     header = [cell.value for cell in sheet[1]]
-    valor_col = header.index("Valor Mensal (R$)") + 1
+    valor_col = header.index('Valor Mensal (R$)') + 1
     assert sheet.cell(row=2, column=valor_col).value is None
 
 
 def test_amnestied_decision_zeroes_pontos_and_is_preserved() -> None:
-    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
+    minc = [
+        _summary('INMS 1.6', orgao='MinC', conforms=False, penalty_points=100.0)
+    ]
     mtur: list[IndicatorSummary] = []
     decisao: dict[str, object] = {
-        "Decisão Fiscal": "Aceita",
-        "Justificativa": "fornecedor comprovou",
+        'Decisão Fiscal': 'Aceita',
+        'Justificativa': 'fornecedor comprovou',
     }
-    existing = {("INMS 1.06", "MinC"): decisao}
+    existing = {('INMS 1.06', 'MinC'): decisao}
 
     result = build_consolidated_workbook(
-        "2026-06",
+        '2026-06',
         minc,
         mtur,
         {},
@@ -279,62 +330,82 @@ def test_amnestied_decision_zeroes_pontos_and_is_preserved() -> None:
     assert result.total_pontos == 0.0
     sheet = result.workbook[GLOSAS_SHEET]
     row = {
-        sheet.cell(row=1, column=c).value: sheet.cell(row=2, column=c).value for c in range(1, 17)
+        sheet.cell(row=1, column=c).value: sheet.cell(row=2, column=c).value
+        for c in range(1, 17)
     }
-    assert row["Valor Glosa"] == 0.0
-    assert row["Decisão Fiscal"] == "Aceita"
-    assert row["Justificativa"] == "fornecedor comprovou"
+    assert row['Valor Glosa'] == 0.0
+    assert row['Decisão Fiscal'] == 'Aceita'
+    assert row['Justificativa'] == 'fornecedor comprovou'
 
 
 def test_warns_when_a_decided_occurrence_disappears_on_rerun() -> None:
-    minc = [_summary("INMS 1.6", orgao="MinC", conforms=True, penalty_points=0.0)]
-    decisao: dict[str, object] = {"Decisão Fiscal": "Não aceita"}
-    existing: dict[tuple[str, str], dict[str, object]] = {("INMS 1.6", "MinC"): decisao}
+    minc = [
+        _summary('INMS 1.6', orgao='MinC', conforms=True, penalty_points=0.0)
+    ]
+    decisao: dict[str, object] = {'Decisão Fiscal': 'Não aceita'}
+    existing: dict[tuple[str, str], dict[str, object]] = {
+        ('INMS 1.6', 'MinC'): decisao
+    }
 
-    result = build_consolidated_workbook("2026-06", minc, [], {}, existing_decisions=existing)
-
-    assert any("não existe mais nesta rodada" in w for w in result.warnings)
-
-
-def test_read_existing_decisions_returns_empty_for_missing_file(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    assert read_existing_decisions(tmp_path / "nope.xlsx") == {}
-
-
-def test_read_existing_decisions_roundtrips_from_a_saved_workbook(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
-    decisao: dict[str, object] = {"Decisão Fiscal": "Não aceita", "Observação do Gestor": "mantida"}
     result = build_consolidated_workbook(
-        "2026-06",
+        '2026-06', minc, [], {}, existing_decisions=existing
+    )
+
+    assert any('não existe mais nesta rodada' in w for w in result.warnings)
+
+
+def test_read_existing_decisions_returns_empty_for_missing_file(
+    tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    assert read_existing_decisions(tmp_path / 'nope.xlsx') == {}
+
+
+def test_read_existing_decisions_roundtrips_from_a_saved_workbook(
+    tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    minc = [
+        _summary('INMS 1.6', orgao='MinC', conforms=False, penalty_points=100.0)
+    ]
+    decisao: dict[str, object] = {
+        'Decisão Fiscal': 'Não aceita',
+        'Observação do Gestor': 'mantida',
+    }
+    result = build_consolidated_workbook(
+        '2026-06',
         minc,
         [],
         {},
-        existing_decisions={("INMS 1.06", "MinC"): decisao},
+        existing_decisions={('INMS 1.06', 'MinC'): decisao},
         valor_base=100000.0,
     )
-    path = tmp_path / "relatorio_2026-06_consolidado.xlsx"
+    path = tmp_path / 'relatorio_2026-06_consolidado.xlsx'
     result.workbook.save(path)
 
     decisions = read_existing_decisions(path)
-    assert decisions[("INMS 1.06", "MinC")]["Decisão Fiscal"] == "Não aceita"
-    assert decisions[("INMS 1.06", "MinC")]["Observação do Gestor"] == "mantida"
+    assert decisions['INMS 1.06', 'MinC']['Decisão Fiscal'] == 'Não aceita'
+    assert decisions['INMS 1.06', 'MinC']['Observação do Gestor'] == 'mantida'
 
 
 def test_glosas_summary_only_bolds_total_and_valor_glosa_rows() -> None:
     """Regression: a dead `bold` variable used to make every summary row
     (including "Fórmula"/"Limite"/"Percentual Aplicado") render bold."""
-    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
-    result = build_consolidated_workbook("2026-06", minc, [], {}, valor_base=100000.0)
+    minc = [
+        _summary('INMS 1.6', orgao='MinC', conforms=False, penalty_points=100.0)
+    ]
+    result = build_consolidated_workbook(
+        '2026-06', minc, [], {}, valor_base=100000.0
+    )
 
     sheet = result.workbook[GLOSAS_SHEET]
     labels_bold = {
         sheet.cell(row=r, column=1).value: sheet.cell(row=r, column=1).font.bold
         for r in range(5, 10)
     }
-    assert labels_bold["Total de Pontos"] is True
-    assert labels_bold["Valor Glosa"] is True
-    assert labels_bold["Fórmula (pontos x 0,001)"] is not True
-    assert labels_bold["Limite"] is not True
-    assert labels_bold["Percentual Aplicado"] is not True
+    assert labels_bold['Total de Pontos'] is True
+    assert labels_bold['Valor Glosa'] is True
+    assert labels_bold['Fórmula (pontos x 0,001)'] is not True
+    assert labels_bold['Limite'] is not True
+    assert labels_bold['Percentual Aplicado'] is not True
 
 
 def test_glosas_summary_formula_label_derives_from_glosa_fator() -> None:
@@ -342,59 +413,79 @@ def test_glosas_summary_formula_label_derives_from_glosa_fator() -> None:
     `CAP_PCT`); a label do resumo deriva da fonte única, sem literal `0,001`."""
     from pyauditor.excel.consolidate.workbook import _FATOR_PCT_TEXTO
 
-    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
-    result = build_consolidated_workbook("2026-06", minc, [], {}, valor_base=100000.0)
+    minc = [
+        _summary('INMS 1.6', orgao='MinC', conforms=False, penalty_points=100.0)
+    ]
+    result = build_consolidated_workbook(
+        '2026-06', minc, [], {}, valor_base=100000.0
+    )
 
     sheet = result.workbook[GLOSAS_SHEET]
     labels = {str(sheet.cell(row=r, column=1).value) for r in range(5, 10)}
-    assert f"Fórmula (pontos x {_FATOR_PCT_TEXTO})" in labels
+    assert f'Fórmula (pontos x {_FATOR_PCT_TEXTO})' in labels
 
 
-def test_decision_columns_are_text_formatted_against_formula_injection() -> None:
-    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
-    decisao: dict[str, object] = {"Justificativa": "=cmd|' /C calc'!A1"}
+def test_decision_columns_are_text_formatted_against_formula_injection() -> (
+    None
+):
+    minc = [
+        _summary('INMS 1.6', orgao='MinC', conforms=False, penalty_points=100.0)
+    ]
+    decisao: dict[str, object] = {'Justificativa': "=cmd|' /C calc'!A1"}
     result = build_consolidated_workbook(
-        "2026-06",
+        '2026-06',
         minc,
         [],
         {},
-        existing_decisions={("INMS 1.6", "MinC"): decisao},
+        existing_decisions={('INMS 1.6', 'MinC'): decisao},
         valor_base=100000.0,
     )
 
     sheet = result.workbook[GLOSAS_SHEET]
     header = [sheet.cell(row=1, column=c).value for c in range(1, 17)]
-    justificativa_col = header.index("Justificativa") + 1
-    assert sheet.cell(row=2, column=justificativa_col).number_format == "@"
+    justificativa_col = header.index('Justificativa') + 1
+    assert sheet.cell(row=2, column=justificativa_col).number_format == '@'
 
 
 def test_non_latin1_free_text_is_preserved_unmangled() -> None:
     """Regression: fiscal free text used to round-trip through cp1252,
     silently replacing any character outside that codepage with '?'."""
-    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
-    decisao: dict[str, object] = {"Observação do Gestor": "aprovado ✔ — café não é cafe’"}  # noqa: RUF001
+    minc = [
+        _summary('INMS 1.6', orgao='MinC', conforms=False, penalty_points=100.0)
+    ]
+    decisao: dict[str, object] = {
+        'Observação do Gestor': 'aprovado ✔ — café não é cafe’'
+    }
     result = build_consolidated_workbook(
-        "2026-06",
+        '2026-06',
         minc,
         [],
         {},
-        existing_decisions={("INMS 1.06", "MinC"): decisao},
+        existing_decisions={('INMS 1.06', 'MinC'): decisao},
         valor_base=100000.0,
     )
 
     sheet = result.workbook[GLOSAS_SHEET]
     header = [sheet.cell(row=1, column=c).value for c in range(1, 17)]
-    col = header.index("Observação do Gestor") + 1
-    assert sheet.cell(row=2, column=col).value == "aprovado ✔ — café não é cafe’"  # noqa: RUF001
+    col = header.index('Observação do Gestor') + 1
+    assert (
+        sheet.cell(row=2, column=col).value == 'aprovado ✔ — café não é cafe’'
+    )
 
 
-def test_read_existing_decisions_rejects_duplicate_indicador_header(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
-    result = build_consolidated_workbook("2026-06", minc, [], {}, valor_base=100000.0)
+def test_read_existing_decisions_rejects_duplicate_indicador_header(
+    tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    minc = [
+        _summary('INMS 1.6', orgao='MinC', conforms=False, penalty_points=100.0)
+    ]
+    result = build_consolidated_workbook(
+        '2026-06', minc, [], {}, valor_base=100000.0
+    )
     sheet = result.workbook[GLOSAS_SHEET]
-    sheet.cell(row=1, column=17, value="Indicador")  # hand-edited duplicate
-    path = tmp_path / "relatorio_2026-06_consolidado.xlsx"
+    sheet.cell(row=1, column=17, value='Indicador')  # hand-edited duplicate
+    path = tmp_path / 'relatorio_2026-06_consolidado.xlsx'
     result.workbook.save(path)
 
-    with pytest.raises(ValueError, match="duplicada"):
+    with pytest.raises(ValueError, match='duplicada'):
         read_existing_decisions(path)

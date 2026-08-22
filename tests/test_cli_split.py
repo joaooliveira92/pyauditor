@@ -68,77 +68,100 @@ categorias:
 """
 
 _RAW_CSV = (
-    "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n"
-    "1;2026-06-01;S;N1\n"
-    "2;2026-06-02;S;N1\n"
-    "3;2026-06-03;S;(CIT) - Infra\n"
-    "4;2026-06-04;N;(CIT) - Infra\n"
-    "5;2026-06-05;S;Grupo Desconhecido\n"
+    'Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n'
+    '1;2026-06-01;S;N1\n'
+    '2;2026-06-02;S;N1\n'
+    '3;2026-06-03;S;(CIT) - Infra\n'
+    '4;2026-06-04;N;(CIT) - Infra\n'
+    '5;2026-06-05;S;Grupo Desconhecido\n'
 )
 
 
-def _write_fixture(tmp_path: Path, categorias_yaml: str = _CATEGORIAS_YAML) -> tuple[Path, Path]:
-    config_dir = tmp_path / "configs"
-    data_dir = tmp_path / "input"
+def _write_fixture(
+    tmp_path: Path, categorias_yaml: str = _CATEGORIAS_YAML
+) -> tuple[Path, Path]:
+    config_dir = tmp_path / 'configs'
+    data_dir = tmp_path / 'input'
     config_dir.mkdir(parents=True)
-    competencia_dir = data_dir / "2026" / "06"
+    competencia_dir = data_dir / '2026' / '06'
     competencia_dir.mkdir(parents=True)
-    (config_dir / "inms-01.yaml").write_text(_BASE_CONFIG_YAML, encoding="utf-8")
-    (config_dir / "categorias.yaml").write_text(categorias_yaml, encoding="utf-8")
-    (competencia_dir / "inms-01.csv").write_text(_RAW_CSV, encoding="utf-8")
+    (config_dir / 'inms-01.yaml').write_text(
+        _BASE_CONFIG_YAML, encoding='utf-8'
+    )
+    (config_dir / 'categorias.yaml').write_text(
+        categorias_yaml, encoding='utf-8'
+    )
+    (competencia_dir / 'inms-01.csv').write_text(_RAW_CSV, encoding='utf-8')
     return config_dir, data_dir
 
 
-def test_run_split_writes_filtered_csv_and_derived_config_for_in_values(tmp_path: Path) -> None:
+def test_run_split_writes_filtered_csv_and_derived_config_for_in_values(
+    tmp_path: Path,
+) -> None:
     config_dir, data_dir = _write_fixture(tmp_path)
 
-    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
-    assert result.status == "done"
-    n1_outcome = next(o for o in result.categorias if o.categoria == "ATENDIMENTO_N1")
+    assert result.status == 'done'
+    n1_outcome = next(
+        o for o in result.categorias if o.categoria == 'ATENDIMENTO_N1'
+    )
     assert n1_outcome.row_count == 2
-    rows = load_rows(n1_outcome.csv_path, ";", "utf-8")
-    assert {r["Grupo_executor"] for r in rows} == {"N1"}
+    rows = load_rows(n1_outcome.csv_path, ';', 'utf-8')
+    assert {r['Grupo_executor'] for r in rows} == {'N1'}
 
     assert n1_outcome.config_path is not None
-    derived = yaml.safe_load(n1_outcome.config_path.read_text(encoding="utf-8"))
-    assert derived["indicator"]["id"] == "INMS-01.ATENDIMENTO_N1"
-    assert derived["source"]["csv"] == "_split/1.1/ATENDIMENTO_N1.csv"
-    assert "dataset" not in derived["source"]
-    assert "acceptance_test" not in derived
+    derived = yaml.safe_load(n1_outcome.config_path.read_text(encoding='utf-8'))
+    assert derived['indicator']['id'] == 'INMS-01.ATENDIMENTO_N1'
+    assert derived['source']['csv'] == '_split/1.1/ATENDIMENTO_N1.csv'
+    assert 'dataset' not in derived['source']
+    assert 'acceptance_test' not in derived
     # quality_gates/calculation/target/penalty copiados do base sem mudança.
-    assert derived["calculation"] == {
-        "shape": "ratio",
-        "aggregation": "count_distinct",
-        "numerator_filter": {"column": "No prazo", "equals": "S"},
+    assert derived['calculation'] == {
+        'shape': 'ratio',
+        'aggregation': 'count_distinct',
+        'numerator_filter': {'column': 'No prazo', 'equals': 'S'},
     }
-    assert derived["penalty"] == {"base_points": 165, "step_points": 20, "step_size_pct": 0.1}
+    assert derived['penalty'] == {
+        'base_points': 165,
+        'step_points': 20,
+        'step_size_pct': 0.1,
+    }
 
 
-def test_run_split_catch_all_excludes_values_claimed_by_in_values(tmp_path: Path) -> None:
+def test_run_split_catch_all_excludes_values_claimed_by_in_values(
+    tmp_path: Path,
+) -> None:
     config_dir, data_dir = _write_fixture(tmp_path)
 
-    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
-    n3_outcome = next(o for o in result.categorias if o.categoria == "OPERACAO_N3")
+    n3_outcome = next(
+        o for o in result.categorias if o.categoria == 'OPERACAO_N3'
+    )
     assert n3_outcome.row_count == 2
-    rows = load_rows(n3_outcome.csv_path, ";", "utf-8")
-    assert {r["Grupo_executor"] for r in rows} == {"(CIT) - Infra"}
+    rows = load_rows(n3_outcome.csv_path, ';', 'utf-8')
+    assert {r['Grupo_executor'] for r in rows} == {'(CIT) - Infra'}
 
 
-def test_run_split_outros_always_written_and_warns_when_nonempty(tmp_path: Path) -> None:
+def test_run_split_outros_always_written_and_warns_when_nonempty(
+    tmp_path: Path,
+) -> None:
     config_dir, data_dir = _write_fixture(tmp_path)
 
-    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
-    outros_outcome = next(o for o in result.categorias if o.categoria == "outros")
+    outros_outcome = next(
+        o for o in result.categorias if o.categoria == 'outros'
+    )
     assert outros_outcome.config_path is None
     assert outros_outcome.row_count == 1
-    rows = load_rows(outros_outcome.csv_path, ";", "utf-8")
-    assert {r["Grupo_executor"] for r in rows} == {"Grupo Desconhecido"}
+    rows = load_rows(outros_outcome.csv_path, ';', 'utf-8')
+    assert {r['Grupo_executor'] for r in rows} == {'Grupo Desconhecido'}
     assert any(
-        "INMS 1.1 (MinC/2026-06), categoria outros: 1 linha(s) não classificada(s) em "
-        "nenhuma categoria — revisar categorias.yaml" in w
+        'INMS 1.1 (MinC/2026-06), categoria outros: 1 linha(s) não '
+        'classificada(s) em '
+        'nenhuma categoria — revisar categorias.yaml' in w
         for w in result.warnings
     )
 
@@ -155,9 +178,11 @@ categorias:
 """
     config_dir, data_dir = _write_fixture(tmp_path, categorias_yaml)
 
-    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
-    outros_outcome = next(o for o in result.categorias if o.categoria == "outros")
+    outros_outcome = next(
+        o for o in result.categorias if o.categoria == 'outros'
+    )
     assert outros_outcome.row_count == 0
     assert outros_outcome.csv_path.exists()
     assert result.warnings == ()
@@ -166,32 +191,32 @@ categorias:
 def test_run_split_whole_indicator_produces_no_artifact(tmp_path: Path) -> None:
     config_dir, data_dir = _write_fixture(tmp_path)
 
-    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
-    assert all(o.inms != "1.9" for o in result.categorias)
-    assert not (data_dir / "2026" / "06" / "_split" / "1.9").exists()
+    assert all(o.inms != '1.9' for o in result.categorias)
+    assert not (data_dir / '2026' / '06' / '_split' / '1.9').exists()
 
 
 def test_run_split_is_idempotent_on_rerun(tmp_path: Path) -> None:
     config_dir, data_dir = _write_fixture(tmp_path)
 
-    first = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
-    second = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    first = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
+    second = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
-    assert first.status == "done"
-    assert second.status == "done"
+    assert first.status == 'done'
+    assert second.status == 'done'
     assert len(first.categorias) == len(second.categorias)
     # Bruto original nunca é tocado.
-    raw = (data_dir / "2026" / "06" / "inms-01.csv").read_text(encoding="utf-8")
+    raw = (data_dir / '2026' / '06' / 'inms-01.csv').read_text(encoding='utf-8')
     assert raw == _RAW_CSV
 
 
 def test_run_split_invalid_competencia_is_error(tmp_path: Path) -> None:
     config_dir, data_dir = _write_fixture(tmp_path)
 
-    result = run_split("2026/06", config_dir, data_dir, expected_orgao="MinC")
+    result = run_split('2026/06', config_dir, data_dir, expected_orgao='MinC')
 
-    assert result.status == "error"
+    assert result.status == 'error'
     assert result.error_message is not None
 
 
@@ -199,44 +224,56 @@ def test_measure_discovers_derived_config_after_split(tmp_path: Path) -> None:
     """Depois de `split`, `measure` (sem mudança de código) acha e mede as
     configs derivadas via o glob não-recursivo já existente."""
     config_dir, data_dir = _write_fixture(tmp_path)
-    split_result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
-    assert split_result.status == "done"
+    split_result = run_split(
+        '2026-06', config_dir, data_dir, expected_orgao='MinC'
+    )
+    assert split_result.status == 'done'
 
-    configs = discover_config_files(config_dir, expected_orgao="MinC")
+    configs = discover_config_files(config_dir, expected_orgao='MinC')
     ids = {config.indicator.id for _, _, config in configs}
-    assert "INMS-01.ATENDIMENTO_N1" in ids
-    assert "INMS-01.OPERACAO_N3" in ids
+    assert 'INMS-01.ATENDIMENTO_N1' in ids
+    assert 'INMS-01.OPERACAO_N3' in ids
 
     derived = next(
-        config for _, _, config in configs if config.indicator.id == "INMS-01.ATENDIMENTO_N1"
+        config
+        for _, _, config in configs
+        if config.indicator.id == 'INMS-01.ATENDIMENTO_N1'
     )
-    competencia_data_dir = data_dir / "2026" / "06"
+    competencia_data_dir = data_dir / '2026' / '06'
     result = measure(derived, data_dir=competencia_data_dir)
     assert result.calculation.result_pct == 100.0
 
 
-def test_run_split_writes_sintetico_xlsx_when_report_dir_given(tmp_path: Path) -> None:
+def test_run_split_writes_sintetico_xlsx_when_report_dir_given(
+    tmp_path: Path,
+) -> None:
     config_dir, data_dir = _write_fixture(tmp_path)
-    report_dir = tmp_path / "reports"
+    report_dir = tmp_path / 'reports'
 
     result = run_split(
-        "2026-06", config_dir, data_dir, expected_orgao="MinC", report_dir=report_dir
+        '2026-06',
+        config_dir,
+        data_dir,
+        expected_orgao='MinC',
+        report_dir=report_dir,
     )
 
-    assert result.status == "done"
-    sintetico_path = report_dir / "2026-06" / "sintetico.xlsx"
+    assert result.status == 'done'
+    sintetico_path = report_dir / '2026-06' / 'sintetico.xlsx'
     assert sintetico_path.exists()
     wb = load_workbook(sintetico_path)
-    assert set(wb.sheetnames) == {"INMS 1.1"}
+    assert set(wb.sheetnames) == {'INMS 1.1'}
 
 
-def test_run_split_skips_sintetico_xlsx_when_report_dir_omitted(tmp_path: Path) -> None:
+def test_run_split_skips_sintetico_xlsx_when_report_dir_omitted(
+    tmp_path: Path,
+) -> None:
     config_dir, data_dir = _write_fixture(tmp_path)
 
-    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
-    assert result.status == "done"
-    assert not (tmp_path / "reports").exists()
+    assert result.status == 'done'
+    assert not (tmp_path / 'reports').exists()
 
 
 def test_check_split_ready_always_satisfied() -> None:
@@ -245,40 +282,43 @@ def test_check_split_ready_always_satisfied() -> None:
 
 def test_run_split_missing_base_config_is_error(tmp_path: Path) -> None:
     config_dir, data_dir = _write_fixture(tmp_path)
-    (config_dir / "inms-01.yaml").unlink()
+    (config_dir / 'inms-01.yaml').unlink()
 
-    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
-    assert result.status == "error"
+    assert result.status == 'error'
 
 
 def test_run_split_missing_raw_csv_is_error(tmp_path: Path) -> None:
     config_dir, data_dir = _write_fixture(tmp_path)
-    (data_dir / "2026" / "06" / "inms-01.csv").unlink()
+    (data_dir / '2026' / '06' / 'inms-01.csv').unlink()
 
-    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
-    assert result.status == "error"
+    assert result.status == 'error'
 
 
-def test_run_split_missing_grupo_executor_column_is_error(tmp_path: Path) -> None:
+def test_run_split_missing_grupo_executor_column_is_error(
+    tmp_path: Path,
+) -> None:
     config_dir, data_dir = _write_fixture(tmp_path)
-    (data_dir / "2026" / "06" / "inms-01.csv").write_text(
-        "Nº Solicitacao;DataHoraFim;No prazo\n1;2026-06-01;S\n", encoding="utf-8"
+    (data_dir / '2026' / '06' / 'inms-01.csv').write_text(
+        'Nº Solicitacao;DataHoraFim;No prazo\n1;2026-06-01;S\n',
+        encoding='utf-8',
     )
 
-    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
-    assert result.status == "error"
+    assert result.status == 'error'
 
 
 def test_run_split_missing_categorias_yaml_is_error(tmp_path: Path) -> None:
     config_dir, data_dir = _write_fixture(tmp_path)
-    (config_dir / "categorias.yaml").unlink()
+    (config_dir / 'categorias.yaml').unlink()
 
-    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
-    assert result.status == "error"
+    assert result.status == 'error'
 
 
 # Spec competencia-cli-equipe §2/§3 — split é o primeiro a filtrar pela janela
@@ -291,46 +331,53 @@ def test_run_split_filtra_janela_antes_da_segregacao(tmp_path: Path) -> None:
     from pyauditor.periodo import PeriodoAfericao
 
     config_dir, data_dir = _write_fixture(tmp_path)
-    (data_dir / "2026" / "06" / "inms-01.csv").write_text(
-        "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n"
-        "1;01/06/2026 10:00;S;N1\n"
-        "2;02/06/2026 10:00;S;N1\n"
-        "3;20/05/2026 10:00;S;(CIT) - Infra\n"
-        "4;04/06/2026 10:00;N;(CIT) - Infra\n"
-        "5;05/06/2026 10:00;S;Grupo Desconhecido\n",
-        encoding="utf-8",
+    (data_dir / '2026' / '06' / 'inms-01.csv').write_text(
+        'Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n'
+        '1;01/06/2026 10:00;S;N1\n'
+        '2;02/06/2026 10:00;S;N1\n'
+        '3;20/05/2026 10:00;S;(CIT) - Infra\n'
+        '4;04/06/2026 10:00;N;(CIT) - Infra\n'
+        '5;05/06/2026 10:00;S;Grupo Desconhecido\n',
+        encoding='utf-8',
     )
     periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
 
-    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC", periodo=periodo)
+    result = run_split(
+        '2026-06', config_dir, data_dir, expected_orgao='MinC', periodo=periodo
+    )
 
-    assert result.status == "done"
-    n1 = next(o for o in result.categorias if o.categoria == "ATENDIMENTO_N1")
+    assert result.status == 'done'
+    n1 = next(o for o in result.categorias if o.categoria == 'ATENDIMENTO_N1')
     assert n1.row_count == 2  # só linhas dentro da janela chegam à categoria
-    rows = load_rows(n1.csv_path, ";", "utf-8")
-    assert {r["DataHoraFim"] for r in rows} == {"01/06/2026 10:00", "02/06/2026 10:00"}
+    rows = load_rows(n1.csv_path, ';', 'utf-8')
+    assert {r['DataHoraFim'] for r in rows} == {
+        '01/06/2026 10:00',
+        '02/06/2026 10:00',
+    }
 
 
-def test_run_split_materialize_false_computa_sem_gravar_artefatos(tmp_path: Path) -> None:
+def test_run_split_materialize_false_computa_sem_gravar_artefatos(
+    tmp_path: Path,
+) -> None:
     """`materialize=False` (caminho do `run`, ticket 12) computa os mesmos
     outcomes/avisos mas não grava `_split`/configs derivadas no disco."""
     config_dir, data_dir = _write_fixture(tmp_path)
 
     result = run_split(
-        "2026-06",
+        '2026-06',
         config_dir,
         data_dir,
-        expected_orgao="MinC",
+        expected_orgao='MinC',
         materialize=False,
     )
 
-    assert result.status == "done"
+    assert result.status == 'done'
     assert len(result.categorias) == 3  # N1 + N3-outros
-    n1 = next(o for o in result.categorias if o.categoria == "ATENDIMENTO_N1")
+    n1 = next(o for o in result.categorias if o.categoria == 'ATENDIMENTO_N1')
     assert n1.row_count == 2
     assert n1.config_path is None  # derivada nunca materializada
     assert n1.csv_path.exists() is False  # csv filtrado não gravado
-    assert not (data_dir / "2026" / "06" / "_split").exists()
+    assert not (data_dir / '2026' / '06' / '_split').exists()
 
 
 def test_run_split_janela_vazia_warns_e_segue(tmp_path: Path) -> None:
@@ -339,21 +386,24 @@ def test_run_split_janela_vazia_warns_e_segue(tmp_path: Path) -> None:
     from pyauditor.periodo import PeriodoAfericao
 
     config_dir, data_dir = _write_fixture(tmp_path)
-    (data_dir / "2026" / "06" / "inms-01.csv").write_text(
-        "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n1;20/05/2026 10:00;S;N1\n",
-        encoding="utf-8",
+    (data_dir / '2026' / '06' / 'inms-01.csv').write_text(
+        'Nº '
+        'Solicitacao;DataHoraFim;No '
+        'prazo;Grupo_executor\n1;20/05/2026 '
+        '10:00;S;N1\n',
+        encoding='utf-8',
     )
 
     result = run_split(
-        "2026-06",
+        '2026-06',
         config_dir,
         data_dir,
-        expected_orgao="MinC",
+        expected_orgao='MinC',
         periodo=PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30)),
     )
 
-    assert result.status == "done"  # janela vazia não é falha técnica
-    assert any("nenhuma linha no período" in w for w in result.warnings)
+    assert result.status == 'done'  # janela vazia não é falha técnica
+    assert any('nenhuma linha no período' in w for w in result.warnings)
 
 
 def test_run_split_sem_period_column_e_erro_com_periodo(tmp_path: Path) -> None:
@@ -364,18 +414,20 @@ def test_run_split_sem_period_column_e_erro_com_periodo(tmp_path: Path) -> None:
     from pyauditor.periodo import PeriodoAfericao
 
     config_dir, data_dir = _write_fixture(tmp_path)
-    yaml_sem_periodo = _BASE_CONFIG_YAML.replace('  period_column: "DataHoraFim"\n', "")
-    (config_dir / "inms-01.yaml").write_text(yaml_sem_periodo, encoding="utf-8")
+    yaml_sem_periodo = _BASE_CONFIG_YAML.replace(
+        '  period_column: "DataHoraFim"\n', ''
+    )
+    (config_dir / 'inms-01.yaml').write_text(yaml_sem_periodo, encoding='utf-8')
 
     result = run_split(
-        "2026-06",
+        '2026-06',
         config_dir,
         data_dir,
-        expected_orgao="MinC",
+        expected_orgao='MinC',
         periodo=PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30)),
     )
 
-    assert result.status == "error"
+    assert result.status == 'error'
     assert result.categorias == ()
     assert result.error_message is not None
 
@@ -389,13 +441,13 @@ def test_run_split_write_failure_marks_error_without_aborting(
     config_dir, data_dir = _write_fixture(tmp_path)
 
     def _failing_write(path: Path, write: object) -> object:
-        raise OSError("disco cheio")
+        raise OSError('disco cheio')
 
-    monkeypatch.setattr("pyauditor.cli.split.atomic_write", _failing_write)
+    monkeypatch.setattr('pyauditor.cli.split.atomic_write', _failing_write)
 
-    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
-    assert result.status == "error"
+    assert result.status == 'error'
     assert result.error_message is not None
 
 
@@ -407,16 +459,18 @@ def test_run_split_derived_config_write_failure_marks_error(
     config_dir, data_dir = _write_fixture(tmp_path)
 
     def _failing_config_write(path: Path, write: object) -> object:
-        if path.suffix == ".yaml":
-            raise OSError("permissão negada")
+        if path.suffix == '.yaml':
+            raise OSError('permissão negada')
         from pyauditor.atomic_write import atomic_write
 
         atomic_write(path, write)  # type: ignore[arg-type]
         return None
 
-    monkeypatch.setattr("pyauditor.cli.split.atomic_write", _failing_config_write)
+    monkeypatch.setattr(
+        'pyauditor.cli.split.atomic_write', _failing_config_write
+    )
 
-    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+    result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
-    assert result.status == "error"
+    assert result.status == 'error'
     assert result.categorias  # ao menos o outros.csv também entra no resultado

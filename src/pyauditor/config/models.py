@@ -9,7 +9,13 @@ from __future__ import annotations
 
 from typing import Annotated, Final, Literal, Self
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
+)
 
 from pyauditor.config._paths import reject_unsafe_relative_path
 from pyauditor.config.acceptance import (
@@ -24,40 +30,42 @@ from pyauditor.config.acceptance import (
     SegmentedRatioAcceptanceExpected,
 )
 
-type _SafeRelativePath = Annotated[str, AfterValidator(reject_unsafe_relative_path)]
+type _SafeRelativePath = Annotated[
+    str, AfterValidator(reject_unsafe_relative_path)
+]
 
 __all__: Final[tuple[str, ...]] = (
-    "AcceptanceTest",
-    "AcceptanceTestCategoryExpected",
-    "AcceptanceTestExpected",
-    "AcceptanceTestOccurrenceExpected",
-    "Calculation",
-    "ColumnContains",
-    "ColumnEquals",
-    "ColumnIn",
-    "CountDifferenceAcceptanceExpected",
-    "CountDifferenceCalculation",
-    "DurationAtMost",
-    "ExternalCatalogSumAcceptanceExpected",
-    "ExternalCatalogSumCalculation",
-    "Filter",
-    "InSetCheck",
-    "Indicator",
-    "IndicatorConfig",
-    "NotNullCheck",
-    "Penalty",
-    "PrecomputedTableAcceptanceExpected",
-    "PrecomputedTableCalculation",
-    "QualityGateCheck",
-    "QualityGates",
-    "RatioAcceptanceExpected",
-    "RatioCalculation",
-    "Scope",
-    "SegmentedCategory",
-    "SegmentedRatioAcceptanceExpected",
-    "SegmentedRatioCalculation",
-    "Source",
-    "Target",
+    'AcceptanceTest',
+    'AcceptanceTestCategoryExpected',
+    'AcceptanceTestExpected',
+    'AcceptanceTestOccurrenceExpected',
+    'Calculation',
+    'ColumnContains',
+    'ColumnEquals',
+    'ColumnIn',
+    'CountDifferenceAcceptanceExpected',
+    'CountDifferenceCalculation',
+    'DurationAtMost',
+    'ExternalCatalogSumAcceptanceExpected',
+    'ExternalCatalogSumCalculation',
+    'Filter',
+    'InSetCheck',
+    'Indicator',
+    'IndicatorConfig',
+    'NotNullCheck',
+    'Penalty',
+    'PrecomputedTableAcceptanceExpected',
+    'PrecomputedTableCalculation',
+    'QualityGateCheck',
+    'QualityGates',
+    'RatioAcceptanceExpected',
+    'RatioCalculation',
+    'Scope',
+    'SegmentedCategory',
+    'SegmentedRatioAcceptanceExpected',
+    'SegmentedRatioCalculation',
+    'Source',
+    'Target',
 )
 
 # ---------------------------------------------------------------------------
@@ -66,7 +74,7 @@ __all__: Final[tuple[str, ...]] = (
 _StrictFrozen: Final[ConfigDict] = ConfigDict(
     frozen=True,
     strict=True,
-    extra="forbid",
+    extra='forbid',
     str_strip_whitespace=True,
 )
 
@@ -87,19 +95,21 @@ class Scope(BaseModel):
     model_config = _StrictFrozen
     # Default contract é o do MinC — o loader injeta o contrato correto
     # por órgão quando o YAML vem de `configs/_shared/` (single-source).
-    contract: str = Field(default="40/2022 - Ministério da Cultura", min_length=1)
+    contract: str = Field(
+        default='40/2022 - Ministério da Cultura', min_length=1
+    )
     # "MTur" per docs/spreadsheet.md's MinC/MTur segregation — see
     # excel/report.py's consolidation step (spec §13).
-    orgao: Literal["MinC", "MTur"] = "MinC"
+    orgao: Literal['MinC', 'MTur'] = 'MinC'
 
 
 class Source(BaseModel):
     model_config = _StrictFrozen
     dataset: str | None = Field(default=None, min_length=1)
     csv: _SafeRelativePath | None = Field(default=None, min_length=1)
-    delimiter: str = Field(default=";", min_length=1)
-    encoding: str = Field(default="utf-8-sig", min_length=1)
-    id_column: str = Field(default="Nº Solicitacao", min_length=1)
+    delimiter: str = Field(default=';', min_length=1)
+    encoding: str = Field(default='utf-8-sig', min_length=1)
+    id_column: str = Field(default='Nº Solicitacao', min_length=1)
     # Coluna de período do dataset (opcional no modelo — §2 da spec
     # competencia-cli-equipe). Obrigatoria na execucao: todo fluxo real passa
     # um PeriodoAfericao, e aí a ausência vira erro acionável (periodo.py).
@@ -109,29 +119,33 @@ class Source(BaseModel):
     # para pular o filtro de período em vez de errar por period_column ausente.
     unfilterable: bool = False
 
-    @model_validator(mode="after")
+    @model_validator(mode='after')
     def _check_csv_or_dataset(self) -> Self:
         has_dataset = self.dataset is not None
         has_csv = self.csv is not None
         if has_dataset == has_csv:
-            raise ValueError("source must specify exactly one of 'dataset' or 'csv'")
+            raise ValueError(
+                "source must specify exactly one of 'dataset' or 'csv'"
+            )
         return self
 
 
 class NotNullCheck(BaseModel):
     model_config = _StrictFrozen
-    type: Literal["not_null"]
+    type: Literal['not_null']
     column: str = Field(min_length=1)
 
 
 class InSetCheck(BaseModel):
     model_config = _StrictFrozen
-    type: Literal["in_set"]
+    type: Literal['in_set']
     column: str = Field(min_length=1)
     values: list[str] = Field(min_length=1)
 
 
-type QualityGateCheck = Annotated[NotNullCheck | InSetCheck, Field(discriminator="type")]
+type QualityGateCheck = Annotated[
+    NotNullCheck | InSetCheck, Field(discriminator='type')
+]
 
 
 class QualityGates(BaseModel):
@@ -173,13 +187,15 @@ class DurationAtMost(BaseModel):
 
 
 # Smart union — members distinguished by distinct field names, no discriminator
-type Filter = ColumnEquals | ColumnNotEquals | ColumnContains | ColumnIn | DurationAtMost
+type Filter = (
+    ColumnEquals | ColumnNotEquals | ColumnContains | ColumnIn | DurationAtMost
+)
 
 
 class RatioCalculation(BaseModel):
     model_config = _StrictFrozen
-    shape: Literal["ratio"]
-    aggregation: Literal["count_distinct", "sum", "precomputed"]
+    shape: Literal['ratio']
+    aggregation: Literal['count_distinct', 'sum', 'precomputed']
     numerator_filter: Filter | None = None
     denominator_filter: Filter | None = None
     sum_numerator_column: str | None = Field(default=None, min_length=1)
@@ -188,25 +204,33 @@ class RatioCalculation(BaseModel):
     # (ΣX-ΣY)/ΣX (denominator = the raw column sum, numerator = that minus
     # the subtracted column — e.g. INMS 1.6 (ΣCA-ΣCR)/ΣCA).
     sum_denominator_extra_column: str | None = Field(default=None, min_length=1)
-    sum_numerator_subtract_column: str | None = Field(default=None, min_length=1)
+    sum_numerator_subtract_column: str | None = Field(
+        default=None, min_length=1
+    )
     precomputed_result_column: str | None = Field(default=None, min_length=1)
 
-    @model_validator(mode="after")
+    @model_validator(mode='after')
     def _check_fields_for_aggregation(self) -> Self:
-        if self.aggregation == "count_distinct" and self.numerator_filter is None:
-            raise ValueError("count_distinct requires numerator_filter")
-        if self.aggregation == "sum":
+        if (
+            self.aggregation == 'count_distinct'
+            and self.numerator_filter is None
+        ):
+            raise ValueError('count_distinct requires numerator_filter')
+        if self.aggregation == 'sum':
             if self.sum_numerator_column is None:
-                raise ValueError("sum requires sum_numerator_column")
+                raise ValueError('sum requires sum_numerator_column')
             has_extra = self.sum_denominator_extra_column is not None
             has_subtract = self.sum_numerator_subtract_column is not None
             if has_extra == has_subtract:
                 raise ValueError(
-                    "sum requires exactly one of sum_denominator_extra_column, "
-                    "sum_numerator_subtract_column"
+                    'sum requires exactly one of sum_denominator_extra_column, '
+                    'sum_numerator_subtract_column'
                 )
-        if self.aggregation == "precomputed" and self.precomputed_result_column is None:
-            raise ValueError("precomputed requires precomputed_result_column")
+        if (
+            self.aggregation == 'precomputed'
+            and self.precomputed_result_column is None
+        ):
+            raise ValueError('precomputed requires precomputed_result_column')
         return self
 
 
@@ -220,14 +244,14 @@ class SegmentedCategory(BaseModel):
 
 class SegmentedRatioCalculation(BaseModel):
     model_config = _StrictFrozen
-    shape: Literal["segmented_ratio"]
+    shape: Literal['segmented_ratio']
     step_size_pct: float = Field(gt=0)
     categories: list[SegmentedCategory] = Field(min_length=1)
 
 
 class CountDifferenceCalculation(BaseModel):
     model_config = _StrictFrozen
-    shape: Literal["count_difference"]
+    shape: Literal['count_difference']
     recommended_filter: Filter | None = None
     implemented_filter: Filter
     penalty_per_unit: float = Field(ge=0)
@@ -235,15 +259,15 @@ class CountDifferenceCalculation(BaseModel):
 
 class ExternalCatalogSumCalculation(BaseModel):
     model_config = _StrictFrozen
-    shape: Literal["external_catalog_sum"]
+    shape: Literal['external_catalog_sum']
     occurrence_id_column: str = Field(min_length=1)
     catalog_codes_column: str = Field(min_length=1)
-    catalog_codes_separator: str = Field(default=",", min_length=1)
+    catalog_codes_separator: str = Field(default=',', min_length=1)
 
 
 class PrecomputedTableCalculation(BaseModel):
     model_config = _StrictFrozen
-    shape: Literal["precomputed_table"]
+    shape: Literal['precomputed_table']
     # Per-ativo result column (percentage, or a point total when
     # `result_is_percent` is false — e.g. INMS 1.8's PDT sum).
     result_column: str = Field(min_length=1)
@@ -266,13 +290,13 @@ type Calculation = Annotated[
     | CountDifferenceCalculation
     | ExternalCatalogSumCalculation
     | PrecomputedTableCalculation,
-    Field(discriminator="shape"),
+    Field(discriminator='shape'),
 ]
 
 
 class Target(BaseModel):
     model_config = _StrictFrozen
-    operator: Literal[">=", "<="]
+    operator: Literal['>=', '<=']
     value: float = Field(ge=0, le=100)
 
 
@@ -294,20 +318,24 @@ class IndicatorConfig(BaseModel):
     penalty: Penalty | None = None
     acceptance_test: AcceptanceTest | None = None
 
-    @model_validator(mode="after")
+    @model_validator(mode='after')
     def _check_target_for_shape(self) -> Self:
-        is_external = self.calculation.shape == "external_catalog_sum"
+        is_external = self.calculation.shape == 'external_catalog_sum'
         if is_external and self.target is not None:
-            raise ValueError("external_catalog_sum must not have target (Anexo E is point sum)")
+            raise ValueError(
+                'external_catalog_sum must not have target (Anexo E is point '
+                'sum)'
+            )
         if not is_external and self.target is None:
-            raise ValueError(f"{self.calculation.shape} requires target")
+            raise ValueError(f'{self.calculation.shape} requires target')
         if (
-            self.calculation.shape == "precomputed_table"
+            self.calculation.shape == 'precomputed_table'
             and self.calculation.result_is_percent
             and self.calculation.penalty_column is None
             and self.penalty is None
         ):
             raise ValueError(
-                "precomputed_table (percent) requires penalty unless penalty_column is set"
+                'precomputed_table (percent) requires penalty unless '
+                'penalty_column is set'
             )
         return self

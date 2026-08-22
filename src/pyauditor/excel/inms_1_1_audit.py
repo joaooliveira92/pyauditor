@@ -10,4 +10,4 @@ from typing import Final
 
 from pyauditor.excel.inms_1_1.write import has_required_columns, write_sheet
 
-__all__: Final[tuple[str, ...]] = ("has_required_columns", "write_sheet")
+__all__: Final[tuple[str, ...]] = ('has_required_columns', 'write_sheet')

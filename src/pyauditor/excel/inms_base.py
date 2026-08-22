@@ -18,10 +18,16 @@ from pyauditor.codes import format_inms_code
 from pyauditor.excel._style import UNIT_BY_SHAPE as _UNIT_BY_SHAPE
 from pyauditor.rom.summary import IndicatorSummary
 
-__all__: Final[tuple[str, ...]] = ("InmsRowFields", "compliance_margin", "inms_base_fields")
+__all__: Final[tuple[str, ...]] = (
+    'InmsRowFields',
+    'compliance_margin',
+    'inms_base_fields',
+)
 
 
-def compliance_margin(result: float, target: float | None, operator: str | None) -> float | None:
+def compliance_margin(
+    result: float, target: float | None, operator: str | None
+) -> float | None:
     """Distância até a fronteira da meta — positiva no sentido da não
     conformidade (quanto o resultado precisa andar para alcançar a meta).
     Regra única vinda de `excel/report.py`, agora compartilhada com o
@@ -33,16 +39,19 @@ def compliance_margin(result: float, target: float | None, operator: str | None)
     if target is None:
         return None
 
-    if operator in {">", ">="}:
+    if operator in {'>', '>='}:
         return target - result
 
-    if operator in {"<", "<="}:
+    if operator in {'<', '<='}:
         return result - target
 
-    if operator in {"=", "=="}:
+    if operator in {'=', '=='}:
         return abs(result - target)
 
-    raise ValueError(f"operador de meta insuportado para margem de conformidade: {operator!r}.")
+    raise ValueError(
+        f'operador de meta insuportado para margem de conformidade:'
+        f'{operator!r}.'
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,7 +86,9 @@ def inms_base_fields(
     consolidate usa `None`) e fica como parâmetro para a regra ser de fato uma
     função única; o restante dos campos é derivado aqui.
     """
-    margin = compliance_margin(summary.result_pct, summary.target_value, summary.target_operator)
+    margin = compliance_margin(
+        summary.result_pct, summary.target_value, summary.target_operator
+    )
     return InmsRowFields(
         competencia=competencia,
         servico=summary.asset,
@@ -90,7 +101,7 @@ def inms_base_fields(
         numerador=summary.numerator,
         denominador=summary.denominator,
         resultado=round(summary.result_pct, 2),
-        unidade=_UNIT_BY_SHAPE.get(summary.shape, ""),
-        conformidade="Conforme" if summary.conforms else "Não conforme",
+        unidade=_UNIT_BY_SHAPE.get(summary.shape, ''),
+        conformidade='Conforme' if summary.conforms else 'Não conforme',
         diferenca=round(margin, 2) if margin is not None else None,
     )

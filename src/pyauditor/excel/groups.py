@@ -17,23 +17,23 @@ from typing import Final
 from pyauditor.config.niveis import NIVEL_BY_CATEGORIA, NIVEL_ORDER
 
 __all__: Final[tuple[str, ...]] = (
-    "ATENDIMENTO_N1",
-    "ATENDIMENTO_N2",
-    "GROUP_TABS",
-    "MONITORAMENTO_NOC_SOC",
-    "NIVEL_BY_CATEGORIA",
-    "NIVEL_ORDER",
-    "OPERACAO_N3",
-    "PER_ASSET_CONTRACTUAL_IDS",
-    "categoria_from_indicator_id",
-    "group_for_summary",
-    "primary_group",
+    'ATENDIMENTO_N1',
+    'ATENDIMENTO_N2',
+    'GROUP_TABS',
+    'MONITORAMENTO_NOC_SOC',
+    'NIVEL_BY_CATEGORIA',
+    'NIVEL_ORDER',
+    'OPERACAO_N3',
+    'PER_ASSET_CONTRACTUAL_IDS',
+    'categoria_from_indicator_id',
+    'group_for_summary',
+    'primary_group',
 )
 
-ATENDIMENTO_N1: Final = "ATENDIMENTO_N1"
-MONITORAMENTO_NOC_SOC: Final = "MONITORAMENTO_NOC_SOC"
-ATENDIMENTO_N2: Final = "ATENDIMENTO_N2"
-OPERACAO_N3: Final = "OPERACAO_N3"
+ATENDIMENTO_N1: Final = 'ATENDIMENTO_N1'
+MONITORAMENTO_NOC_SOC: Final = 'MONITORAMENTO_NOC_SOC'
+ATENDIMENTO_N2: Final = 'ATENDIMENTO_N2'
+OPERACAO_N3: Final = 'OPERACAO_N3'
 
 GROUP_TABS: Final[tuple[str, ...]] = (
     ATENDIMENTO_N1,
@@ -42,28 +42,35 @@ GROUP_TABS: Final[tuple[str, ...]] = (
     OPERACAO_N3,
 )
 
-# docs/spreadsheet.md §Abas 5-8, in tab order — first match wins (see module docstring).
+# docs/spreadsheet.md §Abas 5-8, in tab order — first match wins (see module
+# docstring).
 _GROUP_MEMBERSHIP: Final[dict[str, tuple[str, ...]]] = {
     ATENDIMENTO_N1: (
-        "INMS 1.1",
-        "INMS 1.2",
-        "INMS 1.6",
-        "INMS 1.7",
-        "INMS 1.11",
-        "INMS 1.12",
-        "INMS 1.13",
+        'INMS 1.1',
+        'INMS 1.2',
+        'INMS 1.6',
+        'INMS 1.7',
+        'INMS 1.11',
+        'INMS 1.12',
+        'INMS 1.13',
     ),
-    MONITORAMENTO_NOC_SOC: ("INMS 1.4", "INMS 1.5", "INMS 1.14"),
-    ATENDIMENTO_N2: ("INMS 1.1", "INMS 1.2", "INMS 1.6", "INMS 1.7", "INMS 1.9"),
+    MONITORAMENTO_NOC_SOC: ('INMS 1.4', 'INMS 1.5', 'INMS 1.14'),
+    ATENDIMENTO_N2: (
+        'INMS 1.1',
+        'INMS 1.2',
+        'INMS 1.6',
+        'INMS 1.7',
+        'INMS 1.9',
+    ),
     OPERACAO_N3: (
-        "INMS 1.1",
-        "INMS 1.2",
-        "INMS 1.3",
-        "INMS 1.6",
-        "INMS 1.7",
-        "INMS 1.9",
-        "INMS 1.10",
-        "INMS 1.14",
+        'INMS 1.1',
+        'INMS 1.2',
+        'INMS 1.3',
+        'INMS 1.6',
+        'INMS 1.7',
+        'INMS 1.9',
+        'INMS 1.10',
+        'INMS 1.14',
     ),
 }
 
@@ -98,9 +105,9 @@ def categoria_from_indicator_id(indicator_id: str) -> str | None:
     so this doubles as validation: a dotted id whose suffix isn't a known
     tab isn't treated as categoria-derived.
     """
-    if "." not in indicator_id:
+    if '.' not in indicator_id:
         return None
-    categoria_key = indicator_id.split(".", 1)[1]
+    categoria_key = indicator_id.split('.', 1)[1]
     return categoria_key if categoria_key in GROUP_TABS else None
 
 

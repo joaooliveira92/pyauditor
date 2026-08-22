@@ -54,24 +54,29 @@ penalty:
 
 
 def _write_config(tmp_path: Path) -> Path:
-    config_path = tmp_path / "config.yaml"
-    config_path.write_text(_CONFIG_YAML, encoding="utf-8")
+    config_path = tmp_path / 'config.yaml'
+    config_path.write_text(_CONFIG_YAML, encoding='utf-8')
     return config_path
 
 
 def test_resolves_reads_and_gates(tmp_path: Path) -> None:
     config_path = _write_config(tmp_path)
-    (tmp_path / "data.csv").write_text(
-        "Nº Solicitação,DataHoraFim,Atendido\n1,20/06/2026 10:00,S\n2,21/06/2026 10:00,\n",
-        encoding="utf-8",
+    (tmp_path / 'data.csv').write_text(
+        'Nº '
+        'Solicitação,DataHoraFim,Atendido\n1,20/06/2026 '
+        '10:00,S\n2,21/06/2026 '
+        '10:00,\n',
+        encoding='utf-8',
     )
     config = load_config(config_path)
 
-    bundle = measurement_source(config, data_dir=tmp_path, config_path=config_path)
+    bundle = measurement_source(
+        config, data_dir=tmp_path, config_path=config_path
+    )
 
-    assert bundle.csv_path == tmp_path / "data.csv"
-    assert bundle.delimiter == ","
-    assert bundle.fieldnames == ["Nº Solicitação", "DataHoraFim", "Atendido"]
+    assert bundle.csv_path == tmp_path / 'data.csv'
+    assert bundle.delimiter == ','
+    assert bundle.fieldnames == ['Nº Solicitação', 'DataHoraFim', 'Atendido']
     assert len(bundle.rows) == 2
     assert len(bundle.gate_report.accepted) == 1
     assert len(bundle.gate_report.rejected) == 1
@@ -82,49 +87,53 @@ def test_resolves_reads_and_gates(tmp_path: Path) -> None:
 
 def test_missing_yaml_column_raises(tmp_path: Path) -> None:
     config_path = _write_config(tmp_path)
-    body = "Nº Solicitação,DataHoraFim\n1,20/06/2026 10:00\n"
-    (tmp_path / "data.csv").write_text(body, encoding="utf-8")
+    body = 'Nº Solicitação,DataHoraFim\n1,20/06/2026 10:00\n'
+    (tmp_path / 'data.csv').write_text(body, encoding='utf-8')
     config = load_config(config_path)
 
-    with pytest.raises(ValueError, match="coluna\\(s\\) referenciada"):
+    with pytest.raises(ValueError, match='coluna\\(s\\) referenciada'):
         measurement_source(config, data_dir=tmp_path, config_path=config_path)
 
 
 def test_period_filter_counts_and_warns_once(tmp_path: Path) -> None:
     config_path = _write_config(tmp_path)
-    (tmp_path / "data.csv").write_text(
-        "Nº Solicitação,DataHoraFim,Atendido\n1,20/05/2026 10:00,S\n", encoding="utf-8"
+    (tmp_path / 'data.csv').write_text(
+        'Nº Solicitação,DataHoraFim,Atendido\n1,20/05/2026 10:00,S\n',
+        encoding='utf-8',
     )
     config = load_config(config_path)
     periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
     buf = StringIO()
-    setup_logging(sink=buf, level="INFO")
+    setup_logging(sink=buf, level='INFO')
 
     try:
         bundle = measurement_source(
             config, data_dir=tmp_path, config_path=config_path, periodo=periodo
         )
     finally:
-        setup_logging(sink=sys.stderr, level="INFO")
+        setup_logging(sink=sys.stderr, level='INFO')
 
     logs = buf.getvalue()
-    assert "nenhuma linha no período 01/06/2026–30/06/2026" in logs
-    assert "1 linha(s) fora do período descartada(s)" in logs
+    assert 'nenhuma linha no período 01/06/2026–30/06/2026' in logs
+    assert '1 linha(s) fora do período descartada(s)' in logs
     assert bundle.dropped_out_of_period == 1
     assert bundle.rows == []
 
 
-def test_emit_period_filter_logs_false_suppresses_both_warn_and_info(tmp_path: Path) -> None:
+def test_emit_period_filter_logs_false_suppresses_both_warn_and_info(
+    tmp_path: Path,
+) -> None:
     """Chamadores que logam com seu próprio contexto estruturado (`split`,
     via `log_event`) desligam ambos e usam as contagens do `SourceBundle`."""
     config_path = _write_config(tmp_path)
-    (tmp_path / "data.csv").write_text(
-        "Nº Solicitação,DataHoraFim,Atendido\n1,20/05/2026 10:00,S\n", encoding="utf-8"
+    (tmp_path / 'data.csv').write_text(
+        'Nº Solicitação,DataHoraFim,Atendido\n1,20/05/2026 10:00,S\n',
+        encoding='utf-8',
     )
     config = load_config(config_path)
     periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
     buf = StringIO()
-    setup_logging(sink=buf, level="INFO")
+    setup_logging(sink=buf, level='INFO')
 
     try:
         bundle = measurement_source(
@@ -135,10 +144,10 @@ def test_emit_period_filter_logs_false_suppresses_both_warn_and_info(tmp_path: P
             emit_period_filter_logs=False,
         )
     finally:
-        setup_logging(sink=sys.stderr, level="INFO")
+        setup_logging(sink=sys.stderr, level='INFO')
 
     logs = buf.getvalue()
-    assert "nenhuma linha no período" not in logs
-    assert "1 linha(s) fora do período descartada(s)" not in logs
+    assert 'nenhuma linha no período' not in logs
+    assert '1 linha(s) fora do período descartada(s)' not in logs
     assert bundle.dropped_out_of_period == 1
     assert bundle.dropped_out_of_period == 1

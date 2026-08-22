@@ -31,13 +31,19 @@ def _write_csv_verbatim_sheet(
     escrita)` em caso de sucesso (usado por `_write_capa_sheet` pra saber
     onde continuar), ou `None` se a aba não foi gerada."""
     try:
-        header, rows = read_csv_verbatim(path, delimiter=delimiter, encoding=encoding)
+        header, rows = read_csv_verbatim(
+            path, delimiter=delimiter, encoding=encoding
+        )
     except FileNotFoundError:
-        warnings.append(f"sintetico.xlsx: {path} não encontrado — aba '{sheet_name}' não gerada")
+        warnings.append(
+            f"sintetico.xlsx: {path} não encontrado — aba '{sheet_name}' não"
+            f'gerada'
+        )
         return None
     except (OSError, ValueError) as exc:
         warnings.append(
-            f"sintetico.xlsx: falha ao ler {path}: {exc} — aba '{sheet_name}' não gerada"
+            f"sintetico.xlsx: falha ao ler {path}: {exc} — aba '{sheet_name}'"
+            f'não gerada'
         )
         return None
 
@@ -49,6 +55,7 @@ def _write_csv_verbatim_sheet(
         padded_row = tuple(row) + (None,) * (expected_columns - len(row))
         write_row(sheet, row_idx, padded_row[:expected_columns])
     return sheet, row_idx
+
 
 def _write_capa_sheet(
     workbook: Workbook,
@@ -79,19 +86,25 @@ def _write_capa_sheet(
         )
     except FileNotFoundError:
         warnings.append(
-            f"sintetico.xlsx: {objetos_path} não encontrado — dados de objetos "
+            f'sintetico.xlsx: {objetos_path} não encontrado — dados de objetos '
             f"não anexados à aba '{_CAPA_SHEET_NAME}'"
         )
         return
     except (OSError, ValueError) as exc:
         warnings.append(
-            f"sintetico.xlsx: falha ao ler {objetos_path}: {exc} — dados de objetos "
+            f'sintetico.xlsx: falha ao ler {objetos_path}: {exc} — dados de'
+            f'objetos '
             f"não anexados à aba '{_CAPA_SHEET_NAME}'"
         )
         return
 
     header_row = last_row + 2  # 1 linha em branco de separação
     objetos_columns = len(objetos_header)
-    write_row(sheet, header_row, tuple(objetos_header), expected_columns=objetos_columns)
+    write_row(
+        sheet,
+        header_row,
+        tuple(objetos_header),
+        expected_columns=objetos_columns,
+    )
     for row_idx, row in enumerate(objetos_rows, start=header_row + 1):
         write_row(sheet, row_idx, tuple(row), expected_columns=objetos_columns)

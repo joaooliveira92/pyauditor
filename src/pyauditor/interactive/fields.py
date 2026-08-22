@@ -9,19 +9,18 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Final
 
 from pyauditor.periodo import month_bounds
 
 __all__: Final[tuple[str, ...]] = (
-    "Field",
-    "fields_spec",
-    "validate_competencia",
-    "validate_non_empty_text",
+    'Field',
+    'fields_spec',
+    'validate_competencia',
+    'validate_non_empty_text',
 )
 
-_HELP_TOKEN: Final[str] = "?"
+_HELP_TOKEN: Final[str] = '?'
 
 
 def validate_competencia(text: str) -> bool | str:
@@ -36,7 +35,22 @@ def validate_competencia(text: str) -> bool | str:
     try:
         month_bounds(text)
     except (TypeError, ValueError):
-        return "Competência inválida. Use AAAA-MM com um mês entre 01 e 12, por exemplo 2026-06."
+        return (
+            'Competência '
+            'inválida. '
+            'Use '
+            'AAAA-MM '
+            'com '
+            'um '
+            'mês '
+            'entre '
+            '01 '
+            'e '
+            '12, '
+            'por '
+            'exemplo '
+            '2026-06.'
+        )
 
     return True
 
@@ -66,77 +80,77 @@ class Field:
 
 fields_spec: Final[tuple[Field, ...]] = (
     Field(
-        key="competencia",
-        prompt="Competência (AAAA-MM):",
-        default="",
+        key='competencia',
+        prompt='Competência (AAAA-MM):',
+        default='',
         help_text=(
-            "A competência é o mês de aferição. Use AAAA-MM, por exemplo "
-            "2026-06 para junho de 2026."
+            'A competência é o mês de aferição. Use AAAA-MM, por exemplo '
+            '2026-06 para junho de 2026.'
         ),
         validate=validate_competencia,
     ),
     Field(
-        key="orgao",
-        prompt="Órgão:",
-        default="MinC",
+        key='orgao',
+        prompt='Órgão:',
+        default='MinC',
         help_text=(
-            "Escolha MinC ou MTur para processar somente um órgão. "
-            "Escolha both para executar o plano phase-major dos dois órgãos "
-            "e, quando selecionada, a consolidação final."
+            'Escolha MinC ou MTur para processar somente um órgão. '
+            'Escolha both para executar o plano phase-major dos dois órgãos '
+            'e, quando selecionada, a consolidação final.'
         ),
     ),
     Field(
-        key="config_dir",
-        prompt="Diretório de configurações:",
-        default="configs",
+        key='config_dir',
+        prompt='Diretório de configurações:',
+        default='configs',
         help_text=(
-            "Diretório raiz que contém _shared ou os diretórios de "
-            "configuração específicos de cada órgão."
-        ),
-        validate=validate_non_empty_text,
-        is_path=True,
-    ),
-    Field(
-        key="data_dir",
-        prompt="Diretório de dados:",
-        default="input",
-        help_text=(
-            "Diretório raiz dos dados de entrada, incluindo os "
-            "subdiretórios dos órgãos e os arquivos compartilhados."
+            'Diretório raiz que contém _shared ou os diretórios de '
+            'configuração específicos de cada órgão.'
         ),
         validate=validate_non_empty_text,
         is_path=True,
     ),
     Field(
-        key="output_dir",
-        prompt="Diretório de ROMs:",
-        default="roms",
+        key='data_dir',
+        prompt='Diretório de dados:',
+        default='input',
         help_text=(
-            "Diretório onde measure grava os resumos e demais artefatos "
-            "ROM utilizados por report e consolidate."
+            'Diretório raiz dos dados de entrada, incluindo os '
+            'subdiretórios dos órgãos e os arquivos compartilhados.'
         ),
         validate=validate_non_empty_text,
         is_path=True,
     ),
     Field(
-        key="report_dir",
-        prompt="Diretório de relatórios:",
-        default="reports",
+        key='output_dir',
+        prompt='Diretório de ROMs:',
+        default='roms',
         help_text=(
-            "Diretório de destino dos relatórios individuais, arquivos "
-            "sintéticos e relatório consolidado."
+            'Diretório onde measure grava os resumos e demais artefatos '
+            'ROM utilizados por report e consolidate.'
         ),
         validate=validate_non_empty_text,
         is_path=True,
     ),
     Field(
-        key="capa_path",
-        prompt="Caminho-base da capa:",
-        default="input/capa.csv",
+        key='report_dir',
+        prompt='Diretório de relatórios:',
+        default='reports',
         help_text=(
-            "Caminho-base usado para localizar ou criar a capa de cada "
-            "órgão. A resolução final é feita pelo helper canônico de "
-            "caminhos de capa."
+            'Diretório de destino dos relatórios individuais, arquivos '
+            'sintéticos e relatório consolidado.'
+        ),
+        validate=validate_non_empty_text,
+        is_path=True,
+    ),
+    Field(
+        key='capa_path',
+        prompt='Caminho-base da capa:',
+        default='input/capa.csv',
+        help_text=(
+            'Caminho-base usado para localizar ou criar a capa de cada '
+            'órgão. A resolução final é feita pelo helper canônico de '
+            'caminhos de capa.'
         ),
         validate=validate_non_empty_text,
         is_path=True,

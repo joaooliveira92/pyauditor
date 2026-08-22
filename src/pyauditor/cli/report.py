@@ -17,17 +17,30 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from pyauditor.cli.results import WRITE_FAILURE_HINT, DependencyCheck, Status, validate_competencia
+from pyauditor.cli.results import (
+    WRITE_FAILURE_HINT,
+    DependencyCheck,
+    Status,
+    validate_competencia,
+)
 from pyauditor.engine.pipeline import discover_configs
-from pyauditor.excel.capa import DERIVED_FIELD_LABELS, EQUIPE_FIELD_LABELS, read_capa_csv_fields
+from pyauditor.excel.capa import (
+    DERIVED_FIELD_LABELS,
+    EQUIPE_FIELD_LABELS,
+    read_capa_csv_fields,
+)
 from pyauditor.excel.equipe import EQUIPE_FILENAME, read_responsaveis
-from pyauditor.excel.glosas import historico_entry, read_historico, write_historico
+from pyauditor.excel.glosas import (
+    historico_entry,
+    read_historico,
+    write_historico,
+)
 from pyauditor.excel.report import build_report, compute_report_glosa
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import format_date_br, month_bounds
 from pyauditor.rom.loading import load_summaries, read_valor_base
 
-HISTORICO_FILENAME = "glosa_historico.json"
+HISTORICO_FILENAME = 'glosa_historico.json'
 
 # Obrigatórios para publicar/assinar (ticket "02 - Criticidade dos campos da
 # capa"): ausentes → relatório vira rascunho (não-publicável), o que o código
@@ -37,20 +50,24 @@ HISTORICO_FILENAME = "glosa_historico.json"
 # (spec competencia-cli-equipe §4); restam os 4 responsáveis, fonte única
 # `equipe.csv`.
 _PUBLICATION_FIELDS: Final[tuple[str, ...]] = (
-    "Fiscal técnico",
-    "Fiscal requisitante",
-    "Fiscal administrativo",
-    "Gestor do contrato",
+    'Fiscal técnico',
+    'Fiscal requisitante',
+    'Fiscal administrativo',
+    'Gestor do contrato',
 )
 
 
-def missing_publication_fields(capa_fields: dict[str, object]) -> tuple[str, ...]:
+def missing_publication_fields(
+    capa_fields: dict[str, object],
+) -> tuple[str, ...]:
     """Campos `_PUBLICATION_FIELDS` vazios/ausentes na capa — o conjunto de
     "pendências impeditivas" que o código 3 mapeia. A Situação ≠ "Em
     preenchimento" também bloqueia publicação (ticket 02), mas não entra na
     contagem por campo: é um gate à parte avaliado pelo chamador."""
     return tuple(
-        label for label in _PUBLICATION_FIELDS if not str(capa_fields.get(label, "")).strip()
+        label
+        for label in _PUBLICATION_FIELDS
+        if not str(capa_fields.get(label, '')).strip()
     )
 
 
@@ -68,20 +85,27 @@ class ReportResult:
 
 
 def check_report_ready(
-    competencia: str, orgao: str, capa_path: Path, roms_dir: Path, data_dir: Path | None = None
+    competencia: str,
+    orgao: str,
+    capa_path: Path,
+    roms_dir: Path,
+    data_dir: Path | None = None,
 ) -> DependencyCheck:
     """`report` precisa das capas CSV (comum + por órgão) e dos ROMs de
     `measure`. `capa_path` é a capa comum (`capa.csv`); a do órgão fica ao
     lado (`capa_{orgao}.csv`)."""
     missing: list[str] = []
     if not capa_path.exists():
-        missing.append(f"capa comum ({capa_path}) — rode `pyauditor bootstrap`")
-    orgao_capa = capa_path.parent / f"capa_{orgao}.csv"
+        missing.append(f'capa comum ({capa_path}) — rode `pyauditor bootstrap`')
+    orgao_capa = capa_path.parent / f'capa_{orgao}.csv'
     if not orgao_capa.exists():
-        missing.append(f"capa de {orgao} ({orgao_capa}) — rode `pyauditor bootstrap`")
+        missing.append(
+            f'capa de {orgao} ({orgao_capa}) — rode `pyauditor bootstrap`'
+        )
     if not (roms_dir / competencia).is_dir():
         missing.append(
-            f"ROMs de {orgao}/{competencia} ({roms_dir / competencia}) — rode `pyauditor measure`"
+            f'ROMs de {orgao}/{competencia} ({roms_dir / competencia}) — rode'
+            f'`pyauditor measure`'
         )
     return DependencyCheck(satisfied=not missing, missing=tuple(missing))
 
@@ -95,15 +119,19 @@ def _load_capa_fields(
     warnings: list[str] = []
     campos: dict[str, object] = {}
 
-    orgao_capa = data_dir / f"capa_{orgao}.csv"
-    for label, path in (("comum", capa_path), ("de " + orgao, orgao_capa)):
+    orgao_capa = data_dir / f'capa_{orgao}.csv'
+    for label, path in (('comum', capa_path), ('de ' + orgao, orgao_capa)):
         if not path.exists():
-            warnings.append(f"capa {label} não encontrada em {path} — campos a preencher")
+            warnings.append(
+                f'capa {label} não encontrada em {path} — campos a preencher'
+            )
             continue
         try:
             campos.update(read_capa_csv_fields(path))
         except (OSError, ValueError) as exc:
-            warnings.append(f"falha ao ler capa {label} ({path}): {exc} — campos a preencher")
+            warnings.append(
+                f'falha ao ler capa {label} ({path}): {exc} — campos apreencher'
+            )
     return campos, warnings
 
 
@@ -118,13 +146,13 @@ def run_report(
     is_final_month: bool = False,
     data_dir: Path | None = None,
 ) -> ReportResult:
-    orgao = expected_orgao or ""
+    orgao = expected_orgao or ''
     data_dir = data_dir or capa_path.parent
 
     def _error(message: str) -> ReportResult:
         logger.error(message)
         return ReportResult(
-            status="error",
+            status='error',
             competencia=competencia,
             orgao=orgao,
             output_path=output_path,
@@ -137,23 +165,30 @@ def run_report(
     if competencia_error is not None:
         return _error(competencia_error)
 
-    # Defense-in-depth: same checker `cli_main`/the orchestrator call pre-dispatch
+    # Defense-in-depth: same checker `cli_main`/the orchestrator call
+    # pre-dispatch
     # (ticket "Dependency enforcement") — direct callers that bypass dispatch
     # (tests, future code) still get it.
     dependency_check = check_report_ready(
         competencia, orgao, capa_path, roms_dir, data_dir=data_dir
     )
     if not dependency_check.satisfied:
-        return _error("dependência não satisfeita: " + "; ".join(dependency_check.missing))
+        return _error(
+            'dependência não satisfeita: ' + '; '.join(dependency_check.missing)
+        )
 
     competencia_dir = roms_dir / competencia
     try:
         summaries = load_summaries(competencia_dir)
     except (OSError, ValueError) as exc:
-        return _error(f"falha ao ler sumários de medição em {competencia_dir}: {exc}")
+        return _error(
+            f'falha ao ler sumários de medição em {competencia_dir}: {exc}'
+        )
 
     if not summaries:
-        return _error(f"nenhum sumário de medição (.json) encontrado em {competencia_dir}")
+        return _error(
+            f'nenhum sumário de medição (.json) encontrado em {competencia_dir}'
+        )
 
     warnings: list[str] = []
     capa_fields, capa_caveat = _load_capa_fields(capa_path, orgao, data_dir)
@@ -165,9 +200,9 @@ def run_report(
     for label in (*DERIVED_FIELD_LABELS, *EQUIPE_FIELD_LABELS):
         capa_fields.pop(label, None)
     periodo = month_bounds(competencia)
-    capa_fields["Competência"] = competencia
-    capa_fields["Período inicial da aferição"] = format_date_br(periodo.inicio)
-    capa_fields["Período final da aferição"] = format_date_br(periodo.fim)
+    capa_fields['Competência'] = competencia
+    capa_fields['Período inicial da aferição'] = format_date_br(periodo.inicio)
+    capa_fields['Período final da aferição'] = format_date_br(periodo.fim)
     campos_equipe, avisos_equipe = read_responsaveis(data_dir / EQUIPE_FILENAME)
     warnings.extend(avisos_equipe)
     capa_fields.update(campos_equipe)
@@ -179,22 +214,26 @@ def run_report(
     except ValueError as exc:
         return _error(str(exc))  # Q5: malformado é FALHA (exit 1)
     except OSError as exc:
-        return _error(f"falha ao ler objetos (metric source) em {data_dir}: {exc}")
+        return _error(
+            f'falha ao ler objetos (metric source) em {data_dir}: {exc}'
+        )
     for warning in warnings:
         logger.warning(warning)
     if valor_base is None:
         log_event(
-            "glosa_nao_calculada",
-            "glosa monetária não calculada",
-            "WARNING",
+            'glosa_nao_calculada',
+            'glosa monetária não calculada',
+            'WARNING',
             orgao=orgao,
-            motivo="valor mensal ausente em objetos.csv",
+            motivo='valor mensal ausente em objetos.csv',
         )
 
     try:
         configs = discover_configs(config_dir, expected_orgao=expected_orgao)
     except (OSError, ValueError) as exc:
-        warning = f"falha ao carregar configs de {config_dir}, CADASTROS será omitido: {exc}"
+        warning = (
+            f'falhaaocarregarconfigsde{config_dir},CADASTROSseráomitido:{exc}'
+        )
         logger.warning(warning)
         warnings.append(warning)
         configs = []
@@ -203,7 +242,9 @@ def run_report(
     try:
         historico = read_historico(historico_path)
     except (OSError, json.JSONDecodeError) as exc:
-        warning = f"falha ao ler histórico de glosa em {historico_path}, rollover será 0: {exc}"
+        warning = (
+            f'falhaaolerhistóricodeglosaem{historico_path},rolloverserá0:{exc}'
+        )
         logger.warning(warning)
         warnings.append(warning)
         historico = {}
@@ -220,38 +261,59 @@ def run_report(
             historico=historico,
         )
     except OSError as exc:
-        return _error(f"falha ao escrever {output_path}: {exc} — {WRITE_FAILURE_HINT}")
+        return _error(
+            f'falha ao escrever {output_path}: {exc} — {WRITE_FAILURE_HINT}'
+        )
     except Exception as exc:  # border: never leak a raw traceback past the CLI
-        return _error(f"falha inesperada ao montar {output_path}: {exc}")
+        return _error(f'falha inesperada ao montar {output_path}: {exc}')
 
     try:
         glosa = compute_report_glosa(
-            competencia, summaries, valor_base, is_final_month=is_final_month, historico=historico
+            competencia,
+            summaries,
+            valor_base,
+            is_final_month=is_final_month,
+            historico=historico,
         )
     except Exception as exc:  # border: never leak a raw traceback past the CLI
-        return _error(f"falha inesperada ao calcular glosa de {competencia}: {exc}")
+        return _error(
+            f'falha inesperada ao calcular glosa de {competencia}: {exc}'
+        )
     historico[competencia] = historico_entry(competencia, glosa)
     try:
         write_historico(historico_path, historico)
     except OSError as exc:
         warning = (
-            f"falha ao gravar histórico de glosa em {historico_path}: {exc} — {WRITE_FAILURE_HINT}"
+            f'falha'
+            f'ao'
+            f'gravar'
+            f'histórico'
+            f'de'
+            f'glosa'
+            f'em'
+            f'{historico_path}:'
+            f'{exc}'
+            f'—'
+            f'{WRITE_FAILURE_HINT}'
         )
         logger.warning(warning)
         warnings.append(warning)
 
-    situacao = str(capa_fields.get("Situação geral da aferição", "")).strip()
-    publicable = not missing_publication_fields(capa_fields) and situacao != "Em preenchimento"
+    situacao = str(capa_fields.get('Situação geral da aferição', '')).strip()
+    publicable = (
+        not missing_publication_fields(capa_fields)
+        and situacao != 'Em preenchimento'
+    )
     log_event(
-        "report_generated",
-        f"relatório gerado: {output_path} ({len(summaries)} indicadores)",
-        "INFO",
+        'report_generated',
+        f'relatório gerado: {output_path} ({len(summaries)} indicadores)',
+        'INFO',
         orgao=orgao,
         arquivo=str(output_path),
-        status="rascunho" if not publicable else "publicavel",
+        status='rascunho' if not publicable else 'publicavel',
     )
     return ReportResult(
-        status="done",
+        status='done',
         competencia=competencia,
         orgao=orgao,
         output_path=output_path,

@@ -51,17 +51,17 @@ from pyauditor.orchestration.state import (
 )
 
 __all__: Final[tuple[str, ...]] = (
-    "GuidedAnswers",
-    "collect_answers",
-    "run_guided_flow",
-    "select_commands",
-    "show_opening",
+    'GuidedAnswers',
+    'collect_answers',
+    'run_guided_flow',
+    'select_commands',
+    'show_opening',
 )
 
-_HELP_TOKEN: Final[str] = "?"
+_HELP_TOKEN: Final[str] = '?'
 _CANCELLED_EXIT_CODE: Final[int] = 130
 
-_PRE_DISPATCH_FAILURE_PREFIX: Final[str] = "dependência não satisfeita:"
+_PRE_DISPATCH_FAILURE_PREFIX: Final[str] = 'dependência não satisfeita:'
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,7 +102,7 @@ def _ask_with_help(
         if answer == _HELP_TOKEN:
             provider.show_message(
                 help_text,
-                style="dim",
+                style='dim',
             )
             continue
 
@@ -134,29 +134,29 @@ def show_opening(provider: InteractionProvider) -> None:
     """Display the guided-flow introduction."""
     provider.show_message(
         "pyauditor: aferição guiada. Digite '?' nas perguntas de texto "
-        "para obter ajuda contextual. Ctrl+C encerra o fluxo; etapas de "
-        "processamento já registradas poderão ser retomadas.",
-        style="bold cyan",
+        'para obter ajuda contextual. Ctrl+C encerra o fluxo; etapas de '
+        'processamento já registradas poderão ser retomadas.',
+        style='bold cyan',
     )
 
 
 def _collect_field(provider: InteractionProvider, field: Field) -> str | Path:
     """Collect one declarative field through the provider."""
-    if field.key == "orgao":
+    if field.key == 'orgao':
         orgao_choice = _ask_with_help(
             provider,
             lambda: provider.ask_choice(
                 field.prompt,
                 (
-                    "MinC",
-                    "MTur",
-                    "both: MinC e MTur",
+                    'MinC',
+                    'MTur',
+                    'both: MinC e MTur',
                 ),
                 default=field.default,
             ),
             field.help_text,
         )
-        return "both" if orgao_choice.startswith("both") else orgao_choice
+        return 'both' if orgao_choice.startswith('both') else orgao_choice
 
     if field.is_path:
         return _ask_path(
@@ -189,29 +189,28 @@ def collect_answers(
     """
     while True:
         values = {
-            field.key: _collect_field(provider, field)
-            for field in fields_spec
+            field.key: _collect_field(provider, field) for field in fields_spec
         }
 
         answers = GuidedAnswers(
-            competencia=str(values["competencia"]),
-            orgao=str(values["orgao"]),
-            config_dir=Path(values["config_dir"]),
-            data_dir=Path(values["data_dir"]),
-            output_dir=Path(values["output_dir"]),
-            report_dir=Path(values["report_dir"]),
-            capa_path=Path(values["capa_path"]),
+            competencia=str(values['competencia']),
+            orgao=str(values['orgao']),
+            config_dir=Path(values['config_dir']),
+            data_dir=Path(values['data_dir']),
+            output_dir=Path(values['output_dir']),
+            report_dir=Path(values['report_dir']),
+            capa_path=Path(values['capa_path']),
         )
 
         if provider.confirm(
-            "Os dados informados estão corretos?",
+            'Os dados informados estão corretos?',
             default=True,
         ):
             return answers
 
         provider.show_message(
-            "Vamos revisar as informações.",
-            style="yellow",
+            'Vamos revisar as informações.',
+            style='yellow',
         )
 
 
@@ -225,20 +224,24 @@ def select_commands(
     user to omit upstream commands when their artifacts already exist; the
     orchestrator remains responsible for checking those dependencies.
     """
-    if orgao not in {"MinC", "MTur", "both"}:
-        raise ValueError(f"Seletor de órgão não suportado: {orgao!r}.")
+    if orgao not in {'MinC', 'MTur', 'both'}:
+        raise ValueError(f'Seletor de órgão não suportado: {orgao!r}.')
 
-    consolidate_available = orgao == "both"
+    consolidate_available = orgao == 'both'
     choices: list[tuple[str, str, bool, str | None]] = []
 
     for command in ALL_COMMANDS:
-        if command == "consolidate":
+        if command == 'consolidate':
             choices.append(
                 (
                     COMMAND_LABELS[command],
                     command,
                     consolidate_available,
-                    (None if consolidate_available else "disponível somente para both"),
+                    (
+                        None
+                        if consolidate_available
+                        else 'disponível somente para both'
+                    ),
                 )
             )
             continue
@@ -254,7 +257,7 @@ def select_commands(
 
     while True:
         selected = provider.ask_multi_choice(
-            "Selecione as etapas:",
+            'Selecione as etapas:',
             choices,
         )
 
@@ -262,8 +265,8 @@ def select_commands(
             return frozenset(selected)
 
         provider.show_message(
-            "Selecione ao menos uma etapa para iniciar a execução.",
-            style="yellow",
+            'Selecione ao menos uma etapa para iniciar a execução.',
+            style='yellow',
         )
 
 
@@ -277,7 +280,7 @@ def _is_pre_dispatch_failure(
     an explicit state field, the orchestrator's controlled dependency-message
     prefix is the canonical discriminator.
     """
-    message = entry.error_message or ""
+    message = entry.error_message or ''
     return message.startswith(_PRE_DISPATCH_FAILURE_PREFIX)
 
 
@@ -289,9 +292,9 @@ def run_guided_flow(
         return _run_guided_flow(provider)
     except InteractionCancelled:
         provider.show_message(
-            "Execução encerrada pelo usuário. Etapas de processamento já "
-            "registradas foram preservadas e poderão ser retomadas.",
-            style="yellow",
+            'Execução encerrada pelo usuário. Etapas de processamento já '
+            'registradas foram preservadas e poderão ser retomadas.',
+            style='yellow',
         )
         return _CANCELLED_EXIT_CODE
 
@@ -336,37 +339,37 @@ def _run_guided_flow(
         entry: CommandStateEntry,
     ) -> FailureDecision:
         """Ask how the orchestrator should handle a command failure."""
-        reason = entry.error_message or "falha sem mensagem disponível"
+        reason = entry.error_message or 'falha sem mensagem disponível'
         provider.show_message(
-            f"{entry.command} falhou: {reason}",
-            style="bold red",
+            f'{entry.command} falhou: {reason}',
+            style='bold red',
         )
 
         choices: tuple[str, ...]
         if _is_pre_dispatch_failure(entry):
             choices = (
-                "Ignorar esta etapa",
-                "Abortar a execução",
+                'Ignorar esta etapa',
+                'Abortar a execução',
             )
         else:
             choices = (
-                "Tentar novamente",
-                "Ignorar esta etapa",
-                "Abortar a execução",
+                'Tentar novamente',
+                'Ignorar esta etapa',
+                'Abortar a execução',
             )
 
         choice = provider.ask_choice(
-            "Como prosseguir?",
+            'Como prosseguir?',
             choices,
         )
 
-        if choice.startswith("Tentar"):
-            return "retry"
+        if choice.startswith('Tentar'):
+            return 'retry'
 
-        if choice.startswith("Ignorar"):
-            return "skip"
+        if choice.startswith('Ignorar'):
+            return 'skip'
 
-        return "abort"
+        return 'abort'
 
     run_result = execute_run(
         request,

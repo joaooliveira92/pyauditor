@@ -20,12 +20,12 @@ from pyauditor.excel.sintetico._sheets._shared import (
 from pyauditor.excel.sintetico._stats import fmt_pt_br
 
 _PRECOMPUTED_COLUMNS: Final[tuple[str, ...]] = (
-    "Categoria",
-    "Nível",
-    "Item",
-    "Resultado",
-    "Meta atingida?",
-    "Penalidade",
+    'Categoria',
+    'Nível',
+    'Item',
+    'Resultado',
+    'Meta atingida?',
+    'Penalidade',
 )
 
 
@@ -49,32 +49,43 @@ def _write_precomputed_table_sheet(
         categoria = categorias_file.categorias[categoria_key]
         nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
         for row in rows:
-            raw_value = row.get(calculation.result_column, "")
+            raw_value = row.get(calculation.result_column, '')
             if not raw_value.strip():
-                continue  # linhas vazias/placeholder (';' sobrando), sem medição
+                # linhas vazias/placeholder (';' sobrando), sem medição
+                continue
             value = parse_decimal(raw_value)
             if isnan(value):
                 continue
 
-            name = row.get(calculation.name_column, "") if calculation.name_column else ""
+            name = (
+                row.get(calculation.name_column, '')
+                if calculation.name_column
+                else ''
+            )
             resultado_display = (
-                f"{fmt_pt_br(value)}%"
+                f'{fmt_pt_br(value)}%'
                 if calculation.result_is_percent
                 else fmt_pt_br(value, decimals=0)
             )
             meta_display = (
                 meta_atingida_display(value, target_operator, target_value)
                 if calculation.result_is_percent
-                else "—"
+                else '—'
             )
             penalidade_raw = (
-                row.get(calculation.penalty_column, "") if calculation.penalty_column else ""
+                row.get(calculation.penalty_column, '')
+                if calculation.penalty_column
+                else ''
             )
             penalidade_value = (
-                parse_decimal(penalidade_raw) if penalidade_raw.strip() else float("nan")
+                parse_decimal(penalidade_raw)
+                if penalidade_raw.strip()
+                else float('nan')
             )
             penalidade_display = (
-                "—" if isnan(penalidade_value) else fmt_pt_br(penalidade_value, decimals=0)
+                '—'
+                if isnan(penalidade_value)
+                else fmt_pt_br(penalidade_value, decimals=0)
             )
 
             write_row(
@@ -82,7 +93,7 @@ def _write_precomputed_table_sheet(
                 row_idx,
                 (
                     categoria.label,
-                    nivel or "",
+                    nivel or '',
                     name,
                     resultado_display,
                     meta_display,

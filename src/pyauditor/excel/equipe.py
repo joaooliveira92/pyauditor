@@ -22,29 +22,31 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-EQUIPE_FILENAME: Final = "equipe.csv"
-EQUIPE_DELIMITER: Final = ","
-EQUIPE_ENCODING: Final = "utf-8-sig"
+EQUIPE_FILENAME: Final = 'equipe.csv'
+EQUIPE_DELIMITER: Final = ','
+EQUIPE_ENCODING: Final = 'utf-8-sig'
 
-_FUNCAO_HEADER: Final = "FUNÇÃO"
-_NOME_HEADER: Final = "NOME"
-_SIAPE_HEADER: Final = "SIAPE"
+_FUNCAO_HEADER: Final = 'FUNÇÃO'
+_NOME_HEADER: Final = 'NOME'
+_SIAPE_HEADER: Final = 'SIAPE'
 
 RESPONSAVEL_LABELS: Final[tuple[str, ...]] = (
-    "Fiscal técnico",
-    "Fiscal requisitante",
-    "Fiscal administrativo",
-    "Gestor do contrato",
+    'Fiscal técnico',
+    'Fiscal requisitante',
+    'Fiscal administrativo',
+    'Gestor do contrato',
 )
 
-_SUBSTITUTO_RE: Final = re.compile(r"\s*-?\s*substituto$")
+_SUBSTITUTO_RE: Final = re.compile(r'\s*-?\s*substituto$')
 
 
 def _normalize(texto: str) -> str:
     """Caixa/acento/espaço-insensível: 'FISCAL Técnico' ≡ 'fiscal tecnico'."""
-    decomposto = unicodedata.normalize("NFD", texto.strip().casefold())
-    sem_acento = "".join(ch for ch in decomposto if not unicodedata.combining(ch))
-    return re.sub(r"\s+", " ", sem_acento)
+    decomposto = unicodedata.normalize('NFD', texto.strip().casefold())
+    sem_acento = ''.join(
+        ch for ch in decomposto if not unicodedata.combining(ch)
+    )
+    return re.sub(r'\s+', ' ', sem_acento)
 
 
 _FUNCAO_BY_NORMALIZED: Final[dict[str, str]] = {
@@ -63,9 +65,9 @@ class Equipe:
         """Célula `Nome (SIAPE)` para um rótulo canônico; '' quando ausente."""
         par = self.membros.get(_normalize(funcao_canonica))
         if par is None:
-            return ""
+            return ''
         nome, siape = par
-        return f"{nome} ({siape})" if siape else nome
+        return f'{nome} ({siape})' if siape else nome
 
     def responsaveis_fields(self) -> dict[str, str]:
         """Rótulos canônicos presentes → célula 'Nome (SIAPE)'."""
@@ -86,15 +88,15 @@ def read_equipe(path: Path) -> Equipe:
         ValueError: malformado — cabeçalho errado, linha sem função/nome,
             função duplicada.
     """
-    with path.open(encoding=EQUIPE_ENCODING, newline="") as handle:
+    with path.open(encoding=EQUIPE_ENCODING, newline='') as handle:
         reader = csv.DictReader(handle, delimiter=EQUIPE_DELIMITER)
         if reader.fieldnames is None:
-            raise ValueError(f"{path}: CSV vazio ou sem cabeçalho")
+            raise ValueError(f'{path}: CSV vazio ou sem cabeçalho')
         fieldnames = [name.strip() for name in reader.fieldnames]
         esperado = {_FUNCAO_HEADER, _NOME_HEADER, _SIAPE_HEADER}
         if set(fieldnames) != esperado:
             raise ValueError(
-                f"{path}: cabeçalho esperado "
+                f'{path}: cabeçalho esperado '
                 f"'{','.join((_FUNCAO_HEADER, _NOME_HEADER, _SIAPE_HEADER))}'"
             )
         rows = list(reader)
@@ -102,24 +104,33 @@ def read_equipe(path: Path) -> Equipe:
     membros: dict[str, tuple[str, str]] = {}
     warnings: list[str] = []
     for row in rows:
-        funcao_raw = (row[_FUNCAO_HEADER] or "").strip()
-        nome = (row[_NOME_HEADER] or "").strip()
-        siape = (row[_SIAPE_HEADER] or "").strip()
+        funcao_raw = (row[_FUNCAO_HEADER] or '').strip()
+        nome = (row[_NOME_HEADER] or '').strip()
+        siape = (row[_SIAPE_HEADER] or '').strip()
         if not funcao_raw and not nome and not siape:
             continue  # linha em branco residual — ignora
         if not funcao_raw:
-            raise ValueError(f"{path}: linha sem função (nome {nome!r} sem FUNÇÃO)")
+            raise ValueError(
+                f'{path}: linha sem função (nome {nome!r} sem FUNÇÃO)'
+            )
         if not nome:
-            raise ValueError(f"{path}: linha sem nome para a função {funcao_raw!r}")
+            raise ValueError(
+                f'{path}: linha sem nome para a função {funcao_raw!r}'
+            )
         chave = _normalize(funcao_raw)
         if chave in membros:
-            raise ValueError(f"{path}: função duplicada: {funcao_raw!r}")
+            raise ValueError(f'{path}: função duplicada: {funcao_raw!r}')
         substituto_match = _SUBSTITUTO_RE.search(chave)
         eh_substituto = substituto_match is not None
-        base_chave = chave[: substituto_match.start()].strip() if substituto_match else chave
+        base_chave = (
+            chave[: substituto_match.start()].strip()
+            if substituto_match
+            else chave
+        )
         if not eh_substituto and base_chave not in _FUNCAO_BY_NORMALIZED:
             warnings.append(
-                f"função desconhecida {funcao_raw!r} — não mapeada para nenhum campo da capa"
+                f'função desconhecida {funcao_raw!r} — não mapeada para nenhum'
+                f'campo da capa'
             )
         membros[chave] = (nome, siape)
 
@@ -130,7 +141,9 @@ def read_equipe(path: Path) -> Equipe:
     return Equipe(membros=membros, warnings=tuple(warnings))
 
 
-def read_responsaveis(equipe_path: Path) -> tuple[dict[str, str], tuple[str, ...]]:
+def read_responsaveis(
+    equipe_path: Path,
+) -> tuple[dict[str, str], tuple[str, ...]]:
     """Conveniência para os chamadores do pipeline (`measure`/`report`/
     `consolidate`) que tratam equipe ausente/malformada como dado incompleto —
     nunca falha técnica: devolve `(campos, warnings)`, com `campos` vazio e
@@ -139,10 +152,22 @@ def read_responsaveis(equipe_path: Path) -> tuple[dict[str, str], tuple[str, ...
         equipe = read_equipe(equipe_path)
     except FileNotFoundError:
         return {}, (
-            f"equipe não encontrada em {equipe_path} — responsáveis ficam '[a preencher]' "
-            f"(rode `pyauditor bootstrap` ou crie o arquivo: {EQUIPE_FILENAME})",
+            f"equipe não encontrada em {equipe_path} — responsáveis ficam '[a"
+            f"preencher]' "
+            f'(rode'
+            f'`pyauditor'
+            f'bootstrap`'
+            f'ou'
+            f'crie'
+            f'o'
+            f'arquivo:'
+            f'{EQUIPE_FILENAME})',
         )
     except ValueError as exc:
-        return {}, (f"falha ao ler {equipe_path}: {exc} — responsáveis ficam '[a preencher]'",)
-    prefixo = f"{equipe_path.name}: "
-    return equipe.responsaveis_fields(), tuple(prefixo + w for w in equipe.warnings)
+        return {}, (
+            f"falhaaoler{equipe_path}:{exc}—responsáveisficam'[apreencher]'",
+        )
+    prefixo = f'{equipe_path.name}: '
+    return equipe.responsaveis_fields(), tuple(
+        prefixo + w for w in equipe.warnings
+    )

@@ -6,7 +6,10 @@ from __future__ import annotations
 
 from typing import Final
 
-from pyauditor.categoria_filter import GRUPO_EXECUTOR_COLUMN, compute_categoria_values
+from pyauditor.categoria_filter import (
+    GRUPO_EXECUTOR_COLUMN,
+    compute_categoria_values,
+)
 from pyauditor.config.categorias import CategoriasFile, GrupoExecutorMode
 from pyauditor.excel.inms_1_1._layout import (
     _AUDIT_REVIEW_LABEL,
@@ -17,18 +20,20 @@ from pyauditor.excel.inms_1_1._layout import (
 )
 
 _REQUIRED_COLUMNS: Final[tuple[str, ...]] = (
-    "Nº Solicitacao",
-    "Atividades",
-    "DataHoraSolicitacao",
-    "DataHoraLimite",
-    "DataHoraFim",
-    "No prazo",
-    "TecnicoExecutor",
+    'Nº Solicitacao',
+    'Atividades',
+    'DataHoraSolicitacao',
+    'DataHoraLimite',
+    'DataHoraFim',
+    'No prazo',
+    'TecnicoExecutor',
     GRUPO_EXECUTOR_COLUMN,
 )
 
+
 def has_required_columns(fieldnames: list[str]) -> bool:
     return all(column in fieldnames for column in _REQUIRED_COLUMNS)
+
 
 def _build_grupo_rows(
     categorias_file: CategoriasFile,
@@ -58,6 +63,7 @@ def _build_grupo_rows(
     # Duplicar essa validação aqui seria código morto.
     return result
 
+
 def _normalize_no_prazo(row: dict[str, str]) -> str:
     """Normaliza o campo "No prazo" do CSV bruto para exatamente "S" ou "N"
     — sem isso, variações como "s", "Sim", "N/A" ou vazio entram no
@@ -67,8 +73,8 @@ def _normalize_no_prazo(row: dict[str, str]) -> str:
     renderer ITSM reusando esse vocabulário S/N — ver nota de reuso em
     `spec.md`."""
     normalized = row[_NO_PRAZO_COLUMN].strip().upper()
-    if normalized not in {"S", "N"}:
-        num_solicitacao = row.get(_NUM_SOLICITACAO_COLUMN, "?")
+    if normalized not in {'S', 'N'}:
+        num_solicitacao = row.get(_NUM_SOLICITACAO_COLUMN, '?')
         raise ValueError(
             f"Nº Solicitação {num_solicitacao!r}: valor de 'No prazo' inválido "
             f"{row[_NO_PRAZO_COLUMN]!r} — esperado apenas 'S' ou 'N'"

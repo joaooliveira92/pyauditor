@@ -14,11 +14,11 @@ def parse_decimal(raw: str) -> float:
     ``"99,451"`` -> ``99.451``; plain ``"0"`` and dot-separated values also
     work. Returns ``nan`` for unparseable input (callers skip on ``nan``).
     """
-    value = raw.strip().replace(",", ".")
+    value = raw.strip().replace(',', '.')
     try:
         return float(value)
     except ValueError:
-        return float("nan")
+        return float('nan')
 
 
 def as_float(value: object) -> float | None:

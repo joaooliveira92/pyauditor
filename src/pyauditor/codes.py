@@ -5,7 +5,7 @@ internal key: grouping and decision-matching key on it verbatim. But the
 *displayed* form zero-pads the minor version so codes read naturally to
 humans — ``INMS 1.1`` renders as ``INMS 1.01`` while ``INMS 1.10`` and
 ``INMS 1.14`` are unchanged. Only codes shaped like ``INMS <n>.<m>`` are
-touched; anything else passes through untouched (e.g. synthetic ``"INMS TEST"``).
+touched; anything else passes through untouched (ex. ``"INMS" "TEST"``).
 
 Sorting is a separate concern (`contractual_sort_key`): the minor version is
 numeric, not lexicographic — ``INMS 1.2`` must sort before ``INMS 1.10``,
@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import re
 
-_INMS_CODE_RE: re.Pattern[str] = re.compile(r"^(INMS\s+\d+)\.(\d+)$", re.IGNORECASE)
+_INMS_CODE_RE: re.Pattern[str] = re.compile(
+    r'^(INMS\s+\d+)\.(\d+)$', re.IGNORECASE
+)
 
 
 def format_inms_code(code: str) -> str:
@@ -30,7 +32,7 @@ def format_inms_code(code: str) -> str:
     if match is None:
         return code
     whole, minor = match.groups()
-    return f"{whole}.{minor.zfill(2)}"
+    return f'{whole}.{minor.zfill(2)}'
 
 
 def contractual_sort_key(code: str) -> tuple[int, str, int, str]:
@@ -44,6 +46,6 @@ def contractual_sort_key(code: str) -> tuple[int, str, int, str]:
     """
     match = _INMS_CODE_RE.match(code)
     if match is None:
-        return (1, code, 0, "")
+        return (1, code, 0, '')
     whole, minor = match.groups()
     return (0, whole, int(minor), code)

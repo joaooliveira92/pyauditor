@@ -38,7 +38,6 @@ test = [
 ]
 
 quality = [
-    "basedpyright>=1.31",
     "ruff>=0.12",
     "types-openpyxl>=3.1.5.20260807",
     "types-pyyaml>=6.0.12.20260815",
@@ -52,24 +51,25 @@ docs = [
     "zensical>=0.0.56",
 ]
 
-[tool.basedpyright]
-typeCheckingMode = "strict"
-pythonVersion = "3.12"
+[tool.ty]
+# Perfil estrito do ty (default do ty, sem os report* "none" do basedpyright).
+# Decisões do wayfinder migracao-ty (ticket 03), com base no delta medido no
+# ticket 02 (notes/estado-ty.md):
+#   - respect-type-ignore-comments = false (Q5/a): só `# ty: ignore[<rule>]`
+#     suprime; `# type: ignore[...]` vira comentário normal.
+#   - strict-equality-semantics / strict-generic-narrowing = false (default):
+#     medido no ticket 02 — ligar custa +26 diag sem ganho (delta 0 / +26).
+#   - terminal.error-on-warning = true (default): o perfil estrito falha em
+#     qualquer warning, alinhado ao gate de CI (ticket 06).
+[tool.ty.analysis]
+respect-type-ignore-comments = false
+
+[tool.ty.src]
 include = ["src", "tests"]
 exclude = [".scratch"]
-# Ruído não-tipo: lint (unused/private) é coberto pelo Ruff; isinstance
-# defensivo é padrão deste repo; unknown em stubs de terceiros incompletos
-# (types-openpyxl) é propagação de "untyped", não erro real.
-reportPrivateUsage = "none"
-reportUnusedImport = "none"
-reportUnusedFunction = "none"
-reportUnusedVariable = "none"
-reportUnnecessaryIsInstance = "none"
-reportDeprecated = "none"
-reportUnknownLambdaType = "none"
-reportUnknownMemberType = "none"
-reportUnknownVariableType = "none"
-reportUnknownArgumentType = "none"
+
+[tool.ty.environment]
+python-version = "3.12"
 
 [tool.ruff]
 target-version = "py312"
@@ -78,6 +78,8 @@ src = ["src", "tests"]
 extend-exclude = [".scratch", ".agents"]
 
 [tool.ruff.lint]
+preview = true
+extend-select = ["ANN", "PYI"]
 select = [
     "E",
     "F",
@@ -98,7 +100,13 @@ select = [
 allowed-confusables = ["–"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101"]
+# ANN em tests: fixtures de pytest (tmp_path etc.) ficam fora do contrato de
+# anotação obrigatória, e as *spies* de test-double que repassam args usam
+# `*args: Any, **kwargs: Any` de propósito (call-through, não dívida de tipo).
+# RUF069 (preview, ligada pelo `preview = true`): asserts de teste comparam
+# valores decimais exatos e determinísticos (ex. `== 100.0`) — check de
+# invariante, não ponto-flutuante propenso a arredondamento.
+"tests/**/*.py" = ["S101", "ANN001", "ANN002", "ANN003", "ANN401", "RUF069"]
 
 [tool.ruff.format]
 # pyguide.md §3.10: escolha única de aspas, prefere `'`.

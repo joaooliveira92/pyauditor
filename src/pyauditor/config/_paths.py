@@ -11,6 +11,8 @@ from pathlib import PurePosixPath, PureWindowsPath
 def reject_unsafe_relative_path(value: str) -> str:
     for path_cls in (PurePosixPath, PureWindowsPath):
         candidate = path_cls(value)
-        if candidate.is_absolute() or ".." in candidate.parts:
-            raise ValueError(f"{value!r} must be a relative filename with no '..' segments")
+        if candidate.is_absolute() or '..' in candidate.parts:
+            raise ValueError(
+                f"{value!r} must be a relative filename with no '..' segments"
+            )
     return value

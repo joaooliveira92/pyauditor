@@ -20,8 +20,8 @@ def read_csv_verbatim(
             aba não gerada).
         ValueError: CSV vazio (sem nem cabeçalho).
     """
-    with path.open(encoding=encoding, newline="") as handle:
+    with path.open(encoding=encoding, newline='') as handle:
         rows = list(csv.reader(handle, delimiter=delimiter))
     if not rows:
-        raise ValueError(f"{path}: CSV vazio")
+        raise ValueError(f'{path}: CSV vazio')
     return rows[0], rows[1:]

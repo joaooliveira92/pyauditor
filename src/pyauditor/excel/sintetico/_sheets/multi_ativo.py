@@ -34,7 +34,9 @@ def _write_ativo_subtotals(
     labels: dict[str, str],
     accumulators: dict[str, NivelAccumulator],
 ) -> None:
-    header_cell = sheet.cell(row=start_row, column=1, value="Subtotais por Categoria")
+    header_cell = sheet.cell(
+        row=start_row, column=1, value='Subtotais por Categoria'
+    )
     header_cell.font = LABEL_FONT
     for col_idx, column in enumerate(_ATIVO_SUBTOTAL_COLUMNS, start=1):
         cell = sheet.cell(row=start_row + 1, column=col_idx, value=column)
@@ -51,7 +53,7 @@ def _write_ativo_subtotals(
         tempo_display = (
             format_duracao(acc.duracao_total_segundos / acc.duracao_contagem)
             if acc.duracao_contagem > 0
-            else "—"
+            else '—'
         )
         write_row(
             sheet,
@@ -59,14 +61,15 @@ def _write_ativo_subtotals(
             (
                 labels[categoria_key],
                 acc.linhas,
-                dentro if dentro is not None else "—",
-                fora if fora is not None else "—",
+                dentro if dentro is not None else '—',
+                fora if fora is not None else '—',
                 pct_display,
                 tempo_display,
             ),
             expected_columns=len(_ATIVO_SUBTOTAL_COLUMNS),
         )
         row_idx += 1
+
 
 def _write_multi_ativo_sheet(
     workbook: Workbook,
@@ -90,7 +93,11 @@ def _write_multi_ativo_sheet(
     # Ordem de primeira aparição no CSV (Anexo D já lista os 6 ativos numa
     # ordem fixa — File Server, Telefonia, Mensageria, etc. — preservada
     # aqui em vez de reordenar alfabeticamente).
-    ativos = list(dict.fromkeys(row[ativo_column] for row in rows if row.get(ativo_column)))
+    ativos = list(
+        dict.fromkeys(
+            row[ativo_column] for row in rows if row.get(ativo_column)
+        )
+    )
 
     ordered_entries = sorted(
         entries,
@@ -115,7 +122,7 @@ def _write_multi_ativo_sheet(
                 row_idx,
                 (
                     categoria.label,
-                    nivel or "",
+                    nivel or '',
                     ativo,
                     linhas,
                     dentro,
@@ -131,4 +138,3 @@ def _write_multi_ativo_sheet(
     if accumulators:
         order = [categoria_key for categoria_key, _entry in ordered_entries]
         _write_ativo_subtotals(sheet, row_idx + 1, order, labels, accumulators)
-

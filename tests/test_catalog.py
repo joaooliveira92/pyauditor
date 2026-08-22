@@ -23,9 +23,13 @@ def test_load_returns_mapping_and_is_cached() -> None:
 
 
 def test_catalog_item_frozen() -> None:
-    item = CatalogItem(id="E-001", categoria="X", descricao="d", referencia="r", pontos=1)
+    item = CatalogItem(
+        id='E-001', categoria='X', descricao='d', referencia='r', pontos=1
+    )
     with pytest.raises(ValidationError):
-        CatalogItem(id="E-001", categoria="X", descricao="d", referencia="r", pontos="1")  # type: ignore[arg-type]  # strict
+        CatalogItem(
+            id='E-001', categoria='X', descricao='d', referencia='r', pontos='1'
+        )  # type: ignore[arg-type]  # strict
     with pytest.raises(ValidationError):
         item.pontos = 2  # frozen
 
@@ -33,13 +37,18 @@ def test_catalog_item_frozen() -> None:
 def test_mutation_blocked() -> None:
     cat = load_anexo_e_catalog()
     with pytest.raises(TypeError):
-        cat["new"] = CatalogItem(id="new", categoria="X", descricao="d", referencia="r", pontos=1)  # type: ignore[index]
+        cat['new'] = CatalogItem(
+            id='new', categoria='X', descricao='d', referencia='r', pontos=1
+        )  # type: ignore[index]
 
 
 def test_invalid_yaml_shape_raises(tmp_path: Path) -> None:
     load_anexo_e_catalog.cache_clear()
     with (
-        patch("pyauditor.config.catalog._read_catalog_text", return_value="not_a_catalog: true"),
+        patch(
+            'pyauditor.config.catalog._read_catalog_text',
+            return_value='not_a_catalog: true',
+        ),
         pytest.raises(ValueError, match="mapping with 'items"),
     ):
         load_anexo_e_catalog()
@@ -47,10 +56,12 @@ def test_invalid_yaml_shape_raises(tmp_path: Path) -> None:
 
 def test_duplicate_id_raises() -> None:
     load_anexo_e_catalog.cache_clear()
-    item = "{id: E-001, categoria: X, descricao: d, referencia: r, pontos: 1}"
-    dup_yaml = f"items:\n  - {item}\n  - {item}\n"
+    item = '{id: E-001, categoria: X, descricao: d, referencia: r, pontos: 1}'
+    dup_yaml = f'items:\n  - {item}\n  - {item}\n'
     with (
-        patch("pyauditor.config.catalog._read_catalog_text", return_value=dup_yaml),
-        pytest.raises(ValueError, match="duplicate"),
+        patch(
+            'pyauditor.config.catalog._read_catalog_text', return_value=dup_yaml
+        ),
+        pytest.raises(ValueError, match='duplicate'),
     ):
         load_anexo_e_catalog()

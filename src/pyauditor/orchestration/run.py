@@ -52,59 +52,59 @@ from pyauditor.orchestration.state import (
 from pyauditor.periodo import PeriodoAfericao, month_bounds
 
 __all__: Final[tuple[str, ...]] = (
-    "FailureDecision",
-    "RunRequest",
-    "RunResult",
-    "dependency_missing",
-    "execute_run",
-    "isolate_on_failure",
+    'FailureDecision',
+    'RunRequest',
+    'RunResult',
+    'dependency_missing',
+    'execute_run',
+    'isolate_on_failure',
 )
 
 type CommandResult = object
 type FailureDecision = Literal[
-    "retry",
-    "skip",
-    "isolate",
-    "abort",
+    'retry',
+    'skip',
+    'isolate',
+    'abort',
 ]
 type PlanStep = tuple[str, str | None]
 type ResultKey = tuple[str, str | None]
 
 _ALL_COMMANDS: Final[frozenset[str]] = frozenset(
     {
-        "bootstrap",
-        "split",
-        "measure",
-        "report",
-        "consolidate",
+        'bootstrap',
+        'split',
+        'measure',
+        'report',
+        'consolidate',
     }
 )
 _ORGANIZATION_COMMANDS: Final[frozenset[str]] = frozenset(
     {
-        "bootstrap",
-        "split",
-        "measure",
-        "report",
+        'bootstrap',
+        'split',
+        'measure',
+        'report',
     }
 )
 _SUPPORTED_ORGAO_SELECTORS: Final[frozenset[str]] = frozenset(
     {
-        "MinC",
-        "MTur",
-        "both",
+        'MinC',
+        'MTur',
+        'both',
     }
 )
 _FAILURE_DECISIONS: Final[frozenset[str]] = frozenset(
     {
-        "retry",
-        "skip",
-        "isolate",
-        "abort",
+        'retry',
+        'skip',
+        'isolate',
+        'abort',
     }
 )
 
 _MAX_ERROR_MESSAGE_LENGTH: Final[int] = 2_000
-_DEFAULT_RUNS_DIR: Final[Path] = Path(".pyauditor/runs")
+_DEFAULT_RUNS_DIR: Final[Path] = Path('.pyauditor/runs')
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,7 +177,7 @@ def _noop_state_change(_entry: CommandStateEntry) -> None:
 
 def _abort_on_failure(_entry: CommandStateEntry) -> FailureDecision:
     """Abort after the first command failure."""
-    return "abort"
+    return 'abort'
 
 
 def isolate_on_failure(
@@ -190,7 +190,7 @@ def isolate_on_failure(
     the shared consolidation are marked ``skipped``. Commands belonging to
     another organization remain eligible to run.
     """
-    return "isolate"
+    return 'isolate'
 
 
 def _now() -> str:
@@ -210,33 +210,39 @@ def _validate_request(request: RunRequest) -> PeriodoAfericao:
             or if the competence cannot be parsed.
     """
     if not isinstance(request, RunRequest):
-        raise TypeError(f"request deve ser RunRequest, recebido {type(request).__name__}")
+        raise TypeError(
+            f'request deve ser RunRequest, recebido {type(request).__name__}'
+        )
 
     if request.orgao not in _SUPPORTED_ORGAO_SELECTORS:
         raise ValueError(
-            "orgao deve ser um de "
-            f"{sorted(_SUPPORTED_ORGAO_SELECTORS)!r}, "
-            f"recebido {request.orgao!r}"
+            'orgao deve ser um de '
+            f'{sorted(_SUPPORTED_ORGAO_SELECTORS)!r}, '
+            f'recebido {request.orgao!r}'
         )
 
     if not isinstance(request.commands, frozenset):
-        raise TypeError("commands deve ser um frozenset")
+        raise TypeError('commands deve ser um frozenset')
 
     if not isinstance(request.force_commands, frozenset):
-        raise TypeError("force_commands deve ser um frozenset")
+        raise TypeError('force_commands deve ser um frozenset')
 
     unknown_commands = request.commands - _ALL_COMMANDS
     if unknown_commands:
-        raise ValueError(f"commands contém valores não suportados: {sorted(unknown_commands)!r}")
+        raise ValueError(
+            f'commands contém valores não suportados:'
+            f'{sorted(unknown_commands)!r}'
+        )
 
     unknown_forced_commands = request.force_commands - _ALL_COMMANDS
     if unknown_forced_commands:
         raise ValueError(
-            f"force_commands contém valores não suportados: {sorted(unknown_forced_commands)!r}"
+            f'force_commands contém valores não suportados:'
+            f'{sorted(unknown_forced_commands)!r}'
         )
 
     if not request.competencia.strip():
-        raise ValueError("competencia não pode ser vazio")
+        raise ValueError('competencia não pode ser vazio')
 
     return month_bounds(request.competencia)
 
@@ -271,8 +277,8 @@ def _upsert(
         if (current.command, current.orgao) == key:
             if replaced:
                 raise ValueError(
-                    "Run state contains duplicate command entries for "
-                    f"command={entry.command!r}, orgao={entry.orgao!r}"
+                    'Run state contains duplicate command entries for '
+                    f'command={entry.command!r}, orgao={entry.orgao!r}'
                 )
 
             commands.append(entry)
@@ -293,13 +299,13 @@ def _sanitize_error_message(
 ) -> str:
     """Return a bounded, single-line message suitable for persisted state."""
     value = message or fallback
-    sanitized = " ".join(value.split())
+    sanitized = ' '.join(value.split())
 
     if not sanitized:
         sanitized = fallback
 
     if len(sanitized) > _MAX_ERROR_MESSAGE_LENGTH:
-        return sanitized[: _MAX_ERROR_MESSAGE_LENGTH - 3] + "..."
+        return sanitized[: _MAX_ERROR_MESSAGE_LENGTH - 3] + '...'
 
     return sanitized
 
@@ -310,11 +316,14 @@ def _validate_failure_decision(
     """Validate a decision returned by the failure callback."""
     if not isinstance(decision, str):
         raise TypeError(
-            f"on_failure must return a string decision, received {type(decision).__name__}"
+            f'on_failure must return a string decision, received'
+            f'{type(decision).__name__}'
         )
 
     if decision not in _FAILURE_DECISIONS:
-        raise ValueError(f"on_failure returned an unsupported decision: {decision!r}")
+        raise ValueError(
+            f'on_failure returned an unsupported decision: {decision!r}'
+        )
 
     return cast(FailureDecision, decision)
 
@@ -375,17 +384,17 @@ def _cascade_skip(
             later_command,
             later_orgao,
         )
-        if current is not None and current.status == "done":
+        if current is not None and current.status == 'done':
             continue
 
         entry = CommandStateEntry(
             command=later_command,
             orgao=later_orgao,
-            status="skipped",
+            status='skipped',
             finished_at=_now(),
             error_message=_sanitize_error_message(
                 reason,
-                fallback="etapa ignorada por falha anterior",
+                fallback='etapa ignorada por falha anterior',
             ),
         )
         skipped_steps.add(step)
@@ -488,12 +497,12 @@ def execute_run(
 
         safe_message = _sanitize_error_message(
             error_message,
-            fallback="comando terminou com erro sem mensagem",
+            fallback='comando terminou com erro sem mensagem',
         )
         error_entry = CommandStateEntry(
             command=command,
             orgao=orgao,
-            status="error",
+            status='error',
             started_at=started_at,
             finished_at=finished_at,
             error_message=safe_message,
@@ -507,11 +516,11 @@ def execute_run(
 
         decision = _validate_failure_decision(on_failure(error_entry))
 
-        if decision == "skip":
+        if decision == 'skip':
             skipped_entry = CommandStateEntry(
                 command=command,
                 orgao=orgao,
-                status="skipped",
+                status='skipped',
                 finished_at=_now(),
                 error_message=safe_message,
             )
@@ -522,7 +531,7 @@ def execute_run(
                 skipped_entry,
             )
 
-        if decision in {"skip", "isolate"}:
+        if decision in {'skip', 'isolate'}:
             state = _cascade_skip(
                 plan,
                 command,
@@ -531,7 +540,10 @@ def execute_run(
                 path,
                 on_state_change,
                 skipped_steps,
-                reason=(f"etapa dependente de {command} ({orgao or 'global'}) não executada"),
+                reason=(
+                    f'etapa dependente de {command} ({orgao or "global"}) não'
+                    f'executada'
+                ),
             )
 
         return decision
@@ -543,9 +555,9 @@ def execute_run(
             disabled_entry = CommandStateEntry(
                 command=command,
                 orgao=orgao,
-                status="skipped",
+                status='skipped',
                 finished_at=_now(),
-                error_message=("comando desabilitado para esta execução"),
+                error_message=('comando desabilitado para esta execução'),
             )
             state = _upsert(state, disabled_entry)
             save_state(path, state)
@@ -566,7 +578,7 @@ def execute_run(
         )
         stale_done = (
             current is not None
-            and current.status == "done"
+            and current.status == 'done'
             and own_artifact_missing(
                 command,
                 orgao,
@@ -577,7 +589,7 @@ def execute_run(
 
         if (
             current is not None
-            and current.status in {"done", "skipped"}
+            and current.status in {'done', 'skipped'}
             and not request.force
             and command not in request.force_commands
             and not stale_done
@@ -596,15 +608,15 @@ def execute_run(
                 decision = record_failure_and_decide(
                     command,
                     orgao,
-                    "dependência não satisfeita: " + "; ".join(missing),
+                    'dependência não satisfeita: ' + '; '.join(missing),
                     started_at=failed_at,
                     finished_at=failed_at,
                 )
 
-                if decision == "retry":
+                if decision == 'retry':
                     continue
 
-                if decision in {"skip", "isolate"}:
+                if decision in {'skip', 'isolate'}:
                     break
 
                 return finish_result()
@@ -612,7 +624,7 @@ def execute_run(
             running_entry = CommandStateEntry(
                 command=command,
                 orgao=orgao,
-                status="running",
+                status='running',
                 started_at=_now(),
             )
             state = _upsert(state, running_entry)
@@ -629,14 +641,14 @@ def execute_run(
                     request,
                     periodo,
                     already_split=(
-                        ("split", orgao) in executed_steps
-                        if command == "measure"
+                        ('split', orgao) in executed_steps
+                        if command == 'measure'
                         else False
                     ),
                 )
             except Exception as exc:
                 logger.exception(
-                    "Command %s failed for orgao %s",
+                    'Command %s failed for orgao %s',
                     command,
                     orgao,
                 )
@@ -645,30 +657,30 @@ def execute_run(
                     orgao,
                     _sanitize_error_message(
                         str(exc),
-                        fallback=(f"{type(exc).__name__} durante {command}"),
+                        fallback=(f'{type(exc).__name__} durante {command}'),
                     ),
                     started_at=(running_entry.started_at or _now()),
                     finished_at=_now(),
                 )
 
-                if decision == "retry":
+                if decision == 'retry':
                     continue
 
-                if decision in {"skip", "isolate"}:
+                if decision in {'skip', 'isolate'}:
                     break
 
                 return finish_result()
 
-            if getattr(result, "status", None) == "done":
+            if getattr(result, 'status', None) == 'done':
                 executed_steps.add(step)
 
             latest_results[_result_key(command, orgao)] = result
 
-            if getattr(result, "status", None) == "done":
+            if getattr(result, 'status', None) == 'done':
                 done_entry = CommandStateEntry(
                     command=command,
                     orgao=orgao,
-                    status="done",
+                    status='done',
                     started_at=(running_entry.started_at or _now()),
                     finished_at=_now(),
                 )
@@ -683,15 +695,15 @@ def execute_run(
             decision = record_failure_and_decide(
                 command,
                 orgao,
-                getattr(result, "error_message", None),
+                getattr(result, 'error_message', None),
                 started_at=(running_entry.started_at or _now()),
                 finished_at=_now(),
             )
 
-            if decision == "retry":
+            if decision == 'retry':
                 continue
 
-            if decision in {"skip", "isolate"}:
+            if decision in {'skip', 'isolate'}:
                 break
 
             return finish_result()

@@ -52,107 +52,107 @@ from pyauditor.rom.dedup import deduplicate_summaries
 from pyauditor.rom.summary import IndicatorSummary
 
 __all__: Final[tuple[str, ...]] = (
-    "CADASTROS_SHEET",
-    "EVIDENCIAS_SHEET",
-    "GLOSAS_SHEET",
-    "INMS_BASE_SHEET",
-    "build_report",
-    "build_report_workbook",
-    "compute_report_glosa",
+    'CADASTROS_SHEET',
+    'EVIDENCIAS_SHEET',
+    'GLOSAS_SHEET',
+    'INMS_BASE_SHEET',
+    'build_report',
+    'build_report_workbook',
+    'compute_report_glosa',
 )
 
-CADASTROS_SHEET: Final[str] = "CADASTROS"
-EVIDENCIAS_SHEET: Final[str] = "EVIDENCIAS"
-INMS_BASE_SHEET: Final[str] = "INMS_BASE"
-GLOSAS_SHEET: Final[str] = "GLOSAS"
+CADASTROS_SHEET: Final[str] = 'CADASTROS'
+EVIDENCIAS_SHEET: Final[str] = 'EVIDENCIAS'
+INMS_BASE_SHEET: Final[str] = 'INMS_BASE'
+GLOSAS_SHEET: Final[str] = 'GLOSAS'
 
 _INMS_BASE_COLUMNS: Final[tuple[str, ...]] = (
-    "Competência",
-    "Item contratual",
-    "Serviço",
-    "Grupo operacional",
-    "Código INMS",
-    "Descrição",
-    "Órgão",
-    "Meta mínima ou máxima",
-    "Sentido da meta",
-    "Numerador",
-    "Denominador",
-    "Resultado calculado",
-    "Unidade",
-    "Aplicabilidade",
-    "Resultado esperado",
-    "Conformidade",
-    "Diferença para a meta",
-    "Ocorrência de glosa",
-    "Percentual de glosa",
-    "Valor-base",
-    "Valor da glosa",
-    "Justificativa",
-    "Referência da evidência",
-    "Número SEI",
-    "Responsável pela evidência",
-    "Observação do fiscal",
+    'Competência',
+    'Item contratual',
+    'Serviço',
+    'Grupo operacional',
+    'Código INMS',
+    'Descrição',
+    'Órgão',
+    'Meta mínima ou máxima',
+    'Sentido da meta',
+    'Numerador',
+    'Denominador',
+    'Resultado calculado',
+    'Unidade',
+    'Aplicabilidade',
+    'Resultado esperado',
+    'Conformidade',
+    'Diferença para a meta',
+    'Ocorrência de glosa',
+    'Percentual de glosa',
+    'Valor-base',
+    'Valor da glosa',
+    'Justificativa',
+    'Referência da evidência',
+    'Número SEI',
+    'Responsável pela evidência',
+    'Observação do fiscal',
 )
 
 _GROUP_TAB_COLUMNS: Final[tuple[str, ...]] = (
-    "Código INMS",
-    "Descrição",
-    "Serviço",
-    "Órgão",
-    "Resultado (%)",
-    "Meta",
-    "Conformidade",
-    "Penalidade (pontos)",
+    'Código INMS',
+    'Descrição',
+    'Serviço',
+    'Órgão',
+    'Resultado (%)',
+    'Meta',
+    'Conformidade',
+    'Penalidade (pontos)',
 )
 
 _GLOSAS_COLUMNS: Final[tuple[str, ...]] = (
-    "Competência",
-    "Σ Pontos_NMS do mês",
-    "Saldo recebido do mês anterior (p.p.)",
-    "Percentual de ajuste",
-    "Valor-base",
-    "Valor da glosa",
-    "Teto atingido?",
-    "Saldo rolado para o mês seguinte (p.p.)",
-    "Reincidência (3x/6m)?",
+    'Competência',
+    'Σ Pontos_NMS do mês',
+    'Saldo recebido do mês anterior (p.p.)',
+    'Percentual de ajuste',
+    'Valor-base',
+    'Valor da glosa',
+    'Teto atingido?',
+    'Saldo rolado para o mês seguinte (p.p.)',
+    'Reincidência (3x/6m)?',
 )
 
 _CADASTROS_COLUMNS: Final[tuple[str, ...]] = (
-    "Código INMS",
-    "Descrição",
-    "Formato",
-    "Meta",
-    "Sentido",
-    "Penalidade (pontos base)",
-    "Penalidade (p.p. por descumprimento)",
+    'Código INMS',
+    'Descrição',
+    'Formato',
+    'Meta',
+    'Sentido',
+    'Penalidade (pontos base)',
+    'Penalidade (p.p. por descumprimento)',
 )
 
 _EVIDENCIAS_COLUMNS: Final[tuple[str, ...]] = (
-    "Competência",
-    "Código INMS",
-    "Tipo de evidência",
-    "Descrição",
-    "Fonte/URL",
-    "Responsável pela coleta",
-    "Data de coleta",
-    "Status",
+    'Competência',
+    'Código INMS',
+    'Tipo de evidência',
+    'Descrição',
+    'Fonte/URL',
+    'Responsável pela coleta',
+    'Data de coleta',
+    'Status',
 )
 
 _EVIDENCIAS_TIPOS: Final[tuple[str, ...]] = (
-    "Planilha original",
-    "Print de sistema",
-    "Documento SEI",
-    "E-mail de confirmação",
-    "Relatório de monitoramento",
-    "Foto/registro visual",
-    "Outro",
+    'Planilha original',
+    'Print de sistema',
+    'Documento SEI',
+    'E-mail de confirmação',
+    'Relatório de monitoramento',
+    'Foto/registro visual',
+    'Outro',
 )
 
 _EVIDENCIAS_STATUS: Final[tuple[str, ...]] = (
-    "Pendente",
-    "Coletada",
-    "Validada",
+    'Pendente',
+    'Coletada',
+    'Validada',
 )
 
 _MINIMUM_BODY_ROW: Final[int] = 2
@@ -164,7 +164,7 @@ def _sort_key(
     """Return a deterministic contractual and asset ordering key."""
     return (
         contractual_sort_key(summary.contractual_id),
-        summary.asset or "",
+        summary.asset or '',
     )
 
 
@@ -206,7 +206,7 @@ def _evidencias_row(
         None,
         None,
         None,
-        "Pendente",
+        'Pendente',
     )
 
 
@@ -227,14 +227,18 @@ def _inline_validation_formula(values: tuple[str, ...]) -> str:
             exceeds Excel's 255-character inline validation limit.
     """
     if not values:
-        raise ValueError("Data-validation values must not be empty.")
+        raise ValueError('Data-validation values must not be empty.')
 
-    if any("," in value or '"' in value for value in values):
-        raise ValueError("Inline data-validation values must not contain commas or quotes.")
+    if any(',' in value or '"' in value for value in values):
+        raise ValueError(
+            'Inline data-validation values must not contain commas or quotes.'
+        )
 
     formula = f'"{",".join(values)}"'
     if len(formula) > 255:
-        raise ValueError("Inline data-validation formula exceeds Excel's 255-character limit.")
+        raise ValueError(
+            "Inline data-validation formula exceeds Excel's 255-characterlimit."
+        )
 
     return formula
 
@@ -248,28 +252,28 @@ def _add_evidencias_validations(
         return
 
     tipo_validation = DataValidation(
-        type="list",
+        type='list',
         formula1=_inline_validation_formula(_EVIDENCIAS_TIPOS),
         allow_blank=True,
-        errorStyle="stop",
-        errorTitle="Tipo de evidência inválido",
-        error="Selecione um tipo de evidência disponível na lista.",
+        errorStyle='stop',
+        errorTitle='Tipo de evidência inválido',
+        error='Selecione um tipo de evidência disponível na lista.',
         showErrorMessage=True,
     )
     sheet.add_data_validation(tipo_validation)
-    tipo_validation.add(f"C{_MINIMUM_BODY_ROW}:C{last_row}")
+    tipo_validation.add(f'C{_MINIMUM_BODY_ROW}:C{last_row}')
 
     status_validation = DataValidation(
-        type="list",
+        type='list',
         formula1=_inline_validation_formula(_EVIDENCIAS_STATUS),
         allow_blank=False,
-        errorStyle="stop",
-        errorTitle="Status inválido",
-        error="Selecione um status disponível na lista.",
+        errorStyle='stop',
+        errorTitle='Status inválido',
+        error='Selecione um status disponível na lista.',
         showErrorMessage=True,
     )
     sheet.add_data_validation(status_validation)
-    status_validation.add(f"H{_MINIMUM_BODY_ROW}:H{last_row}")
+    status_validation.add(f'H{_MINIMUM_BODY_ROW}:H{last_row}')
 
 
 def _build_cadastros_sheet(
@@ -371,7 +375,7 @@ def _group_row(
         summary.orgao,
         round(summary.result_pct, 2),
         summary.target_value,
-        "Conforme" if summary.conforms else "Não conforme",
+        'Conforme' if summary.conforms else 'Não conforme',
         round(summary.penalty_points, 2),
     )
 
@@ -462,7 +466,9 @@ def _build_group_sheets(
     summaries: Sequence[IndicatorSummary],
 ) -> None:
     """Create every configured operational group worksheet."""
-    summaries_by_group: dict[str, list[IndicatorSummary]] = {group: [] for group in GROUP_TABS}
+    summaries_by_group: dict[str, list[IndicatorSummary]] = {
+        group: [] for group in GROUP_TABS
+    }
 
     for summary in summaries:
         group = group_for_summary(
@@ -534,10 +540,18 @@ def _build_glosas_sheet(
             round(previous_balance, 5) if previous_balance else None,
             round(glosa.percentual_ajuste, 5),
             glosa.valor_base,
-            (round(glosa.valor_da_glosa, 2) if glosa.valor_da_glosa is not None else None),
-            "S" if glosa.teto_atingido else "N",
-            (round(glosa.saldo_rolado_pct, 5) if glosa.saldo_rolado_pct else None),
-            "S" if reincidencia else "N",
+            (
+                round(glosa.valor_da_glosa, 2)
+                if glosa.valor_da_glosa is not None
+                else None
+            ),
+            'S' if glosa.teto_atingido else 'N',
+            (
+                round(glosa.saldo_rolado_pct, 5)
+                if glosa.saldo_rolado_pct
+                else None
+            ),
+            'S' if reincidencia else 'N',
         ),
     )
 

@@ -14,21 +14,21 @@ from typing import Final
 from pyauditor.orchestration.state import CommandState
 
 __all__: Final[tuple[str, ...]] = (
-    "STATE_PRESENTATION",
-    "UNKNOWN_STATE_PRESENTATION",
+    'STATE_PRESENTATION',
+    'UNKNOWN_STATE_PRESENTATION',
 )
 
 STATE_PRESENTATION: Final[dict[CommandState, tuple[str, str]]] = {
-    "pending": ("[ ]", "dim"),
-    "running": ("[>]", "cyan"),
-    "done": ("[x]", "green"),
-    "skipped": ("[~]", "yellow"),
-    "error": ("[!]", "bold red"),
+    'pending': ('[ ]', 'dim'),
+    'running': ('[>]', 'cyan'),
+    'done': ('[x]', 'green'),
+    'skipped': ('[~]', 'yellow'),
+    'error': ('[!]', 'bold red'),
 }
 
 UNKNOWN_STATE_PRESENTATION: Final[tuple[str, str]] = (
-    "[?]",
-    "bold red",
+    '[?]',
+    'bold red',
 )
 
 

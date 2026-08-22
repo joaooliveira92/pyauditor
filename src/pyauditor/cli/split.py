@@ -53,15 +53,15 @@ from pyauditor.periodo import (
 )
 
 __all__: Final[tuple[str, ...]] = (
-    "SplitCategoriaOutcome",
-    "SplitResult",
-    "check_split_ready",
-    "run_split",
+    'SplitCategoriaOutcome',
+    'SplitResult',
+    'check_split_ready',
+    'run_split',
 )
 
-_SPLIT_DIRNAME: Final[str] = "_split"
-_OUTROS_NAME: Final[str] = "outros"
-_SINTETICO_FILENAME: Final[str] = "sintetico.xlsx"
+_SPLIT_DIRNAME: Final[str] = '_split'
+_OUTROS_NAME: Final[str] = 'outros'
+_SINTETICO_FILENAME: Final[str] = 'sintetico.xlsx'
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,11 +95,16 @@ def check_split_ready(*_args: object, **_kwargs: object) -> DependencyCheck:
 
 
 def _write_filtered_csv(
-    path: Path, fieldnames: list[str], rows: list[dict[str, str]], delimiter: str
+    path: Path,
+    fieldnames: list[str],
+    rows: list[dict[str, str]],
+    delimiter: str,
 ) -> None:
     def _write(tmp_path: Path) -> None:
-        with tmp_path.open("w", encoding="utf-8", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=delimiter)
+        with tmp_path.open('w', encoding='utf-8', newline='') as handle:
+            writer = csv.DictWriter(
+                handle, fieldnames=fieldnames, delimiter=delimiter
+            )
             writer.writeheader()
             writer.writerows(rows)
 
@@ -115,30 +120,31 @@ def _derive_config(
     `datasets.yaml`). `acceptance_test` (números do dataset inteiro) não se
     aplica ao subconjunto filtrado — omitido."""
     derived_indicator = base.indicator.model_copy(
-        update={"id": f"{base.indicator.id}.{categoria_key}"}
+        update={'id': f'{base.indicator.id}.{categoria_key}'}
     )
     derived_source = Source(
         csv=csv_relpath,
         delimiter=delimiter,
-        encoding="utf-8",
+        encoding='utf-8',
         id_column=base.source.id_column,
         period_column=base.source.period_column,
     )
     return base.model_copy(
         update={
-            "indicator": derived_indicator,
-            "source": derived_source,
-            "acceptance_test": None,
+            'indicator': derived_indicator,
+            'source': derived_source,
+            'acceptance_test': None,
         }
     )
 
 
 def _write_derived_config(path: Path, config: IndicatorConfig) -> None:
-    raw = config.model_dump(mode="json", exclude_none=True)
+    raw = config.model_dump(mode='json', exclude_none=True)
 
     def _write(tmp_path: Path) -> None:
         tmp_path.write_text(
-            yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8"
+            yaml.safe_dump(raw, allow_unicode=True, sort_keys=False),
+            encoding='utf-8',
         )
 
     atomic_write(path, _write)
@@ -165,7 +171,7 @@ def run_split(
     def _error(message: str) -> SplitResult:
         logger.error(message)
         return SplitResult(
-            status="error",
+            status='error',
             competencia=competencia,
             orgao=orgao,
             categorias=(),
@@ -179,20 +185,20 @@ def run_split(
 
     # Datasets/artefatos de `split` vivem em <data-dir>/<YYYY>/<MM>, mesma
     # convenção por competência de `measure`.
-    year, month = competencia.split("-")
+    year, month = competencia.split('-')
     competencia_data_dir = data_dir / year / month
 
     # Single-source: `config_dir` pode ser `_shared` (sem categorias.yaml);
     # fallback para `config_dir.parent/<orgao>/categorias.yaml`.
-    categorias_path = config_dir / "categorias.yaml"
-    if not categorias_path.exists() and config_dir.name == "_shared":
-        fallback = config_dir.parent / expected_orgao / "categorias.yaml"
+    categorias_path = config_dir / 'categorias.yaml'
+    if not categorias_path.exists() and config_dir.name == '_shared':
+        fallback = config_dir.parent / expected_orgao / 'categorias.yaml'
         if fallback.exists():
             categorias_path = fallback
     try:
         categorias_file = load_categorias(categorias_path)
     except (OSError, ValueError) as exc:
-        return _error(f"falha ao carregar {categorias_path}: {exc}")
+        return _error(f'falha ao carregar {categorias_path}: {exc}')
 
     # Agrupa por INMS: quais categorias o reivindicam em modo grupo_executor
     # (whole_indicator não gera nenhum artefato — nem entra neste mapa).
@@ -215,13 +221,14 @@ def run_split(
             any_error = True
             continue
 
-        base_config_path = config_dir / f"{base_stem}.yaml"
+        base_config_path = config_dir / f'{base_stem}.yaml'
         try:
             base_config = load_config(base_config_path)
         except (OSError, ValueError) as exc:
             logger.error(
-                f"INMS {inms_key} ({orgao}/{competencia}): falha ao carregar config base "
-                f"{base_config_path}: {exc}"
+                f'INMS {inms_key} ({orgao}/{competencia}): falha ao carregar'
+                f'config base '
+                f'{base_config_path}: {exc}'
             )
             any_error = True
             continue
@@ -242,7 +249,7 @@ def run_split(
                 emit_period_filter_logs=False,
             )
         except (OSError, ValueError) as exc:
-            logger.error(f"INMS {inms_key} ({orgao}/{competencia}): {exc}")
+            logger.error(f'INMS {inms_key} ({orgao}/{competencia}): {exc}')
             any_error = True
             continue
 
@@ -253,8 +260,10 @@ def run_split(
 
         if GRUPO_EXECUTOR_COLUMN not in fieldnames:
             logger.error(
-                f"INMS {inms_key} ({orgao}/{competencia}): {raw_csv_path} não tem coluna "
-                f"'{GRUPO_EXECUTOR_COLUMN}' — declarado mode: grupo_executor em categorias.yaml"
+                f'INMS {inms_key} ({orgao}/{competencia}): {raw_csv_path} não'
+                f'tem coluna '
+                f"'{GRUPO_EXECUTOR_COLUMN}' — declarado mode: grupo_executor em"
+                f'categorias.yaml'
             )
             any_error = True
             continue
@@ -264,24 +273,29 @@ def run_split(
             undated_dropped = bundle.undated_dropped or 0
             if not rows and (dropped_out_of_period + undated_dropped) > 0:
                 aviso_vazio = (
-                    f"INMS {inms_key} ({orgao}/{competencia}): {empty_window_message(periodo)}"
+                    f'INMS'
+                    f'{inms_key}'
+                    f'({orgao}/{competencia}):'
+                    f'{empty_window_message(periodo)}'
                 )
                 log_event(
-                    "periodo_janela_vazia",
+                    'periodo_janela_vazia',
                     aviso_vazio,
-                    "WARNING",
+                    'WARNING',
                     orgao=orgao,
                     competencia=competencia,
                     inms=inms_key,
                     arquivo=str(raw_csv_path),
                 )
                 warnings.append(aviso_vazio)
-            info_descarte = discard_message(dropped_out_of_period, undated_dropped, strict)
+            info_descarte = discard_message(
+                dropped_out_of_period, undated_dropped, strict
+            )
             if info_descarte is not None:
                 log_event(
-                    "periodo_filtro",
-                    f"INMS {inms_key} ({orgao}/{competencia}): {info_descarte}",
-                    "INFO",
+                    'periodo_filtro',
+                    f'INMS {inms_key} ({orgao}/{competencia}): {info_descarte}',
+                    'INFO',
                     orgao=orgao,
                     competencia=competencia,
                     inms=inms_key,
@@ -303,33 +317,43 @@ def run_split(
         ):
             logger.warning(w)
             warnings.append(w)
-        per_categoria_values, outros_values = compute_categoria_values(entries, real_values)
+        per_categoria_values, outros_values = compute_categoria_values(
+            entries, real_values
+        )
 
         split_dir = competencia_data_dir / _SPLIT_DIRNAME / inms_key
 
         for categoria_key, effective_values in per_categoria_values.items():
-            filtered_rows = [row for row in rows if row[GRUPO_EXECUTOR_COLUMN] in effective_values]
-            csv_path = split_dir / f"{categoria_key}.csv"
+            filtered_rows = [
+                row
+                for row in rows
+                if row[GRUPO_EXECUTOR_COLUMN] in effective_values
+            ]
+            csv_path = split_dir / f'{categoria_key}.csv'
             if materialize:
                 try:
-                    _write_filtered_csv(csv_path, fieldnames, filtered_rows, delimiter)
+                    _write_filtered_csv(
+                        csv_path, fieldnames, filtered_rows, delimiter
+                    )
                 except OSError as exc:
-                    logger.error(f"falha ao escrever {csv_path}: {exc}")
+                    logger.error(f'falha ao escrever {csv_path}: {exc}')
                     any_error = True
                     continue
 
-            csv_relpath = f"{_SPLIT_DIRNAME}/{inms_key}/{categoria_key}.csv"
-            derived_config = _derive_config(base_config, categoria_key, csv_relpath, delimiter)
+            csv_relpath = f'{_SPLIT_DIRNAME}/{inms_key}/{categoria_key}.csv'
+            derived_config = _derive_config(
+                base_config, categoria_key, csv_relpath, delimiter
+            )
             # Single-source: derivados vivem no dir per-órgão, não em _shared
             derived_dir = config_dir
-            if config_dir.name == "_shared":
+            if config_dir.name == '_shared':
                 derived_dir = config_dir.parent / expected_orgao
-            config_path = derived_dir / f"{base_stem}.{categoria_key}.yaml"
+            config_path = derived_dir / f'{base_stem}.{categoria_key}.yaml'
             if materialize:
                 try:
                     _write_derived_config(config_path, derived_config)
                 except OSError as exc:
-                    logger.error(f"falha ao escrever {config_path}: {exc}")
+                    logger.error(f'falha ao escrever {config_path}: {exc}')
                     any_error = True
                     continue
             else:
@@ -347,13 +371,17 @@ def run_split(
                 )
             )
 
-        outros_rows = [row for row in rows if row[GRUPO_EXECUTOR_COLUMN] in outros_values]
-        outros_path = split_dir / f"{_OUTROS_NAME}.csv"
+        outros_rows = [
+            row for row in rows if row[GRUPO_EXECUTOR_COLUMN] in outros_values
+        ]
+        outros_path = split_dir / f'{_OUTROS_NAME}.csv'
         if materialize:
             try:
-                _write_filtered_csv(outros_path, fieldnames, outros_rows, delimiter)
+                _write_filtered_csv(
+                    outros_path, fieldnames, outros_rows, delimiter
+                )
             except OSError as exc:
-                logger.error(f"falha ao escrever {outros_path}: {exc}")
+                logger.error(f'falha ao escrever {outros_path}: {exc}')
                 any_error = True
                 continue
         else:
@@ -405,25 +433,27 @@ def run_split(
             if sintetico_path.exists():
                 written_sintetico_path = sintetico_path
         except OSError as exc:
-            warning = f"falha ao escrever {sintetico_path}: {exc}"
+            warning = f'falha ao escrever {sintetico_path}: {exc}'
             logger.warning(warning)
             warnings.append(warning)
 
-    message = f"{orgao or 'órgão'}: {len(outcomes)} categoria(s) processada(s)"
+    message = f'{orgao or "órgão"}: {len(outcomes)} categoria(s) processada(s)'
     if written_sintetico_path is not None:
-        message += f" | sintetico.xlsx: {written_sintetico_path}"
+        message += f' | sintetico.xlsx: {written_sintetico_path}'
     log_event(
-        "split_done",
+        'split_done',
         message,
-        "INFO",
+        'INFO',
         orgao=orgao,
         competencia=competencia,
-        status="error" if any_error else "done",
+        status='error' if any_error else 'done',
     )
 
-    error_message = "uma ou mais categorias tiveram falha em split" if any_error else None
+    error_message = (
+        'uma ou mais categorias tiveram falha em split' if any_error else None
+    )
     return SplitResult(
-        status="error" if any_error else "done",
+        status='error' if any_error else 'done',
         competencia=competencia,
         orgao=orgao,
         categorias=tuple(outcomes),

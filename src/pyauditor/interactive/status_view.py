@@ -15,8 +15,8 @@ from pyauditor.orchestration.state import CommandStateEntry
 from pyauditor.state_presentation import STATE_PRESENTATION, state_presentation
 
 __all__: Final[tuple[str, ...]] = (
-    "STATE_PRESENTATION",
-    "render_state_line",
+    'STATE_PRESENTATION',
+    'render_state_line',
 )
 
 
@@ -29,9 +29,9 @@ def render_state_line(
     render command names and organization values literally.
     """
     icon, style = state_presentation(entry.status)
-    orgao = entry.orgao or "consolidado"
+    orgao = entry.orgao or 'consolidado'
 
     return (
-        f"{icon} {entry.command} ({orgao})",
+        f'{icon} {entry.command} ({orgao})',
         style,
     )

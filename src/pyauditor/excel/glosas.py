@@ -1,4 +1,5 @@
-"""Glosa monetária: item 35 do Termo de Referência, per docs/spec/inms-pipeline.md
+"""Glosa monetária: item 35 do Termo de Referência, per
+docs/spec/inms-pipeline.md
 §12. `Ajuste_NMS(%) = min(30%, Σ Pontos_NMS x 0,001%)`, valor da glosa =
 percentual x valor-base, teto de 30% com rollover do excedente para o mês
 seguinte (exceto no último mês de vigência do contrato).
@@ -54,7 +55,11 @@ def compute_glosa(
     if teto_atingido and not is_final_month:
         saldo_rolado_pct = raw_pct - CAP_PCT
 
-    valor_da_glosa = (percentual_ajuste / 100) * valor_base if valor_base is not None else None
+    valor_da_glosa = (
+        (percentual_ajuste / 100) * valor_base
+        if valor_base is not None
+        else None
+    )
 
     return GlosaResult(
         total_points=total_points,
@@ -69,10 +74,10 @@ def compute_glosa(
 
 def competencia_anterior(competencia: str) -> str:
     """`"2026-01"` -> `"2025-12"`; `"2026-07"` -> `"2026-06"`."""
-    ano, mes = (int(parte) for parte in competencia.split("-"))
+    ano, mes = (int(parte) for parte in competencia.split('-'))
     if mes == 1:
-        return f"{ano - 1}-12"
-    return f"{ano}-{mes - 1:02d}"
+        return f'{ano - 1}-12'
+    return f'{ano}-{mes - 1:02d}'
 
 
 def janela_reincidencia(competencia: str) -> list[str]:
@@ -97,7 +102,7 @@ def saldo_anterior_pct_de(historico: Historico, competencia: str) -> float:
     entry = historico.get(competencia_anterior(competencia))
     if entry is None:
         return 0.0
-    value = entry.get("saldo_rolado_pct")
+    value = entry.get('saldo_rolado_pct')
     return float(value) if isinstance(value, int | float) else 0.0
 
 
@@ -112,7 +117,7 @@ def houve_reincidencia(
     ocorrencias = 1 if teto_atingido_mes_atual else 0
     for c in janela_reincidencia(competencia)[1:]:
         entry = historico.get(c)
-        if entry is not None and bool(entry.get("teto_atingido")):
+        if entry is not None and bool(entry.get('teto_atingido')):
             ocorrencias += 1
     return ocorrencias >= LIMITE_REINCIDENCIA
 
@@ -120,19 +125,21 @@ def houve_reincidencia(
 def read_historico(path: Path) -> Historico:
     if not path.exists():
         return {}
-    return dict(json.loads(path.read_text(encoding="utf-8")))
+    return dict(json.loads(path.read_text(encoding='utf-8')))
 
 
 def write_historico(path: Path, historico: Historico) -> None:
-    payload = json.dumps(historico, indent=2, sort_keys=True, ensure_ascii=False)
-    atomic_write(path, lambda tmp: tmp.write_text(payload, encoding="utf-8"))
+    payload = json.dumps(
+        historico, indent=2, sort_keys=True, ensure_ascii=False
+    )
+    atomic_write(path, lambda tmp: tmp.write_text(payload, encoding='utf-8'))
 
 
 def historico_entry(competencia: str, glosa: GlosaResult) -> dict[str, object]:
     return {
-        "total_points": glosa.total_points,
-        "raw_pct": glosa.raw_pct,
-        "percentual_ajuste": glosa.percentual_ajuste,
-        "teto_atingido": glosa.teto_atingido,
-        "saldo_rolado_pct": glosa.saldo_rolado_pct,
+        'total_points': glosa.total_points,
+        'raw_pct': glosa.raw_pct,
+        'percentual_ajuste': glosa.percentual_ajuste,
+        'teto_atingido': glosa.teto_atingido,
+        'saldo_rolado_pct': glosa.saldo_rolado_pct,
     }

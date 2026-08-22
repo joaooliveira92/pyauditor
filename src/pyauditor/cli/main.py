@@ -18,7 +18,11 @@ from typing import Final, NoReturn, TypeGuard, assert_never, cast
 from pyauditor.capa_paths import resolve_capa_path
 from pyauditor.cli.bootstrap import run_bootstrap
 from pyauditor.cli.consolidate import run_consolidate
-from pyauditor.cli.measure import _MeasuredIndicator, run_measure, write_combined_roms
+from pyauditor.cli.measure import (
+    _MeasuredIndicator,
+    run_measure,
+    write_combined_roms,
+)
 from pyauditor.cli.parser import (
     _CMD_BOOTSTRAP,
     _CMD_CONSOLIDATE,
@@ -32,11 +36,10 @@ from pyauditor.cli.parser import (
 )
 from pyauditor.cli.report import run_report
 from pyauditor.cli.requests import (
+    _CAPA_COMUM,
     ConsolidateRequest,
     MeasureRequest,
     ReportRequest,
-    SplitRequest,
-    _CAPA_COMUM,
     extract_capa_path,
     extract_consolidate_request,
     extract_measure_request,
@@ -55,17 +58,17 @@ from pyauditor.logging import setup_logging
 from pyauditor.periodo import PeriodoAfericao, month_bounds
 
 __all__: Final[tuple[str, ...]] = (
-    "ConsolidateRequest",
-    "MeasureRequest",
-    "ReportRequest",
-    "build_parser",
-    "cli_main",
+    'ConsolidateRequest',
+    'MeasureRequest',
+    'ReportRequest',
+    'build_parser',
+    'cli_main',
 )
 
 # Migração das capas para CSV (ticket 07): o monetário vive em `objetos.csv`.
-_OBJETOS_FILENAME: Final[str] = "objetos.csv"
+_OBJETOS_FILENAME: Final[str] = 'objetos.csv'
 
-_SINGLE_ORGAOS: Final[tuple[str, str]] = ("MinC", "MTur")
+_SINGLE_ORGAOS: Final[tuple[str, str]] = ('MinC', 'MTur')
 
 
 def _is_command(value: str) -> TypeGuard[Command]:
@@ -79,7 +82,9 @@ def _is_command(value: str) -> TypeGuard[Command]:
     )
 
 
-def _run_log_path(log_dir: Path, command: str, competencia: str | None = None) -> Path:
+def _run_log_path(
+    log_dir: Path, command: str, competencia: str | None = None
+) -> Path:
     """Timestamped per-run log file next to the command's outputs — every
     execution leaves a trace the user can consult to rastrear errors.
 
@@ -89,12 +94,12 @@ def _run_log_path(log_dir: Path, command: str, competencia: str | None = None) -
     irmãos mais antigos quando consegue extrair o padrão glob a partir desse
     placeholder — um timestamp já resolvido no nome do arquivo é invisível
     para ela, e os logs se acumulariam indefinidamente."""
-    suffix = f"-{competencia}" if competencia is not None else ""
-    return log_dir / f"pyauditor-{command}{suffix}-{{time:YYYYMMDD-HHmmss}}.log"
+    suffix = f'-{competencia}' if competencia is not None else ''
+    return log_dir / f'pyauditor-{command}{suffix}-{{time:YYYYMMDD-HHmmss}}.log'
 
 
 def _each_single_orgao(orgao: str) -> tuple[str, ...]:
-    return _SINGLE_ORGAOS if orgao == "both" else (orgao,)
+    return _SINGLE_ORGAOS if orgao == 'both' else (orgao,)
 
 
 def _dispatch_measure(args: argparse.Namespace) -> int:
@@ -142,10 +147,12 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
             )
         )
         per_orgao[orgao] = collect
-    if request.orgao == "both":
+    if request.orgao == 'both':
         # Single markdown per indicator covering both orgãos, alongside the
         # per-orgão ROMs (roms/MinC/..., roms/MTur/...).
-        write_combined_roms(per_orgao, request.competencia, request.output_dir, periodo=periodo)
+        write_combined_roms(
+            per_orgao, request.competencia, request.output_dir, periodo=periodo
+        )
     return exit_code_for_results(measure_results)
 
 
@@ -156,9 +163,10 @@ def _dispatch_split(args: argparse.Namespace) -> int:
     if (msg := validate_competencia(request.competencia)) is not None:
         print(msg, file=sys.stderr)
         return 2
-    # Log fica junto dos artefatos _split (issue 11), não em data_dir/<orgao>/<competencia>
+    # Log fica junto dos artefatos _split (issue 11), não em
+    # data_dir/<orgao>/<competencia>
     # e sem pasta órfã "both"
-    year, month = request.competencia.split("-")
+    year, month = request.competencia.split('-')
     periodo: PeriodoAfericao = month_bounds(request.competencia)
     prazos_path = request.data_dir / PRAZOS_FILENAME
     capa_path = request.data_dir / _CAPA_COMUM
@@ -169,7 +177,7 @@ def _dispatch_split(args: argparse.Namespace) -> int:
         # setup por órgão dentro do loop para evitar pasta both/ órfã
         setup_logging(
             log_path=_run_log_path(
-                request.data_dir / orgao / year / month / "_split",
+                request.data_dir / orgao / year / month / '_split',
                 _CMD_SPLIT,
                 request.competencia,
             ),
@@ -203,9 +211,9 @@ def _dispatch_split(args: argparse.Namespace) -> int:
 
 
 def _dispatch_bootstrap(args: argparse.Namespace) -> int:
-    data_dir = require(args, "data_dir", Path)
+    data_dir = require(args, 'data_dir', Path)
     capa_path = extract_capa_path(args, data_dir=data_dir)
-    orgao = require(args, "orgao", str)
+    orgao = require(args, 'orgao', str)
     # bootstrap não tem competencia, nada a validar previamente
     bootstrap_results = []
     for single_orgao in _each_single_orgao(orgao):
@@ -227,7 +235,9 @@ def _dispatch_report(args: argparse.Namespace) -> int:
         return 2
     setup_logging(
         log_path=_run_log_path(
-            report_request.output_path.parent, _CMD_REPORT, report_request.competencia
+            report_request.output_path.parent,
+            _CMD_REPORT,
+            report_request.competencia,
         ),
         **logging_kwargs(args),
     )
@@ -235,7 +245,7 @@ def _dispatch_report(args: argparse.Namespace) -> int:
     for orgao in _each_single_orgao(report_request.orgao):
         output_path = (
             report_request.output_path.parent
-            / f"relatorio_{report_request.competencia}_{orgao}.xlsx"
+            / f'relatorio_{report_request.competencia}_{orgao}.xlsx'
         )
         paths = per_orgao_paths(
             config_dir=report_request.config_dir,
@@ -264,7 +274,9 @@ def _dispatch_consolidate(args: argparse.Namespace) -> int:
     from pyauditor.cli.results import validate_competencia
 
     consolidate_request = extract_consolidate_request(args)
-    if (msg := validate_competencia(consolidate_request.competencia)) is not None:
+    if (
+        msg := validate_competencia(consolidate_request.competencia)
+    ) is not None:
         print(msg, file=sys.stderr)
         return 2
     setup_logging(
@@ -291,30 +303,32 @@ def _dispatch_consolidate(args: argparse.Namespace) -> int:
 def _dispatch_run(args: argparse.Namespace) -> int:
     from pyauditor.cli.results import validate_competencia
 
-    competencia = require(args, "competencia", str)
+    competencia = require(args, 'competencia', str)
     if (msg := validate_competencia(competencia)) is not None:
         print(msg, file=sys.stderr)
         return 2
-    orgao = require(args, "orgao", str)
-    output_dir = require(args, "output_dir", Path)
-    report_dir = require(args, "report_dir", Path)
+    orgao = require(args, 'orgao', str)
+    output_dir = require(args, 'output_dir', Path)
+    report_dir = require(args, 'report_dir', Path)
     setup_logging(
         log_path=_run_log_path(report_dir, _CMD_RUN, competencia),
         **logging_kwargs(args),
     )
-    output_raw = require(args, "output", str)
+    output_raw = require(args, 'output', str)
     return run_run(
         competencia=competencia,
         orgao=orgao,
-        config_dir=require(args, "config_dir", Path),
-        data_dir=require(args, "data_dir", Path),
+        config_dir=require(args, 'config_dir', Path),
+        data_dir=require(args, 'data_dir', Path),
         output_dir=output_dir,
         report_dir=report_dir,
-        capa_path=extract_capa_path(args, data_dir=require(args, "data_dir", Path)),
-        final_month=bool(cast(object, getattr(args, "final_month", False))),
-        output="json" if output_raw == "json" else "text",
-        force=bool(cast(object, getattr(args, "force", False))),
-        strict=bool(cast(object, getattr(args, "strict", False))),
+        capa_path=extract_capa_path(
+            args, data_dir=require(args, 'data_dir', Path)
+        ),
+        final_month=bool(cast(object, getattr(args, 'final_month', False))),
+        output='json' if output_raw == 'json' else 'text',
+        force=bool(cast(object, getattr(args, 'force', False))),
+        strict=bool(cast(object, getattr(args, 'strict', False))),
     )
 
 
@@ -327,12 +341,14 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
         # missing required args still falls through to argparse's normal error.
         if not sys.stdin.isatty():
             print(
-                "nenhum terminal detectado — use um subcomando diretamente, "
-                "ex.: `pyauditor measure 2026-06`",
+                'nenhum terminal detectado — use um subcomando diretamente, '
+                'ex.: `pyauditor measure 2026-06`',
                 file=sys.stderr,
             )
             return 2
-        from pyauditor.interactive import run_interactive  # local: TTY-gated import
+        from pyauditor.interactive import (
+            run_interactive,
+        )  # local: TTY-gated import
 
         return run_interactive()
 
@@ -340,12 +356,12 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(effective_argv)
 
     # Boundary: Namespace.command is Any -> object -> str
-    command_raw: object = cast(object, getattr(args, "command", None))
+    command_raw: object = cast(object, getattr(args, 'command', None))
     if not isinstance(command_raw, str):
-        parser.error("comando ausente")
+        parser.error('comando ausente')
 
     if not _is_command(command_raw):
-        parser.error(f"comando desconhecido: {command_raw}")
+        parser.error(f'comando desconhecido: {command_raw}')
 
     # Now narrowed to Command for exhaustive check
     command: Command = command_raw
@@ -370,5 +386,5 @@ def _main() -> NoReturn:
     sys.exit(cli_main())
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     _main()

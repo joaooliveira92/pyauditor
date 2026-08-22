@@ -11,21 +11,27 @@ from pathlib import Path
 from typing import Annotated, Final, Literal, Self
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    model_validator,
+)
 
 __all__: Final[tuple[str, ...]] = (
-    "CategoriaConfig",
-    "CategoriaGrupoExecutor",
-    "CategoriasFile",
-    "GrupoExecutorMode",
-    "WholeIndicatorMode",
-    "load_categorias",
+    'CategoriaConfig',
+    'CategoriaGrupoExecutor',
+    'CategoriasFile',
+    'GrupoExecutorMode',
+    'WholeIndicatorMode',
+    'load_categorias',
 )
 
 _StrictFrozen: Final[ConfigDict] = ConfigDict(
     frozen=True,
     strict=True,
-    extra="forbid",
+    extra='forbid',
     str_strip_whitespace=True,
 )
 
@@ -36,20 +42,21 @@ class GrupoExecutorMode(BaseModel):
     not here)."""
 
     model_config = _StrictFrozen
-    mode: Literal["grupo_executor"]
+    mode: Literal['grupo_executor']
     # Bare list[str], not `ColumnIn` (models.py) — the YAML has no `column:`
     # key, `split` (ticket 03) supplies `column="Grupo_executor"` itself when
     # building the `ColumnIn` it actually filters rows with.
     in_values: list[str] | None = Field(default=None, min_length=1)
     catch_all_contains: str | None = Field(default=None, min_length=1)
 
-    @model_validator(mode="after")
+    @model_validator(mode='after')
     def _check_exactly_one_filter(self) -> Self:
         has_in_values = self.in_values is not None
         has_catch_all = self.catch_all_contains is not None
         if has_in_values == has_catch_all:
             raise ValueError(
-                "grupo_executor mode requires exactly one of 'in_values', 'catch_all_contains'"
+                "grupo_executor mode requires exactly one of 'in_values', "
+                "'catch_all_contains'"
             )
         return self
 
@@ -58,11 +65,11 @@ class WholeIndicatorMode(BaseModel):
     """A `mode: whole_indicator` entry — no filter, skips `split` entirely."""
 
     model_config = _StrictFrozen
-    mode: Literal["whole_indicator"]
+    mode: Literal['whole_indicator']
 
 
 type CategoriaGrupoExecutor = Annotated[
-    GrupoExecutorMode | WholeIndicatorMode, Field(discriminator="mode")
+    GrupoExecutorMode | WholeIndicatorMode, Field(discriminator='mode')
 ]
 
 
@@ -80,15 +87,15 @@ class CategoriasFile(BaseModel):
 
 
 def _load_raw(path: Path) -> CategoriasFile:
-    text = path.read_text(encoding="utf-8")
+    text = path.read_text(encoding='utf-8')
     try:
         raw = yaml.safe_load(text)
     except yaml.YAMLError as exc:
-        raise ValueError(f"malformed YAML in {path}: {exc}") from exc
+        raise ValueError(f'malformed YAML in {path}: {exc}') from exc
     try:
         return CategoriasFile.model_validate(raw)
     except ValidationError as exc:
-        raise ValueError(f"invalid categorias file {path}: {exc}") from exc
+        raise ValueError(f'invalid categorias file {path}: {exc}') from exc
 
 
 # Unbounded (vs. manifest.py's maxsize=1): one categorias.yaml per orgao,

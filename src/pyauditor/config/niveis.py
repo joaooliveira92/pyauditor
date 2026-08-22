@@ -12,13 +12,13 @@ from __future__ import annotations
 
 from typing import Final
 
-__all__: Final[tuple[str, ...]] = ("NIVEL_BY_CATEGORIA", "NIVEL_ORDER")
+__all__: Final[tuple[str, ...]] = ('NIVEL_BY_CATEGORIA', 'NIVEL_ORDER')
 
-NIVEL_ORDER: Final[tuple[str, ...]] = ("N1", "N2", "N3")
+NIVEL_ORDER: Final[tuple[str, ...]] = ('N1', 'N2', 'N3')
 
 NIVEL_BY_CATEGORIA: Final[dict[str, str]] = {
-    "ATENDIMENTO_N1": "N1",
-    "ATENDIMENTO_N2": "N2",
-    "OPERACAO_N3": "N3",
-    "MONITORAMENTO_NOC_SOC": "N3",
+    'ATENDIMENTO_N1': 'N1',
+    'ATENDIMENTO_N2': 'N2',
+    'OPERACAO_N3': 'N3',
+    'MONITORAMENTO_NOC_SOC': 'N3',
 }

@@ -40,10 +40,17 @@ def penalty_interpretation(
     """
     if config.penalty is None or calculation.penalty_points <= 0:
         return None
-    assert config.target is not None  # `penalty` sempre acompanha `target` p/ ratio
+    if config.target is None:
+        raise ValueError(
+            'penalty config sem `target` — `penalty` sempre acompanha '
+            '`target` p/ ratio'
+        )
 
     deficit = max(
-        shortfall(calculation.result_pct, config.target.operator, config.target.value), 0.0
+        shortfall(
+            calculation.result_pct, config.target.operator, config.target.value
+        ),
+        0.0,
     )
     steps = deficit / config.penalty.step_size_pct
     base = config.penalty.base_points

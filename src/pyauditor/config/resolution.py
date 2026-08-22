@@ -25,15 +25,15 @@ from typing import Final
 from pyauditor.config.manifest import DatasetManifest, load_manifest
 
 __all__: Final[tuple[str, ...]] = (
-    "PerOrgaoPaths",
-    "load_manifest_for",
-    "per_orgao_paths",
-    "resolve_config_dir",
-    "resolve_manifest_path",
+    'PerOrgaoPaths',
+    'load_manifest_for',
+    'per_orgao_paths',
+    'resolve_config_dir',
+    'resolve_manifest_path',
 )
 
-_MANIFEST_FILENAME: Final[str] = "datasets.yaml"
-_SHARED_DIRNAME: Final[str] = "_shared"
+_MANIFEST_FILENAME: Final[str] = 'datasets.yaml'
+_SHARED_DIRNAME: Final[str] = '_shared'
 
 
 def resolve_config_dir(base: Path, orgao: str) -> Path:

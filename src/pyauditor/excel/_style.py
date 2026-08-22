@@ -24,46 +24,46 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.worksheet.worksheet import Worksheet
 
 __all__: Final[tuple[str, ...]] = (
-    "BODY_FONT",
-    "BOTTOM_BORDER",
-    "HEADER_FILL",
-    "HEADER_FONT",
-    "LABEL_FONT",
-    "LEFT_ALIGN",
-    "TITLE_FONT",
-    "UNIT_BY_SHAPE",
-    "CellValue",
-    "new_sheet",
-    "write_row",
+    'BODY_FONT',
+    'BOTTOM_BORDER',
+    'HEADER_FILL',
+    'HEADER_FONT',
+    'LABEL_FONT',
+    'LEFT_ALIGN',
+    'TITLE_FONT',
+    'UNIT_BY_SHAPE',
+    'CellValue',
+    'new_sheet',
+    'write_row',
 )
 
-TITLE_FONT: Final = Font(name="Arial", size=14, bold=True)
-LABEL_FONT: Final = Font(name="Arial", size=10, bold=True)
-BODY_FONT: Final = Font(name="Arial", size=10)
+TITLE_FONT: Final = Font(name='Arial', size=14, bold=True)
+LABEL_FONT: Final = Font(name='Arial', size=10, bold=True)
+BODY_FONT: Final = Font(name='Arial', size=10)
 HEADER_FONT: Final = Font(
-    name="Arial",
+    name='Arial',
     size=10,
     bold=True,
-    color="FFFFFFFF",
+    color='FFFFFFFF',
 )
 HEADER_FILL: Final = PatternFill(
-    start_color="FF1F2937",
-    end_color="FF1F2937",
-    fill_type="solid",
+    start_color='FF1F2937',
+    end_color='FF1F2937',
+    fill_type='solid',
 )
 BOTTOM_BORDER: Final = Border(
-    bottom=Side(style="thin", color="FFD1D5DB"),
+    bottom=Side(style='thin', color='FFD1D5DB'),
 )
-LEFT_ALIGN: Final = Alignment(horizontal="left")
+LEFT_ALIGN: Final = Alignment(horizontal='left')
 
 type CellValue = str | float | int | None
 
 UNIT_BY_SHAPE: Final[Mapping[str, str]] = MappingProxyType(
     {
-        "ratio": "%",
-        "segmented_ratio": "%",
-        "count_difference": "unidades",
-        "external_catalog_sum": "pontos",
+        'ratio': '%',
+        'segmented_ratio': '%',
+        'count_difference': 'unidades',
+        'external_catalog_sum': 'pontos',
     }
 )
 
@@ -101,23 +101,29 @@ def new_sheet(
         count even when the file ends a row with an empty cell.
     """
     if not name.strip():
-        raise ValueError("Nome da planilha não pode ser vazio.")
+        raise ValueError('Nome da planilha não pode ser vazio.')
 
     if name in workbook.sheetnames:
-        raise ValueError(f"Planilha já existe: {name!r}.")
+        raise ValueError(f'Planilha já existe: {name!r}.')
 
     if not columns:
-        raise ValueError("Planilha deve declarar pelo menos uma coluna.")
+        raise ValueError('Planilha deve declarar pelo menos uma coluna.')
 
     meaningful_columns = list(columns)
     while meaningful_columns and not meaningful_columns[-1].strip():
         meaningful_columns.pop()
 
-    if not meaningful_columns or any(not column.strip() for column in meaningful_columns):
-        raise ValueError("Cabeçalhos de coluna da planilha não podem ser vazios.")
+    if not meaningful_columns or any(
+        not column.strip() for column in meaningful_columns
+    ):
+        raise ValueError(
+            'Cabeçalhos de coluna da planilha não podem ser vazios.'
+        )
 
     if isinstance(width, bool) or width <= 0:
-        raise ValueError("Largura de coluna da planilha deve ser um inteiro positivo.")
+        raise ValueError(
+            'Largura de coluna da planilha deve ser um inteiro positivo.'
+        )
 
     sheet: Worksheet = workbook.create_sheet(title=name)
     sheet.sheet_view.showGridLines = False
@@ -129,7 +135,7 @@ def new_sheet(
         cell.alignment = LEFT_ALIGN
         sheet.column_dimensions[cell.column_letter].width = width
 
-    sheet.freeze_panes = "A2"
+    sheet.freeze_panes = 'A2'
     return sheet
 
 
@@ -162,14 +168,16 @@ def write_row(
             count.
     """
     if isinstance(row_idx, bool) or row_idx < 2:
-        raise ValueError("Índice de linha do corpo deve ser um inteiro maior que 1.")
+        raise ValueError(
+            'Índice de linha do corpo deve ser um inteiro maior que 1.'
+        )
 
     if expected_columns is None:
         expected_columns = sheet.max_column
     if len(values) != expected_columns:
         raise ValueError(
-            "Quantidade de valores não confere com o esquema da planilha: "
-            f"esperado {expected_columns}, recebido {len(values)}."
+            'Quantidade de valores não confere com o esquema da planilha: '
+            f'esperado {expected_columns}, recebido {len(values)}.'
         )
 
     for column_index, value in enumerate(values, start=1):

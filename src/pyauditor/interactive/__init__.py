@@ -6,7 +6,7 @@ from __future__ import annotations
 from pyauditor.interactive.flow import run_guided_flow
 from pyauditor.interactive.provider import RichQuestionaryProvider
 
-__all__ = ("run_interactive",)
+__all__ = ('run_interactive',)
 
 
 def run_interactive() -> int:

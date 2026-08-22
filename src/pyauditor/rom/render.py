@@ -18,12 +18,14 @@ from pyauditor.engine.strategies import penalty_interpretation
 from pyauditor.engine.strategies.base import CalculationResult
 from pyauditor.periodo import PeriodoAfericao, format_period_br
 
-_CAPA_PLACEHOLDER = "[a preencher]"
+_CAPA_PLACEHOLDER = '[a preencher]'
 
 
 def _require_list(value: object, *, field: str) -> list[Any]:
     if not isinstance(value, list):
-        raise TypeError(f"memoria[{field!r}] deveria ser list, veio {type(value).__name__}")
+        raise TypeError(
+            f'memoria[{field!r}] deveria ser list, veio {type(value).__name__}'
+        )
     return value
 
 
@@ -32,82 +34,92 @@ def _md_cell(value: object) -> str:
     `|` or embedded newline from CSV-derived data would otherwise silently
     shift the table's column alignment in what's meant to be a formal,
     auditable record."""
-    return str(value).replace("|", "\\|").replace("\n", " ")
+    return str(value).replace('|', '\\|').replace('\n', ' ')
 
 
 def render_ratio_memoria(calculation: CalculationResult) -> str:
-    numerator = calculation.memoria["numerator"]
-    denominator = calculation.memoria["denominator"]
+    numerator = calculation.memoria['numerator']
+    denominator = calculation.memoria['denominator']
     return (
-        f"- Numerador: {numerator}\n- Denominador: {denominator}\n"
-        f"- Resultado: {calculation.result_pct:.2f}%"
+        f'- Numerador: {numerator}\n- Denominador: {denominator}\n'
+        f'- Resultado: {calculation.result_pct:.2f}%'
     )
 
 
 def render_segmented_ratio_memoria(calculation: CalculationResult) -> str:
-    categories = _require_list(calculation.memoria["categories"], field="categories")
+    categories = _require_list(
+        calculation.memoria['categories'], field='categories'
+    )
     lines = [
-        f"| {_md_cell(c['name'])} | {c['numerator']} | {c['denominator']} | "
-        f"{c['result_pct']:.2f}% | {c['penalty_points']:.2f} |"
+        f'| {_md_cell(c["name"])} | {c["numerator"]} | {c["denominator"]} | '
+        f'{c["result_pct"]:.2f}% | {c["penalty_points"]:.2f} |'
         for c in categories
     ]
-    table = "\n".join(lines)
+    table = '\n'.join(lines)
     return (
-        "| Categoria | Numerador | Denominador | Resultado | Penalidade |\n"
-        "|---|---|---|---|---|\n"
-        f"{table}\n\n"
-        f"- Soma das penalidades: {calculation.penalty_points:.2f} pontos"
+        '| Categoria | Numerador | Denominador | Resultado | Penalidade |\n'
+        '|---|---|---|---|---|\n'
+        f'{table}\n\n'
+        f'- Soma das penalidades: {calculation.penalty_points:.2f} pontos'
     )
 
 
 def render_count_difference_memoria(calculation: CalculationResult) -> str:
-    qrc = calculation.memoria["QRC"]
-    qcsi = calculation.memoria["QCSI"]
-    cni = calculation.memoria["CNI"]
-    return f"- QRC (recomendados): {qrc}\n- QCSI (implantados): {qcsi}\n- CNI = QRC - QCSI = {cni}"
+    qrc = calculation.memoria['QRC']
+    qcsi = calculation.memoria['QCSI']
+    cni = calculation.memoria['CNI']
+    return (
+        f'- QRC (recomendados): {qrc}\n- QCSI (implantados): {qcsi}\n- CNI ='
+        f' QRC - QCSI = {cni}'
+    )
 
 
 def render_external_catalog_sum_memoria(calculation: CalculationResult) -> str:
-    occurrences = _require_list(calculation.memoria["occurrences"], field="occurrences")
+    occurrences = _require_list(
+        calculation.memoria['occurrences'], field='occurrences'
+    )
     if not occurrences:
-        rows_markdown = "| — | — | nenhuma ocorrência | — |"
+        rows_markdown = '| — | — | nenhuma ocorrência | — |'
     else:
-        rows_markdown = "\n".join(
-            f"| {_md_cell(o['occurrence_id'])} | {_md_cell(o['catalog_id'])} | "
-            f"{_md_cell(o['descricao'])} | {o['pontos']} |"
+        rows_markdown = '\n'.join(
+            f'| {_md_cell(o["occurrence_id"])} | {_md_cell(o["catalog_id"])} | '
+            f'{_md_cell(o["descricao"])} | {o["pontos"]} |'
             for o in occurrences
         )
     return (
-        "| Ocorrência | Item Anexo E | Descrição | Pontos |\n"
-        "|---|---|---|---|\n"
-        f"{rows_markdown}\n\n"
-        f"- Σ Pontos_NMS = {calculation.memoria['total_points']}"
+        '| Ocorrência | Item Anexo E | Descrição | Pontos |\n'
+        '|---|---|---|---|\n'
+        f'{rows_markdown}\n\n'
+        f'- Σ Pontos_NMS = {calculation.memoria["total_points"]}'
     )
 
 
 def render_precomputed_table_memoria(calculation: CalculationResult) -> str:
-    categories = _require_list(calculation.memoria["categories"], field="categories")
+    categories = _require_list(
+        calculation.memoria['categories'], field='categories'
+    )
     if not categories:
-        rows_markdown = "| — | — | nenhuma linha |"
+        rows_markdown = '| — | — | nenhuma linha |'
     else:
-        rows_markdown = "\n".join(
-            f"| {_md_cell(c['name'])} | {c['result_pct']:.2f}% | {c['penalty_points']:.2f} |"
+        rows_markdown = '\n'.join(
+            f'| {_md_cell(c["name"])} | {c["result_pct"]:.2f}% |'
+            f' {c["penalty_points"]:.2f} |'
             for c in categories
         )
     return (
-        "| Ativo | Resultado | Penalidade |\n"
-        "|---|---|---|\n"
-        f"{rows_markdown}\n\n"
-        f"- Soma das penalidades: {calculation.penalty_points:.2f} pontos"
+        '| Ativo | Resultado | Penalidade |\n'
+        '|---|---|---|\n'
+        f'{rows_markdown}\n\n'
+        f'- Soma das penalidades: {calculation.penalty_points:.2f} pontos'
     )
 
 
 _MEMORIA_RENDERERS: dict[str, Callable[[CalculationResult], str]] = {
-    "ratio": render_ratio_memoria,
-    "segmented_ratio": render_segmented_ratio_memoria,
-    "count_difference": render_count_difference_memoria,
-    "external_catalog_sum": render_external_catalog_sum_memoria,
-    "precomputed_table": render_precomputed_table_memoria,
+    'ratio': render_ratio_memoria,
+    'segmented_ratio': render_segmented_ratio_memoria,
+    'count_difference': render_count_difference_memoria,
+    'external_catalog_sum': render_external_catalog_sum_memoria,
+    'precomputed_table': render_precomputed_table_memoria,
 }
 
 
@@ -116,53 +128,60 @@ def _rom_title(config: IndicatorConfig) -> str:
     formatado + sufixo de `asset` quando houver."""
     titulo = format_inms_code(config.indicator.contractual_id)
     if config.indicator.asset is not None:
-        titulo += f" — {config.indicator.asset}"
+        titulo += f' — {config.indicator.asset}'
     return titulo
 
 
 def _capa_value(capa_fields: dict[str, object], label: str) -> str:
     value = capa_fields.get(label)
-    if value in (None, ""):
+    if value in (None, ''):
         return _CAPA_PLACEHOLDER
     # Free-text capa field — strip embedded newlines so it can't fake a
     # heading/bullet in the rendered Markdown.
-    return str(value).replace("\n", " ")
+    return str(value).replace('\n', ' ')
 
 
 def _render_identificacao(
     config: IndicatorConfig,
     provenance: MeasurementProvenance,
-    h: str = "##",
+    h: str = '##',
     *,
-    competencia: str = "",
+    competencia: str = '',
     periodo: PeriodoAfericao | None = None,
 ) -> str:
     """Competência/Período vêm exclusivamente dos argumentos da CLI (spec
     competencia-cli-equipe §5) — nunca da capa. Sem período (chamador
     legado), placeholder."""
-    periodo_texto = format_period_br(periodo) if periodo is not None else _CAPA_PLACEHOLDER
+    periodo_texto = (
+        format_period_br(periodo) if periodo is not None else _CAPA_PLACEHOLDER
+    )
     return (
-        f"{h} Identificação\n"
-        f"- Contrato: {config.scope.contract}\n"
-        f"- Órgão: {config.scope.orgao}\n"
-        f"- Competência: {competencia or _CAPA_PLACEHOLDER}\n"
-        f"- Período da aferição: {periodo_texto}\n"
-        f"- Data de processamento: {provenance.processed_at.isoformat(timespec='seconds')}\n"
-        f"- Versão do pipeline: {provenance.pipeline_version}\n"
-        f"- Versão da configuração: {provenance.config_hash or '[indisponível]'}\n"
-        f"- Arquivo de origem: {provenance.csv_path.name} "
-        f"(SHA-256: {provenance.csv_hash}, delimitador `{provenance.delimiter}`, "
-        f"codificação {provenance.encoding})"
+        f'{h} Identificação\n'
+        f'- Contrato: {config.scope.contract}\n'
+        f'- Órgão: {config.scope.orgao}\n'
+        f'- Competência: {competencia or _CAPA_PLACEHOLDER}\n'
+        f'- Período da aferição: {periodo_texto}\n'
+        f'- Data de processamento:'
+        f' {provenance.processed_at.isoformat(timespec="seconds")}\n'
+        f'- Versão do pipeline: {provenance.pipeline_version}\n'
+        f'- Versão da configuração:'
+        f' {provenance.config_hash or "[indisponível]"}\n'
+        f'- Arquivo de origem: {provenance.csv_path.name} '
+        f'(SHA-256: {provenance.csv_hash}, delimitador'
+        f' `{provenance.delimiter}`, '
+        f'codificação {provenance.encoding})'
     )
 
 
-def _render_responsaveis(capa_fields: dict[str, object], h: str = "##") -> str:
+def _render_responsaveis(capa_fields: dict[str, object], h: str = '##') -> str:
     return (
-        f"{h} Responsáveis\n"
-        f"- Fiscal técnico: {_capa_value(capa_fields, 'Fiscal técnico')}\n"
-        f"- Fiscal requisitante: {_capa_value(capa_fields, 'Fiscal requisitante')}\n"
-        f"- Fiscal administrativo: {_capa_value(capa_fields, 'Fiscal administrativo')}\n"
-        f"- Gestor do contrato: {_capa_value(capa_fields, 'Gestor do contrato')}"
+        f'{h} Responsáveis\n'
+        f'- Fiscal técnico: {_capa_value(capa_fields, "Fiscal técnico")}\n'
+        f'- Fiscal requisitante:'
+        f' {_capa_value(capa_fields, "Fiscalrequisitante")}\n'
+        f'- Fiscal administrativo:'
+        f' {_capa_value(capa_fields, "Fiscaladministrativo")}\n'
+        f'- Gestor do contrato: {_capa_value(capa_fields, "Gestordocontrato")}'
     )
 
 
@@ -180,74 +199,131 @@ def _render_ressalva_interpretativa(
     if readings is None:
         return None
 
-    formula_linear = "base + (déficit / passo) x pontos_degrau"
-    formula_floor = "base + ⌊déficit / passo⌋ x pontos_degrau"
-    formula_ceil = "base + ⌈déficit / passo⌉ x pontos_degrau"
+    formula_linear = 'base + (déficit / passo) x pontos_degrau'
+    formula_floor = 'base + ⌊déficit / passo⌋ x pontos_degrau'
+    formula_ceil = 'base + ⌈déficit / passo⌉ x pontos_degrau'
     return (
-        "| Leitura | Fórmula | Pontuação apurada |\n"
-        "|---|---|---|\n"
-        f"| Linear contínua (adotada) | {formula_linear} | {readings.linear:.2f} |\n"
-        f"| Degraus completos | {formula_floor} | {readings.floor:.2f} |\n"
-        f"| Qualquer fração inicia novo degrau | {formula_ceil} | {readings.ceil:.2f} |\n"
-        "\n"
-        "> A leitura linear contínua é a metodologia adotada por este pipeline. As\n"
-        "> demais leituras são apresentadas para transparência e não foram validadas\n"
-        "> formalmente pela gestão contratual/assessoria jurídica."
+        '| Leitura | Fórmula | Pontuação apurada |\n'
+        '|---|---|---|\n'
+        f'| Linear contínua (adotada) | {formula_linear} |'
+        f' {readings.linear:.2f}'
+        f' |\n'
+        f'| Degraus completos | {formula_floor} | {readings.floor:.2f} |\n'
+        f'| Qualquer fração inicia novo degrau | {formula_ceil} |'
+        f' {readings.ceil:.2f} |\n'
+        '\n'
+        '> '
+        'A '
+        'leitura '
+        'linear '
+        'contínua '
+        'é '
+        'a '
+        'metodologia '
+        'adotada '
+        'por '
+        'este '
+        'pipeline. '
+        'As\n'
+        '> '
+        'demais '
+        'leituras '
+        'são '
+        'apresentadas '
+        'para '
+        'transparência '
+        'e '
+        'não '
+        'foram '
+        'validadas\n'
+        '> formalmente pela gestão contratual/assessoria jurídica.'
     )
 
 
 def _render_linhas_aprovadas(
     gate_report: QualityGateReport,
-    h: str = "##",
+    h: str = '##',
     *,
     dropped_out_of_period: int | None = None,
 ) -> str:
     """`dropped_out_of_period` é None quando o filtro de período não rodou —
     a linha some do ROM em vez de exibir um zero enganoso (§5)."""
     fora_do_periodo = (
-        f"\n- Fora do período descartadas: {dropped_out_of_period}"
+        f'\n- Fora do período descartadas: {dropped_out_of_period}'
         if dropped_out_of_period is not None
-        else ""
+        else ''
     )
     return (
-        f"{h} Linhas aprovadas pelo quality gate\n"
-        f"- Linhas lidas: {len(gate_report.accepted) + len(gate_report.rejected)}\n"
-        f"- Linhas aprovadas: {len(gate_report.accepted)}{fora_do_periodo}\n\n"
-        "> Aprovação pelo quality gate não equivale à população contratual completa\n"
-        "> (registros podem ser rejeitados por critérios estruturais que não decidem\n"
-        "> se pertencem ao universo do indicador)."
+        f'{h} Linhas aprovadas pelo quality gate\n'
+        f'- Linhas lidas:'
+        f' {len(gate_report.accepted) + len(gate_report.rejected)}\n'
+        f'- Linhas aprovadas: {len(gate_report.accepted)}{fora_do_periodo}\n\n'
+        '> '
+        'Aprovação '
+        'pelo '
+        'quality '
+        'gate '
+        'não '
+        'equivale '
+        'à '
+        'população '
+        'contratual '
+        'completa\n'
+        '> '
+        '(registros '
+        'podem '
+        'ser '
+        'rejeitados '
+        'por '
+        'critérios '
+        'estruturais '
+        'que '
+        'não '
+        'decidem\n'
+        '> se pertencem ao universo do indicador).'
     )
 
 
 def _render_resultado_vs_meta(
-    config: IndicatorConfig, calculation: CalculationResult, h: str = "##"
+    config: IndicatorConfig, calculation: CalculationResult, h: str = '##'
 ) -> str:
-    conformidade = "conforme" if calculation.conforms else "não conforme"
+    conformidade = 'conforme' if calculation.conforms else 'não conforme'
     if config.target is not None:
         resultado_vs_meta = (
-            f"- Meta: {config.target.operator} {config.target.value}%\n"
-            f"- Resultado: {calculation.result_pct:.2f}% — **{conformidade}**"
+            f'- Meta: {config.target.operator} {config.target.value}%\n'
+            f'- Resultado: {calculation.result_pct:.2f}% — **{conformidade}**'
         )
     else:
-        # `external_catalog_sum`: Anexo E is a linear point sum, no percentage meta.
+        # `external_catalog_sum`: Anexo E is a linear point sum, no percentage
+        # meta.
         resultado_vs_meta = (
-            f"- Meta: não aplicável (soma de pontos, ver Anexo E) — **{conformidade}**"
+            f'- Meta: não aplicável (soma de pontos, ver Anexo'
+            f' E) — **{conformidade}**'
         )
 
     return (
-        f"{h} Resultado vs meta\n{resultado_vs_meta}\n"
-        f"- Pontuação apurada: {calculation.penalty_points:.2f} pontos\n\n"
-        '> "Pontuação apurada" não implica sanção administrativa — ver processo\n'
-        "> sancionador próprio, se cabível."
+        f'{h} Resultado vs meta\n{resultado_vs_meta}\n'
+        f'- Pontuação apurada: {calculation.penalty_points:.2f} pontos\n\n'
+        '> '
+        '"Pontuação '
+        'apurada" '
+        'não '
+        'implica '
+        'sanção '
+        'administrativa '
+        '— '
+        'ver '
+        'processo\n'
+        '> sancionador próprio, se cabível.'
     )
 
 
 def _org_body(
     result: MeasurementResult,
     capa_fields: dict[str, object],
-    h: str = "##",
+    h: str = '##',
     *,
-    competencia: str = "",
+    competencia: str = '',
     periodo: PeriodoAfericao | None = None,
 ) -> list[str]:
     """The per-orgão body sections of a ROM — shared by the standalone
@@ -260,39 +336,64 @@ def _org_body(
     provenance = result.provenance
 
     rejected_table = (
-        "\n".join(
-            f"| {_md_cell(row.row_id)} | {_md_cell(row.reason)} |" for row in gate_report.rejected
+        '\n'.join(
+            f'| {_md_cell(row.row_id)} | {_md_cell(row.reason)} |'
+            for row in gate_report.rejected
         )
-        or "| — | nenhuma rejeição |"
+        or '| — | nenhuma rejeição |'
     )
 
     memoria_renderer = _MEMORIA_RENDERERS.get(config.calculation.shape)
     if memoria_renderer is None:
         raise ValueError(
-            f"shape {config.calculation.shape!r} não tem renderer de memória — "
-            f"suportados: {sorted(_MEMORIA_RENDERERS)}"
+            f'shape {config.calculation.shape!r} não tem renderer de memória — '
+            f'suportados: {sorted(_MEMORIA_RENDERERS)}'
         )
 
     sections = [
-        _render_identificacao(config, provenance, h, competencia=competencia, periodo=periodo),
+        _render_identificacao(
+            config, provenance, h, competencia=competencia, periodo=periodo
+        ),
         _render_linhas_aprovadas(
             gate_report, h, dropped_out_of_period=result.dropped_out_of_period
         ),
-        f"{h} Rejeições\n| ID | Motivo |\n|---|---|\n{rejected_table}",
-        f"{h} Memória de cálculo\n{memoria_renderer(calculation)}",
+        f'{h} Rejeições\n| ID | Motivo |\n|---|---|\n{rejected_table}',
+        f'{h} Memória de cálculo\n{memoria_renderer(calculation)}',
     ]
 
     ressalva = _render_ressalva_interpretativa(config, calculation)
     if ressalva is not None:
-        sections.append(f"{h} Ressalva interpretativa\n{ressalva}")
+        sections.append(f'{h} Ressalva interpretativa\n{ressalva}')
 
     sections.append(_render_resultado_vs_meta(config, calculation, h))
     sections.append(_render_responsaveis(capa_fields, h))
     sections.append(
-        "---\n"
-        "*Competência e Período da aferição são derivados do argumento --competência "
-        "da CLI. Responsáveis refletem o estado da capa no momento em que este ROM "
-        "foi gerado.*"
+        '---\n'
+        '*Competência '
+        'e '
+        'Período '
+        'da '
+        'aferição '
+        'são '
+        'derivados '
+        'do '
+        'argumento '
+        '--competência '
+        'da '
+        'CLI. '
+        'Responsáveis '
+        'refletem '
+        'o '
+        'estado '
+        'da '
+        'capa '
+        'no '
+        'momento '
+        'em '
+        'que '
+        'este '
+        'ROM '
+        'foi gerado.*'
     )
 
     return sections
@@ -302,7 +403,7 @@ def render_rom(
     result: MeasurementResult,
     capa_fields: dict[str, object] | None = None,
     *,
-    competencia: str = "",
+    competencia: str = '',
     periodo: PeriodoAfericao | None = None,
 ) -> str:
     """`capa_fields` (células `Nome (SIAPE)` vindas do Equipe) alimenta só a
@@ -311,13 +412,19 @@ def render_rom(
     config = result.config
 
     return (
-        "\n\n".join(
+        '\n\n'.join(
             [
-                f"# ROM — {_rom_title(config)} ({config.indicator.name})",
-                *_org_body(result, capa_fields, "##", competencia=competencia, periodo=periodo),
+                f'# ROM — {_rom_title(config)} ({config.indicator.name})',
+                *_org_body(
+                    result,
+                    capa_fields,
+                    '##',
+                    competencia=competencia,
+                    periodo=periodo,
+                ),
             ]
         )
-        + "\n"
+        + '\n'
     )
 
 
@@ -326,7 +433,7 @@ def render_combined_rom(
     result_b: MeasurementResult,
     capa_by_orgao: dict[str, dict[str, object]] | None = None,
     *,
-    competencia: str = "",
+    competencia: str = '',
     periodo: PeriodoAfericao | None = None,
 ) -> str:
     """One markdown per indicator covering both orgãos: the full ROM body of
@@ -341,11 +448,17 @@ def render_combined_rom(
     capa_b = capa_by_orgao.get(org_b, {})
 
     sections = [
-        f"# ROM — {_rom_title(config_a)} ({config_a.indicator.name}) — {org_a} e {org_b}",
-        f"## {org_a}",
-        *_org_body(result_a, capa_a, "###", competencia=competencia, periodo=periodo),
-        f"## {org_b}",
-        *_org_body(result_b, capa_b, "###", competencia=competencia, periodo=periodo),
+        f'# ROM — {_rom_title(config_a)} ({config_a.indicator.name}) — {org_a}'
+        f' e'
+        f' {org_b}',
+        f'## {org_a}',
+        *_org_body(
+            result_a, capa_a, '###', competencia=competencia, periodo=periodo
+        ),
+        f'## {org_b}',
+        *_org_body(
+            result_b, capa_b, '###', competencia=competencia, periodo=periodo
+        ),
     ]
 
-    return "\n\n".join(sections) + "\n"
+    return '\n\n'.join(sections) + '\n'

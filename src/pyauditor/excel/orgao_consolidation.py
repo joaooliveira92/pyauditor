@@ -31,20 +31,20 @@ from typing import Final
 from pyauditor.excel.groups import PER_ASSET_CONTRACTUAL_IDS
 from pyauditor.rom.summary import IndicatorSummary
 
-__all__: Final[tuple[str, ...]] = ("with_orgao_consolidation",)
+__all__: Final[tuple[str, ...]] = ('with_orgao_consolidation',)
 
 _CONSOLIDATABLE_SHAPES: Final[frozenset[str]] = frozenset(
     {
-        "ratio",
-        "segmented_ratio",
-        "count_difference",
+        'ratio',
+        'segmented_ratio',
+        'count_difference',
     }
 )
 _EPSILON: Final[float] = 1e-9
 
-_MINC_ORGAO: Final[str] = "MinC"
-_MTUR_ORGAO: Final[str] = "MTur"
-_CONSOLIDATED_ORGAO: Final[str] = "Consolidado"
+_MINC_ORGAO: Final[str] = 'MinC'
+_MTUR_ORGAO: Final[str] = 'MTur'
+_CONSOLIDATED_ORGAO: Final[str] = 'Consolidado'
 
 _SUPPORTED_ORGAOS: Final[frozenset[str]] = frozenset(
     {
@@ -106,11 +106,11 @@ def with_orgao_consolidation(
 
         if summary.orgao in summaries_by_orgao:
             raise ValueError(
-                "Duplicate indicator summary for consolidation: "
-                f"contractual_id={summary.contractual_id!r}, "
-                f"indicator_id={summary.indicator_id!r}, "
-                f"asset={summary.asset!r}, "
-                f"orgao={summary.orgao!r}."
+                'Duplicate indicator summary for consolidation: '
+                f'contractual_id={summary.contractual_id!r}, '
+                f'indicator_id={summary.indicator_id!r}, '
+                f'asset={summary.asset!r}, '
+                f'orgao={summary.orgao!r}.'
             )
 
         summaries_by_orgao[summary.orgao] = summary
@@ -190,22 +190,22 @@ def _consolidate(
 
     minc_numerator = _require_finite_number(
         minc.numerator,
-        field="numerator",
+        field='numerator',
         orgao=minc.orgao,
     )
     minc_denominator = _require_nonnegative_number(
         minc.denominator,
-        field="denominator",
+        field='denominator',
         orgao=minc.orgao,
     )
     mtur_numerator = _require_finite_number(
         mtur.numerator,
-        field="numerator",
+        field='numerator',
         orgao=mtur.orgao,
     )
     mtur_denominator = _require_nonnegative_number(
         mtur.denominator,
-        field="denominator",
+        field='denominator',
         orgao=mtur.orgao,
     )
 
@@ -223,7 +223,7 @@ def _consolidate(
 
     return replace(
         minc,
-        indicator_id=f"{minc.indicator_id}-CONSOLIDADO",
+        indicator_id=f'{minc.indicator_id}-CONSOLIDADO',
         orgao=_CONSOLIDATED_ORGAO,
         numerator=pooled_numerator,
         denominator=pooled_denominator,
@@ -252,20 +252,20 @@ def _validate_pair_identity(
 
     if minc_key != mtur_key:
         raise ValueError(
-            "Cannot consolidate summaries with different identities: "
-            f"MinC={minc_key!r}, MTur={mtur_key!r}."
+            'Cannot consolidate summaries with different identities: '
+            f'MinC={minc_key!r}, MTur={mtur_key!r}.'
         )
 
     if minc.orgao != _MINC_ORGAO:
         raise ValueError(
-            "Expected a MinC summary as the first consolidation operand, "
-            f"received orgao={minc.orgao!r}."
+            'Expected a MinC summary as the first consolidation operand, '
+            f'received orgao={minc.orgao!r}.'
         )
 
     if mtur.orgao != _MTUR_ORGAO:
         raise ValueError(
-            "Expected an MTur summary as the second consolidation operand, "
-            f"received orgao={mtur.orgao!r}."
+            'Expected an MTur summary as the second consolidation operand, '
+            f'received orgao={mtur.orgao!r}.'
         )
 
 
@@ -281,18 +281,18 @@ def _validate_pair_contract(
     """
     if minc.shape != mtur.shape:
         raise ValueError(
-            "Cannot consolidate summaries with different calculation shapes: "
-            f"indicator_id={minc.indicator_id!r}, "
-            f"MinC={minc.shape!r}, "
-            f"MTur={mtur.shape!r}."
+            'Cannot consolidate summaries with different calculation shapes: '
+            f'indicator_id={minc.indicator_id!r}, '
+            f'MinC={minc.shape!r}, '
+            f'MTur={mtur.shape!r}.'
         )
 
     if minc.target_operator != mtur.target_operator:
         raise ValueError(
-            "Cannot consolidate summaries with different target operators: "
-            f"indicator_id={minc.indicator_id!r}, "
-            f"MinC={minc.target_operator!r}, "
-            f"MTur={mtur.target_operator!r}."
+            'Cannot consolidate summaries with different target operators: '
+            f'indicator_id={minc.indicator_id!r}, '
+            f'MinC={minc.target_operator!r}, '
+            f'MTur={mtur.target_operator!r}.'
         )
 
     if not _optional_float_equal(
@@ -300,10 +300,10 @@ def _validate_pair_contract(
         mtur.target_value,
     ):
         raise ValueError(
-            "Cannot consolidate summaries with different target values: "
-            f"indicator_id={minc.indicator_id!r}, "
-            f"MinC={minc.target_value!r}, "
-            f"MTur={mtur.target_value!r}."
+            'Cannot consolidate summaries with different target values: '
+            f'indicator_id={minc.indicator_id!r}, '
+            f'MinC={minc.target_value!r}, '
+            f'MTur={mtur.target_value!r}.'
         )
 
 
@@ -322,7 +322,7 @@ def _optional_float_equal(
 
 
 def _require_finite_number(
-    value: float | int,
+    value: float,
     *,
     field: str,
     orgao: str,
@@ -341,18 +341,18 @@ def _require_finite_number(
         ValueError: If the operand is boolean or not finite.
     """
     if isinstance(value, bool):
-        raise ValueError(f"{field} must be numeric for {orgao!r}, not boolean.")
+        raise ValueError(f'{field} must be numeric for {orgao!r}, not boolean.')
 
     numeric_value = float(value)
 
     if not isfinite(numeric_value):
-        raise ValueError(f"{field} must be finite for {orgao!r}: {value!r}.")
+        raise ValueError(f'{field} must be finite for {orgao!r}: {value!r}.')
 
     return numeric_value
 
 
 def _require_nonnegative_number(
-    value: float | int,
+    value: float,
     *,
     field: str,
     orgao: str,
@@ -381,7 +381,9 @@ def _require_nonnegative_number(
     )
 
     if numeric_value < 0:
-        raise ValueError(f"{field} must be non-negative for {orgao!r}: {value!r}.")
+        raise ValueError(
+            f'{field} must be non-negative for {orgao!r}: {value!r}.'
+        )
 
     return numeric_value
 
@@ -410,23 +412,26 @@ def _meets_target(
             uses an unsupported operator.
     """
     if not isfinite(result_pct):
-        raise ValueError(f"Consolidated result must be finite: {result_pct!r}.")
+        raise ValueError(f'Consolidated result must be finite: {result_pct!r}.')
 
     if operator is None and target is None:
         return False
 
     if operator is None or target is None:
         raise ValueError(
-            "Target operator and target value must either both be set or both be absent."
+            'Target operator and target value must either both be set or both '
+            'be absent.'
         )
 
     if not isfinite(target):
-        raise ValueError(f"Target value must be finite: {target!r}.")
+        raise ValueError(f'Target value must be finite: {target!r}.')
 
-    if operator == ">=":
+    if operator == '>=':
         return result_pct >= target - _EPSILON
 
-    if operator == "<=":
+    if operator == '<=':
         return result_pct <= target + _EPSILON
 
-    raise ValueError(f"Unsupported target operator for consolidation: {operator!r}.")
+    raise ValueError(
+        f'Unsupported target operator for consolidation: {operator!r}.'
+    )

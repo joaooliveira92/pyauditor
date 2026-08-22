@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from datetime import datetime
+from math import isclose
 from pathlib import Path
 
 from pyauditor.categoria_filter import read_raw_csv
@@ -32,17 +33,17 @@ from pyauditor.periodo import (
 )
 
 __all__ = (
-    "MeasurementProvenance",
-    "MeasurementResult",
-    "SourceBundle",
-    "discover_config_files",
-    "discover_configs",
-    "load_config",
-    "load_rows",
-    "measure",
-    "measurement_source",
-    "pipeline_version",
-    "resolve_source",
+    'MeasurementProvenance',
+    'MeasurementResult',
+    'SourceBundle',
+    'discover_config_files',
+    'discover_configs',
+    'load_config',
+    'load_rows',
+    'measure',
+    'measurement_source',
+    'pipeline_version',
+    'resolve_source',
 )
 
 
@@ -95,7 +96,8 @@ class MeasurementResult:
 
     @property
     def hard_failure(self) -> bool:
-        """Quality gates rejected every row that existed — not the same as a source
+        """Quality gates rejected every row that existed — not the same as a
+        source
         CSV that had zero rows to begin with (a legitimately empty competência,
         e.g. INMS 1.3/1.8/1.9/1.10 before manual data entry exists)."""
         report = self.quality_gate_report
@@ -105,7 +107,8 @@ class MeasurementResult:
     def systematic_failure(self) -> bool:
         """Não-conformidade sistemática/estrutural: o cálculo rodou sem erro
         mas está sempre não-conforme com resultado extremo (0%). Distinto de
-        não-conformidade pontual/esperada, que continua não sendo hard_failure."""
+        não-conformidade pontual/esperada, que continua não sendo
+        hard_failure."""
         if self.hard_failure:
             return False
         if self.calculation.conforms:
@@ -121,13 +124,17 @@ class MeasurementResult:
         from pyauditor.config.models import PrecomputedTableCalculation
 
         calc = self.config.calculation
-        if isinstance(calc, PrecomputedTableCalculation) and not calc.result_is_percent:
+        if (
+            isinstance(calc, PrecomputedTableCalculation)
+            and not calc.result_is_percent
+        ):
             return False
-        return self.calculation.result_pct == 0.0
+        return isclose(self.calculation.result_pct, 0.0)
 
 
 def _collect_config_columns(config: IndicatorConfig) -> set[str]:
-    """All column names referenced in *config* that must exist in the CSV header.
+    """All column names referenced in *config* that must exist in the CSV
+    header.
     ``source.id_column`` é metadata para rastreabilidade, não participa do
     cálculo — não é validada aqui (muitos CSVs sintéticos/testes não a têm)."""
     cols: set[str] = set()
@@ -141,39 +148,42 @@ def _collect_config_columns(config: IndicatorConfig) -> set[str]:
     calc = config.calculation
     # shape-specific columns (only those that are column names)
     for attr in (
-        "sum_numerator_column",
-        "sum_denominator_extra_column",
-        "sum_numerator_subtract_column",
-        "precomputed_result_column",
-        "occurrence_id_column",
-        "catalog_codes_column",
-        "result_column",
-        "name_column",
-        "numerator_column",
-        "denominator_column",
-        "penalty_column",
+        'sum_numerator_column',
+        'sum_denominator_extra_column',
+        'sum_numerator_subtract_column',
+        'precomputed_result_column',
+        'occurrence_id_column',
+        'catalog_codes_column',
+        'result_column',
+        'name_column',
+        'numerator_column',
+        'denominator_column',
+        'penalty_column',
     ):
         val = getattr(calc, attr, None)
         if isinstance(val, str):
             cols.add(val)
-    _filter_col(getattr(calc, "numerator_filter", None))
-    _filter_col(getattr(calc, "denominator_filter", None))
-    _filter_col(getattr(calc, "recommended_filter", None))
-    _filter_col(getattr(calc, "implemented_filter", None))
+    _filter_col(getattr(calc, 'numerator_filter', None))
+    _filter_col(getattr(calc, 'denominator_filter', None))
+    _filter_col(getattr(calc, 'recommended_filter', None))
+    _filter_col(getattr(calc, 'implemented_filter', None))
     # SegmentedRatio: list of categories
-    for cat in getattr(calc, "categories", []) or []:
-        _filter_col(getattr(cat, "numerator_filter", None))
-        _filter_col(getattr(cat, "denominator_filter", None))
+    for cat in getattr(calc, 'categories', []) or []:
+        _filter_col(getattr(cat, 'numerator_filter', None))
+        _filter_col(getattr(cat, 'denominator_filter', None))
     return cols
 
 
-def _validate_columns(config: IndicatorConfig, header: set[str], config_path: Path | None) -> None:
+def _validate_columns(
+    config: IndicatorConfig, header: set[str], config_path: Path | None
+) -> None:
     missing = sorted(_collect_config_columns(config) - header)
     if missing:
-        prefix = f"{config_path}: " if config_path else ""
+        prefix = f'{config_path}: ' if config_path else ''
         raise ValueError(
-            f"{prefix}coluna(s) referenciada(s) no YAML não existe(m) no header do CSV: "
-            f"{', '.join(missing)} — verifique {config_path or config.indicator.id}"
+            f'{prefix}coluna(s) referenciada(s) no YAML não existe(m) '
+            f'no header do CSV: {", ".join(missing)} — verifique '
+            f'{config_path or config.indicator.id}'
         )
 
 
@@ -211,7 +221,8 @@ def measurement_source(
     fieldnames, rows = read_raw_csv(csv_path, delimiter, encoding)
     header = set(fieldnames)
     # Validate every column referenced in YAML against real CSV header — single
-    # border check before any strategy runs (replaces silent .get("", "") and raw KeyErrors)
+    # border check before any strategy runs (replaces silent .get("", "") and
+    # raw KeyErrors)
     _validate_columns(config, header, config_path)
 
     # Filtro de período (§2 ponto 2): após load_rows, inclusive CSVs `_split`
@@ -220,28 +231,39 @@ def measurement_source(
     dropped_out_of_period: int | None = None
     undated_dropped: int | None = None
     if periodo is not None and not config.source.unfilterable:
-        period_column = require_period_column(config.source.period_column, config_path=config_path)
+        period_column = require_period_column(
+            config.source.period_column, config_path=config_path
+        )
         if period_column not in header:
-            prefix = f"{config_path}: " if config_path else ""
+            prefix = f'{config_path}: ' if config_path else ''
             raise ValueError(
-                f"{prefix}source.period_column {period_column!r} não existe no header "
-                f"de {csv_path.name} — corrija o YAML"
+                f'{prefix}source.period_column'
+                f'{period_column!r}'
+                f'não'
+                f'existe'
+                f'no'
+                f'header'
+                f'de {csv_path.name} — corrija o YAML'
             )
         total_bruto = len(rows)
-        filtro = filter_periodo(rows, period_column=period_column, periodo=periodo, strict=strict)
+        filtro = filter_periodo(
+            rows, period_column=period_column, periodo=periodo, strict=strict
+        )
         rows = filtro.linhas_na_janela
         dropped_out_of_period = filtro.dropped_out_of_period
         undated_dropped = filtro.undated_dropped
         if emit_period_filter_logs:
             if total_bruto > 0 and not rows:
-                logger.warning(f"{csv_path}: {empty_window_message(periodo)}")
+                logger.warning(f'{csv_path}: {empty_window_message(periodo)}')
             info_descarte = discard_message(
                 dropped_out_of_period or 0, undated_dropped or 0, strict
             )
             if info_descarte is not None:
-                logger.info(f"{csv_path}: {info_descarte}")
+                logger.info(f'{csv_path}: {info_descarte}')
 
-    gate_runner = QualityGateRunner(config.quality_gates.checks, id_column=config.source.id_column)
+    gate_runner = QualityGateRunner(
+        config.quality_gates.checks, id_column=config.source.id_column
+    )
     gate_report = gate_runner.run(rows)
     accepted_ids = {id(row) for row in gate_report.accepted}
 

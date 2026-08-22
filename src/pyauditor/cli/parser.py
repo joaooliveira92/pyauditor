@@ -12,47 +12,62 @@ from pathlib import Path
 from typing import Final, Literal
 
 __all__: Final[tuple[str, ...]] = (
-    "Command",
-    "Orgao",
-    "build_parser",
+    'Command',
+    'Orgao',
+    'build_parser',
 )
 
-_PROG: Final[str] = "pyauditor"
-_CMD_MEASURE: Final[Literal["measure"]] = "measure"
-_CMD_BOOTSTRAP: Final[Literal["bootstrap"]] = "bootstrap"
-_CMD_REPORT: Final[Literal["report"]] = "report"
-_CMD_CONSOLIDATE: Final[Literal["consolidate"]] = "consolidate"
-_CMD_SPLIT: Final[Literal["split"]] = "split"
-_CMD_RUN: Final[Literal["run"]] = "run"
+_PROG: Final[str] = 'pyauditor'
+_CMD_MEASURE: Final = 'measure'
+_CMD_BOOTSTRAP: Final = 'bootstrap'
+_CMD_REPORT: Final = 'report'
+_CMD_CONSOLIDATE: Final = 'consolidate'
+_CMD_SPLIT: Final = 'split'
+_CMD_RUN: Final = 'run'
 
-type Command = Literal["measure", "bootstrap", "report", "consolidate", "split", "run"]
+type Command = Literal[
+    'measure', 'bootstrap', 'report', 'consolidate', 'split', 'run'
+]
 
-type Orgao = Literal["MinC", "MTur", "both"]
+type Orgao = Literal['MinC', 'MTur', 'both']
 
-_DEFAULT_CONFIG_DIR: Final[Path] = Path("configs")
-_DEFAULT_DATA_DIR: Final[Path] = Path("input")
-_DEFAULT_OUTPUT_DIR: Final[Path] = Path("roms")
-_DEFAULT_CAPA_PATH: Final[Path] = Path("capa.xlsx")
-_DEFAULT_REPORT_DIR: Final[Path] = Path("reports")
+_DEFAULT_CONFIG_DIR: Final[Path] = Path('configs')
+_DEFAULT_DATA_DIR: Final[Path] = Path('input')
+_DEFAULT_OUTPUT_DIR: Final[Path] = Path('roms')
+_DEFAULT_CAPA_PATH: Final[Path] = Path('capa.xlsx')
+_DEFAULT_REPORT_DIR: Final[Path] = Path('reports')
 
 _STRICT_HELP = (
-    "descarta linhas sem prova de período (célula vazia ou formato "
-    "desconhecido) em vez de mantê-las para os quality gates"
+    'descarta linhas sem prova de período (célula vazia ou formato '
+    'desconhecido) em vez de mantê-las para os quality gates'
 )
 
 
-def _add_orgao_argument(parser: argparse.ArgumentParser, *, default: Orgao = "MinC") -> None:
+def _add_orgao_argument(
+    parser: argparse.ArgumentParser, *, default: Orgao = 'MinC'
+) -> None:
     parser.add_argument(
-        "--orgao",
+        '--orgao',
         type=str,
-        choices=("MinC", "MTur", "both"),
+        choices=('MinC', 'MTur', 'both'),
         default=default,
-        help="órgão da aferição (default: MinC). 'both' roda os dois, sequencial, sem cruzar",
+        help='órgão '
+        'da '
+        'aferição '
+        '(default: '
+        'MinC). '
+        "'both' "
+        'roda '
+        'os '
+        'dois, '
+        'sequencial, '
+        'sem '
+        'cruzar',
     )
 
 
 def _add_strict_argument(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--strict", action="store_true", help=_STRICT_HELP)
+    parser.add_argument('--strict', action='store_true', help=_STRICT_HELP)
 
 
 def _add_logging_arguments(parser: argparse.ArgumentParser) -> None:
@@ -60,167 +75,273 @@ def _add_logging_arguments(parser: argparse.ArgumentParser) -> None:
     explícito e formato JSON para automação. Aplicado a todos os subcomandos
     (Q8): o nível efetivo = `--log-level` se dado, senão a verbosidade."""
     parser.add_argument(
-        "-v",
-        "--verbose",
-        action="count",
+        '-v',
+        '--verbose',
+        action='count',
         default=0,
-        help="-v: um evento por indicador; -vv: detalhes de leitura/validação/cálculo",
+        help='-v:umeventoporindicador;-vv:detalhesdeleitura/validação/cálculo',
     )
     parser.add_argument(
-        "--log-level",
+        '--log-level',
         type=str,
-        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
+        choices=('DEBUG', 'INFO', 'WARNING', 'ERROR'),
         default=None,
-        help="nível de log manual (prevalece sobre -v; default INFO)",
+        help='nível de log manual (prevalece sobre -v; default INFO)',
     )
     parser.add_argument(
-        "--log-format",
+        '--log-format',
         type=str,
-        choices=("text", "json"),
-        default="text",
-        help="json: cada registro em stderr vira uma linha JSON ({time, level, event, ...})",
+        choices=('text', 'json'),
+        default='text',
+        help='json: '
+        'cada '
+        'registro '
+        'em '
+        'stderr '
+        'vira '
+        'uma '
+        'linha '
+        'JSON '
+        '({time, level, event, ...})',
     )
 
 
 def build_parser() -> argparse.ArgumentParser:
     """Arg parser estruturado e estrito (spec §6), sem efeito colateral."""
     parser = argparse.ArgumentParser(prog=_PROG)
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest='command', required=True)
 
     measure_parser = subparsers.add_parser(
         _CMD_MEASURE,
-        help="apura os indicadores de uma competência",
+        help='apura os indicadores de uma competência',
     )
-    measure_parser.add_argument("competencia", help='ex.: "2026-06"')
+    measure_parser.add_argument('competencia', help='ex.: "2026-06"')
     _add_orgao_argument(measure_parser)
-    measure_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
-    measure_parser.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA_DIR)
-    measure_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
     measure_parser.add_argument(
-        "--manifest",
+        '--config-dir', type=Path, default=_DEFAULT_CONFIG_DIR
+    )
+    measure_parser.add_argument(
+        '--data-dir', type=Path, default=_DEFAULT_DATA_DIR
+    )
+    measure_parser.add_argument(
+        '--output-dir', type=Path, default=_DEFAULT_OUTPUT_DIR
+    )
+    measure_parser.add_argument(
+        '--manifest',
         type=Path,
         default=None,
-        help="caminho para datasets.yaml (default: resolvido a partir de "
-        "--config-dir — _shared se existir, senão <config-dir>/<órgão>)",
+        help='caminho para datasets.yaml (default: resolvido a partir de '
+        '--config-dir — _shared se existir, senão <config-dir>/<órgão>)',
     )
     _add_strict_argument(measure_parser)
     _add_logging_arguments(measure_parser)
 
     bootstrap_parser = subparsers.add_parser(
         _CMD_BOOTSTRAP,
-        help="cria as capas CSV do contrato (comum + por órgão), se ainda não existirem",
+        help='criaascapasCSVdocontrato(comum+porórgão),seaindanãoexistirem',
     )
     _add_orgao_argument(bootstrap_parser)
     bootstrap_parser.add_argument(
-        "--data-dir",
+        '--data-dir',
         type=Path,
         default=_DEFAULT_DATA_DIR,
-        help=f"onde criar capa.csv e capa_{{orgao}}.csv (default: {_DEFAULT_DATA_DIR})",
+        help=f'onde criar capa.csv e capa_{{orgao}}.csv (default: {_DEFAULT_DATA_DIR})',
     )
     bootstrap_parser.add_argument(
-        "--capa-path",
+        '--capa-path',
         type=Path,
         default=None,
-        help="caminho do capa comum (cap.csv); default: <data-dir>/capa.csv",
+        help='caminho do capa comum (cap.csv); default: <data-dir>/capa.csv',
     )
     _add_logging_arguments(bootstrap_parser)
 
     report_parser = subparsers.add_parser(
-        _CMD_REPORT, help="consolida os ROMs de uma competência no Excel final"
+        _CMD_REPORT, help='consolida os ROMs de uma competência no Excel final'
     )
-    report_parser.add_argument("competencia", help='ex.: "2026-06"')
+    report_parser.add_argument('competencia', help='ex.: "2026-06"')
     _add_orgao_argument(report_parser)
     report_parser.add_argument(
-        "--data-dir",
+        '--data-dir',
         type=Path,
         default=_DEFAULT_DATA_DIR,
-        help="onde vivem capa_{orgao}.csv e objetos.csv (default: input)",
+        help='onde vivem capa_{orgao}.csv e objetos.csv (default: input)',
     )
     report_parser.add_argument(
-        "--capa-path",
+        '--capa-path',
         type=Path,
         default=None,
-        help="caminho do capa comum capa.csv (default: <data-dir>/capa.csv)",
+        help='caminho do capa comum capa.csv (default: <data-dir>/capa.csv)',
     )
-    report_parser.add_argument("--roms-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
-    report_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_REPORT_DIR)
-    report_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
     report_parser.add_argument(
-        "--final-month",
-        action="store_true",
-        help="último mês de vigência do contrato — desliga o rollover de glosa (item 35 do TR)",
+        '--roms-dir', type=Path, default=_DEFAULT_OUTPUT_DIR
+    )
+    report_parser.add_argument(
+        '--output-dir', type=Path, default=_DEFAULT_REPORT_DIR
+    )
+    report_parser.add_argument(
+        '--config-dir', type=Path, default=_DEFAULT_CONFIG_DIR
+    )
+    report_parser.add_argument(
+        '--final-month',
+        action='store_true',
+        help='último '
+        'mês '
+        'de '
+        'vigência '
+        'do '
+        'contrato '
+        '— '
+        'desliga '
+        'o '
+        'rollover '
+        'de '
+        'glosa '
+        '(item '
+        '35 '
+        'do '
+        'TR)',
     )
     _add_logging_arguments(report_parser)
 
     consolidate_parser = subparsers.add_parser(
         _CMD_CONSOLIDATE,
-        help="funde os relatórios MinC+MTur já gerados na planilha financeira consolidada",
+        help='funde '
+        'os '
+        'relatórios '
+        'MinC+MTur '
+        'já '
+        'gerados '
+        'na '
+        'planilha '
+        'financeira '
+        'consolidada',
     )
-    consolidate_parser.add_argument("competencia", help='ex.: "2026-06"')
-    consolidate_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
-    consolidate_parser.add_argument("--roms-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
+    consolidate_parser.add_argument('competencia', help='ex.: "2026-06"')
     consolidate_parser.add_argument(
-        "--data-dir",
+        '--report-dir', type=Path, default=_DEFAULT_REPORT_DIR
+    )
+    consolidate_parser.add_argument(
+        '--roms-dir', type=Path, default=_DEFAULT_OUTPUT_DIR
+    )
+    consolidate_parser.add_argument(
+        '--data-dir',
         type=Path,
         default=_DEFAULT_DATA_DIR,
-        help="onde vive objetos.csv, a fonte do valor mensal (default: input)",
+        help='onde vive objetos.csv, a fonte do valor mensal (default: input)',
     )
     consolidate_parser.add_argument(
-        "--final-month",
-        action="store_true",
-        help="último mês de vigência do contrato — desliga o rollover de glosa (item 35 do TR)",
+        '--final-month',
+        action='store_true',
+        help='último '
+        'mês '
+        'de '
+        'vigência '
+        'do '
+        'contrato '
+        '— '
+        'desliga '
+        'o '
+        'rollover '
+        'de '
+        'glosa '
+        '(item '
+        '35 '
+        'do '
+        'TR)',
     )
     _add_logging_arguments(consolidate_parser)
 
     split_parser = subparsers.add_parser(
         _CMD_SPLIT,
-        help="gera CSVs filtrados + configs derivadas por Categoria (spec §14.3)",
+        help='geraCSVsfiltrados+configsderivadasporCategoria(spec§14.3)',
     )
-    split_parser.add_argument("competencia", help='ex.: "2026-06"')
+    split_parser.add_argument('competencia', help='ex.: "2026-06"')
     _add_orgao_argument(split_parser)
-    split_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
-    split_parser.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA_DIR)
-    split_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
     split_parser.add_argument(
-        "--manifest",
+        '--config-dir', type=Path, default=_DEFAULT_CONFIG_DIR
+    )
+    split_parser.add_argument(
+        '--data-dir', type=Path, default=_DEFAULT_DATA_DIR
+    )
+    split_parser.add_argument(
+        '--report-dir', type=Path, default=_DEFAULT_REPORT_DIR
+    )
+    split_parser.add_argument(
+        '--manifest',
         type=Path,
         default=None,
-        help="caminho para datasets.yaml (default: resolvido a partir de "
-        "--config-dir — _shared se existir, senão <config-dir>/<órgão>)",
+        help='caminho para datasets.yaml (default: resolvido a partir de '
+        '--config-dir — _shared se existir, senão <config-dir>/<órgão>)',
     )
     _add_strict_argument(split_parser)
     _add_logging_arguments(split_parser)
 
     run_parser = subparsers.add_parser(
         _CMD_RUN,
-        help="encadeia bootstrap→measure→report→consolidate numa invocação scriptável",
+        help='encadeia '
+        'bootstrap→measure→report→consolidate '
+        'numa '
+        'invocação '
+        'scriptável',
     )
-    run_parser.add_argument("competencia", help='ex.: "2026-06"')
+    run_parser.add_argument('competencia', help='ex.: "2026-06"')
     _add_orgao_argument(run_parser)
-    run_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
-    run_parser.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA_DIR)
-    run_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
-    run_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
-    run_parser.add_argument("--capa-path", type=Path, default=None)
+    run_parser.add_argument(
+        '--config-dir', type=Path, default=_DEFAULT_CONFIG_DIR
+    )
+    run_parser.add_argument('--data-dir', type=Path, default=_DEFAULT_DATA_DIR)
+    run_parser.add_argument(
+        '--output-dir', type=Path, default=_DEFAULT_OUTPUT_DIR
+    )
+    run_parser.add_argument(
+        '--report-dir', type=Path, default=_DEFAULT_REPORT_DIR
+    )
+    run_parser.add_argument('--capa-path', type=Path, default=None)
     _add_strict_argument(run_parser)
     run_parser.add_argument(
-        "--output",
+        '--output',
         type=str,
-        choices=("text", "json"),
-        default="text",
-        help="formato do resumo final: 'text' (painel rico, padrão) ou 'json' (automação/CI)",
+        choices=('text', 'json'),
+        default='text',
+        help='formato '
+        'do '
+        'resumo '
+        'final: '
+        "'text' "
+        '(painel '
+        'rico, '
+        'padrão) '
+        'ou '
+        "'json' "
+        '(automação/CI)',
     )
     _add_logging_arguments(run_parser)
     run_parser.add_argument(
-        "--final-month",
-        action="store_true",
-        help="último mês de vigência do contrato — desliga o rollover de glosa (item 35 do TR)",
+        '--final-month',
+        action='store_true',
+        help='último '
+        'mês '
+        'de '
+        'vigência '
+        'do '
+        'contrato '
+        '— '
+        'desliga '
+        'o '
+        'rollover '
+        'de '
+        'glosa '
+        '(item '
+        '35 '
+        'do '
+        'TR)',
     )
     run_parser.add_argument(
-        "--force",
-        action="store_true",
+        '--force',
+        action='store_true',
         help=(
-            "reprocessa tudo, mesmo etapas já concluídas numa tentativa anterior "
+            'reprocessa tudo, mesmo etapas já concluídas numa tentativa '
+            'anterior '
             "(default: retoma de onde parou, pulando o que já está 'done')"
         ),
     )

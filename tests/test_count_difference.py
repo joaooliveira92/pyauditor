@@ -13,13 +13,13 @@ from pyauditor.engine.pipeline import load_config, measure
 from pyauditor.rom.render import render_rom
 
 REPO_ROOT = Path(__file__).parent.parent
-CONFIG_PATH = REPO_ROOT / "tests" / "fixtures" / "configs" / "inms-1.10.yaml"
-INPUT_DIR = REPO_ROOT / "input"
+CONFIG_PATH = REPO_ROOT / 'tests' / 'fixtures' / 'configs' / 'inms-1.10.yaml'
+INPUT_DIR = REPO_ROOT / 'input'
 
 
 @pytest.mark.skipif(
-    not (INPUT_DIR / "inms-001-10.csv").exists(),
-    reason="production data (/input) not present locally",
+    not (INPUT_DIR / 'inms-001-10.csv').exists(),
+    reason='production data (/input) not present locally',
 )
 def test_inms_1_10_matches_acceptance_test() -> None:
     config = load_config(CONFIG_PATH)
@@ -29,16 +29,18 @@ def test_inms_1_10_matches_acceptance_test() -> None:
 
     result = measure(config, data_dir=INPUT_DIR)
 
-    assert result.calculation.memoria["QRC"] == expected.qrc
-    assert result.calculation.memoria["QCSI"] == expected.qcsi
-    assert result.calculation.memoria["CNI"] == expected.cni
+    assert result.calculation.memoria['QRC'] == expected.qrc
+    assert result.calculation.memoria['QCSI'] == expected.qcsi
+    assert result.calculation.memoria['CNI'] == expected.cni
     assert result.calculation.conforms == expected.conforms
-    assert result.calculation.penalty_points == pytest.approx(expected.penalty_points)
+    assert result.calculation.penalty_points == pytest.approx(
+        expected.penalty_points
+    )
 
 
 @pytest.mark.skipif(
-    not (INPUT_DIR / "inms-001-10.csv").exists(),
-    reason="production data (/input) not present locally",
+    not (INPUT_DIR / 'inms-001-10.csv').exists(),
+    reason='production data (/input) not present locally',
 )
 def test_inms_1_10_rom_renders_cni_terms() -> None:
     config = load_config(CONFIG_PATH)
@@ -46,13 +48,15 @@ def test_inms_1_10_rom_renders_cni_terms() -> None:
 
     rom = render_rom(result)
 
-    assert "# ROM — INMS 1.10" in rom
-    assert "QRC" in rom
-    assert "QCSI" in rom
-    assert "CNI" in rom
+    assert '# ROM — INMS 1.10' in rom
+    assert 'QRC' in rom
+    assert 'QCSI' in rom
+    assert 'CNI' in rom
 
 
-def test_count_difference_penalty_is_fixed_per_missing_unit(tmp_path: Path) -> None:
+def test_count_difference_penalty_is_fixed_per_missing_unit(
+    tmp_path: Path,
+) -> None:
     config_yaml = """
 indicator:
   id: INMS-TEST-1.10
@@ -80,17 +84,18 @@ target:
   operator: ">="
   value: 100.0
 """
-    (tmp_path / "config.yaml").write_text(config_yaml, encoding="utf-8")
-    # QRC = 5 recommended controls, QCSI = 3 implemented -> CNI = 2 -> 2000 pontos
-    (tmp_path / "data.csv").write_text(
-        "Controle;Implantado\nMFA;S\nWAF;S\nSIEM;S\nDLP;N\nEDR;N\n",
-        encoding="utf-8",
+    (tmp_path / 'config.yaml').write_text(config_yaml, encoding='utf-8')
+    # QRC = 5 recommended controls, QCSI = 3 implemented -> CNI = 2 -> 2000
+    # pontos
+    (tmp_path / 'data.csv').write_text(
+        'Controle;Implantado\nMFA;S\nWAF;S\nSIEM;S\nDLP;N\nEDR;N\n',
+        encoding='utf-8',
     )
 
-    config = load_config(tmp_path / "config.yaml")
+    config = load_config(tmp_path / 'config.yaml')
     result = measure(config, data_dir=tmp_path)
 
-    assert result.calculation.memoria == {"QRC": 5, "QCSI": 3, "CNI": 2}
+    assert result.calculation.memoria == {'QRC': 5, 'QCSI': 3, 'CNI': 2}
     assert result.calculation.conforms is False
     assert result.calculation.penalty_points == pytest.approx(2000.0)
     assert result.calculation.result_pct == pytest.approx(60.0)
@@ -126,12 +131,14 @@ target:
   operator: ">="
   value: 100.0
 """
-    (tmp_path / "config.yaml").write_text(config_yaml, encoding="utf-8")
-    (tmp_path / "data.csv").write_text("Controle;Implantado\nMFA;S\nWAF;S\n", encoding="utf-8")
+    (tmp_path / 'config.yaml').write_text(config_yaml, encoding='utf-8')
+    (tmp_path / 'data.csv').write_text(
+        'Controle;Implantado\nMFA;S\nWAF;S\n', encoding='utf-8'
+    )
 
-    config = load_config(tmp_path / "config.yaml")
+    config = load_config(tmp_path / 'config.yaml')
     result = measure(config, data_dir=tmp_path)
 
-    assert result.calculation.memoria == {"QRC": 2, "QCSI": 2, "CNI": 0}
+    assert result.calculation.memoria == {'QRC': 2, 'QCSI': 2, 'CNI': 0}
     assert result.calculation.conforms is True
     assert result.calculation.penalty_points == pytest.approx(0.0)

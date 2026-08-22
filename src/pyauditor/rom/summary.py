@@ -9,17 +9,27 @@ from dataclasses import asdict, dataclass, fields
 from pyauditor.engine.pipeline import MeasurementResult
 from pyauditor.engine.strategies import SHAPE_REGISTRY
 
-_STR_FIELDS: tuple[str, ...] = ("indicator_id", "contractual_id", "name", "orgao", "shape")
-_OPTIONAL_STR_FIELDS: tuple[str, ...] = ("asset", "target_operator")
-_NUMERIC_FIELDS: tuple[str, ...] = ("result_pct", "penalty_points")
-_OPTIONAL_NUMERIC_FIELDS: tuple[str, ...] = (
-    "target_value",
-    "numerator",
-    "denominator",
-    "dropped_out_of_period",
-    "undated_dropped",
+_STR_FIELDS: tuple[str, ...] = (
+    'indicator_id',
+    'contractual_id',
+    'name',
+    'orgao',
+    'shape',
 )
-_BOOL_FIELDS: tuple[str, ...] = ("conforms", "hard_failure", "systematic_failure")
+_OPTIONAL_STR_FIELDS: tuple[str, ...] = ('asset', 'target_operator')
+_NUMERIC_FIELDS: tuple[str, ...] = ('result_pct', 'penalty_points')
+_OPTIONAL_NUMERIC_FIELDS: tuple[str, ...] = (
+    'target_value',
+    'numerator',
+    'denominator',
+    'dropped_out_of_period',
+    'undated_dropped',
+)
+_BOOL_FIELDS: tuple[str, ...] = (
+    'conforms',
+    'hard_failure',
+    'systematic_failure',
+)
 
 
 @dataclass(frozen=True)
@@ -27,7 +37,8 @@ class IndicatorSummary:
     """Round-trips through JSON (`to_dict()` / `IndicatorSummary(**raw)`) as
     the sidecar `report`/`consolidate` read back — a stale or hand-edited
     sidecar with a wrong-typed field is rejected here, at load time, rather
-    than crashing deep in `excel/report.py`/`excel/consolidate.py` arithmetic."""
+    than crashing deep in `excel/report.py`/`excel/consolidate.py`
+    arithmetic."""
 
     indicator_id: str
     contractual_id: str
@@ -53,7 +64,10 @@ class IndicatorSummary:
     def __post_init__(self) -> None:
         known_fields = {f.name for f in fields(self)}
         for name in _STR_FIELDS:
-            assert name in known_fields
+            if name not in known_fields:
+                raise AssertionError(
+                    f'campo esperado `{name}` ausente do summary dataclass'
+                )
             _require_str(self, name)
         for name in _OPTIONAL_STR_FIELDS:
             _require_str(self, name, optional=True)
@@ -68,32 +82,44 @@ class IndicatorSummary:
         return asdict(self)
 
 
-def _require_str(summary: "IndicatorSummary", name: str, *, optional: bool = False) -> None:
+def _require_str(
+    summary: 'IndicatorSummary', name: str, *, optional: bool = False
+) -> None:
     value: object = getattr(summary, name)
     if optional and value is None:
         return
     if not isinstance(value, str):
-        raise TypeError(f"IndicatorSummary.{name} must be str, got {type(value).__name__}")
+        raise TypeError(
+            f'IndicatorSummary.{name} must be str, got {type(value).__name__}'
+        )
 
 
-def _require_numeric(summary: "IndicatorSummary", name: str, *, optional: bool = False) -> None:
+def _require_numeric(
+    summary: 'IndicatorSummary', name: str, *, optional: bool = False
+) -> None:
     import math
 
     value: object = getattr(summary, name)
     if optional and value is None:
         return
     if isinstance(value, bool) or not isinstance(value, int | float):
-        raise TypeError(f"IndicatorSummary.{name} must be a number, got {type(value).__name__}")
+        raise TypeError(
+            f'IndicatorSummary.{name} must be a number, got'
+            f'{type(value).__name__}'
+        )
     if not math.isfinite(float(value)):
         raise ValueError(
-            f"IndicatorSummary.{name} não finito ({value!r}) — sidecar JSON com NaN/Infinity"
+            f'IndicatorSummary.{name} não finito ({value!r}) — sidecar JSON com'
+            f'NaN/Infinity'
         )
 
 
-def _require_bool(summary: "IndicatorSummary", name: str) -> None:
+def _require_bool(summary: 'IndicatorSummary', name: str) -> None:
     value: object = getattr(summary, name)
     if not isinstance(value, bool):
-        raise TypeError(f"IndicatorSummary.{name} must be bool, got {type(value).__name__}")
+        raise TypeError(
+            f'IndicatorSummary.{name} must be bool, got {type(value).__name__}'
+        )
 
 
 def summarize(result: MeasurementResult) -> IndicatorSummary:
@@ -101,7 +127,9 @@ def summarize(result: MeasurementResult) -> IndicatorSummary:
     calculation = result.calculation
     shape = config.calculation.shape
 
-    numerator, denominator = _pooled_numerator_denominator(shape, calculation.memoria)
+    numerator, denominator = _pooled_numerator_denominator(
+        shape, calculation.memoria
+    )
 
     return IndicatorSummary(
         indicator_id=config.indicator.id,
@@ -110,7 +138,9 @@ def summarize(result: MeasurementResult) -> IndicatorSummary:
         asset=config.indicator.asset,
         orgao=config.scope.orgao,
         shape=shape,
-        target_operator=config.target.operator if config.target is not None else None,
+        target_operator=config.target.operator
+        if config.target is not None
+        else None,
         target_value=config.target.value if config.target is not None else None,
         result_pct=calculation.result_pct,
         conforms=calculation.conforms,

@@ -32,51 +32,67 @@ def _write_ratio_aggregate_sheet(
     de `denominator_filter` (ex. "Acordo de Nível de Serviço"), agregando os
     CSVs elegíveis por grupo com a mesma aritmética de
     `RatioStrategy._aggregate`, em vez do colapso "(indicador inteiro)"."""
-    assert calculation.denominator_filter is not None
-    assert calculation.sum_numerator_column is not None
-    assert calculation.sum_numerator_subtract_column is not None
+    if (
+        calculation.denominator_filter is None
+        or calculation.sum_numerator_column is None
+        or calculation.sum_numerator_subtract_column is None
+    ):
+        raise ValueError(
+            'ratio_aggregate exige `denominator_filter`, '
+            '`sum_numerator_column` e `sum_numerator_subtract_column`'
+        )
     group_column = calculation.denominator_filter.column
     numerator_column = calculation.sum_numerator_column
     subtract_column = calculation.sum_numerator_subtract_column
 
     columns = (
-        "Categoria",
-        "Nível",
+        'Categoria',
+        'Nível',
         group_column,
         numerator_column,
         subtract_column,
-        "% resultado",
-        "Meta atingida?",
+        '% resultado',
+        'Meta atingida?',
     )
     sheet = new_sheet(workbook, sheet_name, columns)
     row_idx = 2
 
     eligible_rows = filter_rows(rows, calculation.denominator_filter)
     grupos = list(
-        dict.fromkeys(row[group_column] for row in eligible_rows if row.get(group_column))
+        dict.fromkeys(
+            row[group_column] for row in eligible_rows if row.get(group_column)
+        )
     )
 
     for categoria_key, _entry in entries:
         categoria = categorias_file.categorias[categoria_key]
         nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
         for grupo in grupos:
-            grupo_rows = [row for row in eligible_rows if row[group_column] == grupo]
-            total = sum(parse_decimal(row.get(numerator_column, "") or "0") for row in grupo_rows)
+            grupo_rows = [
+                row for row in eligible_rows if row[group_column] == grupo
+            ]
+            total = sum(
+                parse_decimal(row.get(numerator_column, '') or '0')
+                for row in grupo_rows
+            )
             subtraido = sum(
-                parse_decimal(row.get(subtract_column, "") or "0") for row in grupo_rows
+                parse_decimal(row.get(subtract_column, '') or '0')
+                for row in grupo_rows
             )
             pct = safe_pct(total - subtraido, total)
-            meta_display = meta_atingida_display(pct, target_operator, target_value)
+            meta_display = meta_atingida_display(
+                pct, target_operator, target_value
+            )
             write_row(
                 sheet,
                 row_idx,
                 (
                     categoria.label,
-                    nivel or "",
+                    nivel or '',
                     grupo,
                     int(total),
                     int(subtraido),
-                    f"{fmt_pt_br(pct)}%",
+                    f'{fmt_pt_br(pct)}%',
                     meta_display,
                 ),
             )

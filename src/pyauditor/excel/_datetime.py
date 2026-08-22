@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Final
 
-DATETIME_FMT: Final[str] = "%d/%m/%Y %H:%M"
+DATETIME_FMT: Final[str] = '%d/%m/%Y %H:%M'
 
 # Tolerância padrão em comparações de prazo (arredondamento de minuto entre
 # origens de dado diferentes) — não uma regra contratual.

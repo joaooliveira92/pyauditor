@@ -17,7 +17,7 @@ headline `result_pct` is reported per indicator.
   headline is 0.0.
 """
 
-from math import isnan
+from math import isclose, isnan
 
 from pyauditor.config.models import IndicatorConfig, PrecomputedTableCalculation
 from pyauditor.engine.strategies._numbers import parse_decimal
@@ -29,12 +29,16 @@ from pyauditor.engine.strategies.base import (
 
 
 class PrecomputedTableStrategy:
-    def calculate(self, config: IndicatorConfig, rows: list[dict[str, str]]) -> CalculationResult:
+    def calculate(
+        self, config: IndicatorConfig, rows: list[dict[str, str]]
+    ) -> CalculationResult:
         calculation = narrow_calculation(config, PrecomputedTableCalculation)
-        assert config.target is not None
+        if config.target is None:
+            raise ValueError('precomputed_table exige `target`')
 
         weighted = (
-            calculation.numerator_column is not None and calculation.denominator_column is not None
+            calculation.numerator_column is not None
+            and calculation.denominator_column is not None
         )
         numerator_sum = 0.0
         denominator_sum = 0.0
@@ -43,28 +47,52 @@ class PrecomputedTableStrategy:
         total_penalty = 0.0
 
         for row in rows:
-            raw_value = row.get(calculation.result_column, "")
+            raw_value = row.get(calculation.result_column, '')
             if not raw_value.strip():
-                continue  # empty/placeholder rows (trailing ';' garbage) carry no measurement
+                # empty/placeholder rows (trailing ';' garbage) carry no
+                # measurement — skip, não vira precomputed.
+                continue
             value = parse_decimal(raw_value)
             if isnan(value):
                 continue
 
-            name = row.get(calculation.name_column, "") if calculation.name_column else ""
+            name = (
+                row.get(calculation.name_column, '')
+                if calculation.name_column
+                else ''
+            )
             result_pct = value if calculation.result_is_percent else 0.0
 
             if calculation.penalty_column is not None:
-                penalty = parse_decimal(row.get(calculation.penalty_column, "") or "")
+                penalty = parse_decimal(
+                    row.get(calculation.penalty_column, '') or ''
+                )
                 if isnan(penalty):
                     penalty = 0.0
             elif calculation.result_is_percent:
-                assert config.penalty is not None
-                gap = max(shortfall(value, config.target.operator, config.target.value), 0.0)
-                penalty = (gap / config.penalty.step_size_pct) * config.penalty.step_points
+                if config.penalty is None:
+                    raise ValueError(
+                        'precomputed_table result_is_percent exige `penalty`'
+                    )
+                gap = max(
+                    shortfall(
+                        value, config.target.operator, config.target.value
+                    ),
+                    0.0,
+                )
+                penalty = (
+                    gap / config.penalty.step_size_pct
+                ) * config.penalty.step_points
             else:
                 penalty = max(value - config.target.value, 0.0)
 
-            categories.append({"name": name, "result_pct": result_pct, "penalty_points": penalty})
+            categories.append(
+                {
+                    'name': name,
+                    'result_pct': result_pct,
+                    'penalty_points': penalty,
+                }
+            )
             percents.append(result_pct)
             total_penalty += penalty
 
@@ -72,8 +100,12 @@ class PrecomputedTableStrategy:
                 calculation.numerator_column is not None
                 and calculation.denominator_column is not None
             ):
-                numerador = parse_decimal(row.get(calculation.numerator_column, "") or "")
-                base = parse_decimal(row.get(calculation.denominator_column, "") or "")
+                numerador = parse_decimal(
+                    row.get(calculation.numerator_column, '') or ''
+                )
+                base = parse_decimal(
+                    row.get(calculation.denominator_column, '') or ''
+                )
                 if not isnan(numerador) and not isnan(base):
                     numerator_sum += numerador
                     denominator_sum += base
@@ -87,9 +119,9 @@ class PrecomputedTableStrategy:
 
         return CalculationResult(
             result_pct=headline,
-            conforms=total_penalty == 0.0,
+            conforms=isclose(total_penalty, 0.0),
             penalty_points=total_penalty,
-            memoria={"categories": categories},
+            memoria={'categories': categories},
         )
 
     def pool_numerator_denominator(

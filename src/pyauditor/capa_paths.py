@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Final
 
-_DEFAULT_CAPA_NAME: Final[str] = "capa.csv"
+_DEFAULT_CAPA_NAME: Final[str] = 'capa.csv'
 
 
 def resolve_capa_path(capa_path: Path, orgao: str) -> Path:
@@ -20,8 +20,8 @@ def resolve_capa_path(capa_path: Path, orgao: str) -> Path:
     — não é reescrito para ``capa_<orgao>.csv``. Só o default ``capa.csv``
     gera o per-órgão ``capa_<orgao>.csv``.
     """
-    if orgao == "both":
+    if orgao == 'both':
         return capa_path
     if capa_path.name != _DEFAULT_CAPA_NAME:
         return capa_path
-    return capa_path.parent / f"capa_{orgao}.csv"
+    return capa_path.parent / f'capa_{orgao}.csv'

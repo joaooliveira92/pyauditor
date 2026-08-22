@@ -29,11 +29,17 @@ class CalculationStrategy(Protocol):
         ...
 
 
-def narrow_calculation[C: Calculation](config: IndicatorConfig, shape: type[C]) -> C:
+def narrow_calculation[C: Calculation](
+    config: IndicatorConfig, shape: type[C]
+) -> C:
     """Every strategy is only ever invoked for its own `shape` (dispatched via
     `SHAPE_REGISTRY`), so this narrowing always succeeds — it exists to give
     basedpyright the concrete `XCalculation` type instead of the `Calculation`
     union.
     """
-    assert isinstance(config.calculation, shape)
+    if not isinstance(config.calculation, shape):
+        raise TypeError(
+            f'esperado calculation do shape {shape.__name__}, '
+            f'recebido {type(config.calculation).__name__}'
+        )
     return config.calculation

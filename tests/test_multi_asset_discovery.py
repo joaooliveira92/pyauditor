@@ -18,22 +18,24 @@ from pyauditor.rom.render import render_rom
 from pyauditor.rom.summary import summarize
 
 REPO_ROOT = Path(__file__).parent.parent
-CONFIG_DIR = REPO_ROOT / "tests" / "fixtures" / "multi_asset_configs"
+CONFIG_DIR = REPO_ROOT / 'tests' / 'fixtures' / 'multi_asset_configs'
 
 
 def _write_csvs(data_dir: Path) -> None:
-    competencia_data_dir = data_dir / "2026" / "06"
+    competencia_data_dir = data_dir / '2026' / '06'
     competencia_data_dir.mkdir(parents=True, exist_ok=True)
-    (competencia_data_dir / "inms-1.14-file-server.csv").write_text(
-        "Descrição,Disponibilidade Realizada (%)\nFile Server,99.80\n", encoding="utf-8"
+    (competencia_data_dir / 'inms-1.14-file-server.csv').write_text(
+        'Descrição,Disponibilidade Realizada (%)\nFile Server,99.80\n',
+        encoding='utf-8',
     )
-    (competencia_data_dir / "inms-1.14-wifi.csv").write_text(
-        "Descrição,Disponibilidade Realizada (%)\nWI-FI,98.90\n", encoding="utf-8"
+    (competencia_data_dir / 'inms-1.14-wifi.csv').write_text(
+        'Descrição,Disponibilidade Realizada (%)\nWI-FI,98.90\n',
+        encoding='utf-8',
     )
 
 
 def _competencia_data_dir(data_dir: Path) -> Path:
-    return data_dir / "2026" / "06"
+    return data_dir / '2026' / '06'
 
 
 def test_discover_configs_finds_both_assets() -> None:
@@ -41,29 +43,33 @@ def test_discover_configs_finds_both_assets() -> None:
 
     assert len(configs) == 2
     contractual_ids = {c.indicator.contractual_id for c in configs}
-    assert contractual_ids == {"INMS 1.14"}
+    assert contractual_ids == {'INMS 1.14'}
     assets = {c.indicator.asset for c in configs}
-    assert assets == {"File Server", "WI-FI"}
+    assert assets == {'File Server', 'WI-FI'}
     ids = {c.indicator.id for c in configs}
-    assert ids == {"INMS-1.14-FILE-SERVER", "INMS-1.14-WIFI"}
+    assert ids == {'INMS-1.14-FILE-SERVER', 'INMS-1.14-WIFI'}
 
 
-def test_measure_writes_distinct_rom_and_summary_per_asset(tmp_path: Path) -> None:
+def test_measure_writes_distinct_rom_and_summary_per_asset(
+    tmp_path: Path,
+) -> None:
     _write_csvs(tmp_path)
 
     for config in discover_configs(CONFIG_DIR):
         result = measure(config, data_dir=_competencia_data_dir(tmp_path))
         rom = render_rom(result)
-        assert f"— {config.indicator.asset}" in rom  # asset shown in ROM title
+        assert f'— {config.indicator.asset}' in rom  # asset shown in ROM title
 
-    measure_result = run_measure("2026-06", CONFIG_DIR, tmp_path, tmp_path / "roms")
+    measure_result = run_measure(
+        '2026-06', CONFIG_DIR, tmp_path, tmp_path / 'roms'
+    )
 
-    assert measure_result.status == "done"
-    roms_dir = tmp_path / "roms" / "2026-06"
-    assert (roms_dir / "INMS-1.14-FILE-SERVER.md").exists()
-    assert (roms_dir / "INMS-1.14-WIFI.md").exists()
-    assert (roms_dir / "INMS-1.14-FILE-SERVER.json").exists()
-    assert (roms_dir / "INMS-1.14-WIFI.json").exists()
+    assert measure_result.status == 'done'
+    roms_dir = tmp_path / 'roms' / '2026-06'
+    assert (roms_dir / 'INMS-1.14-FILE-SERVER.md').exists()
+    assert (roms_dir / 'INMS-1.14-WIFI.md').exists()
+    assert (roms_dir / 'INMS-1.14-FILE-SERVER.json').exists()
+    assert (roms_dir / 'INMS-1.14-WIFI.json').exists()
 
 
 def test_inms_base_and_group_tab_show_one_row_per_asset(tmp_path: Path) -> None:
@@ -73,29 +79,43 @@ def test_inms_base_and_group_tab_show_one_row_per_asset(tmp_path: Path) -> None:
         for config in discover_configs(CONFIG_DIR)
     ]
 
-    workbook = build_report_workbook("2026-06", summaries)
+    workbook = build_report_workbook('2026-06', summaries)
 
     base_sheet = workbook[INMS_BASE_SHEET]
     base_rows = [
         # Código INMS, Serviço
-        (base_sheet.cell(row=r, column=5).value, base_sheet.cell(row=r, column=3).value)
+        (
+            base_sheet.cell(row=r, column=5).value,
+            base_sheet.cell(row=r, column=3).value,
+        )
         for r in range(2, base_sheet.max_row + 1)
     ]
-    assert sorted(base_rows) == [("INMS 1.14", "File Server"), ("INMS 1.14", "WI-FI")]
+    assert sorted(base_rows) == [
+        ('INMS 1.14', 'File Server'),
+        ('INMS 1.14', 'WI-FI'),
+    ]
 
-    noc_soc_sheet = workbook["MONITORAMENTO_NOC_SOC"]
+    noc_soc_sheet = workbook['MONITORAMENTO_NOC_SOC']
     group_rows = [
         # Código, Serviço
-        (noc_soc_sheet.cell(row=r, column=1).value, noc_soc_sheet.cell(row=r, column=3).value)
+        (
+            noc_soc_sheet.cell(row=r, column=1).value,
+            noc_soc_sheet.cell(row=r, column=3).value,
+        )
         for r in range(2, noc_soc_sheet.max_row + 1)
     ]
-    assert sorted(group_rows) == [("INMS 1.14", "File Server"), ("INMS 1.14", "WI-FI")]
+    assert sorted(group_rows) == [
+        ('INMS 1.14', 'File Server'),
+        ('INMS 1.14', 'WI-FI'),
+    ]
 
     # each asset kept its own computed result, not collapsed into one
     results = {
         # Serviço -> Resultado
-        base_sheet.cell(row=r, column=3).value: base_sheet.cell(row=r, column=12).value
+        base_sheet.cell(row=r, column=3).value: base_sheet.cell(
+            row=r, column=12
+        ).value
         for r in range(2, base_sheet.max_row + 1)
     }
-    assert results["File Server"] == pytest.approx(99.80)
-    assert results["WI-FI"] == pytest.approx(98.90)
+    assert results['File Server'] == pytest.approx(99.80)
+    assert results['WI-FI'] == pytest.approx(98.90)

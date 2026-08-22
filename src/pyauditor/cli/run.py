@@ -23,10 +23,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Final
 
-from pyauditor.orchestration.run import RunRequest, execute_run, isolate_on_failure
-from pyauditor.orchestration.summary import OutputFormat, exit_code_for_run, render_summary
+from pyauditor.orchestration.run import (
+    RunRequest,
+    execute_run,
+    isolate_on_failure,
+)
+from pyauditor.orchestration.summary import (
+    OutputFormat,
+    exit_code_for_run,
+    render_summary,
+)
 
-_DEFAULT_RUNS_DIR: Final[Path] = Path(".pyauditor/runs")
+_DEFAULT_RUNS_DIR: Final[Path] = Path('.pyauditor/runs')
 
 
 def run_run(
@@ -40,7 +48,7 @@ def run_run(
     *,
     final_month: bool = False,
     runs_dir: Path = _DEFAULT_RUNS_DIR,
-    output: OutputFormat = "text",
+    output: OutputFormat = 'text',
     force: bool = False,
     strict: bool = False,
 ) -> int:
@@ -55,7 +63,7 @@ def run_run(
         final_month=final_month,
         runs_dir=runs_dir,
         force=force,
-        force_commands=frozenset({"report", "consolidate"}),
+        force_commands=frozenset({'report', 'consolidate'}),
         strict=strict,
     )
     run_result = execute_run(request, on_failure=isolate_on_failure)

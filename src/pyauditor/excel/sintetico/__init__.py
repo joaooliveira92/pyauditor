@@ -5,4 +5,4 @@ divisão do módulo em `workbook.py` (dispatcher + renderers) e `_stats.py`
 
 from pyauditor.excel.sintetico.workbook import write_sintetico_workbook
 
-__all__ = ("write_sintetico_workbook",)
+__all__ = ('write_sintetico_workbook',)

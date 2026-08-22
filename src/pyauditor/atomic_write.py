@@ -18,7 +18,9 @@ def atomic_write(path: Path, write: Callable[[Path], object]) -> None:
     replaces *path* with it. On any exception, the temp file is removed and
     *path* is left untouched."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    fd, tmp_name = tempfile.mkstemp(
+        dir=path.parent, prefix=f'.{path.name}.', suffix='.tmp'
+    )
     os.close(fd)
     tmp_path = Path(tmp_name)
     try:

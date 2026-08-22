@@ -33,11 +33,17 @@ class FakeInteractionProvider:
             raise InteractionCancelled
         return answer
 
-    def ask_text(self, message: str, *, default: str = "", validate: object = None) -> str:
+    def ask_text(
+        self, message: str, *, default: str = '', validate: object = None
+    ) -> str:
         return str(self._next())
 
     def ask_choice(
-        self, message: str, choices: Sequence[str], *, default: str | None = None
+        self,
+        message: str,
+        choices: Sequence[str],
+        *,
+        default: str | None = None,
     ) -> str:
         return str(self._next())
 
@@ -50,7 +56,7 @@ class FakeInteractionProvider:
     def confirm(self, message: str, *, default: bool = True) -> bool:
         return bool(self._next())
 
-    def show_message(self, text: str, *, style: str = "") -> None:
+    def show_message(self, text: str, *, style: str = '') -> None:
         self.messages.append((text, style))
 
     @contextmanager
@@ -58,6 +64,12 @@ class FakeInteractionProvider:
         self.progress_labels.append(label)
         yield
 
-    def show_summary(self, run_result: RunResult, *, log_path: object | None = None) -> int:
+    def show_summary(
+        self, run_result: RunResult, *, log_path: object | None = None
+    ) -> int:
         self.summaries.append(run_result)
-        return 1 if any(e.status == "error" for e in run_result.state.commands) else 0
+        return (
+            1
+            if any(e.status == 'error' for e in run_result.state.commands)
+            else 0
+        )

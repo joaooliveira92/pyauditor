@@ -11,10 +11,10 @@ from typing import Final
 
 from pyauditor.excel._csv_verbatim import read_csv_verbatim
 
-PRAZOS_FILENAME: Final = "prazos.csv"
-PRAZOS_SHEET_NAME: Final = "Prazos"
-PRAZOS_DELIMITER: Final = ","
-PRAZOS_ENCODING: Final = "utf-8-sig"
+PRAZOS_FILENAME: Final = 'prazos.csv'
+PRAZOS_SHEET_NAME: Final = 'Prazos'
+PRAZOS_DELIMITER: Final = ','
+PRAZOS_ENCODING: Final = 'utf-8-sig'
 
 
 def read_prazos(path: Path) -> tuple[list[str], list[list[str]]]:
@@ -25,4 +25,6 @@ def read_prazos(path: Path) -> tuple[list[str], list[list[str]]]:
             aba não gerada), mesmo contrato de `equipe.read_equipe`.
         ValueError: CSV vazio (sem nem cabeçalho).
     """
-    return read_csv_verbatim(path, delimiter=PRAZOS_DELIMITER, encoding=PRAZOS_ENCODING)
+    return read_csv_verbatim(
+        path, delimiter=PRAZOS_DELIMITER, encoding=PRAZOS_ENCODING
+    )

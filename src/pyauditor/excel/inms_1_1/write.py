@@ -13,14 +13,20 @@ from typing import Final
 
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter as cl
-from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.categoria_filter import GRUPO_EXECUTOR_COLUMN
-from pyauditor.config.categorias import CategoriasFile, GrupoExecutorMode, WholeIndicatorMode
-from pyauditor.excel._workbook import create_sheet_atomic, force_recalc, unique_table_name
+from pyauditor.config.categorias import (
+    CategoriasFile,
+    GrupoExecutorMode,
+    WholeIndicatorMode,
+)
+from pyauditor.excel._workbook import (
+    create_sheet_atomic,
+    force_recalc,
+    unique_table_name,
+)
 from pyauditor.excel.inms_1_1._cells import _protect_support_columns, _raw_range
 from pyauditor.excel.inms_1_1._domain import (
-    _REQUIRED_COLUMNS,
     _build_grupo_rows,
     _normalize_no_prazo,
     has_required_columns,
@@ -50,7 +56,8 @@ from pyauditor.excel.inms_1_1._sections_8_9 import (
 )
 from pyauditor.periodo import PeriodoAfericao
 
-__all__: Final[tuple[str, ...]] = ("has_required_columns", "write_sheet")
+__all__: Final[tuple[str, ...]] = ('has_required_columns', 'write_sheet')
+
 
 def _validate_write_sheet_params(
     *,
@@ -69,22 +76,29 @@ def _validate_write_sheet_params(
     # Resultado" para meta mínima (`>=`); nenhum uso real do INMS 1.1 hoje
     # é meta-teto (`<=`), então restringimos aqui em vez de manter as duas
     # narrativas coerentes ao mesmo tempo — ver ticket 05 (A-03).
-    if target_operator != ">=":
+    if target_operator != '>=':
         raise ValueError(
-            f"target_operator {target_operator!r} não suportado por este renderer — "
-            "a aba enriquecida do INMS 1.1 assume meta mínima ('>='); para meta-teto "
+            f'target_operator {target_operator!r} não suportado por este'
+            f'renderer — '
+            "a aba enriquecida do INMS 1.1 assume meta mínima ('>='); para "
+            'meta-teto '
             "('<='), use o renderer genérico (_write_grupo_executor_sheet)"
         )
     if not 0 <= target_value <= 100:
-        raise ValueError(f"target_value {target_value!r} fora da faixa 0–100")
+        raise ValueError(f'target_value {target_value!r} fora da faixa 0–100')
     if penalty_base_points < 0:
-        raise ValueError(f"penalty_base_points {penalty_base_points!r} não pode ser negativo")
+        raise ValueError(
+            f'penalty_base_points {penalty_base_points!r} não pode ser negativo'
+        )
     if penalty_step_points < 0:
-        raise ValueError(f"penalty_step_points {penalty_step_points!r} não pode ser negativo")
+        raise ValueError(
+            f'penalty_step_points {penalty_step_points!r} não pode ser negativo'
+        )
     if penalty_step_size_pct <= 0:
         raise ValueError(
-            f"penalty_step_size_pct {penalty_step_size_pct!r} deve ser positivo — "
-            "usado como divisor nas fórmulas da Seção 9"
+            f'penalty_step_size_pct {penalty_step_size_pct!r} deve ser positivo'
+            f'— '
+            'usado como divisor nas fórmulas da Seção 9'
         )
 
 
@@ -107,7 +121,9 @@ def write_sheet(
     raw_csv_path: Path,
     generated_at: datetime,
 ) -> None:
-    del whole_indicator_entries  # categorias.yaml não usa whole_indicator para 1.1 hoje
+    del (
+        whole_indicator_entries
+    )  # categorias.yaml não usa whole_indicator para 1.1 hoje
     del fieldnames  # validado por has_required_columns antes de chamar
 
     _validate_write_sheet_params(
@@ -140,21 +156,27 @@ def write_sheet(
 
         last_row = 1 + len(rows)
         real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
-        grupo_rows = _build_grupo_rows(categorias_file, grupo_executor_entries, real_values)
+        grupo_rows = _build_grupo_rows(
+            categorias_file, grupo_executor_entries, real_values
+        )
         _write_raw_block(sheet, rows, grupo_rows, last_row)
 
         def rng(col: int) -> str:
             return _raw_range(col, last_row)
 
-        iap = f"ROWS({rng(_R)})"
+        iap = f'ROWS({rng(_R)})'
         iadp = f'COUNTIF({rng(_X)},"S")'
         fora = f'COUNTIF({rng(_X)},"N")'
         meta_value = target_value / 100
 
         table_names = {
-            "grupo_executor": unique_table_name(workbook, "TabelaGrupoExecutor"),
-            "fora_do_prazo": unique_table_name(workbook, "TabelaForaDoPrazo"),
-            "amostra_divergencias": unique_table_name(workbook, "TabelaAmostraDivergencias"),
+            'grupo_executor': unique_table_name(
+                workbook, 'TabelaGrupoExecutor'
+            ),
+            'fora_do_prazo': unique_table_name(workbook, 'TabelaForaDoPrazo'),
+            'amostra_divergencias': unique_table_name(
+                workbook, 'TabelaAmostraDivergencias'
+            ),
         }
 
         _write_section_1_identificacao(
@@ -178,22 +200,24 @@ def write_sheet(
             grupo_rows=grupo_rows,
             rng=rng,
             start_row=next_row,
-            table_name=table_names["grupo_executor"],
+            table_name=table_names['grupo_executor'],
         )
-        next_row = _write_section_5_subtotais(sheet, rng=rng, start_row=next_row)
+        next_row = _write_section_5_subtotais(
+            sheet, rng=rng, start_row=next_row
+        )
         next_row = _write_section_6_fora_prazo(
             sheet,
             rows=rows,
             rng=rng,
             start_row=next_row,
-            table_name=table_names["fora_do_prazo"],
+            table_name=table_names['fora_do_prazo'],
         )
         next_row = _write_section_7_auditoria(
             sheet,
             rows=rows,
             rng=rng,
             start_row=next_row,
-            table_name=table_names["amostra_divergencias"],
+            table_name=table_names['amostra_divergencias'],
         )
         next_row = _write_section_8_tempo(sheet, rng=rng, start_row=next_row)
         _write_section_9_penalidade(
@@ -205,6 +229,6 @@ def write_sheet(
         )
 
         _protect_support_columns(sheet)
-        sheet.freeze_panes = "A2"
+        sheet.freeze_panes = 'A2'
 
     force_recalc(workbook)

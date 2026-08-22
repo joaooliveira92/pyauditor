@@ -16,7 +16,8 @@ pacote `inms_1_1/`): resumo executivo, memória de cálculo, incidentes fora
 do prazo e auditoria do prazo contratual via fórmulas do Excel sobre os
 dados brutos embutidos na própria aba. Só entra em jogo quando o CSV bruto
 tem as colunas de detalhe de produção (`Nº Solicitacao`, `Atividades`,
-`DataHoraLimite`, `TecnicoExecutor` — ver `inms_1_1_audit.has_required_columns`).
+`DataHoraLimite`, `TecnicoExecutor` — ver
+`inms_1_1_audit.has_required_columns`).
 """
 
 from __future__ import annotations
@@ -73,10 +74,10 @@ from pyauditor.excel.sintetico._sheets.verbatim_sheets import (
 )
 from pyauditor.periodo import PeriodoAfericao
 
-__all__: Final[tuple[str, ...]] = ("write_sintetico_workbook",)
+__all__: Final[tuple[str, ...]] = ('write_sintetico_workbook',)
 
-_INMS_1_1: Final[str] = "1.1"
-_INMS_1_14: Final[str] = "1.14"
+_INMS_1_1: Final[str] = '1.1'
+_INMS_1_14: Final[str] = '1.14'
 
 
 def write_sintetico_workbook(
@@ -105,21 +106,31 @@ def write_sintetico_workbook(
     warnings: list[str] = []
     generated_at = generated_at if generated_at is not None else datetime.now()
 
-    per_inms: dict[str, list[tuple[str, GrupoExecutorMode | WholeIndicatorMode]]] = {}
+    per_inms: dict[
+        str, list[tuple[str, GrupoExecutorMode | WholeIndicatorMode]]
+    ] = {}
     for categoria_key, categoria in categorias_file.categorias.items():
         for inms_key, entry in categoria.inms.items():
             per_inms.setdefault(inms_key, []).append((categoria_key, entry))
 
     workbook = Workbook()
     default_sheet = workbook.active
-    assert default_sheet is not None
+    if default_sheet is None:
+        raise RuntimeError('workbook novo sem aba ativa (openpyxl)')
     workbook.remove(default_sheet)
 
     if capa_path is not None:
         _write_capa_sheet(workbook, capa_path, objetos_path, warnings)
     elif objetos_path is not None:
         warnings.append(
-            f"sintetico.xlsx: capa_path não informado — dados de {objetos_path} "
+            f'sintetico.xlsx:'
+            f'capa_path'
+            f'não'
+            f'informado'
+            f'—'
+            f'dados'
+            f'de'
+            f'{objetos_path}'
             f"não anexados (dependem da aba '{CAPA_SHEET_NAME}')"
         )
     if equipe_path is not None:
@@ -142,15 +153,17 @@ def write_sintetico_workbook(
         )
     sheets_before_inms = set(workbook.sheetnames)
 
-    for inms_key in sorted(per_inms, key=lambda k: int(k.split(".")[1])):
+    for inms_key in sorted(per_inms, key=lambda k: int(k.split('.')[1])):
         entries = per_inms[inms_key]
-        sheet_name = f"INMS {inms_key}"
+        sheet_name = f'INMS {inms_key}'
 
         try:
             base_stem = base_config_stem(inms_key)
-            base_config = load_config(config_dir / f"{base_stem}.yaml")
+            base_config = load_config(config_dir / f'{base_stem}.yaml')
         except (OSError, ValueError) as exc:
-            warning = f"sintetico.xlsx: INMS {inms_key}: falha ao carregar config base: {exc}"
+            warning = (
+                f'sintetico.xlsx:INMS{inms_key}:falhaaocarregarconfigbase:{exc}'
+            )
             warnings.append(warning)
             continue
 
@@ -165,7 +178,7 @@ def write_sintetico_workbook(
                 base_config,
                 competencia_data_dir,
                 manifest,
-                config_path=config_dir / f"{base_stem}.yaml",
+                config_path=config_dir / f'{base_stem}.yaml',
                 periodo=periodo,
                 strict=strict,
                 emit_period_filter_logs=False,
@@ -174,7 +187,7 @@ def write_sintetico_workbook(
             _write_nao_ativado_sheet(workbook, sheet_name)
             continue
         except (OSError, ValueError) as exc:
-            warnings.append(f"sintetico.xlsx: INMS {inms_key}: {exc}")
+            warnings.append(f'sintetico.xlsx: INMS {inms_key}: {exc}')
             continue
 
         raw_csv_path = bundle.csv_path
@@ -192,7 +205,7 @@ def write_sintetico_workbook(
                 calculation.name_column is None
             ):
                 warning = (
-                    f"sintetico.xlsx: INMS {inms_key}: config base não é "
+                    f'sintetico.xlsx: INMS {inms_key}: config base não é '
                     "'precomputed_table' com 'name_column' — aba não gerada"
                 )
                 warnings.append(warning)
@@ -209,12 +222,15 @@ def write_sintetico_workbook(
             )
             continue
 
-        grupo_executor_entries = [(ck, e) for ck, e in entries if isinstance(e, GrupoExecutorMode)]
+        grupo_executor_entries = [
+            (ck, e) for ck, e in entries if isinstance(e, GrupoExecutorMode)
+        ]
 
         if grupo_executor_entries:
             if GRUPO_EXECUTOR_COLUMN not in fieldnames:
                 warning = (
-                    f"sintetico.xlsx: INMS {inms_key}: {raw_csv_path} não tem coluna "
+                    f'sintetico.xlsx: INMS {inms_key}: {raw_csv_path} não tem'
+                    f'coluna '
                     f"'{GRUPO_EXECUTOR_COLUMN}' — aba não gerada"
                 )
                 warnings.append(warning)
@@ -255,8 +271,9 @@ def write_sintetico_workbook(
                     # degrada para o renderer genérico, como as demais
                     # falhas por-INMS deste loop.
                     warning = (
-                        f"sintetico.xlsx: INMS {inms_key}: falha ao gerar aba enriquecida "
-                        f"({exc}) — usando renderer genérico"
+                        f'sintetico.xlsx: INMS {inms_key}: falha ao gerar aba'
+                        f'enriquecida '
+                        f'({exc}) — usando renderer genérico'
                     )
                     warnings.append(warning)
                     _write_grupo_executor_sheet(
@@ -281,7 +298,10 @@ def write_sintetico_workbook(
                     accepted_ids,
                 )
         elif isinstance(base_config.calculation, PrecomputedTableCalculation):
-            assert base_config.target is not None
+            if base_config.target is None:
+                raise ValueError(
+                    'precomputed exige `target` no sintetico'
+                )
             _write_precomputed_table_sheet(
                 workbook,
                 sheet_name,
@@ -294,11 +314,15 @@ def write_sintetico_workbook(
             )
         elif (
             isinstance(base_config.calculation, RatioCalculation)
-            and base_config.calculation.aggregation == "sum"
-            and base_config.calculation.sum_numerator_subtract_column is not None
+            and base_config.calculation.aggregation == 'sum'
+            and base_config.calculation.sum_numerator_subtract_column
+            is not None
             and base_config.calculation.denominator_filter is not None
         ):
-            assert base_config.target is not None
+            if base_config.target is None:
+                raise ValueError(
+                    'ratio_aggregate exige `target` no sintetico'
+                )
             _write_ratio_aggregate_sheet(
                 workbook,
                 sheet_name,
