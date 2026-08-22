@@ -82,3 +82,13 @@ encerramento vazia (incidente em aberto, `OK`), encerramento anterior à
 abertura, e linha totalmente válida. `uv run pytest tests/test_inms_1_1_audit.py
 tests/test_excel_safety.py -q --no-cov` → 12 passed. `uv run mypy --strict`
 limpo.
+
+## Addendum (revisão 81c9a6e)
+
+- **Abertura ausente**: linha com `DataHoraSolicitacao` vazia mas com
+  encerramento era marcada `OK` mesmo sendo excluída das médias por dados
+  incompletos. Novo veredito `"Data de abertura ausente"` (`elif
+  solicitacao.is_blank`), distinguindo campo vazio de malformado — a fixture
+  do teste acima ganhou a linha 6 cobrindo o caso.
+- **Visibilidade da coluna `AJ`**: ver nota cruzada com o B-03 no ticket 20 —
+  a coluna de qualidade deixou de ser ocultada para não anular a sinalização.

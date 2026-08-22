@@ -55,3 +55,11 @@ Teste: `test_support_columns_are_hidden_and_sheet_is_protected` em
 `tests/test_inms_1_1_audit.py`, verificando colunas R e AM ocultas, proteção
 ativa, uma célula de fórmula comum (`A13`) bloqueada, e a célula de
 justificativa da Seção 4 desbloqueada.
+
+## Addendum (revisão 81c9a6e)
+
+**Consenso C-02 × B-03**: o ocultamento passou a excluir a coluna `AJ`
+("Situação dos dados"). Ocultá-la anularia o indicador visual exigido pelo
+ticket 02 (C-02); ela é preenchida em Python, não alimenta fórmula alguma, e
+carrega o preenchimento vermelho das linhas com data inválida. O teste acima
+passou a afirmar que `AJ` não fica oculta.
