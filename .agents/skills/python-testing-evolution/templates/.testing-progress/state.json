@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "project": "pyauditor",
+  "last_run": null,
+  "baseline": {
+    "tests": null,
+    "branch_coverage_percent": null,
+    "failures": null,
+    "skipped": null
+  },
+  "completed_objectives": [],
+  "known_risks": [],
+  "next_objective": "Establish the baseline and select the highest-risk deterministic testing gap."
+}

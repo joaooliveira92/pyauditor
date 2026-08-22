@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Python testing evolution state",
+  "type": "object",
+  "required": ["schema_version", "project", "last_run", "baseline", "completed_objectives", "known_risks", "next_objective"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "project": {"type": "string", "minLength": 1},
+    "last_run": {"type": ["string", "null"], "format": "date-time"},
+    "baseline": {
+      "type": "object",
+      "required": ["tests", "branch_coverage_percent", "failures", "skipped"],
+      "properties": {
+        "tests": {"type": ["integer", "null"], "minimum": 0},
+        "branch_coverage_percent": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+        "failures": {"type": ["integer", "null"], "minimum": 0},
+        "skipped": {"type": ["integer", "null"], "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "completed_objectives": {"type": "array", "items": {"type": "string"}},
+    "known_risks": {"type": "array", "items": {"type": "string"}},
+    "next_objective": {"type": ["string", "null"]}
+  },
+  "additionalProperties": true
+}
