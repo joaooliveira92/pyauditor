@@ -8,7 +8,25 @@ Hoje `_load_summaries` é verbatim nos dois (com fallback de grandParent redunda
 
 **Status:** ready-for-agent
 
-- [ ] `_load_summaries`, `_read_objetos`/`_read_valor_base` e o dedup de sumário derivado existem uma única vez e `report`/`consolidate` os importam.
-- [ ] Fallback redundante de grandParent no consolidate reconciliado (ou removido com teste) com a versão do report.
-- [ ] Semântica de erro preservada: `FileNotFoundError` → `None`+warning; `ValueError` → raise — mensagens agora idênticas entre os dois.
-- [ ] Testes de `report`/`consolidate` verdes.
+- [x] `_load_summaries`, `_read_objetos`/`_read_valor_base` e o dedup de sumário derivado existem uma única vez e `report`/`consolidate` os importam.
+- [x] Fallback redundante de grandParent no consolidate reconciliado (ou removido com teste) com a versão do report.
+- [x] Semântica de erro preservada: `FileNotFoundError` → `None`+warning; `ValueError` → raise — mensagens agora idênticas entre os dois.
+- [x] Testes de `report`/`consolidate` verdes.
+
+## Comments
+
+- 2026-08-22 — Implementado. Novos módulos `pyauditor.rom.loading`
+  (`load_summaries`/`read_valor_base`) e `pyauditor.rom.dedup`
+  (`is_categoria_derived`/`deduplicate_summaries`). `cli/report.py`,
+  `cli/consolidate.py`, `excel/report.py` e `excel/consolidate.py` importam a
+  versão única. Corrigido bug real na versão de `excel/consolidate.py`:
+  `_is_derived` testava `"." in indicator_id`, sempre verdadeiro para códigos
+  INMS (`"1.7"`), então a dedup nunca excluía a base de fato quando havia
+  categorias derivadas — agora usa o prefixo `f"{contractual_id}."`, correto.
+  Fallback redundante de grandParent em `cli/consolidate.py` removido (a
+  checagem já era coberta antes dele). Mensagens de warning unificadas
+  ("glosa não calculada"). `report`/`consolidate`: 25 falhas pré-existentes
+  em `test_cli_report.py`/`test_cli_consolidate.py`/`test_excel_consolidate.py`/
+  `test_excel_report.py` (bug Decimal/float não relacionado, herdado de
+  `c05b92b`) confirmadas idênticas antes/depois via `git stash` — nenhuma
+  regressão introduzida por este ticket.
