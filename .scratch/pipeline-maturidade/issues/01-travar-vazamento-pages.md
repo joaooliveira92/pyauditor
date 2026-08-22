@@ -1,5 +1,7 @@
 # 01 — Travar vazamento de conteúdo sensível no GitHub Pages
 
+Type: task
+
 **What to build:** o site público `joaooliveira92.github.io/pyauditor` deixa de expor o que não deve ser público. Hoje o deploy de Pages publica a working tree inteira (`path: '.'`), o que sobe `.scratch/` (notas internas de agentes) e `/docs/` (termo de referência, notas técnicas, processo de pagamento — PII) para um site **público** — inclusive arquivos gitignored. O ticket entrega: upload restrito ao conteúdo publicável + verificação de que o site publicado não contém nada sensível.
 
 **Blocked by:** nenhum — pode começar imediatamente.
