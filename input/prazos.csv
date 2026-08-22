@@ -1,0 +1,6 @@
+Demanda,Criticidade,Prazo máximo para atendimento
+Incidentes,Alta,2h (horas corridas)
+Requisições,Alta,4h (horas corridas)
+Requisições,Média,8h (horas corridas)
+Requisições,Baixa,16h (horas corridas)
+Projetos,-,Prazo acordado entre Contratante e Contratada

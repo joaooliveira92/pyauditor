@@ -156,6 +156,7 @@ def run_split(
     materialize: bool = True,
     periodo: PeriodoAfericao | None = None,
     strict: bool = False,
+    prazos_path: Path | None = None,
 ) -> SplitResult:
     orgao = expected_orgao
 
@@ -412,6 +413,7 @@ def run_split(
                 manifest=manifest,
                 periodo=periodo,
                 strict=strict,
+                prazos_path=prazos_path,
             )
             warnings.extend(sintetico_warnings)
             if sintetico_path.exists():

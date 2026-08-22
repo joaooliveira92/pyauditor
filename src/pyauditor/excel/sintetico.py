@@ -1,6 +1,8 @@
 """`sintetico.xlsx` (spec §14.4, ticket 05) — um workbook por órgão/
 competência, uma aba por INMS com entrada em `categorias.yaml` (exclui
-1.8/1.10, que não têm entrada nenhuma).
+1.8/1.10, que não têm entrada nenhuma), mais a aba "Prazos" (a pedido do
+usuário) reproduzindo `input/prazos.csv` verbatim como a primeira aba
+quando `prazos_path` é passado.
 
 Contagens são brutas/pré-quality-gate — conferência rápida, não substitui o
 ROM da categoria. A única exceção é `Tempo médio criação→resolução`,
@@ -64,6 +66,7 @@ from pyauditor.engine.strategies._filters import filter_rows
 from pyauditor.engine.strategies._numbers import parse_decimal
 from pyauditor.engine.strategies._target import meets_target, safe_pct
 from pyauditor.excel._style import LABEL_FONT, new_sheet, write_row
+from pyauditor.excel.prazos import PRAZOS_SHEET_NAME, read_prazos
 from pyauditor.periodo import PeriodoAfericao, filter_periodo, require_period_column
 
 __all__: Final[tuple[str, ...]] = ("write_sintetico_workbook",)
@@ -611,6 +614,25 @@ def _write_ratio_aggregate_sheet(
             row_idx += 1
 
 
+def _write_prazos_sheet(workbook: Workbook, prazos_path: Path, warnings: list[str]) -> None:
+    """Aba "Prazos": reprodução exata de `prazos.csv` (input, à parte do
+    pipeline de INMS), sempre a primeira aba do workbook."""
+    try:
+        header, rows = read_prazos(prazos_path)
+    except FileNotFoundError:
+        warnings.append(f"sintetico.xlsx: {prazos_path} não encontrado — aba 'Prazos' não gerada")
+        return
+    except (OSError, ValueError) as exc:
+        warnings.append(
+            f"sintetico.xlsx: falha ao ler {prazos_path}: {exc} — aba 'Prazos' não gerada"
+        )
+        return
+
+    sheet = new_sheet(workbook, PRAZOS_SHEET_NAME, tuple(header))
+    for row_idx, row in enumerate(rows, start=2):
+        write_row(sheet, row_idx, tuple(row))
+
+
 def write_sintetico_workbook(
     categorias_file: CategoriasFile,
     config_dir: Path,
@@ -620,6 +642,7 @@ def write_sintetico_workbook(
     manifest: DatasetManifest | None = None,
     periodo: PeriodoAfericao | None = None,
     strict: bool = False,
+    prazos_path: Path | None = None,
 ) -> list[str]:
     """Constrói e grava `sintetico.xlsx` de um órgão/competência. Devolve
     warnings (nunca lança por causa do problema de um único INMS — um
@@ -636,6 +659,10 @@ def write_sintetico_workbook(
     default_sheet = workbook.active
     assert default_sheet is not None
     workbook.remove(default_sheet)
+
+    if prazos_path is not None:
+        _write_prazos_sheet(workbook, prazos_path, warnings)
+    sheets_before_inms = set(workbook.sheetnames)
 
     for inms_key in sorted(per_inms, key=lambda k: int(k.split(".")[1])):
         entries = per_inms[inms_key]
@@ -791,11 +818,12 @@ def write_sintetico_workbook(
                 accepted_ids,
             )
 
-    if not workbook.sheetnames:
+    if set(workbook.sheetnames) == sheets_before_inms:
         # Nada pôde ser medido (todo INMS de categorias.yaml falhou ao
-        # carregar/resolver) — um xlsx sem nenhuma aba visível não é um
-        # arquivo válido para o openpyxl escrever; não sobrescreve um
-        # sintetico.xlsx de rerun anterior com um arquivo vazio/quebrado.
+        # carregar/resolver) — um xlsx sem nenhuma aba de INMS não é um
+        # arquivo válido pra este propósito (a aba "Prazos" sozinha não
+        # conta); não sobrescreve um sintetico.xlsx de rerun anterior com um
+        # arquivo vazio/quebrado.
         return warnings
 
     atomic_write(output_path, workbook.save)

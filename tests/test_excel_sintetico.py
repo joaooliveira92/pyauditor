@@ -724,3 +724,60 @@ def test_ratio_sum_subtract_sheet_aggregates_one_row_per_group_excluding_totais(
             "Sim",
         ],
     ]
+
+
+_PRAZOS_RAW_CSV = (
+    "Demanda,Criticidade,Prazo máximo para atendimento\n"
+    "Incidentes,Alta,2h (horas corridas)\n"
+    "Requisições,Alta,4h (horas corridas)\n"
+    "Requisições,Média,8h (horas corridas)\n"
+    "Requisições,Baixa,16h (horas corridas)\n"
+    "Projetos,-,Prazo acordado entre Contratante e Contratada\n"
+)
+
+
+def test_prazos_sheet_is_first_and_reproduces_csv_verbatim(tmp_path: Path) -> None:
+    config_dir, data_dir = _write_fixture(tmp_path, include_inms_04_csv=True)
+    categorias_file = load_categorias(config_dir / "categorias.yaml")
+    output_path = tmp_path / "sintetico.xlsx"
+    prazos_path = tmp_path / "prazos.csv"
+    prazos_path.write_text(_PRAZOS_RAW_CSV, encoding="utf-8")
+
+    warnings = write_sintetico_workbook(
+        categorias_file, config_dir, data_dir, output_path, prazos_path=prazos_path
+    )
+
+    assert warnings == []
+    wb = load_workbook(output_path)
+    assert wb.sheetnames[0] == "Prazos"
+    sheet = wb["Prazos"]
+    rows = [[c.value for c in row] for row in sheet.iter_rows()]
+    assert rows == [line.split(",") for line in _PRAZOS_RAW_CSV.strip("\n").split("\n")]
+
+
+def test_prazos_sheet_missing_file_warns_and_skips(tmp_path: Path) -> None:
+    config_dir, data_dir = _write_fixture(tmp_path, include_inms_04_csv=True)
+    categorias_file = load_categorias(config_dir / "categorias.yaml")
+    output_path = tmp_path / "sintetico.xlsx"
+    prazos_path = tmp_path / "prazos.csv"  # não existe
+
+    warnings = write_sintetico_workbook(
+        categorias_file, config_dir, data_dir, output_path, prazos_path=prazos_path
+    )
+
+    assert len(warnings) == 1
+    assert "Prazos" in warnings[0]
+    wb = load_workbook(output_path)
+    assert "Prazos" not in wb.sheetnames
+
+
+def test_prazos_sheet_omitted_when_prazos_path_not_given(tmp_path: Path) -> None:
+    config_dir, data_dir = _write_fixture(tmp_path, include_inms_04_csv=True)
+    categorias_file = load_categorias(config_dir / "categorias.yaml")
+    output_path = tmp_path / "sintetico.xlsx"
+
+    warnings = write_sintetico_workbook(categorias_file, config_dir, data_dir, output_path)
+
+    assert warnings == []
+    wb = load_workbook(output_path)
+    assert "Prazos" not in wb.sheetnames

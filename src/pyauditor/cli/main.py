@@ -31,6 +31,7 @@ from pyauditor.cli.run import run_run
 from pyauditor.cli.split import run_split
 from pyauditor.config.manifest import load_manifest
 from pyauditor.excel.equipe import EQUIPE_FILENAME
+from pyauditor.excel.prazos import PRAZOS_FILENAME
 from pyauditor.logging import logger, setup_logging
 from pyauditor.periodo import PeriodoAfericao, month_bounds
 
@@ -536,6 +537,7 @@ def _dispatch_split(args: argparse.Namespace) -> int:
     # e sem pasta órfã "both"
     year, month = request.competencia.split("-")
     periodo: PeriodoAfericao = month_bounds(request.competencia)
+    prazos_path = request.data_dir / PRAZOS_FILENAME
     split_results = []
     for orgao in _each_single_orgao(request.orgao):
         # setup por órgão dentro do loop para evitar pasta both/ órfã
@@ -563,6 +565,7 @@ def _dispatch_split(args: argparse.Namespace) -> int:
                 report_dir=request.report_dir / orgao,
                 periodo=periodo,
                 strict=request.strict,
+                prazos_path=prazos_path,
             )
         )
     return exit_code_for_results(split_results)

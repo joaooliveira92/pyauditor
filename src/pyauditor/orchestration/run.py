@@ -26,6 +26,7 @@ from pyauditor.cli.report import ReportResult, check_report_ready, run_report
 from pyauditor.cli.split import _SINTETICO_FILENAME, SplitResult, run_split
 from pyauditor.config.manifest import DatasetManifest, load_manifest
 from pyauditor.excel.equipe import EQUIPE_FILENAME
+from pyauditor.excel.prazos import PRAZOS_FILENAME
 from pyauditor.logging import logger
 from pyauditor.orchestration.state import (
     CommandStateEntry,
@@ -277,6 +278,7 @@ def _dispatch(command: str, orgao: str | None, request: RunRequest) -> CommandRe
             materialize=False,
             periodo=_periodo(request),
             strict=request.strict,
+            prazos_path=request.data_dir / PRAZOS_FILENAME,
         )
     if command == "measure":
         base = request.config_dir
