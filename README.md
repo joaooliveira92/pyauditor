@@ -48,8 +48,8 @@ por camada (quality gates, resolução de dataset, shapes de cálculo):
   (`load config → valida quality_gates → aplica strategy → gera ROM`):
   `ratio`, `segmented_ratio`, `count_difference` e `external_catalog_sum`.
 - **Strategy/registry pattern**: cada `shape` declara seu próprio modelo Pydantic
-  (discriminated union) — `mypy --strict` garante que cada strategy só recebe o
-  config que sabe processar, sem `dict[str, Any]`.
+  (discriminated union) — `basedpyright` (strict mode) garante que cada strategy
+  só recebe o config que sabe processar, sem `dict[str, Any]`.
 - **Validação em duas camadas**: Pydantic (config é válida?) vs
   `QualityGateRunner` (os dados batem com as regras de negócio?). O ROM distingue
   "config quebrada" de "dado rejeitado".
@@ -207,14 +207,14 @@ portal/                     # fonte do site de documentação (zensical)
 
 ```bash
 uv run pytest          # suite completa + cobertura (>85%)
-uv run mypy            # strict mode sobre src e tests
+uv run basedpyright    # strict mode sobre src e tests
 uv run ruff check src tests
 uv run bandit src      # segurança
 uv run pip-audit       # auditoria de dependências
 ```
 
-`mypy` roda em **strict mode** sobre `src` e `tests` (ver `pyproject.toml`). A
-suite pytest está configurada com `pytest-cov` (branch coverage, limiar 85%),
+`basedpyright` roda em **strict mode** sobre `src` e `tests` (ver
+`pyproject.toml`). A suite pytest está configurada com `pytest-cov` (branch coverage, limiar 85%),
 `hypothesis` para testes baseados em propriedades, e fixtures sintéticas por
 strategy — nunca cópia bruta de CSV de produção.
 

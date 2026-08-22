@@ -17,9 +17,9 @@ as divergências conscientes.
     testes e cobertura.
 -   Lint/format: **Ruff** (`E`, `F`, `I`, `B`, `UP`, `SIM`, `RUF`). Corrigir
     o achado, não suprimir com `# noqa` sem justificativa localizada.
--   Tipagem: **mypy strict** (`[tool.mypy] strict = true`). Nenhum código
-    novo deve introduzir `Any` evitável ou `# type: ignore` sem comentário
-    explicando o motivo.
+-   Tipagem: **basedpyright strict** (`[tool.basedpyright]
+    typeCheckingMode = "strict"`). Nenhum código novo deve introduzir `Any`
+    evitável ou `# type: ignore` sem comentário explicando o motivo.
 -   Testes: **pytest**, com `--cov` e `fail_under = 85`
     (`[tool.coverage.report]`). Rodar `uv run pytest` antes de declarar
     qualquer tarefa concluída.
@@ -45,7 +45,7 @@ específicas deste projeto:
     comentário a um comentário óbvio.
 -   Quando o [pyguide.md][pyguide] deixar margem de escolha (ex.:
     `# noqa` vs. reestruturar o código), a ferramenta configurada em
-    [pyproject.toml][pyproject] (Ruff, mypy) é o árbitro.
+    [pyproject.toml][pyproject] (Ruff, basedpyright) é o árbitro.
 
 ## Erros e resiliência
 
@@ -99,7 +99,7 @@ específicas deste projeto:
 
 1.  `uv run ruff check .`
 2.  `uv run ruff format --check .` (ou aplicar formatação, se apropriado)
-3.  `uv run mypy`
+3.  `uv run basedpyright`
 4.  `uv run pytest`
 
 Nunca reportar sucesso sem ter rodado esses comandos. Se algum não puder

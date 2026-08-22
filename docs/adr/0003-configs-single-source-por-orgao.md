@@ -16,7 +16,7 @@ Até 2026-08, `configs/MinC/` e `configs/MTur/` duplicavam 14 YAMLs base (`inms-
 ## Alternativas consideradas
 
 - **B: `!include`/herança YAML** — manter `configs/MinC/` e `configs/MTur/` com 28 arquivos que fazem `_base: ../_shared/inms-01.yaml` + override de `scope`. DRY, mas mantém 28 arquivos e exige resolver `!include` custom; descartado por manter duplicação de arquivos.
-- **C: Builder em Python** — trocar YAML por `IndicatorConfig` construído em código (`configs/build.py`). Elimina YAML e ganha `mypy` total, mas perde a propriedade mais valiosa: fiscal técnico lê/edita `inms-01.yaml` sem saber Python. Descartado.
+- **C: Builder em Python** — trocar YAML por `IndicatorConfig` construído em código (`configs/build.py`). Elimina YAML e ganha `basedpyright` total, mas perde a propriedade mais valiosa: fiscal técnico lê/edita `inms-01.yaml` sem saber Python. Descartado.
 
 ## Consequências
 

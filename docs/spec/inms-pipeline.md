@@ -71,7 +71,7 @@ strategy → gera ROM`.
 
 Pydantic usa **discriminated union pelo campo `shape`**: cada strategy declara seu próprio modelo
 para os blocos `calculation`/`penalty` do YAML (`RatioCalculation`, `SegmentedRatioCalculation`,
-`CountDifferenceCalculation`, `ExternalCatalogSumCalculation`), com `mypy --strict` garantindo que
+`CountDifferenceCalculation`, `ExternalCatalogSumCalculation`), com `basedpyright` strict garantindo que
 cada strategy só recebe o shape de config que sabe processar — sem `dict[str, Any]` nem
 `# type: ignore` espalhados pelo engine.
 

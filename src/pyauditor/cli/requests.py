@@ -94,7 +94,7 @@ class ConsolidateRequest:
 
 class LoggingKwargs(TypedDict):
     """Flags de logging do argparse, com os tipos exatos que `setup_logging`
-    espera — TypedDict para o unpacking `**` passar pelo mypy strict."""
+    espera — TypedDict para o unpacking `**` passar pelo basedpyright strict."""
 
     verbose: int
     log_level_explicit: str | None

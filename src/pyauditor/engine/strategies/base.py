@@ -38,7 +38,8 @@ def no_pooled_numerator_denominator(_memoria: dict[str, object]) -> tuple[None, 
 def narrow_calculation[C: Calculation](config: IndicatorConfig, shape: type[C]) -> C:
     """Every strategy is only ever invoked for its own `shape` (dispatched via
     `SHAPE_REGISTRY`), so this narrowing always succeeds — it exists to give
-    mypy the concrete `XCalculation` type instead of the `Calculation` union.
+    basedpyright the concrete `XCalculation` type instead of the `Calculation`
+    union.
     """
     assert isinstance(config.calculation, shape)
     return config.calculation

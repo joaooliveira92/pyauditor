@@ -1475,8 +1475,9 @@ Use other `from __future__` import statements as you see fit.
 
 You can annotate Python code with
 [type hints](https://docs.python.org/3/library/typing.html). Type-check the code
-at build time with [mypy](https://mypy-lang.org/) in strict mode
-(`[tool.mypy] strict = true` in `pyproject.toml`). In most cases, when feasible,
+at build time with [basedpyright](https://docs.basedpyright.com/) in strict mode
+(`[tool.basedpyright] typeCheckingMode = "strict"` in `pyproject.toml`). In most
+cases, when feasible,
 type annotations are in source files. For third-party or extension modules,
 annotations can be in
 [stub `.pyi` files](https://peps.python.org/pep-0484/#stub-files).
@@ -1520,7 +1521,7 @@ your ability to use [Power Features](#power-features).
 You will have to keep the type declarations up to date.
 You might see type errors that you think are
 valid code. Use of a
-[type checker](https://mypy-lang.org/)
+[type checker](https://docs.basedpyright.com/)
 may reduce your ability to use [Power Features](#power-features).
 
 <a id="s2.21.4-decision"></a>
@@ -1531,7 +1532,8 @@ may reduce your ability to use [Power Features](#power-features).
 
 You are strongly encouraged to enable Python type analysis when updating code.
 When adding or modifying public APIs, include type annotations and enable
-checking via mypy (strict mode) in the build system. As static analysis is
+checking via basedpyright (strict mode) in the build system. As static analysis
+is
 relatively new to Python, we acknowledge that undesired side-effects (such as
 wrongly
 inferred types) may prevent adoption by some projects. In those situations,
@@ -3393,8 +3395,9 @@ ComplexTFMap: TypeAlias = Mapping[str, _LossAndGradient]
 You can disable type checking on a line with the special comment `# type:
 ignore`.
 
-mypy strict mode has a `# mypy: disable-error-code=...` per-module option and
-per-line `# type: ignore[code]` comments for specific errors:
+basedpyright strict mode has a `# pyright: ignore[code]` per-line comment (and a
+per-module `# pyright: basic`/report control) for specific errors. `# type:
+ignore` comments continue to be honored as well:
 
 ```python
 # type: ignore[attr-defined]

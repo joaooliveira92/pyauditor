@@ -2,7 +2,7 @@
 .venv/
 __pycache__/
 *.pyc
-.mypy_cache/
+.basedpyright/
 .pytest_cache/
 *.egg-info/
 

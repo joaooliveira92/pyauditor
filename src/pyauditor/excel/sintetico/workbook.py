@@ -1,628 +1,82 @@
 """`sintetico.xlsx` (spec §14.4, ticket 05) — um workbook por órgão/
-competência, uma aba por INMS com entrada em `categorias.yaml` (exclui
-1.8/1.10, que não têm entrada nenhuma), mais três abas opcionais que
-reproduzem `input/{capa,equipe,prazos}.csv` verbatim (cabeçalho + linhas,
-sem processamento) — "Capa", "Equipe" e "Prazos", nessa ordem, cada uma só
-quando o respectivo `*_path` é passado. `objetos.csv` não vira aba própria:
-a pedido do usuário, é anexado ao final da aba "Capa" (depois de "Término
-da vigência", a última linha de `capa.csv`), separado por uma linha em
-branco — só quando `capa_path` também é passado. Como são escritas antes
-do laço de INMS, acabam sendo as primeiras abas do workbook.
+competência, uma aba por INMS com entrada em `categorias.yaml`, mais as abas
+verbatim de `input/{capa,equipe,prazos}.csv`.
+
+Este módulo é o **dispatcher**: decide o renderer por INMS (config herdada,
+colunas do CSV, shape), acumula warnings e executa o `atomic_write` final.
+Os renderers por-shape vivem em `excel/sintetico/_sheets/`, os verbatim em
+`_sheets/verbatim_sheets.py`, e a aritmética em `_stats.py` (ticket 04 SRP).
 
 Contagens são brutas/pré-quality-gate — conferência rápida, não substitui o
 ROM da categoria. A única exceção é `Tempo médio criação→resolução`,
 restrito às linhas aprovadas pelo quality gate, conforme a spec.
 
-As colunas assumidas (`No prazo`, `DataHoraSolicitacao`, `DataHoraFim`)
-valem para os datasets linha-a-linha (INMS 1.1-1.3, 1.7ish) contra os quais
-`split` foi construído. Dois shapes de `calculation` têm renderer dedicado
-em vez de degradar pra "—":
-
-- `precomputed_table` (INMS 1.4/1.5/1.9/1.13 — 1.14 é o caso multi-ativo x
-  categoria abaixo, e 1.8/1.10 não têm entrada em `categorias.yaml`): uma
-  linha por `name_column`, com `result_column`/`penalty_column` lidos
-  direto do CSV e "Meta atingida?" derivada de `target`, não da coluna
-  crua `atingiu_meta` (que não faz parte do schema).
-- `ratio` com `aggregation: sum` + `sum_numerator_subtract_column` (hoje só
-  INMS 1.6): uma linha por valor distinto da coluna de `denominator_filter`
-  (ex. "Acordo de Nível de Serviço"), somando os CSVs elegíveis por grupo —
-  mesma aritmética de `RatioStrategy._aggregate`.
-
-Os demais `whole_indicator` (ex. INMS 1.11/1.12, `ratio` sobre CDR de
-telefonia com colunas de data/prazo próprias) continuam degradando pra
-"—" — fog, não coberto ainda.
-
-INMS 1.14 (spec §14.5, ticket 06) é o único caso de composição multi-ativo x
-categoria: sua aba troca a coluna `Grupo executor` por `Ativo`, lida do
-`name_column` da config `precomputed_table` (mesma dataset da medição real,
-sem recalcular nada), e agrupa/subtotaliza por Categoria em vez de Nível
-(as duas categorias que o 1.14 integra são ambas N3 — subtotalizar por
-Nível não distinguiria nada).
-
-INMS 1.1 tem um terceiro renderer dedicado, em `excel/inms_1_1_audit.py`:
-resumo executivo, memória de cálculo, incidentes fora do prazo e auditoria
-de prazo contratual, tudo via fórmulas do Excel sobre os dados brutos
-embutidos na própria aba (não valores pré-calculados em Python). Só entra
-em jogo quando o CSV bruto tem as colunas de detalhe de produção (`Nº
-Solicitacao`, `Atividades`, `DataHoraLimite`, `TecnicoExecutor` — ver
-`inms_1_1_audit.has_required_columns`); CSVs minimalistas (fixtures de
-teste) caem no `_write_grupo_executor_sheet` genérico abaixo, como antes.
+INMS 1.1 tem renderer dedicado em `excel/inms_1_1_audit.py` (fachada do
+pacote `inms_1_1/`): resumo executivo, memória de cálculo, incidentes fora
+do prazo e auditoria do prazo contratual via fórmulas do Excel sobre os
+dados brutos embutidos na própria aba. Só entra em jogo quando o CSV bruto
+tem as colunas de detalhe de produção (`Nº Solicitacao`, `Atividades`,
+`DataHoraLimite`, `TecnicoExecutor` — ver `inms_1_1_audit.has_required_columns`).
 """
 
 from __future__ import annotations
 
-
 from datetime import datetime
-from math import isnan
 from pathlib import Path
 from typing import Final
 
 from openpyxl import Workbook
-from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.atomic_write import atomic_write
-from pyauditor.categoria_filter import (
-    GRUPO_EXECUTOR_COLUMN,
-    base_config_stem,
-    compute_categoria_values,
-)
+from pyauditor.categoria_filter import GRUPO_EXECUTOR_COLUMN, base_config_stem
 from pyauditor.config.categorias import (
     CategoriasFile,
     GrupoExecutorMode,
     WholeIndicatorMode,
 )
 from pyauditor.config.manifest import DatasetManifest
-from pyauditor.config.models import PrecomputedTableCalculation, RatioCalculation
-from pyauditor.config.niveis import NIVEL_BY_CATEGORIA, NIVEL_ORDER
+from pyauditor.config.models import (
+    PrecomputedTableCalculation,
+    RatioCalculation,
+)
 from pyauditor.engine.pipeline import load_config, measurement_source
-from pyauditor.engine.strategies import filter_rows, meets_target, parse_decimal, safe_pct
 from pyauditor.excel import inms_1_1_audit
-from pyauditor.excel._csv_verbatim import read_csv_verbatim
-from pyauditor.excel._style import LABEL_FONT, new_sheet, write_row
-from pyauditor.excel.capa import CAPA_DELIMITER, CAPA_ENCODING
 from pyauditor.excel.equipe import EQUIPE_DELIMITER, EQUIPE_ENCODING
-from pyauditor.excel.objetos import OBJETOS_DELIMITER, OBJETOS_ENCODING
-from pyauditor.excel.prazos import PRAZOS_DELIMITER, PRAZOS_ENCODING, PRAZOS_SHEET_NAME
-from pyauditor.excel.sintetico._stats import (
-    DATA_FIM as DATA_FIM_COLUMN,
+from pyauditor.excel.prazos import (
+    PRAZOS_DELIMITER,
+    PRAZOS_ENCODING,
+    PRAZOS_SHEET_NAME,
 )
-from pyauditor.excel.sintetico._stats import (
-    DATA_SOLICITACAO as DATA_SOLICITACAO_COLUMN,
+from pyauditor.excel.sintetico._sheets._shared import (
+    CAPA_SHEET_NAME,
+    EQUIPE_SHEET_NAME,
 )
-from pyauditor.excel.sintetico._stats import (
-    NO_PRAZO_COLUMN,
+from pyauditor.excel.sintetico._sheets.grupo_executor import (
+    _write_grupo_executor_sheet,
+    _write_whole_indicator_sheet,
 )
-from pyauditor.excel.sintetico._stats import (
-    NivelAccumulator,
-    Stats,
-    compute_stats,
-    format_duracao,
-    format_pct_bruto,
-    format_row,
-    fmt_pt_br,
-    parse_datahora,
+from pyauditor.excel.sintetico._sheets.multi_ativo import (
+    _write_multi_ativo_sheet,
+)
+from pyauditor.excel.sintetico._sheets.nao_ativado import (
+    _write_nao_ativado_sheet,
+)
+from pyauditor.excel.sintetico._sheets.precomputed import (
+    _write_precomputed_table_sheet,
+)
+from pyauditor.excel.sintetico._sheets.ratio_aggregate import (
+    _write_ratio_aggregate_sheet,
+)
+from pyauditor.excel.sintetico._sheets.verbatim_sheets import (
+    _write_capa_sheet,
+    _write_csv_verbatim_sheet,
 )
 from pyauditor.periodo import PeriodoAfericao
 
 __all__: Final[tuple[str, ...]] = ("write_sintetico_workbook",)
 
-_CAPA_SHEET_NAME: Final[str] = "Capa"
-_EQUIPE_SHEET_NAME: Final[str] = "Equipe"
-
 _INMS_1_1: Final[str] = "1.1"
 _INMS_1_14: Final[str] = "1.14"
-_OUTROS_LABEL: Final[str] = "outros (não contabilizado na meta)"
-_WHOLE_INDICATOR_LABEL: Final[str] = "(indicador inteiro)"
-_NAO_ATIVADO_TEXT: Final[str] = "Esse serviço não foi requisitado no período selecionado."
-
-_COLUMNS: Final[tuple[str, ...]] = (
-    "Categoria",
-    "Nível",
-    "Grupo executor",
-    "Linhas",
-    "Dentro do prazo",
-    "Fora do prazo",
-    "% bruto",
-    "Tempo médio criação→resolução",
-)
-_SUBTOTAL_COLUMNS: Final[tuple[str, ...]] = (
-    "Nível",
-    "Linhas",
-    "Dentro do prazo",
-    "Fora do prazo",
-    "% bruto",
-    "Tempo médio criação→resolução",
-)
-# Categoria→Nível é dono único em `config/niveis.py` (ticket 11) — mesma
-# regra de `excel/inms_1_1_audit.py`/`excel/groups.py`, não uma cópia local.
-_NIVEL_ORDER = NIVEL_ORDER
-_NIVEL_BY_CATEGORIA = NIVEL_BY_CATEGORIA
-
-_ATIVO_COLUMNS: Final[tuple[str, ...]] = (
-    "Categoria",
-    "Nível",
-    "Ativo",
-    "Linhas",
-    "Dentro do prazo",
-    "Fora do prazo",
-    "% bruto",
-    "Tempo médio criação→resolução",
-)
-_ATIVO_SUBTOTAL_COLUMNS: Final[tuple[str, ...]] = (
-    "Categoria",
-    "Linhas",
-    "Dentro do prazo",
-    "Fora do prazo",
-    "% bruto",
-    "Tempo médio criação→resolução",
-)
-# Ordem fixa da spec §14.5: bloco NOC/SOC antes do bloco Operação N3,
-# independente da ordem de declaração em categorias.yaml.
-_INMS_1_14_CATEGORIA_ORDER: Final[tuple[str, ...]] = ("MONITORAMENTO_NOC_SOC", "OPERACAO_N3")
-
-
-def _write_nao_ativado_sheet(workbook: Workbook, sheet_name: str) -> None:
-    sheet = workbook.create_sheet(sheet_name)
-    sheet.sheet_view.showGridLines = False
-    sheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(_COLUMNS))
-    cell = sheet.cell(row=2, column=1, value=_NAO_ATIVADO_TEXT)
-    cell.font = LABEL_FONT
-
-
-def _write_subtotals(
-    sheet: Worksheet, start_row: int, accumulators: dict[str, NivelAccumulator]
-) -> None:
-    header_cell = sheet.cell(row=start_row, column=1, value="Subtotais por Nível")
-    header_cell.font = LABEL_FONT
-    for col_idx, column in enumerate(_SUBTOTAL_COLUMNS, start=1):
-        cell = sheet.cell(row=start_row + 1, column=col_idx, value=column)
-        cell.font = LABEL_FONT
-
-    row_idx = start_row + 2
-    for nivel in _NIVEL_ORDER:
-        acc = accumulators.get(nivel)
-        if acc is None:
-            continue
-        dentro = acc.dentro if acc.tem_prazo else None
-        fora = acc.fora if acc.tem_prazo else None
-        pct_display = format_pct_bruto(dentro, fora)
-        tempo_display = (
-            format_duracao(acc.duracao_total_segundos / acc.duracao_contagem)
-            if acc.duracao_contagem > 0
-            else "—"
-        )
-        write_row(
-            sheet,
-            row_idx,
-            (
-                nivel,
-                acc.linhas,
-                dentro if dentro is not None else "—",
-                fora if fora is not None else "—",
-                pct_display,
-                tempo_display,
-            ),
-            expected_columns=len(_SUBTOTAL_COLUMNS),
-        )
-        row_idx += 1
-
-
-def _write_ativo_subtotals(
-    sheet: Worksheet,
-    start_row: int,
-    order: list[str],
-    labels: dict[str, str],
-    accumulators: dict[str, NivelAccumulator],
-) -> None:
-    header_cell = sheet.cell(row=start_row, column=1, value="Subtotais por Categoria")
-    header_cell.font = LABEL_FONT
-    for col_idx, column in enumerate(_ATIVO_SUBTOTAL_COLUMNS, start=1):
-        cell = sheet.cell(row=start_row + 1, column=col_idx, value=column)
-        cell.font = LABEL_FONT
-
-    row_idx = start_row + 2
-    for categoria_key in order:
-        acc = accumulators.get(categoria_key)
-        if acc is None:
-            continue
-        dentro = acc.dentro if acc.tem_prazo else None
-        fora = acc.fora if acc.tem_prazo else None
-        pct_display = format_pct_bruto(dentro, fora)
-        tempo_display = (
-            format_duracao(acc.duracao_total_segundos / acc.duracao_contagem)
-            if acc.duracao_contagem > 0
-            else "—"
-        )
-        write_row(
-            sheet,
-            row_idx,
-            (
-                labels[categoria_key],
-                acc.linhas,
-                dentro if dentro is not None else "—",
-                fora if fora is not None else "—",
-                pct_display,
-                tempo_display,
-            ),
-            expected_columns=len(_ATIVO_SUBTOTAL_COLUMNS),
-        )
-        row_idx += 1
-
-
-def _write_multi_ativo_sheet(
-    workbook: Workbook,
-    sheet_name: str,
-    categorias_file: CategoriasFile,
-    entries: list[tuple[str, WholeIndicatorMode]],
-    ativo_column: str,
-    fieldnames: list[str],
-    rows: list[dict[str, str]],
-    accepted_ids: set[int],
-) -> None:
-    """INMS 1.14 (spec §14.5): produto cartesiano ativo x categoria — as 6
-    medições por ativo (já presentes no CSV, uma linha por ativo) são
-    duplicadas/rotuladas sob cada categoria à qual o INMS pertence, sem
-    recalcular nada. Bloco NOC/SOC antes do bloco Operação N3."""
-    sheet = new_sheet(workbook, sheet_name, _ATIVO_COLUMNS)
-    row_idx = 2
-    accumulators: dict[str, NivelAccumulator] = {}
-    labels: dict[str, str] = {}
-
-    # Ordem de primeira aparição no CSV (Anexo D já lista os 6 ativos numa
-    # ordem fixa — File Server, Telefonia, Mensageria, etc. — preservada
-    # aqui em vez de reordenar alfabeticamente).
-    ativos = list(dict.fromkeys(row[ativo_column] for row in rows if row.get(ativo_column)))
-
-    ordered_entries = sorted(
-        entries,
-        key=lambda item: (
-            _INMS_1_14_CATEGORIA_ORDER.index(item[0])
-            if item[0] in _INMS_1_14_CATEGORIA_ORDER
-            else len(_INMS_1_14_CATEGORIA_ORDER),
-            item[0],
-        ),
-    )
-
-    for categoria_key, _entry in ordered_entries:
-        categoria = categorias_file.categorias[categoria_key]
-        nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
-        labels[categoria_key] = categoria.label
-        for ativo in ativos:
-            ativo_rows = [row for row in rows if row.get(ativo_column) == ativo]
-            stats = compute_stats(ativo_rows, fieldnames, accepted_ids)
-            linhas, dentro, fora, pct, tempo = format_row(stats)
-            write_row(
-                sheet,
-                row_idx,
-                (
-                    categoria.label,
-                    nivel or "",
-                    ativo,
-                    linhas,
-                    dentro,
-                    fora,
-                    pct,
-                    tempo,
-                ),
-            )
-            row_idx += 1
-            current = accumulators.get(categoria_key, NivelAccumulator())
-            accumulators[categoria_key] = current.add(stats)
-
-    if accumulators:
-        order = [categoria_key for categoria_key, _entry in ordered_entries]
-        _write_ativo_subtotals(sheet, row_idx + 1, order, labels, accumulators)
-
-
-def _write_grupo_executor_sheet(
-    workbook: Workbook,
-    sheet_name: str,
-    categorias_file: CategoriasFile,
-    grupo_executor_entries: list[tuple[str, GrupoExecutorMode]],
-    whole_indicator_entries: list[tuple[str, WholeIndicatorMode]],
-    fieldnames: list[str],
-    rows: list[dict[str, str]],
-    accepted_ids: set[int],
-) -> None:
-    sheet = new_sheet(workbook, sheet_name, _COLUMNS)
-    row_idx = 2
-    accumulators: dict[str, NivelAccumulator] = {}
-
-    real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
-    per_categoria_values, outros_values = compute_categoria_values(
-        grupo_executor_entries, real_values
-    )
-
-    def _emit(
-        categoria_label: str, nivel: str | None, grupo: str, group_rows: list[dict[str, str]]
-    ) -> None:
-        nonlocal row_idx
-        stats = compute_stats(group_rows, fieldnames, accepted_ids)
-        linhas, dentro, fora, pct, tempo = format_row(stats)
-        write_row(
-            sheet, row_idx, (categoria_label, nivel or "", grupo, linhas, dentro, fora, pct, tempo)
-        )
-        row_idx += 1
-        if nivel is not None:
-            current = accumulators.get(nivel, NivelAccumulator())
-            accumulators[nivel] = current.add(stats)
-
-    for categoria_key, effective_values in per_categoria_values.items():
-        categoria = categorias_file.categorias[categoria_key]
-        nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
-        for grupo in sorted(effective_values):
-            group_rows = [row for row in rows if row[GRUPO_EXECUTOR_COLUMN] == grupo]
-            _emit(categoria.label, nivel, grupo, group_rows)
-
-    for categoria_key, _entry in whole_indicator_entries:
-        categoria = categorias_file.categorias[categoria_key]
-        nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
-        _emit(categoria.label, nivel, _WHOLE_INDICATOR_LABEL, rows)
-
-    for grupo in sorted(outros_values):
-        group_rows = [row for row in rows if row[GRUPO_EXECUTOR_COLUMN] == grupo]
-        _emit(_OUTROS_LABEL, None, grupo, group_rows)
-
-    if accumulators:
-        _write_subtotals(sheet, row_idx + 1, accumulators)
-
-
-def _write_whole_indicator_sheet(
-    workbook: Workbook,
-    sheet_name: str,
-    categorias_file: CategoriasFile,
-    entries: list[tuple[str, WholeIndicatorMode]],
-    fieldnames: list[str],
-    rows: list[dict[str, str]],
-    accepted_ids: set[int],
-) -> None:
-    sheet = new_sheet(workbook, sheet_name, _COLUMNS)
-    stats = compute_stats(rows, fieldnames, accepted_ids)
-    linhas, dentro, fora, pct, tempo = format_row(stats)
-    row_idx = 2
-    for categoria_key, _entry in entries:
-        categoria = categorias_file.categorias[categoria_key]
-        nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
-        write_row(
-            sheet,
-            row_idx,
-            (
-                categoria.label,
-                nivel or "",
-                _WHOLE_INDICATOR_LABEL,
-                linhas,
-                dentro,
-                fora,
-                pct,
-                tempo,
-            ),
-        )
-        row_idx += 1
-
-
-_PRECOMPUTED_COLUMNS: Final[tuple[str, ...]] = (
-    "Categoria",
-    "Nível",
-    "Item",
-    "Resultado",
-    "Meta atingida?",
-    "Penalidade",
-)
-
-
-def _meta_atingida_display(value: float, target_operator: str, target_value: float) -> str:
-    return "Sim" if meets_target(value, target_operator, target_value) else "Não"
-
-
-def _write_precomputed_table_sheet(
-    workbook: Workbook,
-    sheet_name: str,
-    categorias_file: CategoriasFile,
-    entries: list[tuple[str, WholeIndicatorMode]],
-    calculation: PrecomputedTableCalculation,
-    target_operator: str,
-    target_value: float,
-    rows: list[dict[str, str]],
-) -> None:
-    """INMS 1.4/1.5/1.9/1.13: uma linha por `name_column` (o mesmo dado que a
-    medição oficial lê — `PrecomputedTableStrategy`), em vez do colapso
-    "(indicador inteiro)"/traços. "Meta atingida?" reusa `meets_target`
-    contra `target`, não a coluna crua `atingiu_meta` do CSV."""
-    sheet = new_sheet(workbook, sheet_name, _PRECOMPUTED_COLUMNS)
-    row_idx = 2
-    for categoria_key, _entry in entries:
-        categoria = categorias_file.categorias[categoria_key]
-        nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
-        for row in rows:
-            raw_value = row.get(calculation.result_column, "")
-            if not raw_value.strip():
-                continue  # linhas vazias/placeholder (';' sobrando), sem medição
-            value = parse_decimal(raw_value)
-            if isnan(value):
-                continue
-
-            name = row.get(calculation.name_column, "") if calculation.name_column else ""
-            resultado_display = (
-                f"{fmt_pt_br(value)}%"
-                if calculation.result_is_percent
-                else fmt_pt_br(value, decimals=0)
-            )
-            meta_display = (
-                _meta_atingida_display(value, target_operator, target_value)
-                if calculation.result_is_percent
-                else "—"
-            )
-            penalidade_raw = (
-                row.get(calculation.penalty_column, "") if calculation.penalty_column else ""
-            )
-            penalidade_value = (
-                parse_decimal(penalidade_raw) if penalidade_raw.strip() else float("nan")
-            )
-            penalidade_display = (
-                "—" if isnan(penalidade_value) else fmt_pt_br(penalidade_value, decimals=0)
-            )
-
-            write_row(
-                sheet,
-                row_idx,
-                (
-                    categoria.label,
-                    nivel or "",
-                    name,
-                    resultado_display,
-                    meta_display,
-                    penalidade_display,
-                ),
-            )
-            row_idx += 1
-
-
-def _write_ratio_aggregate_sheet(
-    workbook: Workbook,
-    sheet_name: str,
-    categorias_file: CategoriasFile,
-    entries: list[tuple[str, WholeIndicatorMode]],
-    calculation: RatioCalculation,
-    target_operator: str,
-    target_value: float,
-    rows: list[dict[str, str]],
-) -> None:
-    """INMS 1.6 (e qualquer futuro `ratio`/`sum` com
-    `sum_numerator_subtract_column`): uma linha por valor distinto da coluna
-    de `denominator_filter` (ex. "Acordo de Nível de Serviço"), agregando os
-    CSVs elegíveis por grupo com a mesma aritmética de
-    `RatioStrategy._aggregate`, em vez do colapso "(indicador inteiro)"."""
-    assert calculation.denominator_filter is not None
-    assert calculation.sum_numerator_column is not None
-    assert calculation.sum_numerator_subtract_column is not None
-    group_column = calculation.denominator_filter.column
-    numerator_column = calculation.sum_numerator_column
-    subtract_column = calculation.sum_numerator_subtract_column
-
-    columns = (
-        "Categoria",
-        "Nível",
-        group_column,
-        numerator_column,
-        subtract_column,
-        "% resultado",
-        "Meta atingida?",
-    )
-    sheet = new_sheet(workbook, sheet_name, columns)
-    row_idx = 2
-
-    eligible_rows = filter_rows(rows, calculation.denominator_filter)
-    grupos = list(
-        dict.fromkeys(row[group_column] for row in eligible_rows if row.get(group_column))
-    )
-
-    for categoria_key, _entry in entries:
-        categoria = categorias_file.categorias[categoria_key]
-        nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
-        for grupo in grupos:
-            grupo_rows = [row for row in eligible_rows if row[group_column] == grupo]
-            total = sum(parse_decimal(row.get(numerator_column, "") or "0") for row in grupo_rows)
-            subtraido = sum(
-                parse_decimal(row.get(subtract_column, "") or "0") for row in grupo_rows
-            )
-            pct = safe_pct(total - subtraido, total)
-            meta_display = _meta_atingida_display(pct, target_operator, target_value)
-            write_row(
-                sheet,
-                row_idx,
-                (
-                    categoria.label,
-                    nivel or "",
-                    grupo,
-                    int(total),
-                    int(subtraido),
-                    f"{fmt_pt_br(pct)}%",
-                    meta_display,
-                ),
-            )
-            row_idx += 1
-
-
-def _write_csv_verbatim_sheet(
-    workbook: Workbook,
-    sheet_name: str,
-    path: Path,
-    *,
-    delimiter: str,
-    encoding: str,
-    warnings: list[str],
-) -> tuple[Worksheet, int] | None:
-    """Aba de reprodução verbatim de um CSV bruto de `input/`
-    (`capa.csv`/`equipe.csv`/`prazos.csv`) — cabeçalho e linhas exatamente
-    como estão no arquivo, sem processamento. Devolve `(sheet, última linha
-    escrita)` em caso de sucesso (usado por `_write_capa_sheet` pra saber
-    onde continuar), ou `None` se a aba não foi gerada."""
-    try:
-        header, rows = read_csv_verbatim(path, delimiter=delimiter, encoding=encoding)
-    except FileNotFoundError:
-        warnings.append(f"sintetico.xlsx: {path} não encontrado — aba '{sheet_name}' não gerada")
-        return None
-    except (OSError, ValueError) as exc:
-        warnings.append(
-            f"sintetico.xlsx: falha ao ler {path}: {exc} — aba '{sheet_name}' não gerada"
-        )
-        return None
-
-    sheet = new_sheet(workbook, sheet_name, tuple(header))
-
-    expected_columns = sheet.max_column
-    row_idx = 1
-    for row_idx, row in enumerate(rows, start=2):
-        padded_row = tuple(row) + (None,) * (expected_columns - len(row))
-        write_row(sheet, row_idx, padded_row[:expected_columns])
-    return sheet, row_idx
-
-
-def _write_capa_sheet(
-    workbook: Workbook,
-    capa_path: Path,
-    objetos_path: Path | None,
-    warnings: list[str],
-) -> None:
-    """Aba "Capa": reprodução verbatim de `capa.csv`. Quando `objetos_path`
-    é passado, `objetos.csv` é anexado logo abaixo (a pedido do usuário: não
-    vira aba própria, fica junto da capa, depois da última linha — "Término
-    da vigência" no CSV atual), separado por uma linha em branco e o próprio
-    cabeçalho de `objetos.csv`."""
-    written = _write_csv_verbatim_sheet(
-        workbook,
-        _CAPA_SHEET_NAME,
-        capa_path,
-        delimiter=CAPA_DELIMITER,
-        encoding=CAPA_ENCODING,
-        warnings=warnings,
-    )
-    if written is None or objetos_path is None:
-        return
-    sheet, last_row = written
-
-    try:
-        objetos_header, objetos_rows = read_csv_verbatim(
-            objetos_path, delimiter=OBJETOS_DELIMITER, encoding=OBJETOS_ENCODING
-        )
-    except FileNotFoundError:
-        warnings.append(
-            f"sintetico.xlsx: {objetos_path} não encontrado — dados de objetos "
-            f"não anexados à aba '{_CAPA_SHEET_NAME}'"
-        )
-        return
-    except (OSError, ValueError) as exc:
-        warnings.append(
-            f"sintetico.xlsx: falha ao ler {objetos_path}: {exc} — dados de objetos "
-            f"não anexados à aba '{_CAPA_SHEET_NAME}'"
-        )
-        return
-
-    header_row = last_row + 2  # 1 linha em branco de separação
-    objetos_columns = len(objetos_header)
-    write_row(sheet, header_row, tuple(objetos_header), expected_columns=objetos_columns)
-    for row_idx, row in enumerate(objetos_rows, start=header_row + 1):
-        write_row(sheet, row_idx, tuple(row), expected_columns=objetos_columns)
 
 
 def write_sintetico_workbook(
@@ -666,12 +120,12 @@ def write_sintetico_workbook(
     elif objetos_path is not None:
         warnings.append(
             f"sintetico.xlsx: capa_path não informado — dados de {objetos_path} "
-            f"não anexados (dependem da aba '{_CAPA_SHEET_NAME}')"
+            f"não anexados (dependem da aba '{CAPA_SHEET_NAME}')"
         )
     if equipe_path is not None:
         _write_csv_verbatim_sheet(
             workbook,
-            _EQUIPE_SHEET_NAME,
+            EQUIPE_SHEET_NAME,
             equipe_path,
             delimiter=EQUIPE_DELIMITER,
             encoding=EQUIPE_ENCODING,
@@ -797,14 +251,12 @@ def write_sintetico_workbook(
                     )
                 except ValueError as exc:
                     # Falha de validação/qualidade de dado específica da aba
-                    # enriquecida (ex.: "No prazo" com valor fora de S/N,
-                    # target_operator "<=" não suportado, grupo mapeado em
-                    # mais de uma categoria) não deve derrubar o restante do
-                    # workbook — degrada para o renderer genérico, como as
-                    # demais falhas por-INMS deste loop.
+                    # enriquecida não deve derrubar o restante do workbook —
+                    # degrada para o renderer genérico, como as demais
+                    # falhas por-INMS deste loop.
                     warning = (
                         f"sintetico.xlsx: INMS {inms_key}: falha ao gerar aba enriquecida "
-                        f"do INMS 1.1 ({exc}) — usando renderer genérico"
+                        f"({exc}) — usando renderer genérico"
                     )
                     warnings.append(warning)
                     _write_grupo_executor_sheet(
@@ -871,9 +323,8 @@ def write_sintetico_workbook(
     if set(workbook.sheetnames) == sheets_before_inms:
         # Nada pôde ser medido (todo INMS de categorias.yaml falhou ao
         # carregar/resolver) — um xlsx sem nenhuma aba de INMS não é um
-        # arquivo válido pra este propósito (as abas Capa/Equipe/Prazos
-        # sozinhas não contam); não sobrescreve um sintetico.xlsx de rerun
-        # anterior com um arquivo vazio/quebrado.
+        # arquivo válido pra este propósito; não sobrescreve um
+        # sintetico.xlsx de rerun anterior com um arquivo vazio/quebrado.
         return warnings
 
     atomic_write(output_path, workbook.save)

@@ -14,17 +14,17 @@ from datetime import datetime
 from typing import Final
 
 __all__: Final[tuple[str, ...]] = (
-    "NO_PRAZO_COLUMN",
-    "DATA_SOLICITACAO",
-    "DATA_FIM",
     "DATAHORA_FORMAT",
+    "DATA_FIM",
+    "DATA_SOLICITACAO",
+    "NO_PRAZO_COLUMN",
     "NivelAccumulator",
     "Stats",
     "compute_stats",
+    "fmt_pt_br",
     "format_duracao",
     "format_pct_bruto",
     "format_row",
-    "fmt_pt_br",
     "parse_datahora",
 )
 
