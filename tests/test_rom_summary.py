@@ -11,7 +11,7 @@ def _build(**kwargs: object) -> IndicatorSummary:
     # Boundary: tests deliberately pass wrong-typed values to prove
     # __post_init__ rejects them at runtime — basedpyright can't type-check
     # that.
-    return IndicatorSummary(**kwargs)  # type: ignore[arg-type]
+    return IndicatorSummary(**kwargs)  # ty: ignore[invalid-argument-type]
 
 
 _VALID_KWARGS: dict[str, Any] = dict(

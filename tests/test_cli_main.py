@@ -39,7 +39,7 @@ def test_measure_request_frozen_slots() -> None:
     )
     assert_type(r.competencia, str)
     with pytest.raises(AttributeError):
-        r.competencia = '2026-07'  # type: ignore[misc]  # frozen
+        r.competencia = '2026-07'  # ty: ignore[invalid-assignment]  # frozen
 
 
 def test_cli_main_happy_path(tmp_path: Path) -> None:

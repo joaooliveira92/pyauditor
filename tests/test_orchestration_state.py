@@ -6,7 +6,7 @@ import pytest
 from pyauditor.orchestration.state import (
     CommandStateEntry,
     RunState,
-    RunStateCorrupted,
+    RunStateCorruptedError,
     load_state,
     reset_stale_running,
     save_state,
@@ -57,7 +57,7 @@ def test_load_state_raises_run_state_corrupted_on_malformed_json(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text('not json', encoding='utf-8')
 
-    with pytest.raises(RunStateCorrupted, match=re.escape(str(path))):
+    with pytest.raises(RunStateCorruptedError, match=re.escape(str(path))):
         load_state(path)
 
 
@@ -68,7 +68,7 @@ def test_load_state_raises_run_state_corrupted_on_missing_key(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text('{"competencia": "2026-06"}', encoding='utf-8')
 
-    with pytest.raises(RunStateCorrupted):
+    with pytest.raises(RunStateCorruptedError):
         load_state(path)
 
 
@@ -86,7 +86,7 @@ def test_load_state_raises_run_state_corrupted_on_unknown_status(
         encoding='utf-8',
     )
 
-    with pytest.raises(RunStateCorrupted, match='not_a_real_status'):
+    with pytest.raises(RunStateCorruptedError, match='not_a_real_status'):
         load_state(path)
 
 

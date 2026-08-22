@@ -575,7 +575,7 @@ def test_run_measure_single_path_warns_empty_window_when_standalone(
     assert 'nenhuma linha no período' in buf.getvalue()
 
 
-def test_run_measure_single_path_suppresses_empty_window_warn_when_already_split(  # noqa: E501
+def test_run_measure_single_path_suppresses_empty_window_warn_when_already_split(  # ruff: ignore[line-too-long]
     tmp_path: Path,
 ) -> None:
     """Ticket 05 — `already_split=True` (dispatch de `run`) também suprime o
@@ -888,7 +888,7 @@ def test_run_measure_no_configs_found_is_error(tmp_path: Path) -> None:
 def test_run_measure_mkdir_failure_is_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config_dir, data_dir, output_dir = _write_whole_indicator_empty_window(
+    config_dir, data_dir, _output_dir = _write_whole_indicator_empty_window(
         tmp_path
     )
     malformed_output = tmp_path / 'roms' / '2026-06'

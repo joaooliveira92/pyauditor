@@ -34,7 +34,7 @@ __all__: Final[tuple[str, ...]] = (
     'CommandState',
     'CommandStateEntry',
     'RunState',
-    'RunStateCorrupted',
+    'RunStateCorruptedError',
     'load_state',
     'parse_iso_timestamp',
     'reset_stale_running',
@@ -90,7 +90,7 @@ _COMMAND_FIELDS: Final[frozenset[str]] = frozenset(
 )
 
 
-class RunStateCorrupted(ValueError):
+class RunStateCorruptedError(ValueError):
     """Report a run-state document that violates the persisted schema.
 
     Corruption includes invalid JSON, truncated content, unsupported schema
@@ -209,8 +209,8 @@ def load_state(path: Path) -> RunState | None:
         The validated state, or ``None`` when the path does not exist.
 
     Raises:
-        RunStateCorrupted: If the file contains invalid JSON or violates the
-            supported state schema.
+        RunStateCorruptedError: If the file contains invalid JSON or
+            violates the supported state schema.
         IsADirectoryError: If ``path`` refers to a directory.
         PermissionError: If the file cannot be read.
         OSError: If another filesystem error prevents reading.
@@ -226,9 +226,9 @@ def load_state(path: Path) -> RunState | None:
         state = _decode_state(raw)
         _validate_state(state)
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
-        if isinstance(exc, RunStateCorrupted):
+        if isinstance(exc, RunStateCorruptedError):
             raise
-        raise RunStateCorrupted(path, str(exc)) from exc
+        raise RunStateCorruptedError(path, str(exc)) from exc
 
     return state
 

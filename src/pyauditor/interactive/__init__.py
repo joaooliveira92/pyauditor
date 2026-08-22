@@ -3,11 +3,6 @@ when invoked with no arguments (non-TTY already ruled out by the caller)."""
 
 from __future__ import annotations
 
-from pyauditor.interactive.flow import run_guided_flow
-from pyauditor.interactive.provider import RichQuestionaryProvider
+from pyauditor.interactive.flow import run_interactive
 
 __all__ = ('run_interactive',)
-
-
-def run_interactive() -> int:
-    return run_guided_flow(RichQuestionaryProvider())

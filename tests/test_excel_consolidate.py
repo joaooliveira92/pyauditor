@@ -356,13 +356,13 @@ def test_warns_when_a_decided_occurrence_disappears_on_rerun() -> None:
 
 def test_read_existing_decisions_returns_empty_for_missing_file(
     tmp_path,
-) -> None:  # type: ignore[no-untyped-def]
+) -> None:
     assert read_existing_decisions(tmp_path / 'nope.xlsx') == {}
 
 
 def test_read_existing_decisions_roundtrips_from_a_saved_workbook(
     tmp_path,
-) -> None:  # type: ignore[no-untyped-def]
+) -> None:
     minc = [
         _summary('INMS 1.6', orgao='MinC', conforms=False, penalty_points=100.0)
     ]
@@ -447,6 +447,13 @@ def test_decision_columns_are_text_formatted_against_formula_injection() -> (
     assert sheet.cell(row=2, column=justificativa_col).number_format == '@'
 
 
+# Contém caracteres Unicode "ambíguos" (marca de aprovação e apóstrofo
+# curvo) de propósito — a regressão
+# abaixo prova que texto livre não-Latin-1 sobrevive ao round-trip cp1252
+# sem mangling; trocar os caracteres invalidaria o próprio teste.
+_TEXTO_NAO_LATIN1 = 'aprovado ✔ — café não é cafe’'  # ruff: ignore[ambiguous-unicode-character-string]
+
+
 def test_non_latin1_free_text_is_preserved_unmangled() -> None:
     """Regression: fiscal free text used to round-trip through cp1252,
     silently replacing any character outside that codepage with '?'."""
@@ -454,7 +461,7 @@ def test_non_latin1_free_text_is_preserved_unmangled() -> None:
         _summary('INMS 1.6', orgao='MinC', conforms=False, penalty_points=100.0)
     ]
     decisao: dict[str, object] = {
-        'Observação do Gestor': 'aprovado ✔ — café não é cafe’'
+        'Observação do Gestor': _TEXTO_NAO_LATIN1,
     }
     result = build_consolidated_workbook(
         '2026-06',
@@ -468,14 +475,12 @@ def test_non_latin1_free_text_is_preserved_unmangled() -> None:
     sheet = result.workbook[GLOSAS_SHEET]
     header = [sheet.cell(row=1, column=c).value for c in range(1, 17)]
     col = header.index('Observação do Gestor') + 1
-    assert (
-        sheet.cell(row=2, column=col).value == 'aprovado ✔ — café não é cafe’'
-    )
+    assert sheet.cell(row=2, column=col).value == _TEXTO_NAO_LATIN1
 
 
 def test_read_existing_decisions_rejects_duplicate_indicador_header(
     tmp_path,
-) -> None:  # type: ignore[no-untyped-def]
+) -> None:
     minc = [
         _summary('INMS 1.6', orgao='MinC', conforms=False, penalty_points=100.0)
     ]

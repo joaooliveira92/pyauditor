@@ -183,6 +183,7 @@ def test_enriched_sheet_lists_out_of_deadline_incidents_in_section_6(
         for cell in row
         if cell.value == 'SEÇÃO 6 · INCIDENTES FORA DO PRAZO'
     )
+    assert s6_bar_row is not None
     header_row = s6_bar_row + 1
     assert sheet.cell(row=header_row, column=1).value == 'Nº solicitação'
     first_data_row = header_row + 1
@@ -352,6 +353,7 @@ def test_zero_denominator_formulas_are_guarded_against_div0(
         for cell in row
         if cell.value == 'Controles de resultado'
     )
+    assert controles_row is not None
     for offset in range(2, 5):
         r = controles_row + offset
         assert 'IF(B13=0,"Sem ocorrências"' in formula(f'B{r}')
@@ -463,7 +465,11 @@ def test_target_operator_le_is_rejected(tmp_path: Path) -> None:
     kwargs['target_operator'] = '<='
 
     with pytest.raises(ValueError, match='target_operator'):
-        inms_1_1_audit.write_sheet(Workbook(), 'INMS 1.1', **kwargs)  # type: ignore[arg-type]
+        inms_1_1_audit.write_sheet(
+            Workbook(),
+            'INMS 1.1',
+            **kwargs,  # ty: ignore[invalid-argument-type]
+        )
 
 
 @pytest.mark.parametrize(
@@ -488,7 +494,11 @@ def test_out_of_range_params_are_rejected(
     kwargs[penalty_kwarg] = bad_value
 
     with pytest.raises(ValueError, match=match):
-        inms_1_1_audit.write_sheet(Workbook(), 'INMS 1.1', **kwargs)  # type: ignore[arg-type]
+        inms_1_1_audit.write_sheet(
+            Workbook(),
+            'INMS 1.1',
+            **kwargs,  # ty: ignore[invalid-argument-type]
+        )
 
 
 @pytest.mark.parametrize(
@@ -508,10 +518,18 @@ def test_no_prazo_invalid_or_variant_values(
     rows[0]['No prazo'] = raw_value
 
     if raw_value.strip().upper() in {'S', 'N'}:
-        inms_1_1_audit.write_sheet(Workbook(), 'INMS 1.1', **kwargs)  # type: ignore[arg-type]
+        inms_1_1_audit.write_sheet(
+            Workbook(),
+            'INMS 1.1',
+            **kwargs,  # ty: ignore[invalid-argument-type]
+        )
     else:
         with pytest.raises(ValueError, match='No prazo'):
-            inms_1_1_audit.write_sheet(Workbook(), 'INMS 1.1', **kwargs)  # type: ignore[arg-type]
+            inms_1_1_audit.write_sheet(
+                Workbook(),
+                'INMS 1.1',
+                **kwargs,  # ty: ignore[invalid-argument-type]
+            )
 
 
 def test_no_prazo_lowercase_and_spaces_are_normalized(tmp_path: Path) -> None:
@@ -523,7 +541,11 @@ def test_no_prazo_lowercase_and_spaces_are_normalized(tmp_path: Path) -> None:
     rows[0]['No prazo'] = ' s '
 
     workbook = Workbook()
-    inms_1_1_audit.write_sheet(workbook, 'INMS 1.1', **kwargs)  # type: ignore[arg-type]
+    inms_1_1_audit.write_sheet(
+        workbook,
+        'INMS 1.1',
+        **kwargs,  # ty: ignore[invalid-argument-type]
+    )
 
     assert workbook['INMS 1.1']['X2'].value == 'S'
 
@@ -761,8 +783,16 @@ def test_write_sheet_twice_in_same_workbook_uses_unique_table_names(
     kwargs = _direct_write_sheet_kwargs(categorias_file)
     workbook = Workbook()
 
-    inms_1_1_audit.write_sheet(workbook, 'INMS 1.1 - A', **kwargs)  # type: ignore[arg-type]
-    inms_1_1_audit.write_sheet(workbook, 'INMS 1.1 - B', **kwargs)  # type: ignore[arg-type]
+    inms_1_1_audit.write_sheet(
+        workbook,
+        'INMS 1.1 - A',
+        **kwargs,  # ty: ignore[invalid-argument-type]
+    )
+    inms_1_1_audit.write_sheet(
+        workbook,
+        'INMS 1.1 - B',
+        **kwargs,  # ty: ignore[invalid-argument-type]
+    )
 
     table_names = {
         table.name
@@ -815,7 +845,11 @@ def test_write_sheet_atomic_rollback_on_duplicate_grupo(tmp_path: Path) -> None:
     sheets_before = set(workbook.sheetnames)
 
     with pytest.raises(ValueError, match='categorias devem ser disjuntas'):
-        inms_1_1_audit.write_sheet(workbook, 'INMS 1.1', **kwargs)  # type: ignore[arg-type]
+        inms_1_1_audit.write_sheet(
+            workbook,
+            'INMS 1.1',
+            **kwargs,  # ty: ignore[invalid-argument-type]
+        )
 
     assert set(workbook.sheetnames) == sheets_before
 
@@ -880,21 +914,20 @@ def test_support_columns_are_hidden_and_sheet_is_protected(
     sheet = wb['INMS 1.1']
     assert sheet.column_dimensions['R'].hidden is True
     assert sheet.column_dimensions['AM'].hidden is True
-    # C-02 × B-03: a coluna de qualidade dos dados (AJ) fica visível de
+    # C-02 x B-03: a coluna de qualidade dos dados (AJ) fica visível de
     # propósito — não é fonte de fórmula, é o indicador visual de linhas
     # com data ausente/inválida que o ticket C-02 exige na planilha.
     assert sheet.column_dimensions['AJ'].hidden is not True
     assert sheet.protection.sheet is True
     # Coluna 10 (Justificativa de exclusão) da Seção 4 continua editável.
-    justificativa_row = (
-        next(
-            cell.row
-            for row in sheet.iter_rows(min_col=1, max_col=1)
-            for cell in row
-            if cell.value == 'SEÇÃO 4 · DETALHAMENTO POR GRUPO EXECUTOR'
-        )
-        + 2
+    grupo_executor_bar_row = next(
+        cell.row
+        for row in sheet.iter_rows(min_col=1, max_col=1)
+        for cell in row
+        if cell.value == 'SEÇÃO 4 · DETALHAMENTO POR GRUPO EXECUTOR'
     )
+    assert grupo_executor_bar_row is not None
+    justificativa_row = grupo_executor_bar_row + 2
     assert (
         sheet.cell(row=justificativa_row, column=10).protection.locked is False
     )
@@ -925,6 +958,7 @@ def test_section_5_nivel_rows_use_body_font_consistently(
         for cell in row
         if cell.value == 'N1'
     )
+    assert nivel_row is not None
     assert sheet.cell(row=nivel_row, column=5).font.name == 'Arial'
     assert sheet.cell(row=nivel_row, column=6).font.name == 'Arial'
 
@@ -968,4 +1002,5 @@ categorias:
         for cell in row
         if cell.column == 3 and cell.value == 'N2'
     )
+    assert linha_n2 is not None
     assert sheet.cell(row=linha_n2, column=2).value == _SEM_NIVEL

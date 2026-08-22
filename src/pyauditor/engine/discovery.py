@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from typing import Literal, cast
 
 import yaml
 
@@ -71,7 +72,10 @@ def _inject_orgao(
     # "MinC"/"MTur" (nível de fronteira) — Scope.orgao é
     # `Literal["MinC","MTur"]`; o range é validado por quem chama
     # _inject_orgao.
-    new_scope = Scope(contract=desired_contract, orgao=expected_orgao)  # type: ignore[arg-type]
+    new_scope = Scope(
+        contract=desired_contract,
+        orgao=cast(Literal['MinC', 'MTur'], expected_orgao),
+    )
     return config.model_copy(update={'scope': new_scope})
 
 

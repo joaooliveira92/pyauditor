@@ -51,7 +51,7 @@ def test_frozen_extra_forbid() -> None:
     with pytest.raises(ValidationError):
         m.column = 'c'  # frozen
     with pytest.raises(ValidationError):
-        ColumnEquals(column='a', equals='b', extra='x')  # type: ignore[call-arg]
+        ColumnEquals(column='a', equals='b', extra='x')
 
 
 def test_indicator_config_target_shape() -> None:

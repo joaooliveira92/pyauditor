@@ -63,6 +63,7 @@ __all__: Final[tuple[str, ...]] = (
     'ReportRequest',
     'build_parser',
     'cli_main',
+    'main',
 )
 
 # Migração das capas para CSV (ticket 07): o monetário vive em `objetos.csv`.
@@ -382,9 +383,9 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
         assert_never(command)
 
 
-def _main() -> NoReturn:
+def main() -> NoReturn:
     sys.exit(cli_main())
 
 
 if __name__ == '__main__':
-    _main()
+    main()

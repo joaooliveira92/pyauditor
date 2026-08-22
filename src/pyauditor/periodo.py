@@ -219,9 +219,16 @@ def _cell_interval(
     # Evita chamadas custosas ao datetime.strptime (e o lançamento/captura de
     # exceções ValueError em caminhos de falha) verificando primeiro a estrutura
     # dos formatos suportados:
-    # 1. "DD/MM/YYYY HH:MM" possui exatamente 16 caracteres com separadores em posições fixas.
+    # 1. "DD/MM/YYYY HH:MM" possui exatamente 16 caracteres com separadores
+    #    em posições fixas.
     # 2. "YYYY-MM" possui exatamente 7 caracteres com hífen na posição 4.
-    if length == 16 and text[2] == "/" and text[5] == "/" and text[10] == " " and text[13] == ":":
+    if (
+        length == 16
+        and text[2] == '/'
+        and text[5] == '/'
+        and text[10] == ' '
+        and text[13] == ':'
+    ):
         try:
             timestamp = datetime.strptime(
                 text,
@@ -232,7 +239,7 @@ def _cell_interval(
         else:
             day = timestamp.date()
             return day, day
-    elif length == 7 and text[4] == "-":
+    elif length == 7 and text[4] == '-':
         if _MONTH_CELL_RE.fullmatch(text) is None:
             return None
 

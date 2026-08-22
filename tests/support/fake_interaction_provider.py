@@ -10,12 +10,12 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
-from pyauditor.interactive.provider import InteractionCancelled
+from pyauditor.interactive.provider import InteractionCancelledError
 from pyauditor.orchestration.run import RunResult
 
 CANCEL = object()
 """Script this sentinel as an answer to simulate Ctrl+C/EOF at that prompt —
-`_next()` raises `InteractionCancelled` instead of returning it."""
+`_next()` raises `InteractionCancelledError` instead of returning it."""
 
 
 @dataclass
@@ -30,7 +30,7 @@ class FakeInteractionProvider:
         answer = self.answers[self._cursor]
         self._cursor += 1
         if answer is CANCEL:
-            raise InteractionCancelled
+            raise InteractionCancelledError
         return answer
 
     def ask_text(

@@ -463,7 +463,7 @@ def test_run_split_derived_config_write_failure_marks_error(
             raise OSError('permissão negada')
         from pyauditor.atomic_write import atomic_write
 
-        atomic_write(path, write)  # type: ignore[arg-type]
+        atomic_write(path, write)  # ty: ignore[invalid-argument-type]
         return None
 
     monkeypatch.setattr(

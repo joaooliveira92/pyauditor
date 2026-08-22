@@ -138,7 +138,7 @@ def render_capa_sheet(
         if values is not None:
             # Campos do CSV são `object` (str/números) — openpyxl aceita em
             # runtime, mas o stub type-checka `_CellSetValue`, union menor.
-            value_cell.value = values.get(label)  # type: ignore[assignment]
+            value_cell.value = values.get(label)  # ty: ignore[invalid-assignment]
         elif label == 'Situação geral da aferição':
             value_cell.value = SITUACOES[0]
         if label == 'Situação geral da aferição':

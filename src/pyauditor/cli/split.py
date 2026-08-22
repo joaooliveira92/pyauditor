@@ -359,7 +359,7 @@ def run_split(
             else:
                 # Sem materialização: config_path fica None semanticamente,
                 # mas mantemos o path para rastreabilidade no outcome.
-                config_path = None  # type: ignore[assignment]
+                config_path = None
 
             outcomes.append(
                 SplitCategoriaOutcome(

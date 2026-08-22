@@ -18,6 +18,7 @@ períodos derivados do argumento da CLI e responsáveis de `equipe.csv`.
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from pyauditor.atomic_write import atomic_write
 from pyauditor.cli.results import (
@@ -81,7 +82,9 @@ def _load_common_capa(data_dir: Path, warnings: list[str]) -> dict[str, object]:
         )
         return {}
     try:
-        return read_capa_csv_fields(path)  # type: ignore[return-value]
+        # dict[str, str] não é subtipo de dict[str, object] (dict é
+        # invariante); o chamador trata os valores como object.
+        return cast(dict[str, object], read_capa_csv_fields(path))
     except (OSError, ValueError) as exc:
         warnings.append(
             f'falha ao ler capa.csv em {data_dir}: {exc} — campos comuns '

@@ -358,6 +358,7 @@ def test_grupo_executor_sheet_has_subtotals_by_nivel(tmp_path: Path) -> None:
         for row in sheet.iter_rows(min_row=1)
         if row[0].value == 'Subtotais por Nível'
     )
+    assert header_row is not None
     subtotal_rows = {
         row[0].value: row[:6]
         for row in sheet.iter_rows(
@@ -511,6 +512,7 @@ def test_inms_1_14_sheet_has_subtotals_by_categoria_not_nivel(
         for row in sheet.iter_rows(min_row=1)
         if row[0].value == 'Subtotais por Categoria'
     )
+    assert header_row is not None
     assert tuple(cell.value for cell in sheet[header_row + 1][:6]) == (
         'Categoria',
         'Linhas',

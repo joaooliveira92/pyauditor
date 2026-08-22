@@ -15,7 +15,7 @@ from pyauditor.logging import logger
 from pyauditor.orchestration.state import (
     CommandStateEntry,
     RunState,
-    RunStateCorrupted,
+    RunStateCorruptedError,
     load_state,
     reset_stale_running,
     state_path,
@@ -64,7 +64,7 @@ def reconcile_state(
     plan. Missing entries are initialized as ``pending``.
     """
     if existing.competencia != competencia:
-        raise RunStateCorrupted(
+        raise RunStateCorruptedError(
             state_path(
                 competencia,
                 orgao_selector,
@@ -74,7 +74,7 @@ def reconcile_state(
         )
 
     if existing.orgao_selector != orgao_selector:
-        raise RunStateCorrupted(
+        raise RunStateCorruptedError(
             state_path(
                 competencia,
                 orgao_selector,
@@ -122,7 +122,7 @@ def ensure_state(
 
     try:
         existing = load_state(path)
-    except RunStateCorrupted as exc:
+    except RunStateCorruptedError as exc:
         logger.warning(
             '%s; starting the run from filesystem state',
             exc,
@@ -140,7 +140,7 @@ def ensure_state(
             runs_dir,
             plan,
         )
-    except RunStateCorrupted as exc:
+    except RunStateCorruptedError as exc:
         logger.warning(
             '%s; starting the run from filesystem state',
             exc,

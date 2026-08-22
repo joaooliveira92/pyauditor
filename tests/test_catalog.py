@@ -28,18 +28,22 @@ def test_catalog_item_frozen() -> None:
     )
     with pytest.raises(ValidationError):
         CatalogItem(
-            id='E-001', categoria='X', descricao='d', referencia='r', pontos='1'
-        )  # type: ignore[arg-type]  # strict
+            id='E-001',
+            categoria='X',
+            descricao='d',
+            referencia='r',
+            pontos='1',  # ty: ignore[invalid-argument-type]  # strict
+        )
     with pytest.raises(ValidationError):
-        item.pontos = 2  # frozen
+        item.pontos = 2  # ty: ignore[invalid-assignment]  # frozen
 
 
 def test_mutation_blocked() -> None:
     cat = load_anexo_e_catalog()
     with pytest.raises(TypeError):
-        cat['new'] = CatalogItem(
+        cat['new'] = CatalogItem(  # ty: ignore[invalid-assignment]
             id='new', categoria='X', descricao='d', referencia='r', pontos=1
-        )  # type: ignore[index]
+        )
 
 
 def test_invalid_yaml_shape_raises(tmp_path: Path) -> None:

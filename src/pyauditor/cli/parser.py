@@ -148,7 +148,10 @@ def build_parser() -> argparse.ArgumentParser:
         '--data-dir',
         type=Path,
         default=_DEFAULT_DATA_DIR,
-        help=f'onde criar capa.csv e capa_{{orgao}}.csv (default: {_DEFAULT_DATA_DIR})',
+        help=(
+            'onde criar capa.csv e capa_{orgao}.csv '
+            f'(default: {_DEFAULT_DATA_DIR})'
+        ),
     )
     bootstrap_parser.add_argument(
         '--capa-path',

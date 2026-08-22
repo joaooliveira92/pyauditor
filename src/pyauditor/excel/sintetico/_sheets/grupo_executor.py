@@ -157,8 +157,7 @@ def _write_whole_indicator_sheet(
     sheet = new_sheet(workbook, sheet_name, _COLUMNS)
     stats = compute_stats(rows, fieldnames, accepted_ids)
     linhas, dentro, fora, pct, tempo = format_row(stats)
-    row_idx = 2
-    for categoria_key, _entry in entries:
+    for row_idx, (categoria_key, _entry) in enumerate(entries, start=2):
         categoria = categorias_file.categorias[categoria_key]
         nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
         write_row(
@@ -175,4 +174,3 @@ def _write_whole_indicator_sheet(
                 tempo,
             ),
         )
-        row_idx += 1

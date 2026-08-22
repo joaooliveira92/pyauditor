@@ -106,13 +106,13 @@ def _add_situacao_conditional_formatting(
         coordinate,
         CellIsRule(
             operator='equal', formula=['"Meta atingida"'], fill=GREEN_FILL
-        ),  # type: ignore[no-untyped-call]  # openpyxl não publica stub tipado para `CellIsRule`
+        ),
     )
     sheet.conditional_formatting.add(
         coordinate,
         CellIsRule(
             operator='equal', formula=['"Meta não atingida"'], fill=RED_FILL
-        ),  # type: ignore[no-untyped-call]  # openpyxl não publica stub tipado para `CellIsRule`
+        ),
     )
 
 
@@ -130,7 +130,7 @@ def _protect_support_columns(sheet: Worksheet) -> None:
     A coluna `AJ` (Situação dos dados) fica de fora do ocultamento: é
     preenchida em Python, não alimenta fórmula alguma, e é o indicador
     visual de linhas com data ausente/inválida exigido pelo ticket 02
-    (C-02) — ocultá-la anularia a sinalização (consenso C-02 × B-03)."""
+    (C-02) — ocultá-la anularia a sinalização (consenso C-02 x B-03)."""
     for col in range(_R, _AM + 1):
         if col == _AJ:
             continue

@@ -37,8 +37,9 @@ from pyauditor.interactive.fields import (
     validate_non_empty_text,
 )
 from pyauditor.interactive.provider import (
-    InteractionCancelled,
+    InteractionCancelledError,
     InteractionProvider,
+    RichQuestionaryProvider,
 )
 from pyauditor.interactive.status_view import render_state_line
 from pyauditor.orchestration.run import (
@@ -54,6 +55,7 @@ __all__: Final[tuple[str, ...]] = (
     'GuidedAnswers',
     'collect_answers',
     'run_guided_flow',
+    'run_interactive',
     'select_commands',
     'show_opening',
 )
@@ -290,7 +292,7 @@ def run_guided_flow(
     """Run the complete guided flow and translate cancellation to exit 130."""
     try:
         return _run_guided_flow(provider)
-    except InteractionCancelled:
+    except InteractionCancelledError:
         provider.show_message(
             'Execução encerrada pelo usuário. Etapas de processamento já '
             'registradas foram preservadas e poderão ser retomadas.',
@@ -377,3 +379,7 @@ def _run_guided_flow(
         on_failure=on_failure,
     )
     return provider.show_summary(run_result)
+
+
+def run_interactive() -> int:
+    return run_guided_flow(RichQuestionaryProvider())

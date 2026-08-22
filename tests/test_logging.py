@@ -161,7 +161,7 @@ def test_log_event_rejects_invalid_contract() -> None:
     from pyauditor.logging import log_event
 
     with pytest.raises(TypeError, match='event must be a string'):
-        log_event(123, 'verb')  # type: ignore[arg-type]
+        log_event(123, 'verb')  # ty: ignore[invalid-argument-type]
     with pytest.raises(ValueError, match='snake_case'):
         log_event('Invalid Event', 'verb')
     with pytest.raises(ValueError, match='exactly one line'):
@@ -171,9 +171,15 @@ def test_log_event_rejects_invalid_contract() -> None:
     with pytest.raises(ValueError, match='sensitive'):
         log_event('event', 'verb', api_key='x')
     with pytest.raises(ValueError, match='Invalid context key'):
-        log_event('event', 'verb', **{'chave com espaço': 'x'})  # type: ignore[arg-type]
+        log_event(
+            'event',
+            'verb',
+            **{'chave com espaço': 'x'},  # ty: ignore[invalid-argument-type]
+        )
     with pytest.raises(TypeError, match='Context keys must be strings'):
-        normalize_context({'x': 'ok', 1: 'err'})  # type: ignore[dict-item]
+        normalize_context(
+            {'x': 'ok', 1: 'err'}  # ty: ignore[invalid-argument-type]
+        )
 
     @dataclass
     class _Dado:
@@ -197,7 +203,10 @@ def test_setup_logging_rejects_empty_format() -> None:
 
 def test_setup_logging_rejects_non_bool_json_format() -> None:
     with pytest.raises(TypeError, match='json_format must be bool'):
-        setup_logging(sink=sys.stderr, json_format=1)  # type: ignore[arg-type]
+        setup_logging(
+            sink=sys.stderr,
+            json_format=1,  # ty: ignore[invalid-argument-type]
+        )
 
 
 def test_setup_logging_rolls_back_handlers_on_failure(tmp_path: Path) -> None:

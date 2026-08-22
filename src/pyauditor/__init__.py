@@ -1,7 +1,6 @@
-import sys
+"""pyauditor — top-level package. Re-exports the `project.scripts` entry
+point; the implementation lives in `cli/main.py` alongside `cli_main`."""
 
-from pyauditor.cli.main import cli_main
+from pyauditor.cli.main import main
 
-
-def main() -> None:
-    sys.exit(cli_main())
+__all__ = ('main',)

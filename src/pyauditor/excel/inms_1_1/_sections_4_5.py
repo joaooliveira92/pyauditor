@@ -293,11 +293,11 @@ def _write_section_5_subtotais(
     chk.font = Font(bold=True)
     sheet.conditional_formatting.add(
         chk.coordinate,
-        CellIsRule(operator='equal', formula=['"OK"'], fill=GREEN_FILL),  # type: ignore[no-untyped-call]
+        CellIsRule(operator='equal', formula=['"OK"'], fill=GREEN_FILL),
     )
     sheet.conditional_formatting.add(
         chk.coordinate,
-        CellIsRule(operator='equal', formula=['"DIVERGÊNCIA"'], fill=RED_FILL),  # type: ignore[no-untyped-call]
+        CellIsRule(operator='equal', formula=['"DIVERGÊNCIA"'], fill=RED_FILL),
     )
 
     # IAP = dentro do prazo + fora do prazo (ticket 06 / A-04) — se algum
@@ -318,7 +318,7 @@ def _write_section_5_subtotais(
     chk2.font = Font(bold=True)
     sheet.conditional_formatting.add(
         chk2.coordinate,
-        CellIsRule(operator='equal', formula=['"OK"'], fill=GREEN_FILL),  # type: ignore[no-untyped-call]
+        CellIsRule(operator='equal', formula=['"OK"'], fill=GREEN_FILL),
     )
     sheet.conditional_formatting.add(
         chk2.coordinate,
@@ -326,6 +326,6 @@ def _write_section_5_subtotais(
             operator='equal',
             formula=['"DIVERGÊNCIA DE CLASSIFICAÇÃO"'],
             fill=RED_FILL,
-        ),  # type: ignore[no-untyped-call]
+        ),
     )
     return check2_row + 2

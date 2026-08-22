@@ -218,8 +218,8 @@ def _write_section_3_memoria(sheet: Worksheet) -> int:
 
     def _narrativa(desfecho: str) -> str:
         return (
-            'CONCATENATE("Com ",B17," incidentes, seriam necessários pelo menos '
-            '",B24,'
+            'CONCATENATE("Com ",B17," incidentes, seriam necessários pelo '
+            'menos ",B24,'
             f'" dentro do prazo para atingir ",TEXT(B22,"0.00%"),". O '
             f'resultado ficou {desfecho})'
         )

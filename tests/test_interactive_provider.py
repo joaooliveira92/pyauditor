@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from pyauditor.interactive.provider import (
-    InteractionCancelled,
+    InteractionCancelledError,
     RichQuestionaryProvider,
 )
 
@@ -44,6 +44,6 @@ def test_ctrl_c_raises_interaction_cancelled_instead_of_a_fake_answer(
     provider = RichQuestionaryProvider()
     with (
         patch(questionary_target, return_value=_cancelled_ask()),
-        pytest.raises(InteractionCancelled),
+        pytest.raises(InteractionCancelledError),
     ):
         call(provider)

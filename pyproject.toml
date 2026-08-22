@@ -114,6 +114,11 @@ allowed-confusables = ["–"]
 # valores decimais exatos e determinísticos (ex. `== 100.0`) — check de
 # invariante, não ponto-flutuante propenso a arredondamento.
 "tests/**/*.py" = ["S101", "ANN001", "ANN002", "ANN003", "ANN401", "RUF069"]
+# Fixture CSV deliberadamente mojibake (UTF-8 lido como Latin-1) para testar
+# tratamento de encoding malformado — os caracteres "ambíguos" (µ de "Ãµ")
+# são o próprio dado sob teste, não podem virar `# noqa` por linha porque
+# estão dentro de uma string multi-linha (o comentário quebraria o CSV).
+"tests/test_cli_report.py" = ["RUF001"]
 
 [tool.ruff.format]
 # pyguide.md §3.10: escolha única de aspas, prefere `'`.

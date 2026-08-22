@@ -13,9 +13,9 @@ Every provider implementation must support the complete interaction surface:
 - progress indicators;
 - final run-summary rendering.
 
-Prompt cancellation must raise :class:`InteractionCancelled`. Providers must
-never convert cancellation into an empty string, an empty selection, or a
-negative confirmation because those values are valid user answers with
+Prompt cancellation must raise :class:`InteractionCancelledError`. Providers
+must never convert cancellation into an empty string, an empty selection, or
+a negative confirmation because those values are valid user answers with
 different meanings.
 
 Dynamic text is treated as literal content. Provider implementations must not
@@ -45,7 +45,7 @@ from pyauditor.orchestration.summary import (
 )
 
 __all__: Final[tuple[str, ...]] = (
-    'InteractionCancelled',
+    'InteractionCancelledError',
     'InteractionProvider',
     'MultiChoiceOption',
     'RichQuestionaryProvider',
@@ -56,7 +56,7 @@ type TextValidator = Callable[[str], bool | str]
 type MultiChoiceOption = tuple[str, str, bool, str | None]
 
 
-class InteractionCancelled(Exception):
+class InteractionCancelledError(Exception):
     """Signal that the user cancelled an interactive operation.
 
     Providers raise this exception when their underlying prompt library
@@ -75,7 +75,7 @@ class InteractionProvider(Protocol):
 
     Implementations may use a terminal, test fixture, graphical interface, or
     another interaction mechanism. They must preserve literal text and convert
-    explicit user cancellation into :class:`InteractionCancelled`.
+    explicit user cancellation into :class:`InteractionCancelledError`.
     """
 
     def ask_text(
@@ -98,7 +98,7 @@ class InteractionProvider(Protocol):
             The text entered or accepted by the user.
 
         Raises:
-            InteractionCancelled: If the prompt is cancelled.
+            InteractionCancelledError: If the prompt is cancelled.
         """
         ...
 
@@ -120,7 +120,7 @@ class InteractionProvider(Protocol):
             The selected value.
 
         Raises:
-            InteractionCancelled: If the prompt is cancelled.
+            InteractionCancelledError: If the prompt is cancelled.
             ValueError: If ``choices`` is empty or ``default`` is not one of
                 the available choices.
         """
@@ -158,7 +158,7 @@ class InteractionProvider(Protocol):
             Selected option values in provider order.
 
         Raises:
-            InteractionCancelled: If the prompt is cancelled.
+            InteractionCancelledError: If the prompt is cancelled.
             ValueError: If no options are supplied or option values are
                 duplicated.
         """
@@ -173,7 +173,7 @@ class InteractionProvider(Protocol):
         """Prompt for a boolean confirmation.
 
         Raises:
-            InteractionCancelled: If the prompt is cancelled.
+            InteractionCancelledError: If the prompt is cancelled.
         """
         ...
 
@@ -247,7 +247,7 @@ class RichQuestionaryProvider:
         ).ask()
 
         if answer is None:
-            raise InteractionCancelled
+            raise InteractionCancelledError
 
         if not isinstance(answer, str):
             raise TypeError(
@@ -285,7 +285,7 @@ class RichQuestionaryProvider:
         ).ask()
 
         if answer is None:
-            raise InteractionCancelled
+            raise InteractionCancelledError
 
         if not isinstance(answer, str):
             raise TypeError(
@@ -366,7 +366,7 @@ class RichQuestionaryProvider:
         ).ask()
 
         if answer is None:
-            raise InteractionCancelled
+            raise InteractionCancelledError
 
         if not isinstance(answer, list):
             raise TypeError(
@@ -401,7 +401,7 @@ class RichQuestionaryProvider:
         ).ask()
 
         if answer is None:
-            raise InteractionCancelled
+            raise InteractionCancelledError
 
         if not isinstance(answer, bool):
             raise TypeError(

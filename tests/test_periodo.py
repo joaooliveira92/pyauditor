@@ -60,7 +60,7 @@ class TestMesBounds:
     def test_periodo_imutavel(self) -> None:
         periodo = month_bounds('2026-06')
         with pytest.raises(FrozenInstanceError):
-            periodo.inicio = date(2026, 7, 1)  # type: ignore[misc]
+            periodo.inicio = date(2026, 7, 1)  # ty: ignore[invalid-assignment]
 
 
 class TestFilterPeriodo:
