@@ -47,6 +47,26 @@ class MeasurementProvenance:
 
 
 @dataclass(frozen=True)
+class SourceBundle:
+    """Resultado do backbone `measurement_source()`: fonte resolvida, lida,
+    filtrada por período e avaliada pelos quality gates — tudo que os 4
+    reimplementadores do pipeline de medição (`engine.measure`,
+    `excel.sintetico`, `cli.split`, `cli.measure`) precisavam recalcular
+    cada um a seu jeito antes deste backbone existir (ticket 02)."""
+
+    config: IndicatorConfig
+    csv_path: Path
+    delimiter: str
+    encoding: str
+    fieldnames: list[str]
+    rows: list[dict[str, str]]
+    gate_report: QualityGateReport
+    accepted_ids: set[int]
+    dropped_out_of_period: int | None
+    undated_dropped: int | None
+
+
+@dataclass(frozen=True)
 class MeasurementResult:
     config: IndicatorConfig
     quality_gate_report: QualityGateReport
@@ -338,6 +358,85 @@ def discover_configs(config_dir: Path, expected_orgao: str | None = None) -> lis
     return [config for _, _, config in discover_config_files(config_dir, expected_orgao)]
 
 
+def measurement_source(
+    config: IndicatorConfig,
+    data_dir: Path,
+    manifest: DatasetManifest | None = None,
+    *,
+    config_path: Path | None = None,
+    periodo: PeriodoAfericao | None = None,
+    strict: bool = False,
+    emit_empty_window_warning: bool = True,
+) -> SourceBundle:
+    """Backbone do pipeline de medição (ticket 02): resolve a fonte → valida
+    colunas do YAML contra o header real → lê o CSV → filtra pela janela de
+    período (quando *periodo* é dado) → roda os quality gates. Aditivo: não
+    substitui nenhum chamador existente por si só — `engine.measure` é o
+    primeiro a migrar (mesmo ticket); `sintetico`/`split`/`cli.measure`
+    migram nos tickets 03-05.
+
+    *emit_empty_window_warning* controla o WARN de janela vazia (1x por
+    dataset bruto, spec §3): o chamador que já sabe que outro ponto do mesmo
+    `run` acabou de emiti-lo para este dataset (ex.: `cli.measure` quando
+    `split` já rodou na mesma passada — ticket 05) passa `False` para não
+    duplicar o aviso. O INFO de descarte fora-de-janela/sem-data é sempre
+    emitido — não é o aviso duplicado, é contagem informativa por chamada.
+    """
+    csv_path, delimiter, encoding = resolve_source(config, data_dir, manifest)
+    # Validate every column referenced in YAML against real CSV header — single
+    # border check before any strategy runs (replaces silent .get("", "") and raw KeyErrors)
+    with csv_path.open(encoding=encoding, newline="") as handle:
+        reader = csv.DictReader(handle, delimiter=delimiter)
+        if reader.fieldnames is None:
+            raise ValueError(f"{csv_path}: CSV vazio ou sem linha de cabeçalho")
+        fieldnames = [name.strip() for name in reader.fieldnames]
+        header = set(fieldnames)
+    _validate_columns(config, header, config_path)
+
+    rows = load_rows(csv_path, delimiter, encoding)
+
+    # Filtro de período (§2 ponto 2): após load_rows, inclusive CSVs `_split`
+    # derivados — re-filtrar é idempotente e protege contra artefato órfão.
+    # Quality gates/acceptance_test rodam sobre o pós-filtro.
+    dropped_out_of_period: int | None = None
+    undated_dropped: int | None = None
+    if periodo is not None and not config.source.unfilterable:
+        period_column = require_period_column(config.source.period_column, config_path=config_path)
+        if period_column not in header:
+            prefix = f"{config_path}: " if config_path else ""
+            raise ValueError(
+                f"{prefix}source.period_column {period_column!r} não existe no header "
+                f"de {csv_path.name} — corrija o YAML"
+            )
+        total_bruto = len(rows)
+        filtro = filter_periodo(rows, period_column=period_column, periodo=periodo, strict=strict)
+        rows = filtro.linhas_na_janela
+        dropped_out_of_period = filtro.dropped_out_of_period
+        undated_dropped = filtro.undated_dropped
+        if emit_empty_window_warning and total_bruto > 0 and not rows:
+            logger.warning(f"{csv_path}: {empty_window_message(periodo)}")
+        info_descarte = discard_message(dropped_out_of_period or 0, undated_dropped or 0, strict)
+        if info_descarte is not None:
+            logger.info(f"{csv_path}: {info_descarte}")
+
+    gate_runner = QualityGateRunner(config.quality_gates.checks, id_column=config.source.id_column)
+    gate_report = gate_runner.run(rows)
+    accepted_ids = {id(row) for row in gate_report.accepted}
+
+    return SourceBundle(
+        config=config,
+        csv_path=csv_path,
+        delimiter=delimiter,
+        encoding=encoding,
+        fieldnames=fieldnames,
+        rows=rows,
+        gate_report=gate_report,
+        accepted_ids=accepted_ids,
+        dropped_out_of_period=dropped_out_of_period,
+        undated_dropped=undated_dropped,
+    )
+
+
 def measure(
     config: IndicatorConfig,
     data_dir: Path,
@@ -356,71 +455,40 @@ def measure(
     without *config_hash*, the file is re-read to hash it — the production
     path (`discover_config_files` -> `cli/measure.py`) always supplies both,
     reusing the text it already read, so this fallback only fires for direct
-    callers that skip `discover_config_files`."""
-    csv_path, delimiter, encoding = resolve_source(config, data_dir, manifest)
-    # Validate every column referenced in YAML against real CSV header — single
-    # border check before any strategy runs (replaces silent .get("", "") and raw KeyErrors)
-    with csv_path.open(encoding=encoding, newline="") as handle:
-        reader = csv.DictReader(handle, delimiter=delimiter)
-        if reader.fieldnames is None:
-            raise ValueError(f"{csv_path}: CSV vazio ou sem linha de cabeçalho")
-        header = {name.strip() for name in reader.fieldnames}
-    _validate_columns(config, header, config_path)
+    callers that skip `discover_config_files`.
 
-    rows = load_rows(csv_path, delimiter, encoding)
-
-    # Filtro de período (§2 ponto 2): após load_rows, inclusive CSVs `_split`
-    # derivados — re-filtrar é idempotente e protege contra artefato órfão.
-    # Quality gates/acceptance_test rodam sobre o pós-filtro. Contagens viajam
-    # no resultado; quem loga é o chamador (WARN só para whole_indicator).
-    dropped_out_of_period: int | None = None
-    undated_dropped: int | None = None
-    if periodo is not None and not config.source.unfilterable:
-        period_column = require_period_column(config.source.period_column, config_path=config_path)
-        if period_column not in header:
-            prefix = f"{config_path}: " if config_path else ""
-            raise ValueError(
-                f"{prefix}source.period_column {period_column!r} não existe no header "
-                f"de {csv_path.name} — corrija o YAML"
-            )
-        total_bruto = len(rows)
-        filtro = filter_periodo(rows, period_column=period_column, periodo=periodo, strict=strict)
-        rows = filtro.linhas_na_janela
-        dropped_out_of_period = filtro.dropped_out_of_period
-        undated_dropped = filtro.undated_dropped
-        # Papel "measure" na deduplicação de avisos (§3): emite só aqui, para o
-        # dataset whole_indicator que processa — configs derivadas `_split`
-        # não passam por measure() (o bruto já avisou no split).
-        if total_bruto > 0 and not rows:
-            logger.warning(f"{csv_path}: {empty_window_message(periodo)}")
-        info_descarte = discard_message(dropped_out_of_period or 0, undated_dropped or 0, strict)
-        if info_descarte is not None:
-            logger.info(f"{csv_path}: {info_descarte}")
-
-    gate_runner = QualityGateRunner(config.quality_gates.checks, id_column=config.source.id_column)
-    gate_report = gate_runner.run(rows)
+    Thin orchestrator (ticket 02) over `measurement_source()`: calcula e monta
+    a proveniência; a resolução/leitura/filtro/gates vivem só no backbone."""
+    bundle = measurement_source(
+        config,
+        data_dir,
+        manifest,
+        config_path=config_path,
+        periodo=periodo,
+        strict=strict,
+    )
 
     strategy = SHAPE_REGISTRY[config.calculation.shape]
-    calculation = strategy.calculate(config, gate_report.accepted)
+    calculation = strategy.calculate(config, bundle.gate_report.accepted)
 
     if config_hash is None and config_path is not None:
         config_hash = hashlib.sha256(config_path.read_bytes()).hexdigest()
     provenance = MeasurementProvenance(
         config_path=config_path,
         config_hash=config_hash,
-        csv_path=csv_path,
-        csv_hash=hashlib.sha256(csv_path.read_bytes()).hexdigest(),
-        delimiter=delimiter,
-        encoding=encoding,
+        csv_path=bundle.csv_path,
+        csv_hash=hashlib.sha256(bundle.csv_path.read_bytes()).hexdigest(),
+        delimiter=bundle.delimiter,
+        encoding=bundle.encoding,
         processed_at=datetime.now(),
         pipeline_version=_pipeline_version(),
     )
 
     return MeasurementResult(
         config=config,
-        quality_gate_report=gate_report,
+        quality_gate_report=bundle.gate_report,
         calculation=calculation,
         provenance=provenance,
-        dropped_out_of_period=dropped_out_of_period,
-        undated_dropped=undated_dropped,
+        dropped_out_of_period=bundle.dropped_out_of_period,
+        undated_dropped=bundle.undated_dropped,
     )
