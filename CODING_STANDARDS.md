@@ -2,6 +2,8 @@
 
 Referência usada pela skill `code-review` (eixo Standards) e por qualquer agente que escreva ou revise código Python neste repositório. Baseado em `.agents/skills/python-production-engineer/SKILL.md`, adaptado ao stack real do projeto.
 
+**Estilo de código Python** é delegado ao `pyguide.md` (Google Python Style Guide): seções 2 ("Python Language Rules") e 3 ("Python Style Rules"). Este documento só registra as decisões específicas deste projeto e as divergências conscientes.
+
 ## Stack e ferramentas obrigatórias
 
 - Python 3.12+, gerenciado via `uv` (`uv sync --group dev`, `uv run ...`). Não usar `pip install` direto para dependências do projeto.
@@ -15,10 +17,11 @@ Referência usada pela skill `code-review` (eixo Standards) e por qualquer agent
 
 ## Estilo e nomes
 
-- Nomes em código (variáveis, funções, classes) em **inglês**, seguindo PEP 8. Comentários, docstrings, mensagens de erro e logs voltados ao usuário são em **pt-BR** (ver `CLAUDE.md` — o usuário só lê pt-BR).
+Regras de estilo seguem o `pyguide.md` (ver introdução). Divergências e decisões específicas deste projeto:
+
+- Nomes em código (variáveis, funções, classes) em **inglês**, seguindo PEP 8 e o `pyguide.md`. Comentários, docstrings, mensagens de erro e logs voltados ao usuário são em **pt-BR** (ver `CLAUDE.md` — o usuário só lê pt-BR).
 - Comentários explicam o *porquê*, não repetem o código. Preferir nenhum comentário a um comentário óbvio.
-- Evitar funções longas, booleanos posicionais e estado global mutável.
-- Sem defaults mutáveis (`def f(x: list = [])`).
+- Quando o `pyguide.md` deixar margem de escolha (ex.: `# noqa` vs. reestruturar o código), a ferramenta configurada em `pyproject.toml` (Ruff, mypy) é o árbitro.
 
 ## Erros e resiliência
 
