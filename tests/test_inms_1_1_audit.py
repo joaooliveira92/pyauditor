@@ -15,6 +15,8 @@ from openpyxl import Workbook, load_workbook
 
 from pyauditor.config.categorias import GrupoExecutorMode, load_categorias
 from pyauditor.excel import inms_1_1_audit
+from pyauditor.excel.inms_1_1._domain import _build_grupo_rows
+from pyauditor.excel.inms_1_1._layout import _SEM_NIVEL
 from pyauditor.excel.sintetico import write_sintetico_workbook
 from pyauditor.periodo import PeriodoAfericao
 
@@ -681,7 +683,7 @@ def _raise_duplicate_grupo_conflict() -> None:
         for inms_key, entry in categoria.inms.items()
         if inms_key == "1.1" and isinstance(entry, GrupoExecutorMode)
     ]
-    inms_1_1_audit._build_grupo_rows(
+    _build_grupo_rows(
         categorias_file, grupo_executor_entries, real_values={"N1"}
     )
 
@@ -877,4 +879,4 @@ categorias:
         for cell in row
         if cell.column == 3 and cell.value == "N2"
     )
-    assert sheet.cell(row=linha_n2, column=2).value == inms_1_1_audit._SEM_NIVEL
+    assert sheet.cell(row=linha_n2, column=2).value == _SEM_NIVEL

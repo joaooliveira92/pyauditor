@@ -10,7 +10,6 @@ from pyauditor.excel.consolidate.workbook import (
     GLOSAS_SHEET,
     INMS_BASE_SHEET,
     SERVICOS_SHEET,
-    _FATOR_PCT_TEXTO,
     build_consolidated_workbook,
     read_existing_decisions,
 )
@@ -21,7 +20,6 @@ __all__ = (
     "GLOSAS_SHEET",
     "INMS_BASE_SHEET",
     "SERVICOS_SHEET",
-    "_FATOR_PCT_TEXTO",
     "build_consolidated_workbook",
     "read_existing_decisions",
 )

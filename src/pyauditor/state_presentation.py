@@ -9,17 +9,16 @@ compartilhado (ticket 06 SRP, etapa 6).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final
+from typing import Final
 
-if TYPE_CHECKING:
-    pass
+from pyauditor.orchestration.state import CommandState
 
 __all__: Final[tuple[str, ...]] = (
     "STATE_PRESENTATION",
     "UNKNOWN_STATE_PRESENTATION",
 )
 
-STATE_PRESENTATION: Final[dict[str, tuple[str, str]]] = {
+STATE_PRESENTATION: Final[dict[CommandState, tuple[str, str]]] = {
     "pending": ("[ ]", "dim"),
     "running": ("[>]", "cyan"),
     "done": ("[x]", "green"),
@@ -33,6 +32,6 @@ UNKNOWN_STATE_PRESENTATION: Final[tuple[str, str]] = (
 )
 
 
-def state_presentation(status: str) -> tuple[str, str]:
-    """Ícone e estilo de um estado de comando (`CommandState` como str)."""
+def state_presentation(status: CommandState) -> tuple[str, str]:
+    """Ícone e estilo de um estado de comando."""
     return STATE_PRESENTATION.get(status, UNKNOWN_STATE_PRESENTATION)

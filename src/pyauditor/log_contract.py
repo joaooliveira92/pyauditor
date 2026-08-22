@@ -83,7 +83,7 @@ def normalize_level(level: str, *, field: str) -> str:
 def validate_detail(detail: int) -> int:
     """Validar um nível de detalhe de evento."""
     if type(detail) is not int:
-        raise TypeError("detail must be an integer, received {type(detail).__name__}.")
+        raise TypeError(f"detail must be an integer, received {type(detail).__name__}.")
 
     if not 0 <= detail <= _MAX_DETAIL_LEVEL:
         raise ValueError(
@@ -96,7 +96,7 @@ def validate_detail(detail: int) -> int:
 def validate_event(event: str) -> str:
     """Validar um identificador de evento estável."""
     if type(event) is not str:
-        raise TypeError("event must be a string, received {type(event).__name__}.")
+        raise TypeError(f"event must be a string, received {type(event).__name__}.")
 
     normalized = event.strip()
 

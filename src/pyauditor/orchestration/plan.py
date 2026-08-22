@@ -64,12 +64,7 @@ def plan(orgao_selector: str) -> tuple[tuple[str, str | None], ...]:
 
     steps: list[tuple[str, str | None]] = []
 
-    for command in (
-        "bootstrap",
-        "split",
-        "measure",
-        "report",
-    ):
+    for command in PHASE_ORDER[:-1]:  # consolidate é única e sem órgão
         for organization in organizations:
             steps.append((command, organization))
 

@@ -340,7 +340,7 @@ def test_glosas_summary_only_bolds_total_and_valor_glosa_rows() -> None:
 def test_glosas_summary_formula_label_derives_from_glosa_fator() -> None:
     """Ticket 09 — a fórmula de glosa vive em `glosas.py` (`POINTS_TO_PERCENT`,
     `CAP_PCT`); a label do resumo deriva da fonte única, sem literal `0,001`."""
-    from pyauditor.excel.consolidate import _FATOR_PCT_TEXTO
+    from pyauditor.excel.consolidate.workbook import _FATOR_PCT_TEXTO
 
     minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=100.0)]
     result = build_consolidated_workbook("2026-06", minc, [], {}, valor_base=100000.0)

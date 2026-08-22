@@ -57,6 +57,10 @@ def _inject_orgao(config: IndicatorConfig, expected_orgao: str) -> IndicatorConf
         return config
     from pyauditor.config.models import Scope
 
+    # `expected_orgao` é str livre no contrato, mas na prática só recebe
+    # "MinC"/"MTur" (nível de fronteira) — Scope.orgao é
+    # `Literal["MinC","MTur"]`; o range é validado por quem chama
+    # _inject_orgao.
     new_scope = Scope(contract=desired_contract, orgao=expected_orgao)  # type: ignore[arg-type]
     return config.model_copy(update={"scope": new_scope})
 

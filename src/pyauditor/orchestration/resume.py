@@ -26,6 +26,26 @@ __all__: Final[tuple[str, ...]] = ("PlannedStep", "ensure_state", "reconcile_sta
 PlannedStep = tuple[str, str | None]
 
 
+def _fresh_state(
+    competencia: str,
+    orgao_selector: str,
+    plan: tuple[PlannedStep, ...],
+) -> RunState:
+    """Estado inicial: todo passo do plano como `pending`."""
+    return RunState(
+        competencia=competencia,
+        orgao_selector=orgao_selector,
+        commands=tuple(
+            CommandStateEntry(
+                command=command,
+                orgao=orgao,
+                status="pending",
+            )
+            for command, orgao in plan
+        ),
+    )
+
+
 def reconcile_state(
     existing: RunState,
     competencia: str,
@@ -104,18 +124,7 @@ def ensure_state(
         existing = None
 
     if existing is None:
-        return RunState(
-            competencia=competencia,
-            orgao_selector=orgao_selector,
-            commands=tuple(
-                CommandStateEntry(
-                    command=command,
-                    orgao=orgao,
-                    status="pending",
-                )
-                for command, orgao in plan
-            ),
-        )
+        return _fresh_state(competencia, orgao_selector, plan)
 
     try:
         return reconcile_state(
@@ -130,15 +139,4 @@ def ensure_state(
             "%s; starting the run from filesystem state",
             exc,
         )
-        return RunState(
-            competencia=competencia,
-            orgao_selector=orgao_selector,
-            commands=tuple(
-                CommandStateEntry(
-                    command=command,
-                    orgao=orgao,
-                    status="pending",
-                )
-                for command, orgao in plan
-            ),
-        )
+        return _fresh_state(competencia, orgao_selector, plan)
