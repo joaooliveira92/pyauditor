@@ -1,11 +1,13 @@
 """`sintetico.xlsx` (spec §14.4, ticket 05) — um workbook por órgão/
 competência, uma aba por INMS com entrada em `categorias.yaml` (exclui
-1.8/1.10, que não têm entrada nenhuma), mais quatro abas opcionais que
-reproduzem `input/{capa,equipe,objetos,prazos}.csv` verbatim (cabeçalho +
-linhas, sem processamento) — "Capa", "Equipe", "Objetos" e "Prazos", nessa
-ordem, cada uma só quando o respectivo `*_path` é passado. Como são
-escritas antes do laço de INMS, acabam sendo as primeiras abas do
-workbook.
+1.8/1.10, que não têm entrada nenhuma), mais três abas opcionais que
+reproduzem `input/{capa,equipe,prazos}.csv` verbatim (cabeçalho + linhas,
+sem processamento) — "Capa", "Equipe" e "Prazos", nessa ordem, cada uma só
+quando o respectivo `*_path` é passado. `objetos.csv` não vira aba própria:
+a pedido do usuário, é anexado ao final da aba "Capa" (depois de "Término
+da vigência", a última linha de `capa.csv`), separado por uma linha em
+branco — só quando `capa_path` também é passado. Como são escritas antes
+do laço de INMS, acabam sendo as primeiras abas do workbook.
 
 Contagens são brutas/pré-quality-gate — conferência rápida, não substitui o
 ROM da categoria. A única exceção é `Tempo médio criação→resolução`,
@@ -90,7 +92,6 @@ __all__: Final[tuple[str, ...]] = ("write_sintetico_workbook",)
 
 _CAPA_SHEET_NAME: Final[str] = "Capa"
 _EQUIPE_SHEET_NAME: Final[str] = "Equipe"
-_OBJETOS_SHEET_NAME: Final[str] = "Objetos"
 
 _INMS_1_1: Final[str] = "1.1"
 _INMS_1_14: Final[str] = "1.14"
@@ -644,25 +645,73 @@ def _write_csv_verbatim_sheet(
     delimiter: str,
     encoding: str,
     warnings: list[str],
-) -> None:
+) -> tuple[Worksheet, int] | None:
     """Aba de reprodução verbatim de um CSV bruto de `input/`
-    (`capa.csv`/`equipe.csv`/`objetos.csv`/`prazos.csv`) — cabeçalho e
-    linhas exatamente como estão no arquivo, sem processamento. Essas quatro
-    abas (quando os paths são passados) sempre vêm antes do laço de INMS,
-    então acabam sendo as primeiras abas do workbook."""
+    (`capa.csv`/`equipe.csv`/`prazos.csv`) — cabeçalho e linhas exatamente
+    como estão no arquivo, sem processamento. Devolve `(sheet, última linha
+    escrita)` em caso de sucesso (usado por `_write_capa_sheet` pra saber
+    onde continuar), ou `None` se a aba não foi gerada."""
     try:
         header, rows = read_csv_verbatim(path, delimiter=delimiter, encoding=encoding)
     except FileNotFoundError:
         warnings.append(f"sintetico.xlsx: {path} não encontrado — aba '{sheet_name}' não gerada")
-        return
+        return None
     except (OSError, ValueError) as exc:
         warnings.append(
             f"sintetico.xlsx: falha ao ler {path}: {exc} — aba '{sheet_name}' não gerada"
         )
-        return
+        return None
 
     sheet = new_sheet(workbook, sheet_name, tuple(header))
+    row_idx = 1
     for row_idx, row in enumerate(rows, start=2):
+        write_row(sheet, row_idx, tuple(row))
+    return sheet, row_idx
+
+
+def _write_capa_sheet(
+    workbook: Workbook,
+    capa_path: Path,
+    objetos_path: Path | None,
+    warnings: list[str],
+) -> None:
+    """Aba "Capa": reprodução verbatim de `capa.csv`. Quando `objetos_path`
+    é passado, `objetos.csv` é anexado logo abaixo (a pedido do usuário: não
+    vira aba própria, fica junto da capa, depois da última linha — "Término
+    da vigência" no CSV atual), separado por uma linha em branco e o próprio
+    cabeçalho de `objetos.csv`."""
+    written = _write_csv_verbatim_sheet(
+        workbook,
+        _CAPA_SHEET_NAME,
+        capa_path,
+        delimiter=CAPA_DELIMITER,
+        encoding=CAPA_ENCODING,
+        warnings=warnings,
+    )
+    if written is None or objetos_path is None:
+        return
+    sheet, last_row = written
+
+    try:
+        objetos_header, objetos_rows = read_csv_verbatim(
+            objetos_path, delimiter=OBJETOS_DELIMITER, encoding=OBJETOS_ENCODING
+        )
+    except FileNotFoundError:
+        warnings.append(
+            f"sintetico.xlsx: {objetos_path} não encontrado — dados de objetos "
+            f"não anexados à aba '{_CAPA_SHEET_NAME}'"
+        )
+        return
+    except (OSError, ValueError) as exc:
+        warnings.append(
+            f"sintetico.xlsx: falha ao ler {objetos_path}: {exc} — dados de objetos "
+            f"não anexados à aba '{_CAPA_SHEET_NAME}'"
+        )
+        return
+
+    header_row = last_row + 2  # 1 linha em branco de separação
+    write_row(sheet, header_row, tuple(objetos_header))
+    for row_idx, row in enumerate(objetos_rows, start=header_row + 1):
         write_row(sheet, row_idx, tuple(row))
 
 
@@ -697,13 +746,11 @@ def write_sintetico_workbook(
     workbook.remove(default_sheet)
 
     if capa_path is not None:
-        _write_csv_verbatim_sheet(
-            workbook,
-            _CAPA_SHEET_NAME,
-            capa_path,
-            delimiter=CAPA_DELIMITER,
-            encoding=CAPA_ENCODING,
-            warnings=warnings,
+        _write_capa_sheet(workbook, capa_path, objetos_path, warnings)
+    elif objetos_path is not None:
+        warnings.append(
+            f"sintetico.xlsx: capa_path não informado — dados de {objetos_path} "
+            f"não anexados (dependem da aba '{_CAPA_SHEET_NAME}')"
         )
     if equipe_path is not None:
         _write_csv_verbatim_sheet(
@@ -712,15 +759,6 @@ def write_sintetico_workbook(
             equipe_path,
             delimiter=EQUIPE_DELIMITER,
             encoding=EQUIPE_ENCODING,
-            warnings=warnings,
-        )
-    if objetos_path is not None:
-        _write_csv_verbatim_sheet(
-            workbook,
-            _OBJETOS_SHEET_NAME,
-            objetos_path,
-            delimiter=OBJETOS_DELIMITER,
-            encoding=OBJETOS_ENCODING,
             warnings=warnings,
         )
     if prazos_path is not None:
@@ -920,9 +958,9 @@ def write_sintetico_workbook(
     if set(workbook.sheetnames) == sheets_before_inms:
         # Nada pôde ser medido (todo INMS de categorias.yaml falhou ao
         # carregar/resolver) — um xlsx sem nenhuma aba de INMS não é um
-        # arquivo válido pra este propósito (as abas Capa/Equipe/Objetos/
-        # Prazos sozinhas não contam); não sobrescreve um sintetico.xlsx de
-        # rerun anterior com um arquivo vazio/quebrado.
+        # arquivo válido pra este propósito (as abas Capa/Equipe/Prazos
+        # sozinhas não contam); não sobrescreve um sintetico.xlsx de rerun
+        # anterior com um arquivo vazio/quebrado.
         return warnings
 
     atomic_write(output_path, workbook.save)

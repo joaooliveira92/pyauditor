@@ -1,3 +1,4 @@
+import csv
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -783,11 +784,7 @@ def test_prazos_sheet_omitted_when_prazos_path_not_given(tmp_path: Path) -> None
     assert "Prazos" not in wb.sheetnames
 
 
-_CAPA_RAW_CSV = (
-    "Campo;Valor\n"
-    "Número do contrato;40/2022\n"
-    "Processo SEI;72031.010172/2020-97\n"
-)
+_CAPA_RAW_CSV = "Campo;Valor\nNúmero do contrato;40/2022\nProcesso SEI;72031.010172/2020-97\n"
 _EQUIPE_RAW_CSV = (
     "FUNÇÃO,NOME,SIAPE\n"
     "Gestor do Contrato,Thiago Augusto Arcanjo Lima,1500967\n"
@@ -800,7 +797,7 @@ _OBJETOS_RAW_CSV = (
 )
 
 
-def test_capa_equipe_objetos_prazos_sheets_come_first_in_order(tmp_path: Path) -> None:
+def test_capa_equipe_prazos_sheets_come_first_in_order(tmp_path: Path) -> None:
     config_dir, data_dir = _write_fixture(tmp_path, include_inms_04_csv=True)
     categorias_file = load_categorias(config_dir / "categorias.yaml")
     output_path = tmp_path / "sintetico.xlsx"
@@ -808,8 +805,6 @@ def test_capa_equipe_objetos_prazos_sheets_come_first_in_order(tmp_path: Path) -
     capa_path.write_text(_CAPA_RAW_CSV, encoding="utf-8-sig")
     equipe_path = tmp_path / "equipe.csv"
     equipe_path.write_text(_EQUIPE_RAW_CSV, encoding="utf-8-sig")
-    objetos_path = tmp_path / "objetos.csv"
-    objetos_path.write_text(_OBJETOS_RAW_CSV, encoding="utf-8-sig")
     prazos_path = tmp_path / "prazos.csv"
     prazos_path.write_text(_PRAZOS_RAW_CSV, encoding="utf-8")
 
@@ -820,13 +815,13 @@ def test_capa_equipe_objetos_prazos_sheets_come_first_in_order(tmp_path: Path) -
         output_path,
         capa_path=capa_path,
         equipe_path=equipe_path,
-        objetos_path=objetos_path,
         prazos_path=prazos_path,
     )
 
     assert warnings == []
     wb = load_workbook(output_path)
-    assert wb.sheetnames[:4] == ["Capa", "Equipe", "Objetos", "Prazos"]
+    assert wb.sheetnames[:3] == ["Capa", "Equipe", "Prazos"]
+    assert "Objetos" not in wb.sheetnames
 
     capa_rows = [[c.value for c in row] for row in wb["Capa"].iter_rows()]
     assert capa_rows == [line.split(";") for line in _CAPA_RAW_CSV.strip("\n").split("\n")]
@@ -834,9 +829,55 @@ def test_capa_equipe_objetos_prazos_sheets_come_first_in_order(tmp_path: Path) -
     equipe_rows = [[c.value for c in row] for row in wb["Equipe"].iter_rows()]
     assert equipe_rows == [line.split(",") for line in _EQUIPE_RAW_CSV.strip("\n").split("\n")]
 
-    objetos_rows = [[c.value for c in row] for row in wb["Objetos"].iter_rows()]
-    assert objetos_rows[0] == ["Item", "Categoria", "Valor"]
-    assert objetos_rows[1] == ["1", "Central de Serviços", " R$  148.205,54 "]
+
+def test_objetos_is_appended_below_capa_not_a_separate_sheet(tmp_path: Path) -> None:
+    config_dir, data_dir = _write_fixture(tmp_path, include_inms_04_csv=True)
+    categorias_file = load_categorias(config_dir / "categorias.yaml")
+    output_path = tmp_path / "sintetico.xlsx"
+    capa_path = tmp_path / "capa.csv"
+    capa_path.write_text(_CAPA_RAW_CSV, encoding="utf-8-sig")
+    objetos_path = tmp_path / "objetos.csv"
+    objetos_path.write_text(_OBJETOS_RAW_CSV, encoding="utf-8-sig")
+
+    warnings = write_sintetico_workbook(
+        categorias_file,
+        config_dir,
+        data_dir,
+        output_path,
+        capa_path=capa_path,
+        objetos_path=objetos_path,
+    )
+
+    assert warnings == []
+    wb = load_workbook(output_path)
+    assert "Objetos" not in wb.sheetnames
+    sheet = wb["Capa"]
+    rows = [[c.value for c in row] for row in sheet.iter_rows()]
+    # A grade tem 3 colunas (largura de objetos.csv) — linhas da capa (2
+    # colunas) ficam com a 3ª célula vazia (None) por causa disso.
+    capa_lines = [[*line.split(";"), None] for line in _CAPA_RAW_CSV.strip("\n").split("\n")]
+    objetos_lines = list(csv.reader(_OBJETOS_RAW_CSV.strip("\n").split("\n")))
+    # Última linha da capa ("Processo SEI..." nesse fixture), 1 linha em
+    # branco, depois cabeçalho + linhas de objetos.csv verbatim.
+    assert rows == [*capa_lines, [None, None, None], *objetos_lines]
+
+
+def test_objetos_not_appended_when_capa_path_missing(tmp_path: Path) -> None:
+    config_dir, data_dir = _write_fixture(tmp_path, include_inms_04_csv=True)
+    categorias_file = load_categorias(config_dir / "categorias.yaml")
+    output_path = tmp_path / "sintetico.xlsx"
+    objetos_path = tmp_path / "objetos.csv"
+    objetos_path.write_text(_OBJETOS_RAW_CSV, encoding="utf-8-sig")
+
+    warnings = write_sintetico_workbook(
+        categorias_file, config_dir, data_dir, output_path, objetos_path=objetos_path
+    )
+
+    assert len(warnings) == 1
+    assert "objetos" in warnings[0].lower()
+    wb = load_workbook(output_path)
+    assert "Capa" not in wb.sheetnames
+    assert "Objetos" not in wb.sheetnames
 
 
 def test_capa_sheet_missing_file_warns_and_skips(tmp_path: Path) -> None:
@@ -855,7 +896,7 @@ def test_capa_sheet_missing_file_warns_and_skips(tmp_path: Path) -> None:
     assert "Capa" not in wb.sheetnames
 
 
-def test_equipe_and_objetos_sheets_omitted_when_paths_not_given(tmp_path: Path) -> None:
+def test_equipe_sheet_omitted_when_equipe_path_not_given(tmp_path: Path) -> None:
     config_dir, data_dir = _write_fixture(tmp_path, include_inms_04_csv=True)
     categorias_file = load_categorias(config_dir / "categorias.yaml")
     output_path = tmp_path / "sintetico.xlsx"
@@ -865,4 +906,3 @@ def test_equipe_and_objetos_sheets_omitted_when_paths_not_given(tmp_path: Path) 
     assert warnings == []
     wb = load_workbook(output_path)
     assert "Equipe" not in wb.sheetnames
-    assert "Objetos" not in wb.sheetnames
