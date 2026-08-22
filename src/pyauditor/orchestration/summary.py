@@ -1,8 +1,25 @@
-"""`render_summary()` — the one shared completion-summary renderer (ticket
-"Completion summary and exit codes", .scratch/interactive-cli map), used
-identically by `cli/run.py` (non-interactive) and `interactive/provider.py`
-(`show_summary` just delegates here). Pure output — no prompting — so it
-uses `rich.Console` directly rather than the `InteractionProvider` Protocol.
+"""Render the shared completion summary for an orchestration run.
+
+This module is the canonical completion-summary renderer used by both the
+non-interactive ``run`` command and the interactive provider. It performs no
+prompting and writes only to the supplied Rich console.
+
+Two output formats are supported:
+
+``text``
+    Human-readable command table, result panel, artifact paths, log path, and
+    actionable next steps.
+
+``json``
+    A single plain JSON document intended for automation. JSON output does not
+    use Rich syntax highlighting, markup, or terminal colors, so it remains
+    directly parseable when the console is attached to a color-capable
+    terminal.
+
+The renderer is deliberately defensive. Unknown commands, missing results, and
+partially completed runs remain visible in the summary instead of causing the
+summary itself to fail. Dynamic paths, organization names, and error messages
+are rendered as literal text and are never interpreted as Rich markup.
 """
 
 from __future__ import annotations
@@ -10,11 +27,15 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Sequence
 from datetime import datetime
-from typing import Any, Literal
+from decimal import Decimal
+from math import isfinite
+from pathlib import Path
+from typing import Final, Literal, TypedDict, cast
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from pyauditor.cli.bootstrap import BootstrapResult
 from pyauditor.cli.consolidate import ConsolidateResult
@@ -22,16 +43,36 @@ from pyauditor.cli.measure import MeasureResult
 from pyauditor.cli.report import ReportResult
 from pyauditor.cli.results import exit_code_name, is_production_command
 from pyauditor.cli.split import SplitResult
-from pyauditor.orchestration.run import RunResult, dependency_missing
-from pyauditor.orchestration.state import CommandStateEntry
+from pyauditor.orchestration.run import (
+    RunResult,
+    dependency_missing,
+)
+from pyauditor.orchestration.state import (
+    CommandState,
+    CommandStateEntry,
+)
+
+__all__: Final[tuple[str, ...]] = (
+    "OutputFormat",
+    "exit_code_for_run",
+    "fmt_pt_br",
+    "render_summary",
+    "summary_json",
+)
 
 type OutputFormat = Literal["text", "json"]
+type JsonNumber = int | float
+type CommandResult = (
+    BootstrapResult
+    | SplitResult
+    | MeasureResult
+    | ReportResult
+    | ConsolidateResult
+)
 
-# ASCII-only markers: the status column is printed to a possibly cp1252-coded
-# Windows console (rich falls back to legacy_windows_render there), where any
-# non-ASCII glyph would raise UnicodeEncodeError and take the whole `run` down
-# with it. Colours still distinguish states on capable terminals.
-_STATE_ICON: dict[str, tuple[str, str]] = {
+_STATE_PRESENTATION: Final[
+    dict[CommandState, tuple[str, str]]
+] = {
     "pending": ("[ ]", "dim"),
     "running": ("[>]", "cyan"),
     "done": ("[x]", "green"),
@@ -39,37 +80,14 @@ _STATE_ICON: dict[str, tuple[str, str]] = {
     "error": ("[!]", "bold red"),
 }
 
+_UNKNOWN_STATE_PRESENTATION: Final[tuple[str, str]] = (
+    "[?]",
+    "bold red",
+)
 
-def exit_code_for_run(
-    state_commands: tuple[CommandStateEntry, ...], results: Sequence[object]
-) -> int:
-    """Contrato de códigos de saída (ticket "03 - Contrato de códigos de
-    saída", .scratch/ajuste-cli) para o `run` agregado — precedência
-    `1 > 4 > 3 > 0`, agregado por órgão com o pior vencendo:
-
-    - `1` se qualquer Command terminou `error` (falha técnica);
-    - `4` se algum report/consolidate sinaliza glosa não calculada;
-    - `3` se alguma etapa de produção (`report`/`consolidate`) terminou
-      `skipped` — resultado financeiro incompleto nunca vale `0` (revisão do
-      `skipped jamais é falha` do mapa interactive-cli) — ou se algum
-      resultado é não-publicável (rascunho, ticket 02);
-    - `0` caso contrário.
-    """
-    if any(entry.status == "error" for entry in state_commands):
-        return 1
-    if any(getattr(result, "glosa_calculada", True) is False for result in results):
-        return 4
-    if any(
-        entry.status == "skipped" and is_production_command(entry.command)
-        for entry in state_commands
-    ):
-        return 3
-    if any(getattr(result, "publicable", True) is False for result in results):
-        return 3
-    return 0
-
-
-_RESULT_TYPE_FOR_COMMAND: dict[str, type] = {
+_RESULT_TYPE_FOR_COMMAND: Final[
+    dict[str, type[CommandResult]]
+] = {
     "bootstrap": BootstrapResult,
     "split": SplitResult,
     "measure": MeasureResult,
@@ -77,319 +95,955 @@ _RESULT_TYPE_FOR_COMMAND: dict[str, type] = {
     "consolidate": ConsolidateResult,
 }
 
+_VALID_OUTPUT_FORMATS: Final[frozenset[str]] = frozenset(
+    {
+        "text",
+        "json",
+    }
+)
 
-def _result_for(entry: CommandStateEntry, results: tuple[object, ...]) -> object | None:
-    expected_type = _RESULT_TYPE_FOR_COMMAND[entry.command]
+
+class IndicatorCountJson(TypedDict):
+    """Indicator counts reported for one organization."""
+
+    aferidos: int
+    total_esperado: int
+
+
+class OrganizationSummaryJson(TypedDict):
+    """Structured financial and publication state for one organization."""
+
+    indicadores: IndicatorCountJson
+    glosa: str
+    publicable: bool
+    motivo_publicacao: str | None
+    relatorio_gerado: bool
+
+
+class ConsolidatedSummaryJson(TypedDict):
+    """Structured information about the consolidated report."""
+
+    caminho: str
+    decisoes_preservadas: int
+    glosa: str
+    total_pontos: JsonNumber | str
+
+
+class PublicationSummaryJson(TypedDict):
+    """Structured publication decision for the completed run."""
+
+    liberada: bool
+    motivo: str | None
+
+
+class CompletionSummaryJson(TypedDict):
+    """Stable machine-readable completion-summary schema."""
+
+    competencia: str
+    resultado: str
+    codigo_saida: int
+    orgaos: dict[str, OrganizationSummaryJson]
+    consolidado: ConsolidatedSummaryJson | None
+    publicacao: PublicationSummaryJson
+    avisos: int
+    erros: int
+    duracao_ms: int | None
+    caminhos: list[str]
+
+
+def exit_code_for_run(
+    state_commands: Sequence[CommandStateEntry],
+    results: Sequence[object],
+) -> int:
+    """Calculate the aggregate process exit code.
+
+    Exit-code precedence is ``1 > 4 > 3 > 0``:
+
+    - ``1`` indicates that at least one command ended in technical error;
+    - ``4`` indicates that a report or consolidation result could not
+      calculate the financial adjustment;
+    - ``3`` indicates that a production command was skipped or that a
+      generated result is not publishable;
+    - ``0`` indicates successful production without publication blockers.
+
+    Args:
+        state_commands: Final command states for the run.
+        results: Results produced by completed commands.
+
+    Returns:
+        The aggregate process exit code.
+    """
+    if any(entry.status == "error" for entry in state_commands):
+        return 1
+
+    if any(
+        getattr(result, "glosa_calculada", True) is False
+        for result in results
+    ):
+        return 4
+
+    if any(
+        entry.status == "skipped"
+        and is_production_command(entry.command)
+        for entry in state_commands
+    ):
+        return 3
+
+    if any(
+        getattr(result, "publicable", True) is False
+        for result in results
+    ):
+        return 3
+
+    return 0
+
+
+def _result_for(
+    *,
+    command: str,
+    orgao: str | None,
+    results: Sequence[object],
+) -> CommandResult | None:
+    """Return the unique result associated with a command and organization.
+
+    Unknown commands have no registered result type and therefore return
+    ``None``. Ambiguous matches also return ``None`` so the renderer can
+    report that the result is unavailable without selecting an arbitrary
+    artifact.
+
+    Args:
+        command: Canonical command identifier.
+        orgao: Organization associated with the command, when applicable.
+        results: Results produced by the orchestration run.
+
+    Returns:
+        The unique matching command result, or ``None`` when no unique match
+        exists.
+    """
+    expected_type = _RESULT_TYPE_FOR_COMMAND.get(command)
+    if expected_type is None:
+        return None
+
+    candidates: list[CommandResult] = []
+
     for result in results:
         if not isinstance(result, expected_type):
             continue
-        if entry.command == "consolidate" or getattr(result, "orgao", None) == entry.orgao:
-            return result
-    return None
+
+        if command == "consolidate":
+            candidates.append(result)
+            continue
+
+        if getattr(result, "orgao", None) == orgao:
+            candidates.append(result)
+
+    if len(candidates) != 1:
+        return None
+
+    return candidates[0]
 
 
 def _bootstrap_artifact(result: BootstrapResult) -> str:
+    """Describe the artifact produced by bootstrap."""
     return str(result.capa_path)
 
 
 def _split_artifact(result: SplitResult) -> str:
-    line = f"{len(result.categorias)} categoria(s) processada(s)"
+    """Describe split output and non-fatal warnings."""
+    parts = [
+        f"{len(result.categorias)} categoria(s) processada(s)",
+    ]
+
     if result.sintetico_path is not None:
-        line += f" — {result.sintetico_path}"
+        parts.append(str(result.sintetico_path))
+
     if result.warnings:
-        line += f" — {len(result.warnings)} aviso(s)"
-    return line
+        parts.append(f"{len(result.warnings)} aviso(s)")
+
+    return " | ".join(parts)
 
 
 def _measure_artifact(result: MeasureResult) -> str:
-    failing = [i.contractual_id for i in result.indicators if i.hard_failure]
-    line = f"{len(result.indicators)} indicador(es) apurado(s)"
+    """Describe measured indicators and hard failures."""
+    failing = [
+        indicator.contractual_id
+        for indicator in result.indicators
+        if indicator.hard_failure
+    ]
+
+    description = (
+        f"{len(result.indicators)} indicador(es) apurado(s)"
+    )
+
     if failing:
-        line += f" — falhas: {', '.join(failing)}"
-    return line
+        description += f" | falhas: {', '.join(failing)}"
+
+    return description
 
 
 def _report_artifact(result: ReportResult) -> str:
-    return f"{result.output_path} ({result.indicator_count} indicadores)"
+    """Describe an individual report artifact."""
+    return (
+        f"{result.output_path} "
+        f"({result.indicator_count} indicadores)"
+    )
 
 
-def _consolidate_artifact(result: ConsolidateResult) -> str:
-    return f"{result.output_path} ({result.decisions_preserved} decisão(ões) preservada(s))"
+def _consolidate_artifact(
+    result: ConsolidateResult,
+) -> str:
+    """Describe the consolidated report artifact."""
+    return (
+        f"{result.output_path} "
+        f"({result.decisions_preserved} decisão(ões) preservada(s))"
+    )
 
 
-# Keyed the same way as `_RESULT_TYPE_FOR_COMMAND` — one type-discrimination
-# point instead of two (a prior isinstance-chain here re-decided the same
-# "which CommandResult subtype is this" question `_result_for` already answered).
-_ARTIFACT_FORMATTER_FOR_TYPE: dict[type, Callable[[Any], str]] = {
-    BootstrapResult: _bootstrap_artifact,
-    SplitResult: _split_artifact,
-    MeasureResult: _measure_artifact,
-    ReportResult: _report_artifact,
-    ConsolidateResult: _consolidate_artifact,
-}
-
-
-def _artifact_line(entry: CommandStateEntry, result: object | None) -> str:
+def _artifact_line(
+    entry: CommandStateEntry,
+    result: CommandResult | None,
+) -> str:
+    """Return the literal artifact description for a command row."""
     if result is None:
-        return "pulado" if entry.status == "skipped" else "—"
-    formatter = _ARTIFACT_FORMATTER_FOR_TYPE.get(type(result))
-    return formatter(result) if formatter is not None else "—"
+        if entry.status == "skipped":
+            return "pulado"
 
-
-def _next_steps(run_result: RunResult) -> list[str]:
-    """Ticket "08 - Transacionalidade do pipeline por órgão": além do motivo
-    técnico de dependência ausente, aponta explicitamente qual órgão ficou
-    incompleto (falhou ou foi pulado em cascata) e o comando exato para
-    completá-lo sozinho — sem reprocessar o órgão que já terminou."""
-    steps: list[str] = []
-    incomplete_orgaos: set[str] = set()
-    for entry in run_result.state.commands:
         if entry.status == "done":
-            continue
-        missing = dependency_missing(entry.command, entry.orgao, run_result.request)
-        if missing:
-            steps.append(f"{entry.command} ({entry.orgao or '—'}): {', '.join(missing)}")
-        if entry.orgao and entry.status in ("error", "skipped"):
-            incomplete_orgaos.add(entry.orgao)
-    for orgao in _orgaos_no_run(run_result):
-        if orgao in incomplete_orgaos:
-            steps.append(
-                f"{orgao}: relatório não gerado — rode "
-                f"`pyauditor run {run_result.competencia} --orgao {orgao}` "
-                "para completar apenas esse órgão"
-            )
-    return steps
+            return "resultado indisponível ou ambíguo"
+
+        return "-"
+
+    if isinstance(result, BootstrapResult):
+        return _bootstrap_artifact(result)
+
+    if isinstance(result, SplitResult):
+        return _split_artifact(result)
+
+    if isinstance(result, MeasureResult):
+        return _measure_artifact(result)
+
+    if isinstance(result, ReportResult):
+        return _report_artifact(result)
+
+    if isinstance(result, ConsolidateResult):
+        return _consolidate_artifact(result)
+
+    return "-"
 
 
-def _result_for_command(
-    run_result: RunResult, command: str, orgao: str | None = None
-) -> object | None:
-    """Desambigua por `CommandStateEntry`; aqui simulamos a entrada de um
-    comando que sabemos ter rodado para achar o resultado."""
-    entry = CommandStateEntry(command=command, orgao=orgao, status="done")
-    return _result_for(entry, run_result.results)
+def _orgaos_no_run(
+    run_result: RunResult,
+) -> tuple[str, ...]:
+    """Return organizations in first-appearance order."""
+    seen: set[str] = set()
+    ordered: list[str] = []
 
-
-def _orgaos_no_run(run_result: RunResult) -> tuple[str, ...]:
-    """Órgãos presentes no run, na ordem em que aparecem no estado."""
-    seen: list[str] = []
     for entry in run_result.state.commands:
-        if entry.orgao and entry.orgao not in seen:
-            seen.append(entry.orgao)
-    return tuple(seen)
+        if entry.orgao is None or entry.orgao in seen:
+            continue
+
+        seen.add(entry.orgao)
+        ordered.append(entry.orgao)
+
+    return tuple(ordered)
 
 
-def _sumario_orgao(run_result: RunResult, orgao: str) -> dict[str, Any]:
-    """Estado financeiro/publicable por órgão (tickets 01/02) — os mesmos
-    sinais que `exit_code_for_run` lê."""
-    report = _result_for_command(run_result, "report", orgao)
-    measure = _result_for_command(run_result, "measure", orgao)
+def _organization_summary(
+    run_result: RunResult,
+    orgao: str,
+) -> OrganizationSummaryJson:
+    """Return financial and publication state for one organization.
+
+    A missing report is never treated as publishable and never implies a
+    calculated financial adjustment. Measurement counts are used only as a
+    fallback for the number of indicators already measured.
+    """
+    report = _result_for(
+        command="report",
+        orgao=orgao,
+        results=run_result.results,
+    )
+    measure = _result_for(
+        command="measure",
+        orgao=orgao,
+        results=run_result.results,
+    )
+
     if isinstance(report, ReportResult):
-        aferidos = report.indicator_count
+        measured_count = report.indicator_count
         publicable = report.publicable
-        glosa_calc = report.glosa_calculada
+        glosa_calculada = report.glosa_calculada
+        report_generated = True
     else:
-        aferidos = len(measure.indicators) if isinstance(measure, MeasureResult) else 0
-        publicable = True
-        glosa_calc = True
-    motivo: str | None = None
-    if isinstance(report, ReportResult) and not report.publicable:
-        motivo = (
-            f"relatório gerado como rascunho — capa incompleta em {orgao} "
-            "(obrigatórios para publicar ausentes)"
+        measured_count = (
+            len(measure.indicators)
+            if isinstance(measure, MeasureResult)
+            else 0
         )
-    # `total_esperado` acompanha `aferidos` até a névoa "Validação de
-    # indicadores" (nº esperado = 14?) graduar — contratos estável pros CI.
+        publicable = False
+        glosa_calculada = False
+        report_generated = False
+
+    publication_reason: str | None = None
+
+    if not report_generated:
+        publication_reason = (
+            f"relatório individual não gerado para {orgao}"
+        )
+    elif isinstance(report, ReportResult) and not report.publicable:
+        publication_reason = (
+            f"relatório gerado como rascunho para {orgao}: "
+            "campos obrigatórios da capa estão incompletos"
+        )
+
     return {
-        "indicadores": {"aferidos": aferidos, "total_esperado": aferidos},
-        "glosa": "calculada" if glosa_calc else "não calculada",
+        "indicadores": {
+            "aferidos": measured_count,
+            "total_esperado": measured_count,
+        },
+        "glosa": (
+            "calculada"
+            if glosa_calculada
+            else "não calculada"
+        ),
         "publicable": publicable,
-        "motivo_publicacao": motivo,
+        "motivo_publicacao": publication_reason,
+        "relatorio_gerado": report_generated,
     }
 
 
-def _consolidado_info(run_result: RunResult) -> dict[str, Any] | None:
-    csol = _result_for_command(run_result, "consolidate")
-    if not isinstance(csol, ConsolidateResult):
+def _json_number(
+    value: object,
+    *,
+    field: str,
+) -> JsonNumber | str:
+    """Convert a numeric value into a JSON-safe representation.
+
+    ``Decimal`` values are represented as strings to preserve their exact
+    decimal value. Integers and finite floats remain JSON numbers.
+
+    Args:
+        value: Numeric value to convert.
+        field: Field name used in validation errors.
+
+    Returns:
+        A JSON-safe number or exact decimal string.
+
+    Raises:
+        TypeError: If the value is not a supported numeric type.
+        ValueError: If a floating-point or decimal value is not finite.
+    """
+    if isinstance(value, bool):
+        raise TypeError(f"{field} must not be boolean")
+
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise ValueError(f"{field} must be finite")
+        return format(value, "f")
+
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, float):
+        if not isfinite(value):
+            raise ValueError(f"{field} must be finite")
+        return value
+
+    raise TypeError(
+        f"{field} must be int, float, or Decimal; "
+        f"received {type(value).__name__}"
+    )
+
+
+def _consolidated_info(
+    run_result: RunResult,
+) -> ConsolidatedSummaryJson | None:
+    """Return structured information about the consolidated report."""
+    result = _result_for(
+        command="consolidate",
+        orgao=None,
+        results=run_result.results,
+    )
+
+    if not isinstance(result, ConsolidateResult):
         return None
+
     return {
-        "caminho": str(csol.output_path),
-        "decisoes_preservadas": csol.decisions_preserved,
-        "glosa": "calculada" if csol.glosa_calculada else "não calculada",
-        "total_pontos": csol.total_pontos,
+        "caminho": str(result.output_path),
+        "decisoes_preservadas": result.decisions_preserved,
+        "glosa": (
+            "calculada"
+            if result.glosa_calculada
+            else "não calculada"
+        ),
+        "total_pontos": _json_number(
+            result.total_pontos,
+            field="total_pontos",
+        ),
     }
 
 
-def _caminhos_artefatos(run_result: RunResult) -> list[str]:
-    """Caminhos completos dos artefatos — sem truncamento (revisão §7).
+def _artifact_paths(
+    run_result: RunResult,
+) -> list"""Return unique artifact paths without truncation.
 
-    `SplitResult` não tem `output_path` (nome reservado a comandos com um
-    único arquivo de saída canônico) — seu artefato é `sintetico_path`,
-    verificado à parte."""
+    Result types with a canonical artifact expose ``output_path``. Split
+    exposes ``sintetico_path`` instead. Paths are deduplicated while
+    preserving their first-appearance order.
+    """
     paths: list[str] = []
+    seen: set[str] = set()
+
     for result in run_result.results:
-        output = getattr(result, "output_path", None) or getattr(result, "sintetico_path", None)
-        if output is not None:
-            paths.append(str(output))
-    return list(dict.fromkeys(paths))
+        output = getattr(result, "output_path", None)
+
+        if output is None:
+            output = getattr(result, "sintetico_path", None)
+
+        if output is None:
+            continue
+
+        path = str(output)
+        if path in seen:
+            continue
+
+        seen.add(path)
+        paths.append(path)
+
+    return paths
 
 
 def _warnings_count(run_result: RunResult) -> int:
-    return sum(len(getattr(result, "warnings", ())) for result in run_result.results)
+    """Count warnings from all command results."""
+    total = 0
 
+    for result in run_result.results:
+        warnings = getattr(result, "warnings", ())
+        if isinstance(warnings, Sequence) and not isinstance(
+            warnings,
+            str,
+        ):
+            total += len(warnings)
 
-def fmt_pt_br(value: float, *, decimals: int = 2) -> str:
-    """Formato numérico humano pt-BR (ticket 06, Q5/Q6): separador de milhar
-    `.`, decimal `,`. Uso no painel "Resultado" (humano); os logs técnicos e
-    JSON mantêm o ponto decimal (máquina)."""
-    raw = f"{value:.{decimals}f}"
-    inteiro, _, frac = raw.partition(".")
-    inteiro_p = f"{int(inteiro):,}".replace(",", ".")
-    return f"{inteiro_p},{frac}"
+    return total
 
 
 def _errors_count(run_result: RunResult) -> int:
-    return sum(1 for entry in run_result.state.commands if entry.status == "error")
-
-
-def _duracao_ms(run_result: RunResult) -> int:
-    """Duração desta chamada de `execute_run`, pelo relógio de parede de
-    `RunResult.started_at`/`finished_at` — carimbados no início/fim da própria
-    invocação, não derivados dos timestamps persistidos no estado (que
-    sobrevivem entre tentativas: um `bootstrap` já `done` de uma sessão
-    anterior não deve inflar a duração de um resume que só rodou os passos
-    seguintes)."""
-    inicio = datetime.fromisoformat(run_result.started_at)
-    fim = datetime.fromisoformat(run_result.finished_at)
-    return max(0, int((fim - inicio).total_seconds() * 1000))
-
-
-def summary_json(run_result: RunResult, exit_code: int) -> dict[str, Any]:
-    """Saída estruturada para automação (Q5/Q9/Q10, ticket 04) — mesmo
-    estado global do código de saída. Nomes estáveis em pt-BR; números (ms)
-    e caminhos completos para consumo por CI/workers."""
-    orgaos = {orgao: _sumario_orgao(run_result, orgao) for orgao in _orgaos_no_run(run_result)}
-    motivo_publicacao = next(
-        (v["motivo_publicacao"] for v in orgaos.values() if v["motivo_publicacao"]), None
+    """Count commands that ended in technical error."""
+    return sum(
+        1
+        for entry in run_result.state.commands
+        if entry.status == "error"
     )
-    liberada = exit_code == 0
+
+
+def _parse_run_timestamp(
+    value: str,
+    *,
+    field: str,
+) -> datetime:
+    """Parse a timezone-aware ISO 8601 run timestamp."""
+    normalized = (
+        f"{value[:-1]}+00:00"
+        if value.endswith("Z")
+        else value
+    )
+
+    try:
+        timestamp = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ValueError(
+            f"{field} must be a valid ISO 8601 timestamp"
+        ) from exc
+
+    if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+        raise ValueError(
+            f"{field} must include an explicit UTC offset"
+        )
+
+    return timestamp
+
+
+def _duration_ms(run_result: RunResult) -> int | None:
+    """Return the duration of the current orchestration invocation.
+
+    Duration is calculated only from ``RunResult.started_at`` and
+    ``RunResult.finished_at``. Persisted command timestamps are deliberately
+    ignored because they may belong to earlier resume attempts.
+
+    Invalid or contradictory timestamps produce ``None`` so telemetry issues
+    do not hide the actual orchestration result.
+    """
+    try:
+        started_at = _parse_run_timestamp(
+            run_result.started_at,
+            field="started_at",
+        )
+        finished_at = _parse_run_timestamp(
+            run_result.finished_at,
+            field="finished_at",
+        )
+    except (TypeError, ValueError):
+        return None
+
+    if finished_at < started_at:
+        return None
+
+    return int(
+        (finished_at - started_at).total_seconds() * 1000
+    )
+
+
+def fmt_pt_br(
+    value: float | Decimal,
+    *,
+    decimals: int = 2,
+) -> str:
+    """Format a finite number using Brazilian separators.
+
+    The returned representation uses ``.`` as the thousands separator and
+    ``,`` as the decimal separator. This helper is intended only for
+    human-readable output. JSON output retains machine-oriented numeric
+    representations.
+
+    Args:
+        value: Finite numeric value.
+        decimals: Non-negative number of fractional digits.
+
+    Returns:
+        The localized numeric representation.
+
+    Raises:
+        TypeError: If ``value`` is boolean or not numeric.
+        ValueError: If ``value`` is non-finite or ``decimals`` is negative.
+    """
+    if isinstance(decimals, bool) or not isinstance(decimals, int):
+        raise TypeError("decimals must be an integer")
+
+    if decimals < 0:
+        raise ValueError("decimals must not be negative")
+
+    if isinstance(value, bool):
+        raise TypeError("value must not be boolean")
+
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise ValueError("value must be finite")
+        raw = f"{value:.{decimals}f}"
+    elif isinstance(value, float):
+        if not isfinite(value):
+            raise ValueError("value must be finite")
+        raw = f"{value:.{decimals}f}"
+    else:
+        raise TypeError(
+            "value must be float or Decimal, "
+            f"received {type(value).__name__}"
+        )
+
+    integer_part, separator, fractional_part = raw.partition(".")
+    sign = ""
+
+    if integer_part.startswith("-"):
+        sign = "-"
+        integer_part = integer_part[1:]
+
+    grouped_integer = f"{int(integer_part):,}".replace(",", ".")
+    localized_integer = f"{sign}{grouped_integer}"
+
+    if not separator or decimals == 0:
+        return localized_integer
+
+    return f"{localized_integer},{fractional_part}"
+
+
+def _next_steps(run_result: RunResult) -> list"""Return deduplicated actionable recovery instructions.
+
+    Dependency failures are listed per command. Organizations with failed or
+    cascade-skipped commands receive a command that reruns only that
+    organization, avoiding unnecessary reprocessing of completed
+    organizations.
+    """
+    steps: list[str] = []
+    incomplete_organizations: set[str] = set()
+
+    for entry in run_result.state.commands:
+        if entry.status == "done":
+            continue
+
+        missing = dependency_missing(
+            entry.command,
+            entry.orgao,
+            run_result.request,
+        )
+
+        if missing:
+            organization = entry.orgao or "-"
+            steps.append(
+                f"{entry.command} ({organization}): "
+                f"{', '.join(missing)}"
+            )
+
+        if (
+            entry.orgao is not None
+            and entry.status in {"error", "skipped"}
+        ):
+            incomplete_organizations.add(entry.orgao)
+
+    for organization in _orgaos_no_run(run_result):
+        if organization not in incomplete_organizations:
+            continue
+
+        steps.append(
+            f"{organization}: relatório não gerado; execute "
+            f"`pyauditor run {run_result.competencia} "
+            f"--orgao {organization}` para completar somente esse órgão"
+        )
+
+    return list(dict.fromkeys(steps))
+
+
+def summary_json(
+    run_result: RunResult,
+    exit_code: int,
+) -> CompletionSummaryJson:
+    """Build the stable machine-readable completion summary.
+
+    Args:
+        run_result: Completed orchestration result.
+        exit_code: Aggregate exit code calculated for the run.
+
+    Returns:
+        A JSON-serializable dictionary with complete artifact paths, duration
+        in milliseconds, organization-level publication state, and the
+        consolidated result when available.
+    """
+    organizations = {
+        organization: _organization_summary(
+            run_result,
+            organization,
+        )
+        for organization in _orgaos_no_run(run_result)
+    }
+
+    publication_reason = next(
+        (
+            summary["motivo_publicacao"]
+            for summary in organizations.values()
+            if summary["motivo_publicacao"] is not None
+        ),
+        None,
+    )
+
+    publication_allowed = exit_code == 0
+
     return {
         "competencia": run_result.competencia,
         "resultado": exit_code_name(exit_code),
         "codigo_saida": exit_code,
-        "orgaos": orgaos,
-        "consolidado": _consolidado_info(run_result),
+        "orgaos": organizations,
+        "consolidado": _consolidated_info(run_result),
         "publicacao": {
-            "liberada": liberada,
-            "motivo": None
-            if liberada
-            else motivo_publicacao or "etapa final de produção não gerada",
+            "liberada": publication_allowed,
+            "motivo": (
+                None
+                if publication_allowed
+                else publication_reason
+                or "etapa final de produção não gerada"
+            ),
         },
         "avisos": _warnings_count(run_result),
         "erros": _errors_count(run_result),
-        "duracao_ms": _duracao_ms(run_result),
-        "caminhos": _caminhos_artefatos(run_result),
+        "duracao_ms": _duration_ms(run_result),
+        "caminhos": _artifact_paths(run_result),
     }
 
 
-def _painel_resultado(run_result: RunResult, exit_code: int) -> Panel:
-    """Painel "Resultado" — o estado global inequívoco (Q3/Q9/Q10)."""
-    orgaos = {orgao: _sumario_orgao(run_result, orgao) for orgao in _orgaos_no_run(run_result)}
-    indicadores = ", ".join(
-        f"{orgao} {d['indicadores']['aferidos']}/{d['indicadores']['total_esperado']}"
-        for orgao, d in orgaos.items()
-    )
-    rascunhos = [orgao for orgao, d in orgaos.items() if not d["publicable"]]
-    relatorios = f"{len(orgaos)}"
-    if rascunhos:
-        plural = "s" if len(rascunhos) > 1 else ""
-        relatorios += f" ({len(rascunhos)} rascunho{plural} — {', '.join(rascunhos)})"
+def _result_panel(
+    run_result: RunResult,
+    exit_code: int,
+) -> Panel:
+    """Build the global human-readable result panel."""
+    organizations = {
+        organization: _organization_summary(
+            run_result,
+            organization,
+        )
+        for organization in _orgaos_no_run(run_result)
+    }
 
-    estados_glosa = {d["glosa"] for d in orgaos.values()}
-    glosa = (
-        "sem glosa"
-        if not estados_glosa
-        else ("não calculada" if "não calculada" in estados_glosa else "calculada")
+    indicator_counts = ", ".join(
+        (
+            f"{organization} "
+            f"{summary['indicadores']['aferidos']}/"
+            f"{summary['indicadores']['total_esperado']}"
+        )
+        for organization, summary in organizations.items()
     )
+    if not indicator_counts:
+        indicator_counts = "-"
+
+    generated_reports = sum(
+        1
+        for summary in organizations.values()
+        if summary["relatorio_gerado"]
+    )
+    drafts = [
+        organization
+        for organization, summary in organizations.items()
+        if summary["relatorio_gerado"]
+        and not summary["publicable"]
+    ]
+
+    report_description = (
+        f"{generated_reports}/{len(organizations)} gerado(s)"
+    )
+    if drafts:
+        report_description += (
+            f" | {len(drafts)} rascunho(s): "
+            f"{', '.join(drafts)}"
+        )
+
+    glosa_states = {
+        summary["glosa"]
+        for summary in organizations.values()
+    }
+    if not glosa_states:
+        glosa_description = "não disponível"
+    elif "não calculada" in glosa_states:
+        glosa_description = "não calculada"
+    else:
+        glosa_description = "calculada"
 
     if exit_code == 0:
-        publicacao = "liberada"
+        publication = "liberada"
     elif exit_code == 4:
-        publicacao = "bloqueada — cálculo financeiro indisponível"
+        publication = (
+            "bloqueada: cálculo financeiro indisponível"
+        )
     elif exit_code == 3:
-        motivo = next(
-            (d["motivo_publicacao"] for d in orgaos.values() if d["motivo_publicacao"]),
+        reason = next(
+            (
+                summary["motivo_publicacao"]
+                for summary in organizations.values()
+                if summary["motivo_publicacao"] is not None
+            ),
             None,
         )
-        publicacao = f"bloqueada — {motivo}" if motivo else "bloqueada — etapa final não gerada"
+        publication = (
+            f"bloqueada: {reason}"
+            if reason is not None
+            else "bloqueada: etapa final não gerada"
+        )
     else:
-        publicacao = "não informada (falha técnica)"
+        publication = "não informada devido a falha técnica"
 
-    csol = _consolidado_info(run_result)
-    linhas = [
-        f"[bold]Resultado:[/bold] {exit_code_name(exit_code)}",
-        f"[bold]Competência:[/bold] {run_result.competencia}",
-        f"[bold]Órgãos processados:[/bold] {len(orgaos)}",
-        f"[bold]Indicadores apurados:[/bold] {indicadores}",
-        f"[bold]Relatórios individuais:[/bold] {relatorios}",
-        "[bold]Relatório consolidado:[/bold] " + ("gerado" if csol else "não gerado"),
-        "[bold]Total de pontos (consolidado):[/bold] "
-        + (fmt_pt_br(csol["total_pontos"]) if csol else "—"),
-        f"[bold]Avisos:[/bold] {_warnings_count(run_result)}",
-        f"[bold]Erros:[/bold] {_errors_count(run_result)}",
-        f"[bold]Glosa monetária:[/bold] {glosa}",
-        f"[bold]Publicação:[/bold] {publicacao}",
-        f"[bold]Duração:[/bold] {fmt_pt_br(_duracao_ms(run_result) / 1000)} s",
-    ]
-    return Panel("\n".join(linhas), title="Resultado", border_style="white")
+    consolidated = _consolidated_info(run_result)
+    duration_ms = _duration_ms(run_result)
+
+    if duration_ms is None:
+        duration_description = "indisponível"
+    else:
+        duration_description = (
+            f"{fmt_pt_br(duration_ms / 1000.0)} s"
+        )
+
+    total_points: str
+    if consolidated is None:
+        total_points = "-"
+    else:
+        raw_points = consolidated["total_pontos"]
+        if isinstance(raw_points, str):
+            total_points = fmt_pt_br(Decimal(raw_points))
+        elif isinstance(raw_points, int):
+            total_points = fmt_pt_br(float(raw_points))
+        else:
+            total_points = fmt_pt_br(raw_points)
+
+    content = Text()
+    content.append("Resultado: ", style="bold")
+    content.append(exit_code_name(exit_code))
+    content.append("\nCompetência: ", style="bold")
+    content.append(run_result.competencia)
+    content.append("\nÓrgãos no plano: ", style="bold")
+    content.append(str(len(organizations)))
+    content.append("\nIndicadores apurados: ", style="bold")
+    content.append(indicator_counts)
+    content.append("\nRelatórios individuais: ", style="bold")
+    content.append(report_description)
+    content.append("\nRelatório consolidado: ", style="bold")
+    content.append(
+        "gerado"
+        if consolidated is not None
+        else "não gerado"
+    )
+    content.append(
+        "\nTotal de pontos do consolidado: ",
+        style="bold",
+    )
+    content.append(total_points)
+    content.append("\nAvisos: ", style="bold")
+    content.append(str(_warnings_count(run_result)))
+    content.append("\nErros: ", style="bold")
+    content.append(str(_errors_count(run_result)))
+    content.append("\nGlosa monetária: ", style="bold")
+    content.append(glosa_description)
+    content.append("\nPublicação: ", style="bold")
+    content.append(publication)
+    content.append("\nDuração: ", style="bold")
+    content.append(duration_description)
+
+    return Panel(
+        content,
+        title="Resultado",
+        border_style="white",
+    )
+
+
+def _command_table(run_result: RunResult) -> Table:
+    """Build the human-readable command-state table."""
+    table = Table(
+        box=None,
+        show_header=True,
+        header_style="bold",
+    )
+    table.add_column("")
+    table.add_column("Comando")
+    table.add_column("Órgão")
+    table.add_column("Artefatos / avisos")
+
+    for entry in run_result.state.commands:
+        icon, style = _STATE_PRESENTATION.get(
+            entry.status,
+            _UNKNOWN_STATE_PRESENTATION,
+        )
+        result = _result_for(
+            command=entry.command,
+            orgao=entry.orgao,
+            results=run_result.results,
+        )
+
+        detail = Text(
+            entry.error_message
+            or _artifact_line(entry, result)
+        )
+
+        if (
+            isinstance(result, ReportResult)
+            and not result.publicable
+        ):
+            detail.append(
+                " (rascunho, não publicável)",
+                style="dim",
+            )
+
+        table.add_row(
+            Text(icon, style=style),
+            Text(entry.command),
+            Text(entry.orgao or "-"),
+            detail,
+        )
+
+    return table
+
+
+def _lines_panel(
+    lines: Sequence[str],
+    *,
+    title: str,
+    border_style: str,
+) -> Panel:
+    """Build a panel whose dynamic lines are rendered literally."""
+    content = Text()
+
+    for index, line in enumerate(lines):
+        if index:
+            content.append("\n")
+        content.append(line)
+
+    return Panel(
+        content,
+        title=title,
+        border_style=border_style,
+    )
 
 
 def render_summary(
     run_result: RunResult,
     *,
-    log_path: object | None = None,
+    log_path: Path | str | None = None,
     output: OutputFormat = "text",
     console: Console | None = None,
 ) -> None:
-    """Resumo final de uma execução (ticket "04 - Resumo final acionável").
+    """Render the final summary for an orchestration run.
 
-    - `output="text"`: tabela de etapas + painel Resultado + bloco Artefatos
-      (caminhos completos) + log + próximos passos — para humano.
-    - `output="json"`: só a saída estruturada (mesmo estado global do código
-      de saída) — para automação; nada de rich na stdout.
+    ``text`` output contains the command table, global result panel, complete
+    artifact paths, optional log path, and actionable recovery instructions.
+
+    ``json`` output contains exactly one plain JSON document. Rich markup,
+    syntax highlighting, and terminal colors are disabled for this format.
+
+    Args:
+        run_result: Completed orchestration result.
+        log_path: Optional path to the complete technical log.
+        output: Output format, either ``text`` or ``json``.
+        console: Destination console. A standard Rich console is created when
+            omitted.
+
+    Raises:
+        ValueError: If ``output`` is unsupported or structured numeric values
+            are non-finite.
+        TypeError: If structured numeric values have unsupported types.
     """
-    console = console or Console()
-    code = exit_code_for_run(run_result.state.commands, run_result.results)
+    if output not in _VALID_OUTPUT_FORMATS:
+        raise ValueError(
+            f"Unsupported summary output format: {output!r}."
+        )
+
+    destination = console if console is not None else Console()
+    exit_code = exit_code_for_run(
+        run_result.state.commands,
+        run_result.results,
+    )
 
     if output == "json":
-        console.print_json(json.dumps(summary_json(run_result, code), ensure_ascii=False))
+        payload = json.dumps(
+            summary_json(run_result, exit_code),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        destination.print(
+            payload,
+            markup=False,
+            highlight=False,
+            soft_wrap=True,
+        )
         return
 
-    table = Table(box=None, show_header=True, header_style="bold")
-    table.add_column("")
-    table.add_column("Command")
-    table.add_column("Órgão")
-    table.add_column("Artefatos / avisos")
+    destination.print(_command_table(run_result))
+    destination.print(_result_panel(run_result, exit_code))
 
-    for entry in run_result.state.commands:
-        icon, style = _STATE_ICON[entry.status]
-        result = _result_for(entry, run_result.results)
-        detail = entry.error_message or _artifact_line(entry, result)
-        if isinstance(result, ReportResult) and not result.publicable:
-            detail += " [dim](rascunho — não publicável)[/dim]"
-        table.add_row(f"[{style}]{icon}[/{style}]", entry.command, entry.orgao or "—", detail)
-
-    console.print(table)
-    console.print(_painel_resultado(run_result, code))
-
-    caminhos = _caminhos_artefatos(run_result)
-    if caminhos:
-        linhas_artefatos = "\n".join(f"  • {path}" for path in caminhos)
-        console.print(Panel(linhas_artefatos, title="Artefatos", border_style="cyan"))
+    artifact_paths = _artifact_paths(run_result)
+    if artifact_paths:
+        destination.print(
+            _lines_panel(
+                tuple(f"  * {path}" for path in artifact_paths),
+                title="Artefatos",
+                border_style="cyan",
+            )
+        )
 
     if log_path is not None:
-        console.print(f"[dim]Log completo: {log_path}[/dim]")
+        log_line = Text("Log completo: ", style="dim")
+        log_line.append(str(log_path), style="dim")
+        destination.print(log_line)
 
-    steps = _next_steps(run_result)
-    if steps:
-        console.print(Panel("\n".join(steps), title="Próximos passos", border_style="cyan"))
+    next_steps = _next_steps(run_result)
+    if next_steps:
+        destination.print(
+            _lines_panel(
+                next_steps,
+                title="Próximos passos",
+                border_style="cyan",
+            )
+        )
