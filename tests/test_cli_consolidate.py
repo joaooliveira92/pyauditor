@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from openpyxl import load_workbook
@@ -7,8 +8,13 @@ from openpyxl import load_workbook
 from pyauditor.cli.consolidate import run_consolidate
 from pyauditor.cli.report import run_report
 from pyauditor.excel.capa import COMMON_FIELD_LABELS, ORGAO_FIELD_LABELS, bootstrap_capa_csv
-from pyauditor.excel.consolidate import CAPA_SHEET as CAPA_E_CONTROLE_SHEET
-from pyauditor.excel.consolidate import GLOSAS_SHEET
+from pyauditor.excel.consolidate import (
+    CAPA_SHEET as CAPA_E_CONTROLE_SHEET,
+)
+from pyauditor.excel.consolidate import (
+    GLOSAS_SHEET,
+    build_consolidated_workbook,
+)
 from pyauditor.excel.equipe import RESPONSAVEL_LABELS
 
 OBJETOS_CSV = """Item,Categoria,Valor
@@ -102,9 +108,9 @@ def test_run_consolidate_forwards_is_final_month_to_workbook(tmp_path: Path) -> 
 
     import pyauditor.cli.consolidate as consolidate_mod
 
-    real_build = consolidate_mod.build_consolidated_workbook
+    real_build = build_consolidated_workbook
 
-    def _spy(*args: object, **kwargs: object) -> object:
+    def _spy(*args: Any, **kwargs: Any) -> Any:
         captured.update(kwargs)
         return real_build(*args, **kwargs)
 

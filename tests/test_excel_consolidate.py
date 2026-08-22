@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 
 from pyauditor.excel.consolidate import (
@@ -9,6 +11,7 @@ from pyauditor.excel.consolidate import (
     build_consolidated_workbook,
     read_existing_decisions,
 )
+from pyauditor.excel.glosas import compute_glosa
 from pyauditor.excel.inms_base import compliance_margin, inms_base_fields
 from pyauditor.rom.summary import IndicatorSummary
 
@@ -94,8 +97,9 @@ def test_inms_base_row_shared_rule_honors_operator_direction() -> None:
     """A linha `INMS_BASE` do consolidate é a mesma regra do `report` (ticket
     08): a "Diferença para a meta" respeita o sentido do operador — para meta
     máxima (`<=`), o déficit é `result - target`, não `target - result`."""
-    resumo = _summary("INMS 1.6", orgao="MinC", target_operator="<=", target_value=2.0,
-                      result_pct=2.5)
+    resumo = _summary(
+        "INMS 1.6", orgao="MinC", target_operator="<=", target_value=2.0, result_pct=2.5
+    )
 
     row = inms_base_fields(resumo, "2026-06", grupo_operacional=None)
 
@@ -156,9 +160,9 @@ def test_is_final_month_reaches_compute_glosa() -> None:
 
     import pyauditor.excel.consolidate as consolidate_mod
 
-    real_compute_glosa = consolidate_mod.compute_glosa
+    real_compute_glosa = compute_glosa
 
-    def _spy_compute(*args: object, **kwargs: object) -> object:
+    def _spy_compute(*args: Any, **kwargs: Any) -> Any:
         calls.append(kwargs)
         return real_compute_glosa(*args, **kwargs)
 
@@ -181,19 +185,17 @@ def test_is_final_month_reaches_compute_glosa() -> None:
         (True, 0.0),  # mês final não transporta saldo para o mês seguinte
     ],
 )
-def test_saldo_rolado_honors_final_month(
-    is_final_month: bool, expected_saldo: float
-) -> None:
+def test_saldo_rolado_honors_final_month(is_final_month: bool, expected_saldo: float) -> None:
     """`consolidado.xlsx` no mês final não transporta saldo de glosa — o mesmo
     comportamento de `report.xlsx` (ticket 10)."""
     from unittest.mock import patch
 
     import pyauditor.excel.consolidate as consolidate_mod
 
-    real_compute_glosa = consolidate_mod.compute_glosa
+    real_compute_glosa = compute_glosa
     captured: list[object] = []
 
-    def _spy(*args: object, **kwargs: object) -> object:
+    def _spy(*args: Any, **kwargs: Any) -> Any:
         result = real_compute_glosa(*args, **kwargs)
         captured.append(result)
         return result
