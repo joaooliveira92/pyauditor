@@ -485,7 +485,9 @@ def _consolidated_info(
 
 def _artifact_paths(
     run_result: RunResult,
-) -> list"""Return unique artifact paths without truncation.
+) -> list[str]:
+    
+    """Return unique artifact paths without truncation.
 
     Result types with a canonical artifact expose ``output_path``. Split
     exposes ``sintetico_path`` instead. Paths are deduplicated while
@@ -656,7 +658,8 @@ def fmt_pt_br(
     return f"{localized_integer},{fractional_part}"
 
 
-def _next_steps(run_result: RunResult) -> list"""Return deduplicated actionable recovery instructions.
+def _next_steps(run_result: RunResult) -> list[str]:
+    """Return deduplicated actionable recovery instructions.
 
     Dependency failures are listed per command. Organizations with failed or
     cascade-skipped commands receive a command that reruns only that
