@@ -13,6 +13,7 @@ from pathlib import Path
 
 import yaml
 
+from pyauditor.categoria_filter import read_raw_csv
 from pyauditor.config.manifest import DatasetManifest
 from pyauditor.config.models import Filter, IndicatorConfig
 from pyauditor.engine.quality_gates import QualityGateReport, QualityGateRunner
@@ -383,17 +384,15 @@ def measurement_source(
     emitido — não é o aviso duplicado, é contagem informativa por chamada.
     """
     csv_path, delimiter, encoding = resolve_source(config, data_dir, manifest)
+    # `read_raw_csv` (not `load_rows`): normaliza o alias "Grupo executor" ->
+    # "Grupo_executor" (confirmado em produção — alguns exports usam espaço),
+    # a mesma leitura que `split`/`sintetico`/`cli.measure` já faziam cada um
+    # a seu jeito antes deste backbone existir.
+    fieldnames, rows = read_raw_csv(csv_path, delimiter, encoding)
+    header = set(fieldnames)
     # Validate every column referenced in YAML against real CSV header — single
     # border check before any strategy runs (replaces silent .get("", "") and raw KeyErrors)
-    with csv_path.open(encoding=encoding, newline="") as handle:
-        reader = csv.DictReader(handle, delimiter=delimiter)
-        if reader.fieldnames is None:
-            raise ValueError(f"{csv_path}: CSV vazio ou sem linha de cabeçalho")
-        fieldnames = [name.strip() for name in reader.fieldnames]
-        header = set(fieldnames)
     _validate_columns(config, header, config_path)
-
-    rows = load_rows(csv_path, delimiter, encoding)
 
     # Filtro de período (§2 ponto 2): após load_rows, inclusive CSVs `_split`
     # derivados — re-filtrar é idempotente e protege contra artefato órfão.
