@@ -202,17 +202,17 @@ categorias:
 
 
 def test_force_commands_for_only_forces_selected_and_applicable() -> None:
-    """`_force_commands_for`: report é forçado quando selecionado; consolidate
+    """`force_commands_for`: report é forçado quando selecionado; consolidate
     só quando o plano é `both`; comandos não selecionados nunca são forçados."""
-    from pyauditor.interactive.flow import _force_commands_for
+    from pyauditor.interactive.commands import force_commands_for
 
-    assert _force_commands_for("MinC", frozenset({"report"})) == frozenset({"report"})
-    assert _force_commands_for(
+    assert force_commands_for("MinC", frozenset({"report"})) == frozenset({"report"})
+    assert force_commands_for(
         "both", frozenset({"report", "consolidate"})
     ) == frozenset({"report", "consolidate"})
     # MinC nunca força consolidate (disponível só em both).
-    assert _force_commands_for("MinC", frozenset({"consolidate"})) == frozenset()
-    assert _force_commands_for("MinC", frozenset({"measure"})) == frozenset()
+    assert force_commands_for("MinC", frozenset({"consolidate"})) == frozenset()
+    assert force_commands_for("MinC", frozenset({"measure"})) == frozenset()
 
 
 def test_is_pre_dispatch_failure_recognizes_dependency_prefix() -> None:
@@ -266,13 +266,13 @@ def test_select_commands_reselects_when_empty(tmp_path: Path) -> None:
 
 
 def test_validate_competencia_rejects_invalid_period() -> None:
-    from pyauditor.interactive.flow import _validate_competencia
+    from pyauditor.interactive.fields import validate_competencia
 
-    assert _validate_competencia("2026-06") is True
-    invalid = _validate_competencia("2026-13")
+    assert validate_competencia("2026-06") is True
+    invalid = validate_competencia("2026-13")
     assert isinstance(invalid, str)
     assert "Competência inválida" in invalid
-    assert _validate_competencia("?") is True  # help token aceito
+    assert validate_competencia("?") is True  # help token aceito
 
 
 def test_select_commands_unsupported_orgao_raises() -> None:
@@ -288,13 +288,13 @@ def test_select_commands_unsupported_orgao_raises() -> None:
 
 
 def test_state_presentation_renders_line(tmp_path: Path) -> None:
-    from pyauditor.interactive.flow import _render_state_line
+    from pyauditor.interactive.status_view import render_state_line
     from pyauditor.orchestration.state import CommandStateEntry
 
     entry = CommandStateEntry(command="measure", orgao="MinC", status="done")
-    text, _style = _render_state_line(entry)
+    text, _style = render_state_line(entry)
     assert "[x]" in text
     assert "measure (MinC)" in text
-    assert _render_state_line(
+    assert render_state_line(
         CommandStateEntry(command="report", orgao=None, status="pending")
     )[0] == "[ ] report (consolidado)"
