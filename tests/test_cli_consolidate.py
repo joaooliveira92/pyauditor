@@ -25,8 +25,14 @@ OBJETOS_CSV = """Item,Categoria,Valor
 
 
 def _write_summary(
-    roms_dir: Path, competencia: str, orgao: str, indicator_id: str, contractual_id: str,
-    *, penalty_points: float = 0.0, conforms: bool = True,
+    roms_dir: Path,
+    competencia: str,
+    orgao: str,
+    indicator_id: str,
+    contractual_id: str,
+    *,
+    penalty_points: float = 0.0,
+    conforms: bool = True,
 ) -> None:
     target_dir = roms_dir / orgao / competencia
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -60,22 +66,33 @@ def _scaffold_capas(tmp_path: Path) -> None:
 def _build_orgao_report(tmp_path: Path, orgao: str) -> None:
     roms_dir = tmp_path / "roms"
     _write_summary(
-        roms_dir, "2026-06", orgao, f"INMS-1.6-{orgao}", "INMS 1.6",
-        penalty_points=100.0, conforms=False,
+        roms_dir,
+        "2026-06",
+        orgao,
+        f"INMS-1.6-{orgao}",
+        "INMS 1.6",
+        penalty_points=100.0,
+        conforms=False,
     )
 
     output_path = tmp_path / "reports" / f"relatorio_2026-06_{orgao}.xlsx"
     exit_code = run_report(
-        "2026-06", tmp_path / "capa.csv", roms_dir / orgao, output_path,
+        "2026-06",
+        tmp_path / "capa.csv",
+        roms_dir / orgao,
+        output_path,
         config_dir=tmp_path / "configs" / orgao,
-        expected_orgao=orgao, data_dir=tmp_path,
+        expected_orgao=orgao,
+        data_dir=tmp_path,
     )
     assert exit_code.status == "done"
 
 
 def test_run_consolidate_rejects_malformed_competencia(tmp_path: Path) -> None:
     result = run_consolidate(
-        "../../etc", tmp_path / "reports", tmp_path / "roms",
+        "../../etc",
+        tmp_path / "reports",
+        tmp_path / "roms",
         tmp_path / "reports" / "out.xlsx",
         data_dir=tmp_path,
     )
@@ -94,7 +111,9 @@ def test_run_consolidate_converts_unexpected_exception_to_error_result(tmp_path:
         "pyauditor.cli.consolidate.build_consolidated_workbook", side_effect=ValueError("boom")
     ):
         result = run_consolidate(
-            "2026-06", tmp_path / "reports", tmp_path / "roms",
+            "2026-06",
+            tmp_path / "reports",
+            tmp_path / "roms",
             tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx",
             data_dir=tmp_path,
         )
@@ -114,7 +133,9 @@ def test_run_consolidate_os_error_message_has_actionable_hint(tmp_path: Path) ->
         "pyauditor.cli.consolidate.atomic_write", side_effect=PermissionError("Permission denied")
     ):
         result = run_consolidate(
-            "2026-06", tmp_path / "reports", tmp_path / "roms",
+            "2026-06",
+            tmp_path / "reports",
+            tmp_path / "roms",
             tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx",
             data_dir=tmp_path,
         )
@@ -130,7 +151,9 @@ def test_run_consolidate_fails_when_a_report_is_missing(tmp_path: Path) -> None:
     # MTur report never built.
 
     exit_code = run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms",
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
         tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx",
         data_dir=tmp_path,
     )
@@ -146,7 +169,11 @@ def test_run_consolidate_builds_workbook_from_both_orgaos(tmp_path: Path) -> Non
     output_path = tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx"
 
     exit_code = run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
+        output_path,
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -170,7 +197,11 @@ def test_run_consolidate_capa_tem_competencia_periodo_e_responsaveis(tmp_path: P
     output_path = tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx"
 
     exit_code = run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
+        output_path,
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -195,7 +226,9 @@ def test_run_consolidate_never_regenerates_the_orgao_reports(tmp_path: Path) -> 
     original_mtime = report_path.stat().st_mtime_ns
 
     run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms",
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
         tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx",
         data_dir=tmp_path,
     )
@@ -210,7 +243,11 @@ def test_run_consolidate_rerun_preserves_fiscal_decision(tmp_path: Path) -> None
     output_path = tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx"
 
     run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
+        output_path,
+        data_dir=tmp_path,
     )
 
     workbook = load_workbook(output_path)
@@ -221,7 +258,11 @@ def test_run_consolidate_rerun_preserves_fiscal_decision(tmp_path: Path) -> None
     workbook.save(output_path)
 
     run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
+        output_path,
+        data_dir=tmp_path,
     )
 
     reread = load_workbook(output_path)
@@ -238,7 +279,11 @@ def test_run_consolidate_without_objetos_is_glosa_nao_calculada(tmp_path: Path) 
     output_path = tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx"
 
     exit_code = run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
+        output_path,
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -252,7 +297,9 @@ def test_run_consolidate_malformed_objetos_is_hard_failure(tmp_path: Path) -> No
     (tmp_path / "objetos.csv").write_text("a;b\n1;2\n", encoding="utf-8-sig")
 
     result = run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms",
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
         tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx",
         data_dir=tmp_path,
     )
@@ -267,7 +314,9 @@ def test_run_consolidate_fails_when_both_reports_are_missing(tmp_path: Path) -> 
     # Nenhum dos dois relatórios de órgão foi construído.
 
     exit_code = run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms",
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
         tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx",
         data_dir=tmp_path,
     )
@@ -289,15 +338,23 @@ def test_run_consolidate_succeeds_with_one_orgao_as_rascunho(tmp_path: Path) -> 
     # MinC vira rascunho: capa_MinC.csv sem fiscais preenchidos — já é o caso
     # (bootstrap_capa_csv deixa tudo em branco), então basta reler o result.
     minc_result = run_report(
-        "2026-06", tmp_path / "capa.csv", tmp_path / "roms" / "MinC",
+        "2026-06",
+        tmp_path / "capa.csv",
+        tmp_path / "roms" / "MinC",
         tmp_path / "reports" / "relatorio_2026-06_MinC.xlsx",
-        config_dir=tmp_path / "configs" / "MinC", expected_orgao="MinC", data_dir=tmp_path,
+        config_dir=tmp_path / "configs" / "MinC",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
     assert minc_result.publicable is False
     output_path = tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx"
 
     exit_code = run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
+        output_path,
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -314,7 +371,11 @@ def test_run_consolidate_without_objetos_cells_are_none_not_zero(tmp_path: Path)
     output_path = tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx"
 
     exit_code = run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
+        output_path,
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -340,7 +401,11 @@ def test_run_consolidate_preserves_decision_despite_new_penalty_value(tmp_path: 
     _build_orgao_report(tmp_path, "MTur")
     output_path = tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx"
     run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
+        output_path,
+        data_dir=tmp_path,
     )
 
     workbook = load_workbook(output_path)
@@ -354,17 +419,30 @@ def test_run_consolidate_preserves_decision_despite_new_penalty_value(tmp_path: 
     # Nova apuração do MinC com penalidade diferente — o Percentual de
     # Ajuste recalculado diverge do que existia quando a decisão foi tomada.
     _write_summary(
-        tmp_path / "roms", "2026-06", "MinC", "INMS-1.6-MinC", "INMS 1.6",
-        penalty_points=250.0, conforms=False,
+        tmp_path / "roms",
+        "2026-06",
+        "MinC",
+        "INMS-1.6-MinC",
+        "INMS 1.6",
+        penalty_points=250.0,
+        conforms=False,
     )
     run_report(
-        "2026-06", tmp_path / "capa.csv", tmp_path / "roms" / "MinC",
+        "2026-06",
+        tmp_path / "capa.csv",
+        tmp_path / "roms" / "MinC",
         tmp_path / "reports" / "relatorio_2026-06_MinC.xlsx",
-        config_dir=tmp_path / "configs" / "MinC", expected_orgao="MinC", data_dir=tmp_path,
+        config_dir=tmp_path / "configs" / "MinC",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
+        output_path,
+        data_dir=tmp_path,
     )
 
     reread = load_workbook(output_path)
@@ -385,12 +463,20 @@ def test_run_consolidate_corrupt_ever_output_is_error(tmp_path: Path) -> None:
     _build_orgao_report(tmp_path, "MTur")
     output_path = tmp_path / "reports" / "relatorio_2026-06_consolidado.xlsx"
     run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
+        output_path,
+        data_dir=tmp_path,
     )
     output_path.write_bytes(b"not a real xlsx file")
 
     result = run_consolidate(
-        "2026-06", tmp_path / "reports", tmp_path / "roms", output_path, data_dir=tmp_path,
+        "2026-06",
+        tmp_path / "reports",
+        tmp_path / "roms",
+        output_path,
+        data_dir=tmp_path,
     )
 
     assert result.status == "error"

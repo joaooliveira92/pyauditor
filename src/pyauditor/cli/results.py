@@ -49,6 +49,7 @@ _EXIT_CODES: Final[dict[Status, int]] = {"done": 0, "error": 1}
 def exit_code_for(status: Status) -> int:
     return _EXIT_CODES[status]
 
+
 # Rótulo estável por código — o resumo final (ticket 04) exibe exatamente
 # este nome, para o resumo e o código de saída nunca divergirem na leitura
 # do estado global da execução.

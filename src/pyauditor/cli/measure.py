@@ -137,8 +137,12 @@ def run_measure(
     def _error(message: str) -> MeasureResult:
         logger.error(message)
         return MeasureResult(
-            status="error", competencia=competencia, orgao=orgao, indicators=(),
-            warnings=(), error_message=message,
+            status="error",
+            competencia=competencia,
+            orgao=orgao,
+            indicators=(),
+            warnings=(),
+            error_message=message,
         )
 
     competencia_error = validate_competencia(competencia)
@@ -238,10 +242,15 @@ def run_measure(
             safe_id = _sanitize_indicator_id(derived_id)
             rom_path = target_dir / f"{safe_id}.md"
             summary_path = target_dir / f"{safe_id}.json"
-            outcomes.append(IndicatorOutcome(
-                contractual_id=contractual_id, rom_path=rom_path,
-                summary_path=summary_path, hard_failure=True, error=message,
-            ))
+            outcomes.append(
+                IndicatorOutcome(
+                    contractual_id=contractual_id,
+                    rom_path=rom_path,
+                    summary_path=summary_path,
+                    hard_failure=True,
+                    error=message,
+                )
+            )
 
     def _handle_result(
         result: MeasurementResult,
@@ -272,10 +281,15 @@ def run_measure(
             message = f"falha ao escrever {rom_path}: {exc} — {WRITE_FAILURE_HINT}"
             logger.error(message)
             any_hard_failure = True
-            outcomes.append(IndicatorOutcome(
-                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
-                hard_failure=True, error=message,
-            ))
+            outcomes.append(
+                IndicatorOutcome(
+                    contractual_id=contractual_id,
+                    rom_path=rom_path,
+                    summary_path=summary_path,
+                    hard_failure=True,
+                    error=message,
+                )
+            )
             return
         if result.hard_failure:
             any_hard_failure = True
@@ -284,10 +298,15 @@ def run_measure(
                 f"nenhuma linha sobreviveu aos quality gates ({rom_path})"
             )
             logger.error(error)
-            outcomes.append(IndicatorOutcome(
-                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
-                hard_failure=True, error=error,
-            ))
+            outcomes.append(
+                IndicatorOutcome(
+                    contractual_id=contractual_id,
+                    rom_path=rom_path,
+                    summary_path=summary_path,
+                    hard_failure=True,
+                    error=error,
+                )
+            )
         elif getattr(result, "systematic_failure", False):
             any_hard_failure = True
             error2 = (
@@ -296,10 +315,15 @@ def run_measure(
                 f"possível bug de cálculo ({rom_path})"
             )
             logger.error(error2)
-            outcomes.append(IndicatorOutcome(
-                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
-                hard_failure=True, error=error2,
-            ))
+            outcomes.append(
+                IndicatorOutcome(
+                    contractual_id=contractual_id,
+                    rom_path=rom_path,
+                    summary_path=summary_path,
+                    hard_failure=True,
+                    error=error2,
+                )
+            )
         else:
             status_label = "conforme" if getattr(summary, "conforms", True) else "nao_conforme"
             if getattr(summary, "systematic_failure", False):
@@ -313,18 +337,25 @@ def run_measure(
                 rom_path=str(rom_path),
                 status=status_label,
             )
-            outcomes.append(IndicatorOutcome(
-                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
-                hard_failure=False, error=None,
-            ))
+            outcomes.append(
+                IndicatorOutcome(
+                    contractual_id=contractual_id,
+                    rom_path=rom_path,
+                    summary_path=summary_path,
+                    hard_failure=False,
+                    error=None,
+                )
+            )
         if collect is not None:
-            collect.append(_MeasuredIndicator(
-                indicator_id=indicator_id,
-                safe_id=safe_id,
-                orgao=scope_orgao,
-                result=result,
-                capa_fields=capa_fields,
-            ))
+            collect.append(
+                _MeasuredIndicator(
+                    indicator_id=indicator_id,
+                    safe_id=safe_id,
+                    orgao=scope_orgao,
+                    result=result,
+                    capa_fields=capa_fields,
+                )
+            )
 
     for config_path, config_hash, config in configs:
         if config_path.stem in derived_config_stems:
@@ -354,11 +385,16 @@ def run_measure(
                     )
                     logger.warning(warning)
                     warnings.append(warning)
-                    outcomes.append(IndicatorOutcome(
-                        contractual_id=contractual_id, rom_path=rom_path,
-                        summary_path=summary_path, hard_failure=False, error=None,
-                        not_activated=True,
-                    ))
+                    outcomes.append(
+                        IndicatorOutcome(
+                            contractual_id=contractual_id,
+                            rom_path=rom_path,
+                            summary_path=summary_path,
+                            hard_failure=False,
+                            error=None,
+                            not_activated=True,
+                        )
+                    )
                 continue
             except Exception as exc:
                 message = f"{contractual_id}: exceção na medição: {exc}"
@@ -369,10 +405,15 @@ def run_measure(
                     safe_id = _sanitize_indicator_id(derived_id)
                     rom_path = target_dir / f"{safe_id}.md"
                     summary_path = target_dir / f"{safe_id}.json"
-                    outcomes.append(IndicatorOutcome(
-                        contractual_id=contractual_id, rom_path=rom_path,
-                        summary_path=summary_path, hard_failure=True, error=message,
-                    ))
+                    outcomes.append(
+                        IndicatorOutcome(
+                            contractual_id=contractual_id,
+                            rom_path=rom_path,
+                            summary_path=summary_path,
+                            hard_failure=True,
+                            error=message,
+                        )
+                    )
                 continue
             try:
                 fieldnames, rows = read_raw_csv(raw_csv_path, delimiter, encoding)
@@ -385,10 +426,15 @@ def run_measure(
                     safe_id = _sanitize_indicator_id(derived_id)
                     rom_path = target_dir / f"{safe_id}.md"
                     summary_path = target_dir / f"{safe_id}.json"
-                    outcomes.append(IndicatorOutcome(
-                        contractual_id=contractual_id, rom_path=rom_path,
-                        summary_path=summary_path, hard_failure=True, error=message,
-                    ))
+                    outcomes.append(
+                        IndicatorOutcome(
+                            contractual_id=contractual_id,
+                            rom_path=rom_path,
+                            summary_path=summary_path,
+                            hard_failure=True,
+                            error=message,
+                        )
+                    )
                 continue
             if GRUPO_EXECUTOR_COLUMN not in fieldnames:
                 message = (
@@ -402,10 +448,15 @@ def run_measure(
                     safe_id = _sanitize_indicator_id(derived_id)
                     rom_path = target_dir / f"{safe_id}.md"
                     summary_path = target_dir / f"{safe_id}.json"
-                    outcomes.append(IndicatorOutcome(
-                        contractual_id=contractual_id, rom_path=rom_path,
-                        summary_path=summary_path, hard_failure=True, error=message,
-                    ))
+                    outcomes.append(
+                        IndicatorOutcome(
+                            contractual_id=contractual_id,
+                            rom_path=rom_path,
+                            summary_path=summary_path,
+                            hard_failure=True,
+                            error=message,
+                        )
+                    )
                 continue
             # §2 — re-filtro de período no caminho em memória: as linhas já
             # foram lidas do bruto, então o filtro roda aqui antes de qualquer
@@ -450,8 +501,7 @@ def run_measure(
             real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
             for cat_key, entry in entries:
                 prefixo = (
-                    f"INMS {inms_key} ({config.scope.orgao}/{competencia}), "
-                    f"categoria {cat_key}: "
+                    f"INMS {inms_key} ({config.scope.orgao}/{competencia}), categoria {cat_key}: "
                 )
                 if entry.in_values is not None:
                     unmatched = [v for v in entry.in_values if v not in real_values]
@@ -507,8 +557,10 @@ def run_measure(
                         pipeline_version=_pipeline_version(),
                     )
                     result = MeasurementResult(
-                        config=derived_config, quality_gate_report=gate_report,
-                        calculation=calculation, provenance=provenance,
+                        config=derived_config,
+                        quality_gate_report=gate_report,
+                        calculation=calculation,
+                        provenance=provenance,
                         dropped_out_of_period=dropped_out_of_period,
                         undated_dropped=undated_dropped,
                     )
@@ -516,14 +568,23 @@ def run_measure(
                     message = f"{contractual_id}.{cat_key}: exceção na medição: {exc}"
                     logger.error(message)
                     any_hard_failure = True
-                    outcomes.append(IndicatorOutcome(
-                        contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
-                        hard_failure=True, error=message,
-                    ))
+                    outcomes.append(
+                        IndicatorOutcome(
+                            contractual_id=contractual_id,
+                            rom_path=rom_path,
+                            summary_path=summary_path,
+                            hard_failure=True,
+                            error=message,
+                        )
+                    )
                     continue
                 _handle_result(
-                    result, derived_safe_id, rom_path, summary_path,
-                    contractual_id, derived_config.indicator.id,
+                    result,
+                    derived_safe_id,
+                    rom_path,
+                    summary_path,
+                    contractual_id,
+                    derived_config.indicator.id,
                     derived_config.scope.orgao,
                 )
             # outros contábil — warning se houver linhas não classificadas
@@ -561,23 +622,38 @@ def run_measure(
             )
             logger.warning(warning)
             warnings.append(warning)
-            outcomes.append(IndicatorOutcome(
-                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
-                hard_failure=False, error=None, not_activated=True,
-            ))
+            outcomes.append(
+                IndicatorOutcome(
+                    contractual_id=contractual_id,
+                    rom_path=rom_path,
+                    summary_path=summary_path,
+                    hard_failure=False,
+                    error=None,
+                    not_activated=True,
+                )
+            )
             continue
         except Exception as exc:
             message = f"{contractual_id}: exceção na medição: {exc}"
             logger.error(message)
             any_hard_failure = True
-            outcomes.append(IndicatorOutcome(
-                contractual_id=contractual_id, rom_path=rom_path, summary_path=summary_path,
-                hard_failure=True, error=message,
-            ))
+            outcomes.append(
+                IndicatorOutcome(
+                    contractual_id=contractual_id,
+                    rom_path=rom_path,
+                    summary_path=summary_path,
+                    hard_failure=True,
+                    error=message,
+                )
+            )
             continue
 
         _handle_result(
-            result, safe_id, rom_path, summary_path, contractual_id,
+            result,
+            safe_id,
+            rom_path,
+            summary_path,
+            contractual_id,
             config.indicator.id,
             getattr(getattr(config, "scope", None), "orgao", orgao),
         )
@@ -594,9 +670,7 @@ def run_measure(
         status="error" if any_hard_failure else "done",
     )
 
-    error_message = (
-        "um ou mais indicadores tiveram falha de medição" if any_hard_failure else None
-    )
+    error_message = "um ou mais indicadores tiveram falha de medição" if any_hard_failure else None
     return MeasureResult(
         status="error" if any_hard_failure else "done",
         competencia=competencia,
@@ -642,8 +716,11 @@ def write_combined_roms(
         try:
             combined_path.write_text(
                 render_combined_rom(
-                    minc.result, mtur.result, capa_by_orgao,
-                    competencia=competencia, periodo=periodo,
+                    minc.result,
+                    mtur.result,
+                    capa_by_orgao,
+                    competencia=competencia,
+                    periodo=periodo,
                 ),
                 encoding="utf-8",
             )

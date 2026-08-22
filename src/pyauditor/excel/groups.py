@@ -29,12 +29,24 @@ GROUP_TABS: Final[tuple[str, ...]] = (
 # docs/spreadsheet.md §Abas 5-8, in tab order — first match wins (see module docstring).
 _GROUP_MEMBERSHIP: Final[dict[str, tuple[str, ...]]] = {
     ATENDIMENTO_N1: (
-        "INMS 1.1", "INMS 1.2", "INMS 1.6", "INMS 1.7", "INMS 1.11", "INMS 1.12", "INMS 1.13",
+        "INMS 1.1",
+        "INMS 1.2",
+        "INMS 1.6",
+        "INMS 1.7",
+        "INMS 1.11",
+        "INMS 1.12",
+        "INMS 1.13",
     ),
     MONITORAMENTO_NOC_SOC: ("INMS 1.4", "INMS 1.5", "INMS 1.14"),
     ATENDIMENTO_N2: ("INMS 1.1", "INMS 1.2", "INMS 1.6", "INMS 1.7", "INMS 1.9"),
     OPERACAO_N3: (
-        "INMS 1.1", "INMS 1.2", "INMS 1.3", "INMS 1.6", "INMS 1.7", "INMS 1.9", "INMS 1.10",
+        "INMS 1.1",
+        "INMS 1.2",
+        "INMS 1.3",
+        "INMS 1.6",
+        "INMS 1.7",
+        "INMS 1.9",
+        "INMS 1.10",
         "INMS 1.14",
     ),
 }

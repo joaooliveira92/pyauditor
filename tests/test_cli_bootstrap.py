@@ -91,7 +91,4 @@ def test_run_bootstrap_nunca_toca_equipe_existente(tmp_path: Path) -> None:
 
     assert result.status == "done"
     assert segunda.status == "done"
-    assert (
-        equipe.read_text(encoding="utf-8")
-        == "FUNÇÃO,NOME,SIAPE\nGestor Contratual,Maria,123\n"
-    )
+    assert equipe.read_text(encoding="utf-8") == "FUNÇÃO,NOME,SIAPE\nGestor Contratual,Maria,123\n"

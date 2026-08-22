@@ -36,9 +36,7 @@ class PeriodColumnMissingError(ValueError):
 def month_bounds(competencia: str) -> PeriodoAfericao:
     """`'2026-06'` → 01/06/2026..30/06/2026; `'2025-12'` fecha em 31/12."""
     if not _COMPETENCIA_RE.fullmatch(competencia):
-        raise ValueError(
-            f"competência inválida: {competencia!r} — esperado AAAA-MM (mês 01-12)"
-        )
+        raise ValueError(f"competência inválida: {competencia!r} — esperado AAAA-MM (mês 01-12)")
     ano, mes = int(competencia[:4]), int(competencia[5:7])
     inicio = date(ano, mes, 1)
     fim = date(ano, mes, calendar.monthrange(ano, mes)[1])

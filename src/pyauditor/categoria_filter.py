@@ -52,9 +52,7 @@ def _normalize_grupo_executor_header(fieldnames: list[str]) -> list[str]:
     precise conhecer as duas variantes."""
     if GRUPO_EXECUTOR_COLUMN in fieldnames or _GRUPO_EXECUTOR_ALIAS not in fieldnames:
         return fieldnames
-    return [
-        GRUPO_EXECUTOR_COLUMN if name == _GRUPO_EXECUTOR_ALIAS else name for name in fieldnames
-    ]
+    return [GRUPO_EXECUTOR_COLUMN if name == _GRUPO_EXECUTOR_ALIAS else name for name in fieldnames]
 
 
 def read_raw_csv(

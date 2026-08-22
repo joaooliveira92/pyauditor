@@ -33,9 +33,7 @@ class RunStateCorrupted(Exception):
     what actually ran — ticket "Dependency enforcement")."""
 
     def __init__(self, path: Path, reason: str) -> None:
-        super().__init__(
-            f"run-state file {path} is corrupted ({reason}) — delete it to start over"
-        )
+        super().__init__(f"run-state file {path} is corrupted ({reason}) — delete it to start over")
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,8 +88,12 @@ def reset_stale_running(state: RunState) -> RunState:
     invocation — reset to `pending` so it's re-run from scratch (per-Command
     granularity, never resumed mid-Command)."""
     fixed = tuple(
-        entry if entry.status != "running" else CommandStateEntry(
-            command=entry.command, orgao=entry.orgao, status="pending",
+        entry
+        if entry.status != "running"
+        else CommandStateEntry(
+            command=entry.command,
+            orgao=entry.orgao,
+            status="pending",
         )
         for entry in state.commands
     )

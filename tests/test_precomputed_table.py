@@ -87,10 +87,10 @@ penalty:
     (config_dir / "config.yaml").write_text(config_yaml, encoding="utf-8")
     (config_dir / "data.csv").write_text(
         "ativo;resultado;numerador;base;penalidade\n"
-        'A;99,25;198,5;200;0\n'
-        'B;95,10;190,2;200;1000\n'
+        "A;99,25;198,5;200;0\n"
+        "B;95,10;190,2;200;1000\n"
         ";;;;\n"  # empty/placeholder row — must be skipped, not crash
-        'C;;0;0;0\n',  # empty result — skipped
+        "C;;0;0;0\n",  # empty result — skipped
         encoding="utf-8",
     )
 

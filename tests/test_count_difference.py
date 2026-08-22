@@ -83,12 +83,7 @@ target:
     (tmp_path / "config.yaml").write_text(config_yaml, encoding="utf-8")
     # QRC = 5 recommended controls, QCSI = 3 implemented -> CNI = 2 -> 2000 pontos
     (tmp_path / "data.csv").write_text(
-        "Controle;Implantado\n"
-        "MFA;S\n"
-        "WAF;S\n"
-        "SIEM;S\n"
-        "DLP;N\n"
-        "EDR;N\n",
+        "Controle;Implantado\nMFA;S\nWAF;S\nSIEM;S\nDLP;N\nEDR;N\n",
         encoding="utf-8",
     )
 

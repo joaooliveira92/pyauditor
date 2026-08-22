@@ -36,6 +36,7 @@ def _base_config_stems() -> list[str]:
     """Stems `inms-NN` que existem como base em ambos os órgãos (sem categoria)."""
     minc_bases = {p.name for p in MINC_DIR.glob("inms-[0-9]*.yaml")}
     mtur_bases = {p.name for p in MTUR_DIR.glob("inms-[0-9]*.yaml")}
+
     # Filtra só os que são base (sem ponto extra): inms-01.yaml ok, inms-01.ATENDIMENTO_N1.yaml não
     def is_base(name: str) -> bool:
         stem = name.removesuffix(".yaml")

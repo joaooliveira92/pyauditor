@@ -21,6 +21,7 @@ def test_load_returns_mapping_and_is_cached() -> None:
     assert isinstance(cat1, MappingProxyType)
     assert len(cat1) == 106
 
+
 def test_catalog_item_frozen() -> None:
     item = CatalogItem(id="E-001", categoria="X", descricao="d", referencia="r", pontos=1)
     with pytest.raises(ValidationError):
@@ -28,10 +29,12 @@ def test_catalog_item_frozen() -> None:
     with pytest.raises(ValidationError):
         item.pontos = 2  # frozen
 
+
 def test_mutation_blocked() -> None:
     cat = load_anexo_e_catalog()
     with pytest.raises(TypeError):
         cat["new"] = CatalogItem(id="new", categoria="X", descricao="d", referencia="r", pontos=1)  # type: ignore[index]
+
 
 def test_invalid_yaml_shape_raises(tmp_path: Path) -> None:
     load_anexo_e_catalog.cache_clear()
@@ -40,6 +43,7 @@ def test_invalid_yaml_shape_raises(tmp_path: Path) -> None:
         pytest.raises(ValueError, match="mapping with 'items"),
     ):
         load_anexo_e_catalog()
+
 
 def test_duplicate_id_raises() -> None:
     load_anexo_e_catalog.cache_clear()

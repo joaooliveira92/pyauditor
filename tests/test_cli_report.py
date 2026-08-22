@@ -1,4 +1,4 @@
-﻿import json
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -105,8 +105,13 @@ def test_run_report_persists_glosa_historico(tmp_path: Path) -> None:
     output_path = tmp_path / "reports" / "relatorio_2026-06.xlsx"
 
     exit_code = run_report(
-        "2026-06", comum, roms_dir, output_path, config_dir=tmp_path / "configs",
-        expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        output_path,
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -120,16 +125,26 @@ def test_run_report_next_competencia_consumes_rollover(tmp_path: Path) -> None:
     roms_dir = tmp_path / "roms"
     _write_summary_with_points(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1", 40_000.0)
     run_report(
-        "2026-06", comum, roms_dir, tmp_path / "reports" / "relatorio_2026-06.xlsx",
-        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        tmp_path / "reports" / "relatorio_2026-06.xlsx",
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     # Julho sem nenhuma penalidade nova â€” sÃ³ o saldo rolado de junho (10 p.p.)
     _write_summary_with_points(roms_dir, "2026-07", "INMS-1.1", "INMS 1.1", 0.0)
     output_path = tmp_path / "reports" / "relatorio_2026-07.xlsx"
     exit_code = run_report(
-        "2026-07", comum, roms_dir, output_path,
-        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-07",
+        comum,
+        roms_dir,
+        output_path,
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -146,8 +161,14 @@ def test_run_report_final_month_does_not_roll_over(tmp_path: Path) -> None:
     output_path = tmp_path / "reports" / "relatorio_2026-06.xlsx"
 
     exit_code = run_report(
-        "2026-06", comum, roms_dir, output_path, config_dir=tmp_path / "configs",
-        is_final_month=True, expected_orgao='MinC', data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        output_path,
+        config_dir=tmp_path / "configs",
+        is_final_month=True,
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -157,8 +178,11 @@ def test_run_report_final_month_does_not_roll_over(tmp_path: Path) -> None:
 
 def test_run_report_rejects_malformed_competencia(tmp_path: Path) -> None:
     result = run_report(
-        "../../etc", tmp_path / "capa.csv", tmp_path / "roms",
-        tmp_path / "reports" / "out.xlsx", config_dir=tmp_path / "configs",
+        "../../etc",
+        tmp_path / "capa.csv",
+        tmp_path / "roms",
+        tmp_path / "reports" / "out.xlsx",
+        config_dir=tmp_path / "configs",
         data_dir=tmp_path,
     )
 
@@ -174,8 +198,13 @@ def test_run_report_converts_unexpected_exception_to_error_result(tmp_path: Path
 
     with patch("pyauditor.cli.report.build_report", side_effect=ValueError("boom")):
         result = run_report(
-            "2026-06", comum, roms_dir, tmp_path / "reports" / "out.xlsx",
-            config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+            "2026-06",
+            comum,
+            roms_dir,
+            tmp_path / "reports" / "out.xlsx",
+            config_dir=tmp_path / "configs",
+            expected_orgao="MinC",
+            data_dir=tmp_path,
         )
 
     assert result.status == "error"
@@ -193,8 +222,13 @@ def test_run_report_os_error_message_has_actionable_hint(tmp_path: Path) -> None
         "pyauditor.cli.report.build_report", side_effect=PermissionError("Permission denied")
     ):
         result = run_report(
-            "2026-06", comum, roms_dir, tmp_path / "reports" / "out.xlsx",
-            config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+            "2026-06",
+            comum,
+            roms_dir,
+            tmp_path / "reports" / "out.xlsx",
+            config_dir=tmp_path / "configs",
+            expected_orgao="MinC",
+            data_dir=tmp_path,
         )
 
     assert result.status == "error"
@@ -208,8 +242,13 @@ def test_run_report_fails_without_capa(tmp_path: Path) -> None:
     _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
 
     exit_code = run_report(
-        "2026-06", comum, roms_dir, tmp_path / "reports" / "out.xlsx",
-        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        tmp_path / "reports" / "out.xlsx",
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "error"
@@ -221,8 +260,13 @@ def test_run_report_fails_without_roms(tmp_path: Path) -> None:
     roms_dir = tmp_path / "roms"  # never populated
 
     exit_code = run_report(
-        "2026-06", comum, roms_dir, tmp_path / "reports" / "out.xlsx",
-        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        tmp_path / "reports" / "out.xlsx",
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "error"
@@ -235,8 +279,13 @@ def test_run_report_names_the_offending_file_for_a_malformed_summary(tmp_path: P
     (roms_dir / "2026-06" / "INMS-1.1.json").write_text("not json", encoding="utf-8")
 
     result = run_report(
-        "2026-06", comum, roms_dir, tmp_path / "reports" / "out.xlsx",
-        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        tmp_path / "reports" / "out.xlsx",
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert result.status == "error"
@@ -251,8 +300,13 @@ def test_run_report_builds_workbook_from_summaries(tmp_path: Path) -> None:
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
     exit_code = run_report(
-        "2026-06", comum, roms_dir, output_path,
-        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        output_path,
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -278,8 +332,13 @@ def test_run_report_capa_do_orgao_exibe_derivados_da_cli_e_equipe(tmp_path: Path
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
     exit_code = run_report(
-        "2026-06", comum, roms_dir, output_path,
-        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        output_path,
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -303,8 +362,13 @@ def test_run_report_is_regenerated_not_cumulative(tmp_path: Path) -> None:
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
     run_report(
-        "2026-06", comum, roms_dir, output_path,
-        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        output_path,
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
     first_size = output_path.stat().st_size
 
@@ -312,8 +376,13 @@ def test_run_report_is_regenerated_not_cumulative(tmp_path: Path) -> None:
     # exactly the current ROMs, not append to the previous run's workbook.
     _write_summary(roms_dir, "2026-06", "INMS-1.2", "INMS 1.2")
     run_report(
-        "2026-06", comum, roms_dir, output_path,
-        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        output_path,
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     workbook = load_workbook(output_path)
@@ -330,8 +399,13 @@ def test_run_report_reads_valor_base_from_objetos_for_glosas(tmp_path: Path) -> 
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
     exit_code = run_report(
-        "2026-06", comum, roms_dir, output_path,
-        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        output_path,
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -350,8 +424,13 @@ def test_run_report_without_objetos_marks_glosa_nao_calculada(tmp_path: Path) ->
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
     exit_code = run_report(
-        "2026-06", comum, roms_dir, output_path,
-        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        output_path,
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert exit_code.status == "done"
@@ -369,8 +448,13 @@ def test_run_report_malformed_objetos_is_hard_failure(tmp_path: Path) -> None:
     _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
 
     result = run_report(
-        "2026-06", comum, roms_dir, tmp_path / "reports" / "out.xlsx",
-        config_dir=tmp_path / "configs", expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        tmp_path / "reports" / "out.xlsx",
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert result.status == "error"
@@ -395,7 +479,8 @@ def test_missing_publication_fields_complete_capa_returns_empty() -> None:
 
 def test_missing_publication_fields_reports_only_missing_ones() -> None:
     campos: dict[str, object] = {
-        "Fiscal técnico": "Fulano", "Gestor do contrato": "",
+        "Fiscal técnico": "Fulano",
+        "Gestor do contrato": "",
     }  # vazio conta como ausente
 
     missing = missing_publication_fields(campos)
@@ -414,8 +499,13 @@ def test_run_report_missing_fiscais_is_rascunho_nao_publicavel(tmp_path: Path) -
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
     result = run_report(
-        "2026-06", comum, roms_dir, output_path, config_dir=tmp_path / "configs",
-        expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        output_path,
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert result.status == "done"
@@ -440,8 +530,13 @@ def test_run_report_campos_orfaos_da_capa_sao_ignorados(tmp_path: Path) -> None:
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
     result = run_report(
-        "2026-06", comum, roms_dir, output_path, config_dir=tmp_path / "configs",
-        expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        output_path,
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert result.status == "done"
@@ -456,8 +551,15 @@ def test_run_report_valor_mensal_zero_is_glosa_calculada(tmp_path: Path) -> None
     comum = _scaffold_capas(tmp_path)
     zerado = OBJETOS_CSV
     for item_valor in (
-        "148.205,54", "77.654,90", "43.888,89", "59.694,54", "21.035,21",
-        "16.145,94", "31.382,28", "34.143,44", "28.912,84",
+        "148.205,54",
+        "77.654,90",
+        "43.888,89",
+        "59.694,54",
+        "21.035,21",
+        "16.145,94",
+        "31.382,28",
+        "34.143,44",
+        "28.912,84",
     ):
         zerado = zerado.replace(f'"R$ {item_valor}"', '"R$ 0,00"')
     (tmp_path / "objetos.csv").write_text(zerado, encoding="utf-8-sig")
@@ -466,8 +568,13 @@ def test_run_report_valor_mensal_zero_is_glosa_calculada(tmp_path: Path) -> None
     output_path = tmp_path / "reports" / "relatorio.xlsx"
 
     result = run_report(
-        "2026-06", comum, roms_dir, output_path, config_dir=tmp_path / "configs",
-        expected_orgao="MinC", data_dir=tmp_path,
+        "2026-06",
+        comum,
+        roms_dir,
+        output_path,
+        config_dir=tmp_path / "configs",
+        expected_orgao="MinC",
+        data_dir=tmp_path,
     )
 
     assert result.status == "done"

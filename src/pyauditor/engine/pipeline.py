@@ -101,7 +101,10 @@ def _pipeline_version() -> str:
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
-            capture_output=True, text=True, timeout=5, check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=True,
         )
         return result.stdout.strip()
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
@@ -115,6 +118,7 @@ def _collect_config_columns(config: IndicatorConfig) -> set[str]:
     cols: set[str] = set()
     for check in config.quality_gates.checks:
         cols.add(check.column)
+
     def _filter_col(f: Filter | None) -> None:
         if f is not None:
             cols.add(f.column)
@@ -292,7 +296,10 @@ def discover_config_files(
             if isinstance(raw, dict):
                 for key in raw:
                     if isinstance(key, str) and key.strip().lower() in (
-                        "indicador", "indicators", "indicatior", "indicator ",
+                        "indicador",
+                        "indicators",
+                        "indicatior",
+                        "indicator ",
                     ):
                         raise ValueError(
                             f"{path}: chave {key!r} encontrada, esperado 'indicator:' — "
@@ -369,9 +376,7 @@ def measure(
     dropped_out_of_period: int | None = None
     undated_dropped: int | None = None
     if periodo is not None and not config.source.unfilterable:
-        period_column = require_period_column(
-            config.source.period_column, config_path=config_path
-        )
+        period_column = require_period_column(config.source.period_column, config_path=config_path)
         if period_column not in header:
             prefix = f"{config_path}: " if config_path else ""
             raise ValueError(
@@ -379,9 +384,7 @@ def measure(
                 f"de {csv_path.name} — corrija o YAML"
             )
         total_bruto = len(rows)
-        filtro = filter_periodo(
-            rows, period_column=period_column, periodo=periodo, strict=strict
-        )
+        filtro = filter_periodo(rows, period_column=period_column, periodo=periodo, strict=strict)
         rows = filtro.linhas_na_janela
         dropped_out_of_period = filtro.dropped_out_of_period
         undated_dropped = filtro.undated_dropped

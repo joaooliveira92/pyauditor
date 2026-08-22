@@ -94,6 +94,8 @@ def _bootstrap_artifact(result: BootstrapResult) -> str:
 
 def _split_artifact(result: SplitResult) -> str:
     line = f"{len(result.categorias)} categoria(s) processada(s)"
+    if result.sintetico_path is not None:
+        line += f" — {result.sintetico_path}"
     if result.warnings:
         line += f" — {len(result.warnings)} aviso(s)"
     return line
@@ -219,10 +221,14 @@ def _consolidado_info(run_result: RunResult) -> dict[str, Any] | None:
 
 
 def _caminhos_artefatos(run_result: RunResult) -> list[str]:
-    """Caminhos completos dos artefatos — sem truncamento (revisão §7)."""
+    """Caminhos completos dos artefatos — sem truncamento (revisão §7).
+
+    `SplitResult` não tem `output_path` (nome reservado a comandos com um
+    único arquivo de saída canônico) — seu artefato é `sintetico_path`,
+    verificado à parte."""
     paths: list[str] = []
     for result in run_result.results:
-        output = getattr(result, "output_path", None)
+        output = getattr(result, "output_path", None) or getattr(result, "sintetico_path", None)
         if output is not None:
             paths.append(str(output))
     return list(dict.fromkeys(paths))
@@ -262,10 +268,7 @@ def summary_json(run_result: RunResult, exit_code: int) -> dict[str, Any]:
     """Saída estruturada para automação (Q5/Q9/Q10, ticket 04) — mesmo
     estado global do código de saída. Nomes estáveis em pt-BR; números (ms)
     e caminhos completos para consumo por CI/workers."""
-    orgaos = {
-        orgao: _sumario_orgao(run_result, orgao)
-        for orgao in _orgaos_no_run(run_result)
-    }
+    orgaos = {orgao: _sumario_orgao(run_result, orgao) for orgao in _orgaos_no_run(run_result)}
     motivo_publicacao = next(
         (v["motivo_publicacao"] for v in orgaos.values() if v["motivo_publicacao"]), None
     )
@@ -278,8 +281,9 @@ def summary_json(run_result: RunResult, exit_code: int) -> dict[str, Any]:
         "consolidado": _consolidado_info(run_result),
         "publicacao": {
             "liberada": liberada,
-            "motivo": None if liberada else motivo_publicacao
-            or "etapa final de produção não gerada",
+            "motivo": None
+            if liberada
+            else motivo_publicacao or "etapa final de produção não gerada",
         },
         "avisos": _warnings_count(run_result),
         "erros": _errors_count(run_result),
@@ -290,9 +294,7 @@ def summary_json(run_result: RunResult, exit_code: int) -> dict[str, Any]:
 
 def _painel_resultado(run_result: RunResult, exit_code: int) -> Panel:
     """Painel "Resultado" — o estado global inequívoco (Q3/Q9/Q10)."""
-    orgaos = {
-        orgao: _sumario_orgao(run_result, orgao) for orgao in _orgaos_no_run(run_result)
-    }
+    orgaos = {orgao: _sumario_orgao(run_result, orgao) for orgao in _orgaos_no_run(run_result)}
     indicadores = ", ".join(
         f"{orgao} {d['indicadores']['aferidos']}/{d['indicadores']['total_esperado']}"
         for orgao, d in orgaos.items()
@@ -330,8 +332,7 @@ def _painel_resultado(run_result: RunResult, exit_code: int) -> Panel:
         f"[bold]Órgãos processados:[/bold] {len(orgaos)}",
         f"[bold]Indicadores apurados:[/bold] {indicadores}",
         f"[bold]Relatórios individuais:[/bold] {relatorios}",
-        "[bold]Relatório consolidado:[/bold] "
-        + ("gerado" if csol else "não gerado"),
+        "[bold]Relatório consolidado:[/bold] " + ("gerado" if csol else "não gerado"),
         "[bold]Total de pontos (consolidado):[/bold] "
         + (fmt_pt_br(csol["total_pontos"]) if csol else "—"),
         f"[bold]Avisos:[/bold] {_warnings_count(run_result)}",

@@ -17,22 +17,31 @@ def test_ratio_count_distinct_requires_filter() -> None:
     with pytest.raises(ValidationError):
         RatioCalculation(shape="ratio", aggregation="count_distinct")  # missing numerator_filter
 
+
 def test_ratio_sum_requires_columns() -> None:
     with pytest.raises(ValidationError):
         RatioCalculation(shape="ratio", aggregation="sum")
 
+
 def test_ratio_sum_rejects_both_extra_and_subtract_columns() -> None:
     with pytest.raises(ValidationError):
         RatioCalculation(
-            shape="ratio", aggregation="sum", sum_numerator_column="A",
-            sum_denominator_extra_column="B", sum_numerator_subtract_column="C",
+            shape="ratio",
+            aggregation="sum",
+            sum_numerator_column="A",
+            sum_denominator_extra_column="B",
+            sum_numerator_subtract_column="C",
         )
+
 
 def test_ratio_sum_accepts_subtract_column_alone() -> None:
     RatioCalculation(
-        shape="ratio", aggregation="sum",
-        sum_numerator_column="A", sum_numerator_subtract_column="B",
+        shape="ratio",
+        aggregation="sum",
+        sum_numerator_column="A",
+        sum_numerator_subtract_column="B",
     )
+
 
 def test_frozen_extra_forbid() -> None:
     m = ColumnEquals(column="a", equals="b")
@@ -41,6 +50,7 @@ def test_frozen_extra_forbid() -> None:
     with pytest.raises(ValidationError):
         ColumnEquals(column="a", equals="b", extra="x")  # type: ignore[call-arg]
 
+
 def test_indicator_config_target_shape() -> None:
     base = dict(
         indicator=dict(id="1.1", contractual_id="INMS 1.1", name="n"),
@@ -48,7 +58,8 @@ def test_indicator_config_target_shape() -> None:
         source=dict(csv="a.csv"),
         quality_gates=dict(checks=[]),
         calculation=dict(
-            shape="ratio", aggregation="count_distinct",
+            shape="ratio",
+            aggregation="count_distinct",
             numerator_filter=dict(column="c", equals="v"),
         ),
         target=dict(operator=">=", value=90),
@@ -68,10 +79,12 @@ def test_indicator_config_target_shape() -> None:
     with pytest.raises(ValidationError):
         IndicatorConfig.model_validate(bad)
 
+
 def test_filter_smart_union() -> None:
     r = RatioCalculation.model_validate(
         dict(
-            shape="ratio", aggregation="count_distinct",
+            shape="ratio",
+            aggregation="count_distinct",
             numerator_filter=dict(column="c", contains="x"),
         )
     )

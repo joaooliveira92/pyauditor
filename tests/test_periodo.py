@@ -87,9 +87,7 @@ class TestFilterPeriodo:
     @pytest.mark.parametrize("valor", ["", "   ", "ontem", "2026/06", "2026-06-15"])
     def test_sem_data_legivel_strict_descarta_e_conta(self, valor: str) -> None:
         linhas = [_linha("05/06/2026 08:00"), _linha(valor)]
-        resultado = filter_periodo(
-            linhas, period_column=COLUNA, periodo=self.JUNHO, strict=True
-        )
+        resultado = filter_periodo(linhas, period_column=COLUNA, periodo=self.JUNHO, strict=True)
         assert len(resultado.linhas_na_janela) == 1
         assert resultado.undated_dropped == 1
         assert resultado.dropped_out_of_period == 0

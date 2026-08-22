@@ -77,7 +77,10 @@ cada strategy só recebe o shape de config que sabe processar — sem `dict[str,
 
 ```python
 Calculation = Annotated[
-    RatioCalculation | SegmentedRatioCalculation | CountDifferenceCalculation | ExternalCatalogSumCalculation,
+    RatioCalculation
+    | SegmentedRatioCalculation
+    | CountDifferenceCalculation
+    | ExternalCatalogSumCalculation,
     Field(discriminator="shape"),
 ]
 ```

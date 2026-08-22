@@ -120,7 +120,8 @@ def test_render_summary_points_to_incomplete_orgao_after_isolated_failure(
         _CONFIG_YAML.replace("orgao: MinC", "orgao: MTur"), encoding="utf-8"
     )
     (tmp_path / "input" / "MTur" / "2026" / "06" / "data.csv").write_text(
-        "Nº Solicitacao;DataHoraFim;No prazo\n1;;S\n2;;N\n", encoding="utf-8"  # hard failure
+        "Nº Solicitacao;DataHoraFim;No prazo\n1;;S\n2;;N\n",
+        encoding="utf-8",  # hard failure
     )
     request = replace(_run(tmp_path), orgao="both")
 
@@ -184,18 +185,35 @@ def test_exit_code_for_run_precedence() -> None:
     errored = CommandStateEntry(command="consolidate", orgao=None, status="error")
 
     ok_report = ReportResult(
-        status="done", competencia="2026-06", orgao="MinC",
-        output_path=Path("r.xlsx"), indicator_count=1, warnings=(),
-        error_message=None, publicable=True, glosa_calculada=True,
+        status="done",
+        competencia="2026-06",
+        orgao="MinC",
+        output_path=Path("r.xlsx"),
+        indicator_count=1,
+        warnings=(),
+        error_message=None,
+        publicable=True,
+        glosa_calculada=True,
     )
     draft_report = ReportResult(
-        status="done", competencia="2026-06", orgao="MinC",
-        output_path=Path("r.xlsx"), indicator_count=1, warnings=(),
-        error_message=None, publicable=False, glosa_calculada=True,
+        status="done",
+        competencia="2026-06",
+        orgao="MinC",
+        output_path=Path("r.xlsx"),
+        indicator_count=1,
+        warnings=(),
+        error_message=None,
+        publicable=False,
+        glosa_calculada=True,
     )
     glosa_missing = ConsolidateResult(
-        status="done", competencia="2026-06", output_path=Path("c.xlsx"),
-        decisions_preserved=0, warnings=(), error_message=None, glosa_calculada=False,
+        status="done",
+        competencia="2026-06",
+        output_path=Path("c.xlsx"),
+        decisions_preserved=0,
+        warnings=(),
+        error_message=None,
+        glosa_calculada=False,
     )
 
     # 0 — tudo done e publicável, sem glosa pendente.
@@ -203,15 +221,16 @@ def test_exit_code_for_run_precedence() -> None:
     # 3 — report não-publicável (rascunho).
     assert exit_code_for_run((done_measure, done_report), (draft_report,)) == 3
     # 3 — etapa de produção skipped (não-produção faltante `0` antes).
-    assert exit_code_for_run(
-        (done_measure, done_report, skipped_report), (ok_report,)
-    ) == 3
+    assert exit_code_for_run((done_measure, done_report, skipped_report), (ok_report,)) == 3
     assert exit_code_for_run((done_measure, skipped_measure), ()) == 0
     # 4 — glosa não calculada vence 3/0.
-    assert exit_code_for_run(
-        (done_measure, done_report, done_consolidate), (draft_report, glosa_missing)
-    ) == 4
+    assert (
+        exit_code_for_run(
+            (done_measure, done_report, done_consolidate), (draft_report, glosa_missing)
+        )
+        == 4
+    )
     # 1 — falha técnica vence 4.
-    assert exit_code_for_run(
-        (done_measure, done_report, errored), (draft_report, glosa_missing)
-    ) == 1
+    assert (
+        exit_code_for_run((done_measure, done_report, errored), (draft_report, glosa_missing)) == 1
+    )

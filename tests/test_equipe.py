@@ -122,9 +122,7 @@ class TestMalformado:
     def test_funcao_duplicada(self, tmp_path: Path) -> None:
         path = _escreve(
             tmp_path,
-            f"{_CABECALHO}\n"
-            "Fiscal técnico,Maria Souza,1\n"
-            "FISCAL TÉCNICO,Outra Pessoa,2\n",
+            f"{_CABECALHO}\nFiscal técnico,Maria Souza,1\nFISCAL TÉCNICO,Outra Pessoa,2\n",
         )
         with pytest.raises(ValueError, match="duplicada"):
             read_equipe(path)

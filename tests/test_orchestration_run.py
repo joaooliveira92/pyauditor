@@ -12,8 +12,8 @@ from pyauditor.orchestration.state import CommandStateEntry, load_state, state_p
 
 _CONFIG_YAML = """\
 indicator:
-  id: INMS-TEST
-  contractual_id: "INMS TEST"
+  id: INMS-99
+  contractual_id: "INMS 1.99"
   name: Indicador sintético
 
 scope:
@@ -63,7 +63,7 @@ def _scaffold(tmp_path: Path, *, csv_body: str) -> RunRequest:
     data_dir = tmp_path / "input"
     (config_dir / "MinC").mkdir(parents=True)
     (data_dir / "MinC" / "2026" / "06").mkdir(parents=True)
-    (config_dir / "MinC" / "inms-test.yaml").write_text(_CONFIG_YAML, encoding="utf-8")
+    (config_dir / "MinC" / "inms-99.yaml").write_text(_CONFIG_YAML, encoding="utf-8")
     (config_dir / "MinC" / "categorias.yaml").write_text(_CATEGORIAS_YAML, encoding="utf-8")
     (data_dir / "MinC" / "2026" / "06" / "data.csv").write_text(csv_body, encoding="utf-8")
 
@@ -89,7 +89,7 @@ def _scaffold_both(tmp_path: Path, *, minc_csv: str, mtur_csv: str) -> RunReques
     for orgao, csv_body in (("MinC", minc_csv), ("MTur", mtur_csv)):
         (config_dir / orgao).mkdir(parents=True)
         (data_dir / orgao / "2026" / "06").mkdir(parents=True)
-        (config_dir / orgao / "inms-test.yaml").write_text(
+        (config_dir / orgao / "inms-99.yaml").write_text(
             _CONFIG_YAML.replace("orgao: MinC", f"orgao: {orgao}"), encoding="utf-8"
         )
         (config_dir / orgao / "categorias.yaml").write_text(_CATEGORIAS_YAML, encoding="utf-8")
@@ -163,6 +163,21 @@ def test_execute_run_resume_redispatches_measure_when_roms_deleted(tmp_path: Pat
     assert "measure" in calls
     assert all(entry.status == "done" for entry in run_result.state.commands)
     assert (request.output_dir / "MinC" / "2026-06").is_dir()
+
+
+def test_execute_run_resume_redispatches_split_when_sintetico_deleted(tmp_path: Path) -> None:
+    request = _scaffold(tmp_path, csv_body=_GOOD_CSV)
+    execute_run(request)
+    sintetico_path = request.report_dir / "MinC" / "2026-06" / "sintetico.xlsx"
+    assert sintetico_path.exists()
+    sintetico_path.unlink()
+
+    calls: list[str] = []
+    run_result = execute_run(request, on_state_change=lambda e: calls.append(e.command))
+
+    assert "split" in calls
+    assert all(entry.status == "done" for entry in run_result.state.commands)
+    assert sintetico_path.exists()
 
 
 def test_execute_run_resume_redispatches_bootstrap_when_capa_deleted(tmp_path: Path) -> None:
@@ -243,9 +258,7 @@ def test_execute_run_pre_dispatch_failure_offers_no_retry_option_distinction(
     """Selecting only `report` — bootstrap/measure never ran — makes the
     dependency check fail before `report` is ever dispatched. `started_at`
     stays `None`, distinguishing this from a post-dispatch `Result` failure."""
-    request = replace(
-        _scaffold(tmp_path, csv_body=_GOOD_CSV), commands=frozenset({"report"})
-    )
+    request = replace(_scaffold(tmp_path, csv_body=_GOOD_CSV), commands=frozenset({"report"}))
     seen: list[CommandStateEntry] = []
 
     def on_failure(entry: CommandStateEntry) -> FailureDecision:
@@ -262,9 +275,7 @@ def test_execute_run_pre_dispatch_failure_offers_no_retry_option_distinction(
 
 
 def test_execute_run_pre_dispatch_failure_skip_cascades(tmp_path: Path) -> None:
-    request = replace(
-        _scaffold(tmp_path, csv_body=_GOOD_CSV), commands=frozenset({"report"})
-    )
+    request = replace(_scaffold(tmp_path, csv_body=_GOOD_CSV), commands=frozenset({"report"}))
 
     run_result = execute_run(request, on_failure=lambda entry: "skip")
 
@@ -275,9 +286,7 @@ def test_execute_run_pre_dispatch_failure_skip_cascades(tmp_path: Path) -> None:
 
 
 def test_execute_run_pre_dispatch_failure_abort_preserves_error_entry(tmp_path: Path) -> None:
-    request = replace(
-        _scaffold(tmp_path, csv_body=_GOOD_CSV), commands=frozenset({"report"})
-    )
+    request = replace(_scaffold(tmp_path, csv_body=_GOOD_CSV), commands=frozenset({"report"}))
 
     run_result = execute_run(request, on_failure=lambda entry: "abort")
 
@@ -296,8 +305,15 @@ def test_execute_run_both_orgaos_happy_path_runs_consolidate_last(tmp_path: Path
     assert all(entry.status == "done" for entry in run_result.state.commands)
     done_order = [c for c, _, s in seen if s == "done"]
     assert done_order == [
-        "bootstrap", "bootstrap", "split", "split",
-        "measure", "measure", "report", "report", "consolidate",
+        "bootstrap",
+        "bootstrap",
+        "split",
+        "split",
+        "measure",
+        "measure",
+        "report",
+        "report",
+        "consolidate",
     ]
 
 

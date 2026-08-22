@@ -28,9 +28,7 @@ class ExternalCatalogSumStrategy:
         for row in rows:
             codes_raw = row.get(calculation.catalog_codes_column, "")
             codes = [
-                c.strip()
-                for c in codes_raw.split(calculation.catalog_codes_separator)
-                if c.strip()
+                c.strip() for c in codes_raw.split(calculation.catalog_codes_separator) if c.strip()
             ]
             matched = [catalog[code] for code in codes if code in catalog]
             if not matched:

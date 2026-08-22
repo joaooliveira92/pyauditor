@@ -200,12 +200,7 @@ _INMS_01_RAW_CSV = (
     "5;01/06/2026 08:00;;N;Grupo Desconhecido\n"
 )
 
-_INMS_09_RAW_CSV = (
-    "Chamado;Situação\n"
-    "1;No prazo\n"
-    "2;No prazo\n"
-    "3;Fora do prazo\n"
-)
+_INMS_09_RAW_CSV = "Chamado;Situação\n1;No prazo\n2;No prazo\n3;Fora do prazo\n"
 
 # Anexo D, Tabela 28: 6 ativos nomeados, um por linha — mesmo formato do
 # /input real (`disponibilidade_infra`), sem colunas de fila de atendimento
@@ -271,31 +266,64 @@ def test_grupo_executor_sheet_has_one_row_per_categoria_x_grupo_executor(
     wb = load_workbook(output_path)
     sheet = wb["INMS 1.1"]
     assert tuple(cell.value for cell in sheet[1]) == (
-        "Categoria", "Nível", "Grupo executor", "Linhas", "Dentro do prazo",
-        "Fora do prazo", "% bruto", "Tempo médio criação→resolução",
+        "Categoria",
+        "Nível",
+        "Grupo executor",
+        "Linhas",
+        "Dentro do prazo",
+        "Fora do prazo",
+        "% bruto",
+        "Tempo médio criação→resolução",
     )
 
     rows_by_grupo = {row[2].value: row for row in sheet.iter_rows(min_row=2, max_row=5)}
 
     n1_row = rows_by_grupo["N1"]
     assert [c.value for c in n1_row] == [
-        "Atendimento Remoto aos Usuários", "N1", "N1", 2, 1, 1, "50,0%", "0d 13h",
+        "Atendimento Remoto aos Usuários",
+        "N1",
+        "N1",
+        2,
+        1,
+        1,
+        "50,0%",
+        "0d 13h",
     ]
 
     n2_row = rows_by_grupo["N2"]
     assert [c.value for c in n2_row] == [
-        "Atendimento Presencial aos Usuários", "N2", "N2", 1, 1, 0, "100,0%", "0d 01h",
+        "Atendimento Presencial aos Usuários",
+        "N2",
+        "N2",
+        1,
+        1,
+        0,
+        "100,0%",
+        "0d 01h",
     ]
 
     n3_row = rows_by_grupo["(CIT) - Infra"]
     assert [c.value for c in n3_row] == [
-        "Operação e Sustentação da Infraestrutura de TI", "N3", "(CIT) - Infra",
-        1, 1, 0, "100,0%", "0d 12h",
+        "Operação e Sustentação da Infraestrutura de TI",
+        "N3",
+        "(CIT) - Infra",
+        1,
+        1,
+        0,
+        "100,0%",
+        "0d 12h",
     ]
 
     outros_row = rows_by_grupo["Grupo Desconhecido"]
     assert [c.value for c in outros_row] == [
-        "outros (não contabilizado na meta)", None, "Grupo Desconhecido", 1, 0, 1, "0,0%", "—",
+        "outros (não contabilizado na meta)",
+        None,
+        "Grupo Desconhecido",
+        1,
+        0,
+        1,
+        "0,0%",
+        "—",
     ]
 
 
@@ -333,20 +361,22 @@ def test_whole_indicator_sheet_is_single_row_no_subtotals(tmp_path: Path) -> Non
     data_rows = list(sheet.iter_rows(min_row=2))
     assert len(data_rows) == 1
     assert [c.value for c in data_rows[0]] == [
-        "Operação e Sustentação da Infraestrutura de TI", "N3", "(indicador inteiro)",
-        3, "—", "—", "—", "—",
+        "Operação e Sustentação da Infraestrutura de TI",
+        "N3",
+        "(indicador inteiro)",
+        3,
+        "—",
+        "—",
+        "—",
+        "—",
     ]
-    assert not any(
-        cell.value == "Subtotais por Nível" for row in sheet.iter_rows() for cell in row
-    )
+    assert not any(cell.value == "Subtotais por Nível" for row in sheet.iter_rows() for cell in row)
 
 
 def test_inms_1_14_sheet_uses_ativo_column_with_12_rows_in_categoria_blocks(
     tmp_path: Path,
 ) -> None:
-    config_dir, data_dir = _write_fixture(
-        tmp_path, include_inms_04_csv=True, include_inms_14=True
-    )
+    config_dir, data_dir = _write_fixture(tmp_path, include_inms_04_csv=True, include_inms_14=True)
     categorias_file = load_categorias(config_dir / "categorias.yaml")
     output_path = tmp_path / "sintetico.xlsx"
 
@@ -358,8 +388,14 @@ def test_inms_1_14_sheet_uses_ativo_column_with_12_rows_in_categoria_blocks(
     sheet = wb["INMS 1.14"]
 
     assert tuple(cell.value for cell in sheet[1]) == (
-        "Categoria", "Nível", "Ativo", "Linhas",
-        "Dentro do prazo", "Fora do prazo", "% bruto", "Tempo médio criação→resolução",
+        "Categoria",
+        "Nível",
+        "Ativo",
+        "Linhas",
+        "Dentro do prazo",
+        "Fora do prazo",
+        "% bruto",
+        "Tempo médio criação→resolução",
     )
 
     data_rows = list(sheet.iter_rows(min_row=2, max_row=13))
@@ -368,26 +404,45 @@ def test_inms_1_14_sheet_uses_ativo_column_with_12_rows_in_categoria_blocks(
     # Bloco NOC/SOC (linhas 2-7) antes do bloco Operação N3 (linhas 8-13).
     noc_soc_rows = [row[2].value for row in data_rows[:6]]
     operacao_n3_rows = [row[2].value for row in data_rows[6:]]
-    assert noc_soc_rows == operacao_n3_rows == [
-        "File Server", "Telefonia", "Mensageria", "Servidores de impressão",
-        "WI-FI", "Rede",
-    ]
+    assert (
+        noc_soc_rows
+        == operacao_n3_rows
+        == [
+            "File Server",
+            "Telefonia",
+            "Mensageria",
+            "Servidores de impressão",
+            "WI-FI",
+            "Rede",
+        ]
+    )
 
     first_row = data_rows[0]
     assert [cell.value for cell in first_row] == [
-        "Monitoramento de Ambiente (NOC/SOC)", "N3", "File Server", 1, "—", "—", "—", "—",
+        "Monitoramento de Ambiente (NOC/SOC)",
+        "N3",
+        "File Server",
+        1,
+        "—",
+        "—",
+        "—",
+        "—",
     ]
     eighth_row = data_rows[6]
     assert [cell.value for cell in eighth_row] == [
-        "Operação e Sustentação da Infraestrutura de TI", "N3", "File Server",
-        1, "—", "—", "—", "—",
+        "Operação e Sustentação da Infraestrutura de TI",
+        "N3",
+        "File Server",
+        1,
+        "—",
+        "—",
+        "—",
+        "—",
     ]
 
 
 def test_inms_1_14_sheet_has_subtotals_by_categoria_not_nivel(tmp_path: Path) -> None:
-    config_dir, data_dir = _write_fixture(
-        tmp_path, include_inms_04_csv=True, include_inms_14=True
-    )
+    config_dir, data_dir = _write_fixture(tmp_path, include_inms_04_csv=True, include_inms_14=True)
     categorias_file = load_categorias(config_dir / "categorias.yaml")
     output_path = tmp_path / "sintetico.xlsx"
 
@@ -401,7 +456,11 @@ def test_inms_1_14_sheet_has_subtotals_by_categoria_not_nivel(tmp_path: Path) ->
         if row[0].value == "Subtotais por Categoria"
     )
     assert tuple(cell.value for cell in sheet[header_row + 1][:6]) == (
-        "Categoria", "Linhas", "Dentro do prazo", "Fora do prazo", "% bruto",
+        "Categoria",
+        "Linhas",
+        "Dentro do prazo",
+        "Fora do prazo",
+        "% bruto",
         "Tempo médio criação→resolução",
     )
     subtotal_rows = [
@@ -450,15 +509,15 @@ def test_periodo_filtra_antes_dos_gates_e_falha_sem_period_column(tmp_path: Path
     output_path = tmp_path / "sintetico.xlsx"
 
     warnings = write_sintetico_workbook(
-        categorias_file, config_dir, data_dir, output_path,
+        categorias_file,
+        config_dir,
+        data_dir,
+        output_path,
         periodo=PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30)),
     )
 
     # INMS 1.9/1.4 não declaram period_column → erro acionável, aba pulada.
-    assert any(
-        "INMS 1.9" in w and "period_column" in w and "não declarado" in w
-        for w in warnings
-    )
+    assert any("INMS 1.9" in w and "period_column" in w and "não declarado" in w for w in warnings)
     wb = load_workbook(output_path)
     assert "INMS 1.9" not in wb.sheetnames
     assert "INMS 1.4" not in wb.sheetnames
@@ -534,17 +593,30 @@ def test_precomputed_table_sheet_has_one_row_per_item_with_meta_from_target(
     wb = load_workbook(output_path)
     sheet = wb["INMS 1.4"]
     assert tuple(cell.value for cell in sheet[1]) == (
-        "Categoria", "Nível", "Item", "Resultado", "Meta atingida?", "Penalidade",
+        "Categoria",
+        "Nível",
+        "Item",
+        "Resultado",
+        "Meta atingida?",
+        "Penalidade",
     )
     data_rows = [[c.value for c in row] for row in sheet.iter_rows(min_row=2)]
     assert data_rows == [
         [
-            "Monitoramento de Ambiente (NOC/SOC)", "N3", "Barramento de Integracao",
-            "99,5%", "Não", "1000",
+            "Monitoramento de Ambiente (NOC/SOC)",
+            "N3",
+            "Barramento de Integracao",
+            "99,5%",
+            "Não",
+            "1000",
         ],
         [
-            "Monitoramento de Ambiente (NOC/SOC)", "N3", "Servico de Correio",
-            "99,8%", "Sim", "0",
+            "Monitoramento de Ambiente (NOC/SOC)",
+            "N3",
+            "Servico de Correio",
+            "99,8%",
+            "Sim",
+            "0",
         ],
     ]
 
@@ -622,19 +694,33 @@ def test_ratio_sum_subtract_sheet_aggregates_one_row_per_group_excluding_totais(
     wb = load_workbook(output_path)
     sheet = wb["INMS 1.6"]
     assert tuple(cell.value for cell in sheet[1]) == (
-        "Categoria", "Nível", "Acordo de Nível de Serviço",
-        "Total de Chamados", "Total de Chamados Reabertos",
-        "% resultado", "Meta atingida?",
+        "Categoria",
+        "Nível",
+        "Acordo de Nível de Serviço",
+        "Total de Chamados",
+        "Total de Chamados Reabertos",
+        "% resultado",
+        "Meta atingida?",
     )
     data_rows = [[c.value for c in row] for row in sheet.iter_rows(min_row=2)]
     # TOTAIS excluída (denominator_filter); SLA A soma as 2 linhas (20/1).
     assert data_rows == [
         [
-            "Operação e Sustentação da Infraestrutura de TI", "N3", "SLA A",
-            20, 1, "95,0%", "Não",
+            "Operação e Sustentação da Infraestrutura de TI",
+            "N3",
+            "SLA A",
+            20,
+            1,
+            "95,0%",
+            "Não",
         ],
         [
-            "Operação e Sustentação da Infraestrutura de TI", "N3", "SLA B",
-            5, 0, "100,0%", "Sim",
+            "Operação e Sustentação da Infraestrutura de TI",
+            "N3",
+            "SLA B",
+            5,
+            0,
+            "100,0%",
+            "Sim",
         ],
     ]

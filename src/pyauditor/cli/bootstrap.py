@@ -85,15 +85,23 @@ def run_bootstrap(capa_path: Path, orgao: str) -> BootstrapResult:
         message = f"falha ao criar capa em {data_dir}: {exc} — {WRITE_FAILURE_HINT}"
         logger.error(message)
         return BootstrapResult(
-            status="error", orgao=orgao, capa_path=orgao_path, created=False,
-            warnings=(), error_message=message,
+            status="error",
+            orgao=orgao,
+            capa_path=orgao_path,
+            created=False,
+            warnings=(),
+            error_message=message,
         )
     except Exception as exc:  # boundary: never leak a raw traceback past the CLI
         message = f"falha inesperada ao criar capa em {data_dir}: {exc}"
         logger.error(message)
         return BootstrapResult(
-            status="error", orgao=orgao, capa_path=orgao_path, created=False,
-            warnings=(), error_message=message,
+            status="error",
+            orgao=orgao,
+            capa_path=orgao_path,
+            created=False,
+            warnings=(),
+            error_message=message,
         )
 
     if created_orgao:
@@ -101,14 +109,19 @@ def run_bootstrap(capa_path: Path, orgao: str) -> BootstrapResult:
     else:
         # Revisão §3: "nada a fazer" era impreciso — o arquivo é reutilizado.
         log_event(
-            "capa_reused", "capa existente será reutilizada", "INFO",
-            orgao=orgao, arquivo=str(orgao_path),
+            "capa_reused",
+            "capa existente será reutilizada",
+            "INFO",
+            orgao=orgao,
+            arquivo=str(orgao_path),
         )
     if created_equipe:
-        log_event(
-            "equipe_created", "esqueleto de equipe criado", "INFO", arquivo=str(equipe_path)
-        )
+        log_event("equipe_created", "esqueleto de equipe criado", "INFO", arquivo=str(equipe_path))
     return BootstrapResult(
-        status="done", orgao=orgao, capa_path=orgao_path, created=created,
-        warnings=(), error_message=None,
+        status="done",
+        orgao=orgao,
+        capa_path=orgao_path,
+        created=created,
+        warnings=(),
+        error_message=None,
     )

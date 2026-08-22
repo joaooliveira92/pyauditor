@@ -161,8 +161,13 @@ def run_report(
     def _error(message: str) -> ReportResult:
         logger.error(message)
         return ReportResult(
-            status="error", competencia=competencia, orgao=orgao, output_path=output_path,
-            indicator_count=0, warnings=(), error_message=message,
+            status="error",
+            competencia=competencia,
+            orgao=orgao,
+            output_path=output_path,
+            indicator_count=0,
+            warnings=(),
+            error_message=message,
         )
 
     competencia_error = validate_competencia(competencia)
@@ -242,9 +247,14 @@ def run_report(
 
     try:
         build_report(
-            competencia, summaries, output_path, valor_base,
-            is_final_month=is_final_month, capa_fields=capa_fields,
-            configs=configs or None, historico=historico,
+            competencia,
+            summaries,
+            output_path,
+            valor_base,
+            is_final_month=is_final_month,
+            capa_fields=capa_fields,
+            configs=configs or None,
+            historico=historico,
         )
     except OSError as exc:
         return _error(f"falha ao escrever {output_path}: {exc} — {WRITE_FAILURE_HINT}")
@@ -278,7 +288,13 @@ def run_report(
         status="rascunho" if not publicable else "publicavel",
     )
     return ReportResult(
-        status="done", competencia=competencia, orgao=orgao, output_path=output_path,
-        indicator_count=len(summaries), warnings=tuple(warnings), error_message=None,
-        publicable=publicable, glosa_calculada=valor_base is not None,
+        status="done",
+        competencia=competencia,
+        orgao=orgao,
+        output_path=output_path,
+        indicator_count=len(summaries),
+        warnings=tuple(warnings),
+        error_message=None,
+        publicable=publicable,
+        glosa_calculada=valor_base is not None,
     )

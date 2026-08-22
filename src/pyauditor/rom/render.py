@@ -257,9 +257,12 @@ def _org_body(
     calculation = result.calculation
     provenance = result.provenance
 
-    rejected_table = "\n".join(
-        f"| {_md_cell(row.row_id)} | {_md_cell(row.reason)} |" for row in gate_report.rejected
-    ) or "| — | nenhuma rejeição |"
+    rejected_table = (
+        "\n".join(
+            f"| {_md_cell(row.row_id)} | {_md_cell(row.reason)} |" for row in gate_report.rejected
+        )
+        or "| — | nenhuma rejeição |"
+    )
 
     memoria_renderer = _MEMORIA_RENDERERS[config.calculation.shape]
 
@@ -308,9 +311,7 @@ def render_rom(
         "\n\n".join(
             [
                 f"# ROM — {titulo} ({config.indicator.name})",
-                *_org_body(
-                    result, capa_fields, "##", competencia=competencia, periodo=periodo
-                ),
+                *_org_body(result, capa_fields, "##", competencia=competencia, periodo=periodo),
             ]
         )
         + "\n"

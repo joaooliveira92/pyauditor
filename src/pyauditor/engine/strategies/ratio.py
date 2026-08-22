@@ -42,13 +42,17 @@ class RatioStrategy:
             penalty_points = 0.0
         else:
             conforms = meets_target(result_pct, config.target.operator, config.target.value)
-            penalty_points = 0.0 if conforms else _linear_penalty(
-                result_pct=result_pct,
-                target=config.target.value,
-                operator=config.target.operator,
-                base_points=config.penalty.base_points,
-                step_points=config.penalty.step_points,
-                step_size_pct=config.penalty.step_size_pct,
+            penalty_points = (
+                0.0
+                if conforms
+                else _linear_penalty(
+                    result_pct=result_pct,
+                    target=config.target.value,
+                    operator=config.target.operator,
+                    base_points=config.penalty.base_points,
+                    step_points=config.penalty.step_points,
+                    step_size_pct=config.penalty.step_size_pct,
+                )
             )
 
         return CalculationResult(

@@ -144,7 +144,8 @@ def test_measure_os_error_writing_rom_has_actionable_hint(tmp_path: Path) -> Non
     data_dir = tmp_path / "input"
     output_dir = tmp_path / "roms"
     _write_config_and_data(
-        config_dir, data_dir,
+        config_dir,
+        data_dir,
         "Nº Solicitacao;DataHoraFim;No prazo\n1;2026-06-01;S\n2;2026-06-02;N\n",
     )
 
@@ -224,11 +225,16 @@ def test_measure_both_writes_per_orgao_and_combined_roms(
 
     code = cli_main(
         [
-            "measure", "2026-06",
-            "--orgao", "both",
-            "--config-dir", str(config_dir),
-            "--data-dir", str(data_dir),
-            "--output-dir", str(output_dir),
+            "measure",
+            "2026-06",
+            "--orgao",
+            "both",
+            "--config-dir",
+            str(config_dir),
+            "--data-dir",
+            str(data_dir),
+            "--output-dir",
+            str(output_dir),
         ]
     )
 

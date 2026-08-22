@@ -71,15 +71,30 @@ _DECISAO_ACEITA: Final = "aceita"
 
 # GLOSAS: uma linha por (indicador x órgão) + resumo agregado (ticket 02).
 _GLOSAS_COLUMNS: Final[tuple[str, ...]] = (
-    "Competência", "Órgão", "Item Contratual", "Serviço", "Indicador",
-    "Resultado", "Meta", "Faixa de Descumprimento", "Percentual de Ajuste",
-    "Valor Base", "Valor Glosa", "Reincidência", "Justificativa",
-    "Número da Ocorrência", "Decisão Fiscal", "Observação do Gestor",
+    "Competência",
+    "Órgão",
+    "Item Contratual",
+    "Serviço",
+    "Indicador",
+    "Resultado",
+    "Meta",
+    "Faixa de Descumprimento",
+    "Percentual de Ajuste",
+    "Valor Base",
+    "Valor Glosa",
+    "Reincidência",
+    "Justificativa",
+    "Número da Ocorrência",
+    "Decisão Fiscal",
+    "Observação do Gestor",
 )
 # Colunas de decisão do fiscal — nunca recalculadas, só preservadas no merge.
 _DECISION_COLUMNS: Final[tuple[str, ...]] = (
-    "Reincidência", "Justificativa", "Número da Ocorrência",
-    "Decisão Fiscal", "Observação do Gestor",
+    "Reincidência",
+    "Justificativa",
+    "Número da Ocorrência",
+    "Decisão Fiscal",
+    "Observação do Gestor",
 )
 _DECISION_TEXT_COLUMNS: Final[tuple[int, ...]] = tuple(
     _GLOSAS_COLUMNS.index(name) + 1 for name in _DECISION_COLUMNS
@@ -303,9 +318,17 @@ def build_servicos(wb: Workbook, itens: tuple[float, ...] | None = None) -> None
     mensal de cada item vindo de `objetos.csv` (ticket 07 Q4), mapeado pelo
     índice (os nomes divergem entre as fontes — o índice não)."""
     ws = _new_sheet(
-        wb, SERVICOS_SHEET,
-        ("Item", "Serviço", "Valor Mensal (R$)", "Prestado ao MinC?", "Prestado ao MTur?",
-         "Segregação Obrigatória?", "Critério de Rateio"),
+        wb,
+        SERVICOS_SHEET,
+        (
+            "Item",
+            "Serviço",
+            "Valor Mensal (R$)",
+            "Prestado ao MinC?",
+            "Prestado ao MTur?",
+            "Segregação Obrigatória?",
+            "Critério de Rateio",
+        ),
     )
     for i, (nome, minc, mtur, seg) in enumerate(_SERVICOS, start=2):
         valor = itens[i - 2] if itens is not None and i - 2 < len(itens) else None
@@ -315,22 +338,44 @@ def build_servicos(wb: Workbook, itens: tuple[float, ...] | None = None) -> None
 
 
 _INMS_BASE_COLUMNS: Final[tuple[str, ...]] = (
-    "Competência", "Item contratual", "Serviço", "Grupo operacional",
-    "Código INMS", "Descrição", "Órgão", "Meta mínima ou máxima",
-    "Sentido da meta", "Numerador", "Denominador", "Resultado calculado",
-    "Unidade", "Conformidade", "Diferença para a meta",
+    "Competência",
+    "Item contratual",
+    "Serviço",
+    "Grupo operacional",
+    "Código INMS",
+    "Descrição",
+    "Órgão",
+    "Meta mínima ou máxima",
+    "Sentido da meta",
+    "Numerador",
+    "Denominador",
+    "Resultado calculado",
+    "Unidade",
+    "Conformidade",
+    "Diferença para a meta",
 )
+
 
 def _inms_base_row(competencia: str, summary: IndicatorSummary) -> tuple[CellValue, ...]:
     dif = None
     if summary.target_value is not None:
         dif = round(summary.target_value - summary.result_pct, 2)
     return (
-        competencia, None, summary.asset, None, format_inms_code(summary.contractual_id),
-        summary.name, summary.orgao, summary.target_value, summary.target_operator,
-        summary.numerator, summary.denominator, round(summary.result_pct, 2),
+        competencia,
+        None,
+        summary.asset,
+        None,
+        format_inms_code(summary.contractual_id),
+        summary.name,
+        summary.orgao,
+        summary.target_value,
+        summary.target_operator,
+        summary.numerator,
+        summary.denominator,
+        round(summary.result_pct, 2),
         _UNIT_BY_SHAPE.get(summary.shape, ""),
-        "Conforme" if summary.conforms else "Não conforme", dif,
+        "Conforme" if summary.conforms else "Não conforme",
+        dif,
     )
 
 
@@ -438,15 +483,28 @@ def build_glosas(
         pct = pontos * 0.001
         valor_glosa = round((valor_base or 0.0) * pct / 100, 2) if valor_base is not None else None
 
-        _write(ws, row, (
-            competencia, summary.orgao, "", "", format_inms_code(summary.contractual_id),
-            round(summary.result_pct, 2), summary.target_value, _faixa(summary),
-            round(pct, 4), valor_base, 0.0 if is_amnestied else valor_glosa,
-            _decision_value(decision, "Reincidência"), _decision_value(decision, "Justificativa"),
-            _decision_value(decision, "Número da Ocorrência"),
-            _decision_value(decision, "Decisão Fiscal"),
-            _decision_value(decision, "Observação do Gestor"),
-        ))
+        _write(
+            ws,
+            row,
+            (
+                competencia,
+                summary.orgao,
+                "",
+                "",
+                format_inms_code(summary.contractual_id),
+                round(summary.result_pct, 2),
+                summary.target_value,
+                _faixa(summary),
+                round(pct, 4),
+                valor_base,
+                0.0 if is_amnestied else valor_glosa,
+                _decision_value(decision, "Reincidência"),
+                _decision_value(decision, "Justificativa"),
+                _decision_value(decision, "Número da Ocorrência"),
+                _decision_value(decision, "Decisão Fiscal"),
+                _decision_value(decision, "Observação do Gestor"),
+            ),
+        )
         ws.cell(row=row, column=6).number_format = _PERCENT_FMT_SCALED
         ws.cell(row=row, column=7).number_format = _PERCENT_FMT_SCALED
         ws.cell(row=row, column=9).number_format = _PERCENT_FMT_SCALED
@@ -479,12 +537,16 @@ def build_glosas(
         saldo_minc = saldo_mtur = 0.0
 
     glosa_minc = compute_glosa(
-        pontos_por_orgao.get("MinC", 0.0), valor_base,
-        is_final_month=is_final_month, saldo_anterior_pct=saldo_minc,
+        pontos_por_orgao.get("MinC", 0.0),
+        valor_base,
+        is_final_month=is_final_month,
+        saldo_anterior_pct=saldo_minc,
     )
     glosa_mtur = compute_glosa(
-        pontos_por_orgao.get("MTur", 0.0), valor_base,
-        is_final_month=is_final_month, saldo_anterior_pct=saldo_mtur,
+        pontos_por_orgao.get("MTur", 0.0),
+        valor_base,
+        is_final_month=is_final_month,
+        saldo_anterior_pct=saldo_mtur,
     )
     # Para valor_base por-órgão (rateio), o valor da glosa consolidada é a soma
     # das glosas por-órgão calculadas sobre o mesmo valor_base proporcional?
@@ -631,14 +693,26 @@ def build_consolidated_workbook(
     wb.remove(default_sheet)
 
     build_capa(
-        wb, competencia, capa, warnings, valor_base,
-        periodo=periodo, responsaveis=responsaveis,
+        wb,
+        competencia,
+        capa,
+        warnings,
+        valor_base,
+        periodo=periodo,
+        responsaveis=responsaveis,
     )
     build_servicos(wb, itens)
     build_inms_base(wb, competencia, minc, mtur)
     total_pontos, glosa_final = build_glosas(
-        wb, competencia, minc, mtur, valor_base, existing_decisions or {}, warnings,
-        historico=historico, is_final_month=is_final_month,
+        wb,
+        competencia,
+        minc,
+        mtur,
+        valor_base,
+        existing_decisions or {},
+        warnings,
+        historico=historico,
+        is_final_month=is_final_month,
     )
     build_calculo(wb, valor_base, total_pontos)
 
@@ -646,6 +720,9 @@ def build_consolidated_workbook(
         logger.warning(warning)
 
     return ConsolidationResult(
-        workbook=wb, total_pontos=total_pontos, glosa_final=glosa_final,
-        warnings=tuple(warnings), glosa_calculada=valor_base is not None,
+        workbook=wb,
+        total_pontos=total_pontos,
+        glosa_final=glosa_final,
+        warnings=tuple(warnings),
+        glosa_calculada=valor_base is not None,
     )

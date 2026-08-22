@@ -82,6 +82,11 @@ class SplitResult:
     categorias: tuple[SplitCategoriaOutcome, ...]
     warnings: tuple[str, ...]
     error_message: str | None
+    # `None` quando `report_dir` não foi passado, ou quando nada em
+    # categorias.yaml resolveu — `write_sintetico_workbook` não escreve
+    # workbook vazio (comentário no próprio módulo), então a checagem real
+    # de "foi gerado" é a existência do arquivo, não só "foi tentado".
+    sintetico_path: Path | None = None
 
 
 def check_split_ready(*_args: object, **_kwargs: object) -> DependencyCheck:
@@ -157,8 +162,12 @@ def run_split(
     def _error(message: str) -> SplitResult:
         logger.error(message)
         return SplitResult(
-            status="error", competencia=competencia, orgao=orgao, categorias=(),
-            warnings=(), error_message=message,
+            status="error",
+            competencia=competencia,
+            orgao=orgao,
+            categorias=(),
+            warnings=(),
+            error_message=message,
         )
 
     competencia_error = validate_competencia(competencia)
@@ -261,8 +270,7 @@ def run_split(
             rows = filtro.linhas_na_janela
             if total_bruto > 0 and not rows:
                 aviso_vazio = (
-                    f"INMS {inms_key} ({orgao}/{competencia}): "
-                    f"{empty_window_message(periodo)}"
+                    f"INMS {inms_key} ({orgao}/{competencia}): {empty_window_message(periodo)}"
                 )
                 log_event(
                     "periodo_janela_vazia",
@@ -317,9 +325,7 @@ def run_split(
         split_dir = competencia_data_dir / _SPLIT_DIRNAME / inms_key
 
         for categoria_key, effective_values in per_categoria_values.items():
-            filtered_rows = [
-                row for row in rows if row[GRUPO_EXECUTOR_COLUMN] in effective_values
-            ]
+            filtered_rows = [row for row in rows if row[GRUPO_EXECUTOR_COLUMN] in effective_values]
             csv_path = split_dir / f"{categoria_key}.csv"
             if materialize:
                 try:
@@ -348,11 +354,15 @@ def run_split(
                 # mas mantemos o path para rastreabilidade no outcome.
                 config_path = None  # type: ignore[assignment]
 
-            outcomes.append(SplitCategoriaOutcome(
-                inms=inms_key, categoria=categoria_key, csv_path=csv_path,
-                config_path=config_path,
-                row_count=len(filtered_rows),
-            ))
+            outcomes.append(
+                SplitCategoriaOutcome(
+                    inms=inms_key,
+                    categoria=categoria_key,
+                    csv_path=csv_path,
+                    config_path=config_path,
+                    row_count=len(filtered_rows),
+                )
+            )
 
         outros_rows = [row for row in rows if row[GRUPO_EXECUTOR_COLUMN] in outros_values]
         outros_path = split_dir / f"{_OUTROS_NAME}.csv"
@@ -367,10 +377,15 @@ def run_split(
             # Sem materialização: ainda conta para warning, mas não escreve
             pass
 
-        outcomes.append(SplitCategoriaOutcome(
-            inms=inms_key, categoria=_OUTROS_NAME, csv_path=outros_path,
-            config_path=None, row_count=len(outros_rows),
-        ))
+        outcomes.append(
+            SplitCategoriaOutcome(
+                inms=inms_key,
+                categoria=_OUTROS_NAME,
+                csv_path=outros_path,
+                config_path=None,
+                row_count=len(outros_rows),
+            )
+        )
         if outros_rows:
             warning = (
                 f"INMS {inms_key} ({orgao}/{competencia}), categoria outros: "
@@ -385,22 +400,33 @@ def run_split(
     # laço acima (que só materializa artefatos para `grupo_executor`).
     # `report_dir` é opcional (`None` pula a geração) para não obrigar todo
     # chamador existente de `run_split` a passar um diretório de relatórios.
+    written_sintetico_path: Path | None = None
     if report_dir is not None:
         sintetico_path = report_dir / competencia / _SINTETICO_FILENAME
         try:
             sintetico_warnings = write_sintetico_workbook(
-                categorias_file, config_dir, competencia_data_dir, sintetico_path,
-                manifest=manifest, periodo=periodo, strict=strict,
+                categorias_file,
+                config_dir,
+                competencia_data_dir,
+                sintetico_path,
+                manifest=manifest,
+                periodo=periodo,
+                strict=strict,
             )
             warnings.extend(sintetico_warnings)
+            if sintetico_path.exists():
+                written_sintetico_path = sintetico_path
         except OSError as exc:
             warning = f"falha ao escrever {sintetico_path}: {exc}"
             logger.warning(warning)
             warnings.append(warning)
 
+    message = f"{orgao or 'órgão'}: {len(outcomes)} categoria(s) processada(s)"
+    if written_sintetico_path is not None:
+        message += f" | sintetico.xlsx: {written_sintetico_path}"
     log_event(
         "split_done",
-        f"{orgao or 'órgão'}: {len(outcomes)} categoria(s) processada(s)",
+        message,
         "INFO",
         orgao=orgao,
         competencia=competencia,
@@ -415,4 +441,5 @@ def run_split(
         categorias=tuple(outcomes),
         warnings=tuple(warnings),
         error_message=error_message,
+        sintetico_path=written_sintetico_path,
     )

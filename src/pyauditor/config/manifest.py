@@ -5,6 +5,7 @@ to concrete CSV filenames + parsing options.  Indicator YAMLs reference
 datasets by alias via ``source.dataset``; the pipeline resolves the
 alias to a real file at load time.
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -62,8 +63,7 @@ class DatasetManifest:
         except KeyError:
             available = ", ".join(sorted(self._entries))
             raise KeyError(
-                f"dataset alias {alias!r} not found in manifest; "
-                f"available: {available}"
+                f"dataset alias {alias!r} not found in manifest; available: {available}"
             ) from None
 
     @property

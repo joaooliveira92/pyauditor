@@ -77,9 +77,7 @@ def collect_answers(provider: InteractionProvider) -> GuidedAnswers:
     while True:
         competencia = _ask_with_help(
             provider,
-            lambda: provider.ask_text(
-                "Competência (AAAA-MM):", validate=_validate_competencia
-            ),
+            lambda: provider.ask_text("Competência (AAAA-MM):", validate=_validate_competencia),
             "A competência é o mês de aferição — nomeia os arquivos de entrada e saída. "
             "Ex.: '2026-06' para junho de 2026.",
         )

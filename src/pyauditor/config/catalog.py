@@ -3,6 +3,7 @@
 Source is docs/termo_de_referencia/anexo_e_desconformidade_tecnica.html,
 extracted to YAML at build time. See docs/spec/inms-pipeline.md §11.1.
 """
+
 from __future__ import annotations
 
 import importlib.resources

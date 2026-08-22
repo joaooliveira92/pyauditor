@@ -48,9 +48,7 @@ penalty:
 
 def _write_orgao_config(config_dir: Path, orgao: str, filename: str) -> None:
     (config_dir / orgao).mkdir(parents=True, exist_ok=True)
-    (config_dir / orgao / filename).write_text(
-        CONFIG_YAML.format(orgao=orgao), encoding="utf-8"
-    )
+    (config_dir / orgao / filename).write_text(CONFIG_YAML.format(orgao=orgao), encoding="utf-8")
 
 
 def test_discover_configs_finds_per_orgao_dir(tmp_path: Path) -> None:

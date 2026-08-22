@@ -87,7 +87,12 @@ def test_competencia_anterior_rolls_year_boundary() -> None:
 
 def test_janela_reincidencia_six_months_ending_at_competencia() -> None:
     assert janela_reincidencia("2026-06") == [
-        "2026-06", "2026-05", "2026-04", "2026-03", "2026-02", "2026-01",
+        "2026-06",
+        "2026-05",
+        "2026-04",
+        "2026-03",
+        "2026-02",
+        "2026-01",
     ]
 
 

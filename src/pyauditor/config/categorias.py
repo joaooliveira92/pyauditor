@@ -3,6 +3,7 @@ mapping used by the `split` step (spec §14.2). One file per orgao
 (`configs/<orgao>/categorias.yaml`), since `Grupo_executor` literals differ
 between MinC and MTur.
 """
+
 from __future__ import annotations
 
 from functools import cache

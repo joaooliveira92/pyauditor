@@ -35,8 +35,7 @@ class PrecomputedTableStrategy:
         assert config.target is not None
 
         weighted = (
-            calculation.numerator_column is not None
-            and calculation.denominator_column is not None
+            calculation.numerator_column is not None and calculation.denominator_column is not None
         )
         numerator_sum = 0.0
         denominator_sum = 0.0
@@ -61,16 +60,12 @@ class PrecomputedTableStrategy:
                     penalty = 0.0
             elif calculation.result_is_percent:
                 assert config.penalty is not None
-                gap = max(
-                    shortfall(value, config.target.operator, config.target.value), 0.0
-                )
+                gap = max(shortfall(value, config.target.operator, config.target.value), 0.0)
                 penalty = (gap / config.penalty.step_size_pct) * config.penalty.step_points
             else:
                 penalty = max(value - config.target.value, 0.0)
 
-            categories.append(
-                {"name": name, "result_pct": result_pct, "penalty_points": penalty}
-            )
+            categories.append({"name": name, "result_pct": result_pct, "penalty_points": penalty})
             percents.append(result_pct)
             total_penalty += penalty
 

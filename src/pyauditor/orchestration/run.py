@@ -23,7 +23,7 @@ from pyauditor.cli.consolidate import ConsolidateResult, check_consolidate_ready
 from pyauditor.cli.dependencies import CHECKERS
 from pyauditor.cli.measure import MeasureResult, run_measure
 from pyauditor.cli.report import ReportResult, check_report_ready, run_report
-from pyauditor.cli.split import SplitResult, run_split
+from pyauditor.cli.split import _SINTETICO_FILENAME, SplitResult, run_split
 from pyauditor.config.manifest import DatasetManifest, load_manifest
 from pyauditor.excel.equipe import EQUIPE_FILENAME
 from pyauditor.logging import logger
@@ -200,25 +200,32 @@ def _own_artifact_missing(command: str, orgao: str | None, request: RunRequest) 
     producing is missing from disk — distinct from `dependency_missing`
     (which checks an *upstream* Command's output before dispatch).
 
-    Only `bootstrap` (capa CSVs) and `measure` (ROMs) matter here: they have
-    no `DependencyCheck` on another Command (`CHECKERS` returns
-    `satisfied=True` unconditionally for them — see their own docstrings),
-    so nothing previously caught a persisted `done` status whose artifact
-    was deleted by hand (e.g. `rm -rf roms/ reports/` without also clearing
-    `.pyauditor/runs/`) — resume would skip re-dispatching it, and the next
-    Command downstream (`report` reading capa/ROMs) would fail against an
-    artifact resume thought still existed. `split`'s own artifact
-    (`sintetico.xlsx`) isn't in this set: nothing downstream depends on it
-    (it's a side conference file, not read by `report`/`consolidate`), and
-    it's legitimately absent whenever `categorias.yaml` has no INMS that
-    resolves — that's not a signal of artifact loss. `report`/`consolidate`
-    don't need this either: `cli/run.py` always re-dispatches them via
-    `force_commands`.
+    `bootstrap` (capa CSVs), `split` (`sintetico.xlsx`) and `measure` (ROMs)
+    all need this: they have no `DependencyCheck` on another Command
+    (`CHECKERS` returns `satisfied=True` unconditionally for them — see
+    their own docstrings), so nothing previously caught a persisted `done`
+    status whose artifact was deleted by hand (e.g. `rm -rf roms/ reports/`
+    without also clearing `.pyauditor/runs/`) — resume would skip
+    re-dispatching it, leaving the artifact gone even though the summary
+    says "done". `sintetico.xlsx` specifically can also be legitimately
+    absent when nothing in `categorias.yaml` resolves (write_sintetico_
+    workbook writes no file rather than an empty workbook) — re-dispatching
+    `split` in that case is a cheap no-op, not a correctness risk, so it's
+    fine to treat "missing" the same as any other órgão here. `report`/
+    `consolidate` don't need this: `cli/run.py` always re-dispatches them
+    via `force_commands`.
     """
     if command == "bootstrap":
         capa_path = _capa_path_for(request.capa_path, orgao or "")
         if not capa_path.exists():
             return f"capa de {orgao} ({capa_path}) foi apagada — rode `pyauditor bootstrap` de novo"
+        return None
+    if command == "split":
+        sintetico_path = (
+            request.report_dir / (orgao or "") / request.competencia / _SINTETICO_FILENAME
+        )
+        if not sintetico_path.exists():
+            return f"{sintetico_path} foi apagado — rode `pyauditor split` de novo"
         return None
     if command == "measure":
         roms_dir = request.output_dir / (orgao or "") / request.competencia
@@ -402,8 +409,10 @@ def execute_run(
         # by hand without also clearing .pyauditor/runs/ must not leave
         # downstream Commands failing against an artifact resume thinks
         # still exists.
-        stale_done = current is not None and current.status == "done" and _own_artifact_missing(
-            command, orgao, request
+        stale_done = (
+            current is not None
+            and current.status == "done"
+            and _own_artifact_missing(command, orgao, request)
         )
         if (
             current is not None

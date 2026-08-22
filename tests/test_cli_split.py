@@ -301,9 +301,7 @@ def test_run_split_filtra_janela_antes_da_segregacao(tmp_path: Path) -> None:
     )
     periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
 
-    result = run_split(
-        "2026-06", config_dir, data_dir, expected_orgao="MinC", periodo=periodo
-    )
+    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC", periodo=periodo)
 
     assert result.status == "done"
     n1 = next(o for o in result.categorias if o.categoria == "ATENDIMENTO_N1")
@@ -319,13 +317,15 @@ def test_run_split_janela_vazia_warns_e_segue(tmp_path: Path) -> None:
 
     config_dir, data_dir = _write_fixture(tmp_path)
     (data_dir / "2026" / "06" / "inms-01.csv").write_text(
-        "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n"
-        "1;20/05/2026 10:00;S;N1\n",
+        "Nº Solicitacao;DataHoraFim;No prazo;Grupo_executor\n1;20/05/2026 10:00;S;N1\n",
         encoding="utf-8",
     )
 
     result = run_split(
-        "2026-06", config_dir, data_dir, expected_orgao="MinC",
+        "2026-06",
+        config_dir,
+        data_dir,
+        expected_orgao="MinC",
         periodo=PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30)),
     )
 
@@ -345,7 +345,10 @@ def test_run_split_sem_period_column_e_erro_com_periodo(tmp_path: Path) -> None:
     (config_dir / "inms-01.yaml").write_text(yaml_sem_periodo, encoding="utf-8")
 
     result = run_split(
-        "2026-06", config_dir, data_dir, expected_orgao="MinC",
+        "2026-06",
+        config_dir,
+        data_dir,
+        expected_orgao="MinC",
         periodo=PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30)),
     )
 

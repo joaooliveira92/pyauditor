@@ -74,11 +74,21 @@ _WHOLE_INDICATOR_LABEL: Final[str] = "(indicador inteiro)"
 _NAO_ATIVADO_TEXT: Final[str] = "Esse serviço não foi requisitado no período selecionado."
 
 _COLUMNS: Final[tuple[str, ...]] = (
-    "Categoria", "Nível", "Grupo executor", "Linhas",
-    "Dentro do prazo", "Fora do prazo", "% bruto", "Tempo médio criação→resolução",
+    "Categoria",
+    "Nível",
+    "Grupo executor",
+    "Linhas",
+    "Dentro do prazo",
+    "Fora do prazo",
+    "% bruto",
+    "Tempo médio criação→resolução",
 )
 _SUBTOTAL_COLUMNS: Final[tuple[str, ...]] = (
-    "Nível", "Linhas", "Dentro do prazo", "Fora do prazo", "% bruto",
+    "Nível",
+    "Linhas",
+    "Dentro do prazo",
+    "Fora do prazo",
+    "% bruto",
     "Tempo médio criação→resolução",
 )
 _NIVEL_ORDER: Final[tuple[str, ...]] = ("N1", "N2", "N3")
@@ -90,11 +100,21 @@ _NIVEL_BY_CATEGORIA: Final[dict[str, str]] = {
 }
 
 _ATIVO_COLUMNS: Final[tuple[str, ...]] = (
-    "Categoria", "Nível", "Ativo", "Linhas",
-    "Dentro do prazo", "Fora do prazo", "% bruto", "Tempo médio criação→resolução",
+    "Categoria",
+    "Nível",
+    "Ativo",
+    "Linhas",
+    "Dentro do prazo",
+    "Fora do prazo",
+    "% bruto",
+    "Tempo médio criação→resolução",
 )
 _ATIVO_SUBTOTAL_COLUMNS: Final[tuple[str, ...]] = (
-    "Categoria", "Linhas", "Dentro do prazo", "Fora do prazo", "% bruto",
+    "Categoria",
+    "Linhas",
+    "Dentro do prazo",
+    "Fora do prazo",
+    "% bruto",
     "Tempo médio criação→resolução",
 )
 # Ordem fixa da spec §14.5: bloco NOC/SOC antes do bloco Operação N3,
@@ -149,8 +169,11 @@ def _compute_stats(
             duracao_contagem += 1
 
     return _Stats(
-        linhas=len(rows), dentro=dentro, fora=fora,
-        duracao_total_segundos=duracao_total, duracao_contagem=duracao_contagem,
+        linhas=len(rows),
+        dentro=dentro,
+        fora=fora,
+        duracao_total_segundos=duracao_total,
+        duracao_contagem=duracao_contagem,
     )
 
 
@@ -238,10 +261,18 @@ def _write_subtotals(
             if acc.duracao_contagem > 0
             else "—"
         )
-        write_row(sheet, row_idx, (
-            nivel, acc.linhas, dentro if dentro is not None else "—",
-            fora if fora is not None else "—", pct_display, tempo_display,
-        ))
+        write_row(
+            sheet,
+            row_idx,
+            (
+                nivel,
+                acc.linhas,
+                dentro if dentro is not None else "—",
+                fora if fora is not None else "—",
+                pct_display,
+                tempo_display,
+            ),
+        )
         row_idx += 1
 
 
@@ -271,10 +302,18 @@ def _write_ativo_subtotals(
             if acc.duracao_contagem > 0
             else "—"
         )
-        write_row(sheet, row_idx, (
-            labels[categoria_key], acc.linhas, dentro if dentro is not None else "—",
-            fora if fora is not None else "—", pct_display, tempo_display,
-        ))
+        write_row(
+            sheet,
+            row_idx,
+            (
+                labels[categoria_key],
+                acc.linhas,
+                dentro if dentro is not None else "—",
+                fora if fora is not None else "—",
+                pct_display,
+                tempo_display,
+            ),
+        )
         row_idx += 1
 
 
@@ -320,9 +359,20 @@ def _write_multi_ativo_sheet(
             ativo_rows = [row for row in rows if row.get(ativo_column) == ativo]
             stats = _compute_stats(ativo_rows, fieldnames, accepted_ids)
             linhas, dentro, fora, pct, tempo = _format_row(stats)
-            write_row(sheet, row_idx, (
-                categoria.label, nivel or "", ativo, linhas, dentro, fora, pct, tempo,
-            ))
+            write_row(
+                sheet,
+                row_idx,
+                (
+                    categoria.label,
+                    nivel or "",
+                    ativo,
+                    linhas,
+                    dentro,
+                    fora,
+                    pct,
+                    tempo,
+                ),
+            )
             row_idx += 1
             current = accumulators.get(categoria_key, _NivelAccumulator())
             accumulators[categoria_key] = current.add(stats)
@@ -401,15 +451,30 @@ def _write_whole_indicator_sheet(
     for categoria_key, _entry in entries:
         categoria = categorias_file.categorias[categoria_key]
         nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
-        write_row(sheet, row_idx, (
-            categoria.label, nivel or "", _WHOLE_INDICATOR_LABEL,
-            linhas, dentro, fora, pct, tempo,
-        ))
+        write_row(
+            sheet,
+            row_idx,
+            (
+                categoria.label,
+                nivel or "",
+                _WHOLE_INDICATOR_LABEL,
+                linhas,
+                dentro,
+                fora,
+                pct,
+                tempo,
+            ),
+        )
         row_idx += 1
 
 
 _PRECOMPUTED_COLUMNS: Final[tuple[str, ...]] = (
-    "Categoria", "Nível", "Item", "Resultado", "Meta atingida?", "Penalidade",
+    "Categoria",
+    "Nível",
+    "Item",
+    "Resultado",
+    "Meta atingida?",
+    "Penalidade",
 )
 
 
@@ -465,10 +530,18 @@ def _write_precomputed_table_sheet(
                 "—" if isnan(penalidade_value) else _fmt_pt_br(penalidade_value, decimals=0)
             )
 
-            write_row(sheet, row_idx, (
-                categoria.label, nivel or "", name,
-                resultado_display, meta_display, penalidade_display,
-            ))
+            write_row(
+                sheet,
+                row_idx,
+                (
+                    categoria.label,
+                    nivel or "",
+                    name,
+                    resultado_display,
+                    meta_display,
+                    penalidade_display,
+                ),
+            )
             row_idx += 1
 
 
@@ -494,8 +567,15 @@ def _write_ratio_aggregate_sheet(
     numerator_column = calculation.sum_numerator_column
     subtract_column = calculation.sum_numerator_subtract_column
 
-    columns = ("Categoria", "Nível", group_column, numerator_column, subtract_column,
-               "% resultado", "Meta atingida?")
+    columns = (
+        "Categoria",
+        "Nível",
+        group_column,
+        numerator_column,
+        subtract_column,
+        "% resultado",
+        "Meta atingida?",
+    )
     sheet = new_sheet(workbook, sheet_name, columns)
     row_idx = 2
 
@@ -509,18 +589,25 @@ def _write_ratio_aggregate_sheet(
         nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
         for grupo in grupos:
             grupo_rows = [row for row in eligible_rows if row[group_column] == grupo]
-            total = sum(
-                parse_decimal(row.get(numerator_column, "") or "0") for row in grupo_rows
-            )
+            total = sum(parse_decimal(row.get(numerator_column, "") or "0") for row in grupo_rows)
             subtraido = sum(
                 parse_decimal(row.get(subtract_column, "") or "0") for row in grupo_rows
             )
             pct = safe_pct(total - subtraido, total)
             meta_display = _meta_atingida_display(pct, target_operator, target_value)
-            write_row(sheet, row_idx, (
-                categoria.label, nivel or "", grupo,
-                int(total), int(subtraido), f"{_fmt_pt_br(pct)}%", meta_display,
-            ))
+            write_row(
+                sheet,
+                row_idx,
+                (
+                    categoria.label,
+                    nivel or "",
+                    grupo,
+                    int(total),
+                    int(subtraido),
+                    f"{_fmt_pt_br(pct)}%",
+                    meta_display,
+                ),
+            )
             row_idx += 1
 
 
@@ -633,14 +720,18 @@ def write_sintetico_workbook(
                 warnings.append(warning)
                 continue
             _write_multi_ativo_sheet(
-                workbook, sheet_name, categorias_file, whole_indicator_entries,
-                calculation.name_column, fieldnames, rows, accepted_ids,
+                workbook,
+                sheet_name,
+                categorias_file,
+                whole_indicator_entries,
+                calculation.name_column,
+                fieldnames,
+                rows,
+                accepted_ids,
             )
             continue
 
-        grupo_executor_entries = [
-            (ck, e) for ck, e in entries if isinstance(e, GrupoExecutorMode)
-        ]
+        grupo_executor_entries = [(ck, e) for ck, e in entries if isinstance(e, GrupoExecutorMode)]
 
         if grupo_executor_entries:
             if GRUPO_EXECUTOR_COLUMN not in fieldnames:
@@ -651,15 +742,26 @@ def write_sintetico_workbook(
                 warnings.append(warning)
                 continue
             _write_grupo_executor_sheet(
-                workbook, sheet_name, categorias_file, grupo_executor_entries,
-                whole_indicator_entries, fieldnames, rows, accepted_ids,
+                workbook,
+                sheet_name,
+                categorias_file,
+                grupo_executor_entries,
+                whole_indicator_entries,
+                fieldnames,
+                rows,
+                accepted_ids,
             )
         elif isinstance(base_config.calculation, PrecomputedTableCalculation):
             assert base_config.target is not None
             _write_precomputed_table_sheet(
-                workbook, sheet_name, categorias_file, whole_indicator_entries,
-                base_config.calculation, base_config.target.operator,
-                base_config.target.value, rows,
+                workbook,
+                sheet_name,
+                categorias_file,
+                whole_indicator_entries,
+                base_config.calculation,
+                base_config.target.operator,
+                base_config.target.value,
+                rows,
             )
         elif (
             isinstance(base_config.calculation, RatioCalculation)
@@ -669,14 +771,24 @@ def write_sintetico_workbook(
         ):
             assert base_config.target is not None
             _write_ratio_aggregate_sheet(
-                workbook, sheet_name, categorias_file, whole_indicator_entries,
-                base_config.calculation, base_config.target.operator,
-                base_config.target.value, rows,
+                workbook,
+                sheet_name,
+                categorias_file,
+                whole_indicator_entries,
+                base_config.calculation,
+                base_config.target.operator,
+                base_config.target.value,
+                rows,
             )
         else:
             _write_whole_indicator_sheet(
-                workbook, sheet_name, categorias_file, whole_indicator_entries,
-                fieldnames, rows, accepted_ids,
+                workbook,
+                sheet_name,
+                categorias_file,
+                whole_indicator_entries,
+                fieldnames,
+                rows,
+                accepted_ids,
             )
 
     if not workbook.sheetnames:

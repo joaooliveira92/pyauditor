@@ -388,9 +388,13 @@ def build_report(
     historico: Historico | None = None,
 ) -> None:
     workbook = build_report_workbook(
-        competencia, summaries, valor_base,
-        is_final_month=is_final_month, capa_fields=capa_fields,
-        configs=configs, historico=historico,
+        competencia,
+        summaries,
+        valor_base,
+        is_final_month=is_final_month,
+        capa_fields=capa_fields,
+        configs=configs,
+        historico=historico,
     )
     try:
         atomic_write(output_path, workbook.save)

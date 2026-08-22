@@ -4,6 +4,7 @@
 `bootstrap` (ticket 08), `measure` (ticket 03), `report` (ticket 09),
 `consolidate` (multi-org-pipeline tickets 01/02/04) are all implemented.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -34,7 +35,11 @@ from pyauditor.logging import logger, setup_logging
 from pyauditor.periodo import PeriodoAfericao, month_bounds
 
 __all__: Final[tuple[str, ...]] = (
-    "ConsolidateRequest", "MeasureRequest", "ReportRequest", "build_parser", "cli_main",
+    "ConsolidateRequest",
+    "MeasureRequest",
+    "ReportRequest",
+    "build_parser",
+    "cli_main",
 )
 
 _PROG: Final[str] = "pyauditor"
@@ -120,7 +125,12 @@ class ConsolidateRequest:
 
 def _is_command(value: str) -> TypeGuard[Command]:
     return value in (
-        _CMD_MEASURE, _CMD_BOOTSTRAP, _CMD_REPORT, _CMD_CONSOLIDATE, _CMD_SPLIT, _CMD_RUN,
+        _CMD_MEASURE,
+        _CMD_BOOTSTRAP,
+        _CMD_REPORT,
+        _CMD_CONSOLIDATE,
+        _CMD_SPLIT,
+        _CMD_RUN,
     )
 
 
@@ -216,16 +226,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     measure_parser.add_argument("competencia", help='ex.: "2026-06"')
     _add_orgao_argument(measure_parser)
-    measure_parser.add_argument(
-        "--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR
-    )
+    measure_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
     measure_parser.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA_DIR)
+    measure_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
     measure_parser.add_argument(
-        "--output-dir", type=Path, default=_DEFAULT_OUTPUT_DIR
-    )
-    measure_parser.add_argument(
-        "--manifest", type=Path, default=None,
-        help="caminho para datasets.yaml (default: <config-dir>/<órgão>/datasets.yaml)"
+        "--manifest",
+        type=Path,
+        default=None,
+        help="caminho para datasets.yaml (default: <config-dir>/<órgão>/datasets.yaml)",
     )
     _add_strict_argument(measure_parser)
     _add_logging_arguments(measure_parser)
@@ -236,11 +244,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_orgao_argument(bootstrap_parser)
     bootstrap_parser.add_argument(
-        "--data-dir", type=Path, default=_DEFAULT_DATA_DIR,
+        "--data-dir",
+        type=Path,
+        default=_DEFAULT_DATA_DIR,
         help=f"onde criar capa.csv e capa_{{orgao}}.csv (default: {_DEFAULT_DATA_DIR})",
     )
     bootstrap_parser.add_argument(
-        "--capa-path", type=Path, default=None,
+        "--capa-path",
+        type=Path,
+        default=None,
         help="caminho do capa comum (cap.csv); default: <data-dir>/capa.csv",
     )
     _add_logging_arguments(bootstrap_parser)
@@ -251,18 +263,20 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument("competencia", help='ex.: "2026-06"')
     _add_orgao_argument(report_parser)
     report_parser.add_argument(
-        "--data-dir", type=Path, default=_DEFAULT_DATA_DIR,
+        "--data-dir",
+        type=Path,
+        default=_DEFAULT_DATA_DIR,
         help="onde vivem capa_{orgao}.csv e objetos.csv (default: input)",
     )
     report_parser.add_argument(
-        "--capa-path", type=Path, default=None,
+        "--capa-path",
+        type=Path,
+        default=None,
         help="caminho do capa comum capa.csv (default: <data-dir>/capa.csv)",
     )
     report_parser.add_argument("--roms-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
     report_parser.add_argument("--output-dir", type=Path, default=_DEFAULT_REPORT_DIR)
-    report_parser.add_argument(
-        "--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR
-    )
+    report_parser.add_argument("--config-dir", type=Path, default=_DEFAULT_CONFIG_DIR)
     report_parser.add_argument(
         "--final-month",
         action="store_true",
@@ -278,7 +292,9 @@ def build_parser() -> argparse.ArgumentParser:
     consolidate_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
     consolidate_parser.add_argument("--roms-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
     consolidate_parser.add_argument(
-        "--data-dir", type=Path, default=_DEFAULT_DATA_DIR,
+        "--data-dir",
+        type=Path,
+        default=_DEFAULT_DATA_DIR,
         help="onde vive objetos.csv, a fonte do valor mensal (default: input)",
     )
     _add_logging_arguments(consolidate_parser)
@@ -293,8 +309,10 @@ def build_parser() -> argparse.ArgumentParser:
     split_parser.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA_DIR)
     split_parser.add_argument("--report-dir", type=Path, default=_DEFAULT_REPORT_DIR)
     split_parser.add_argument(
-        "--manifest", type=Path, default=None,
-        help="caminho para datasets.yaml (default: <config-dir>/<órgão>/datasets.yaml)"
+        "--manifest",
+        type=Path,
+        default=None,
+        help="caminho para datasets.yaml (default: <config-dir>/<órgão>/datasets.yaml)",
     )
     _add_strict_argument(split_parser)
     _add_logging_arguments(split_parser)
@@ -469,7 +487,8 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
     setup_logging(
         log_path=_run_log_path(
             request.output_dir / request.orgao / request.competencia,
-            _CMD_MEASURE, request.competencia,
+            _CMD_MEASURE,
+            request.competencia,
         ),
         **_logging_kwargs(args),
     )
@@ -484,25 +503,25 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
         if per_orgao_manifest_path.exists():
             manifest = load_manifest(per_orgao_manifest_path)
         collect: list[_MeasuredIndicator] = []
-        measure_results.append(run_measure(
-            competencia=request.competencia,
-            config_dir=per_orgao_config_dir,
-            data_dir=per_orgao_data_dir,
-            output_dir=per_orgao_output_dir,
-            manifest=manifest,
-            expected_orgao=orgao,
-            equipe_path=equipe_path,
-            periodo=periodo,
-            strict=request.strict,
-            collect=collect,
-        ))
+        measure_results.append(
+            run_measure(
+                competencia=request.competencia,
+                config_dir=per_orgao_config_dir,
+                data_dir=per_orgao_data_dir,
+                output_dir=per_orgao_output_dir,
+                manifest=manifest,
+                expected_orgao=orgao,
+                equipe_path=equipe_path,
+                periodo=periodo,
+                strict=request.strict,
+                collect=collect,
+            )
+        )
         per_orgao[orgao] = collect
     if request.orgao == "both":
         # Single markdown per indicator covering both orgãos, alongside the
         # per-orgão ROMs (roms/MinC/..., roms/MTur/...).
-        write_combined_roms(
-            per_orgao, request.competencia, request.output_dir, periodo=periodo
-        )
+        write_combined_roms(per_orgao, request.competencia, request.output_dir, periodo=periodo)
     return exit_code_for_results(measure_results)
 
 
@@ -523,7 +542,8 @@ def _dispatch_split(args: argparse.Namespace) -> int:
         setup_logging(
             log_path=_run_log_path(
                 request.data_dir / orgao / year / month / "_split",
-                _CMD_SPLIT, request.competencia,
+                _CMD_SPLIT,
+                request.competencia,
             ),
             **_logging_kwargs(args),
         )
@@ -533,16 +553,18 @@ def _dispatch_split(args: argparse.Namespace) -> int:
         manifest = None
         if per_orgao_manifest_path.exists():
             manifest = load_manifest(per_orgao_manifest_path)
-        split_results.append(run_split(
-            competencia=request.competencia,
-            config_dir=per_orgao_config_dir,
-            data_dir=per_orgao_data_dir,
-            expected_orgao=orgao,
-            manifest=manifest,
-            report_dir=request.report_dir / orgao,
-            periodo=periodo,
-            strict=request.strict,
-        ))
+        split_results.append(
+            run_split(
+                competencia=request.competencia,
+                config_dir=per_orgao_config_dir,
+                data_dir=per_orgao_data_dir,
+                expected_orgao=orgao,
+                manifest=manifest,
+                report_dir=request.report_dir / orgao,
+                periodo=periodo,
+                strict=request.strict,
+            )
+        )
     return exit_code_for_results(split_results)
 
 
@@ -585,27 +607,39 @@ def _dispatch_report(args: argparse.Namespace) -> int:
         # calls internally — fast, actionable error before touching the pipeline.
         per_orgao_roms_dir = report_request.roms_dir / orgao
         dependency_check = check_report_ready(
-            report_request.competencia, orgao, report_request.capa_path,
-            per_orgao_roms_dir, data_dir=report_request.data_dir,
+            report_request.competencia,
+            orgao,
+            report_request.capa_path,
+            per_orgao_roms_dir,
+            data_dir=report_request.data_dir,
         )
         if not dependency_check.satisfied:
             message = "dependência não satisfeita: " + "; ".join(dependency_check.missing)
             logger.error(message)
-            report_results.append(ReportResult(
-                status="error", competencia=report_request.competencia, orgao=orgao,
-                output_path=output_path, indicator_count=0, warnings=(), error_message=message,
-            ))
+            report_results.append(
+                ReportResult(
+                    status="error",
+                    competencia=report_request.competencia,
+                    orgao=orgao,
+                    output_path=output_path,
+                    indicator_count=0,
+                    warnings=(),
+                    error_message=message,
+                )
+            )
             continue
-        report_results.append(run_report(
-            competencia=report_request.competencia,
-            capa_path=report_request.capa_path,
-            roms_dir=per_orgao_roms_dir,
-            output_path=output_path,
-            config_dir=_resolve_config_dir(report_request.config_dir, orgao),
-            expected_orgao=orgao,
-            is_final_month=report_request.is_final_month,
-            data_dir=report_request.data_dir,
-        ))
+        report_results.append(
+            run_report(
+                competencia=report_request.competencia,
+                capa_path=report_request.capa_path,
+                roms_dir=per_orgao_roms_dir,
+                output_path=output_path,
+                config_dir=_resolve_config_dir(report_request.config_dir, orgao),
+                expected_orgao=orgao,
+                is_final_month=report_request.is_final_month,
+                data_dir=report_request.data_dir,
+            )
+        )
     return exit_code_for_results(report_results)
 
 

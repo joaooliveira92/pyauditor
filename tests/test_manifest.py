@@ -70,7 +70,7 @@ def test_load_manifest_non_string_alias_raises(tmp_path: Path) -> None:
 
 def test_load_manifest_invalid_entry_raises(tmp_path: Path) -> None:
     load_manifest.cache_clear()
-    path = _write(tmp_path, "datasets:\n  telefonemas:\n    file: \"\"\n")
+    path = _write(tmp_path, 'datasets:\n  telefonemas:\n    file: ""\n')
 
     with pytest.raises(ValueError, match="invalid dataset entry"):
         load_manifest(path)

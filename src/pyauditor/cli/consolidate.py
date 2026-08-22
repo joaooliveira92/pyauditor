@@ -132,8 +132,12 @@ def run_consolidate(
     def _error(message: str) -> ConsolidateResult:
         logger.error(message)
         return ConsolidateResult(
-            status="error", competencia=competencia, output_path=output_path,
-            decisions_preserved=0, warnings=(), error_message=message,
+            status="error",
+            competencia=competencia,
+            output_path=output_path,
+            decisions_preserved=0,
+            warnings=(),
+            error_message=message,
         )
 
     competencia_error = validate_competencia(competencia)
@@ -187,9 +191,15 @@ def run_consolidate(
 
     try:
         result = build_consolidated_workbook(
-            competencia, minc, mtur, capa, existing_decisions,
-            valor_base=valor_base, itens=itens,
-            periodo=periodo, responsaveis=responsaveis,
+            competencia,
+            minc,
+            mtur,
+            capa,
+            existing_decisions,
+            valor_base=valor_base,
+            itens=itens,
+            periodo=periodo,
+            responsaveis=responsaveis,
         )
     except Exception as exc:  # boundary: never leak a raw traceback past the CLI
         return _error(f"falha inesperada ao montar consolidado de {competencia}: {exc}")
@@ -210,8 +220,12 @@ def run_consolidate(
         glosa="não calculada" if not result.glosa_calculada else f"{result.glosa_final:.2f}",
     )
     return ConsolidateResult(
-        status="done", competencia=competencia, output_path=output_path,
-        decisions_preserved=len(existing_decisions), warnings=tuple(warnings), error_message=None,
+        status="done",
+        competencia=competencia,
+        output_path=output_path,
+        decisions_preserved=len(existing_decisions),
+        warnings=tuple(warnings),
+        error_message=None,
         glosa_calculada=result.glosa_calculada,
         total_pontos=result.total_pontos,
     )

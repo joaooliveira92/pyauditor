@@ -4,6 +4,7 @@ All 4 shapes from docs/spec/inms-pipeline.md §2/§3 are modeled: `ratio`
 (ticket 02), `segmented_ratio` (ticket 04), `count_difference` (ticket 05),
 `external_catalog_sum` (ticket 06).
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Final, Literal, Self
@@ -93,9 +94,7 @@ class Source(BaseModel):
         has_dataset = self.dataset is not None
         has_csv = self.csv is not None
         if has_dataset == has_csv:
-            raise ValueError(
-                "source must specify exactly one of 'dataset' or 'csv'"
-            )
+            raise ValueError("source must specify exactly one of 'dataset' or 'csv'")
         return self
 
 
@@ -112,9 +111,7 @@ class InSetCheck(BaseModel):
     values: list[str] = Field(min_length=1)
 
 
-type QualityGateCheck = Annotated[
-    NotNullCheck | InSetCheck, Field(discriminator="type")
-]
+type QualityGateCheck = Annotated[NotNullCheck | InSetCheck, Field(discriminator="type")]
 
 
 class QualityGates(BaseModel):

@@ -83,9 +83,7 @@ def _require_numeric(summary: "IndicatorSummary", name: str, *, optional: bool =
     if optional and value is None:
         return
     if isinstance(value, bool) or not isinstance(value, int | float):
-        raise TypeError(
-            f"IndicatorSummary.{name} must be a number, got {type(value).__name__}"
-        )
+        raise TypeError(f"IndicatorSummary.{name} must be a number, got {type(value).__name__}")
     if not math.isfinite(float(value)):
         raise ValueError(
             f"IndicatorSummary.{name} não finito ({value!r}) — sidecar JSON com NaN/Infinity"

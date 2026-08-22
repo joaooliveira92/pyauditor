@@ -66,9 +66,7 @@ def test_precomputed_table_escapes_pipe_in_asset_name() -> None:
         conforms=True,
         penalty_points=0.0,
         memoria={
-            "categories": [
-                {"name": "WI-FI | forjado", "result_pct": 99.0, "penalty_points": 0.0}
-            ]
+            "categories": [{"name": "WI-FI | forjado", "result_pct": 99.0, "penalty_points": 0.0}]
         },
     )
 
@@ -82,7 +80,9 @@ def test_segmented_ratio_rejects_malformed_categories_shape() -> None:
     under `python -O`, turning a malformed `memoria` shape into a raw
     KeyError/TypeError further down instead of an actionable message."""
     calculation = CalculationResult(
-        result_pct=0.0, conforms=True, penalty_points=0.0,
+        result_pct=0.0,
+        conforms=True,
+        penalty_points=0.0,
         memoria={"categories": "not-a-list"},
     )
 

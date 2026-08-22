@@ -41,9 +41,21 @@ def test_collect_answers_returns_scripted_values() -> None:
 def test_collect_answers_reentries_on_declined_confirmation() -> None:
     provider = FakeInteractionProvider(
         answers=[
-            "2026-06", "MinC", "configs", "input", "roms", "reports", "input/capa.csv",
+            "2026-06",
+            "MinC",
+            "configs",
+            "input",
+            "roms",
+            "reports",
+            "input/capa.csv",
             False,  # first confirm: declined -> re-collect
-            "2026-07", "MTur", "configs", "input", "roms", "reports", "input/capa.csv",
+            "2026-07",
+            "MTur",
+            "configs",
+            "input",
+            "roms",
+            "reports",
+            "input/capa.csv",
             True,
         ]
     )
@@ -66,7 +78,13 @@ def test_cancel_during_collect_answers_exits_cleanly_without_raising() -> None:
 def test_cancel_at_final_confirm_exits_instead_of_looping() -> None:
     provider = FakeInteractionProvider(
         answers=[
-            "2026-06", "MinC", "configs", "input", "roms", "reports", "input/capa.csv",
+            "2026-06",
+            "MinC",
+            "configs",
+            "input",
+            "roms",
+            "reports",
+            "input/capa.csv",
             CANCEL,  # Ctrl+C at "Está correto?" — must exit, not loop as a fake "No"
         ]
     )
@@ -87,8 +105,15 @@ def test_select_commands_disables_consolidate_when_not_both_orgaos() -> None:
 def test_help_token_shows_help_and_reasks() -> None:
     provider = FakeInteractionProvider(
         answers=[
-            "?", "2026-06",  # competencia: help then real answer
-            "MinC", "configs", "input", "roms", "reports", "input/capa.csv", True,
+            "?",
+            "2026-06",  # competencia: help then real answer
+            "MinC",
+            "configs",
+            "input",
+            "roms",
+            "reports",
+            "input/capa.csv",
+            True,
         ]
     )
 
@@ -157,7 +182,14 @@ categorias:
 
     provider = FakeInteractionProvider(
         answers=[
-            "2026-06", "MinC", "configs", "input", "roms", "reports", "input/capa.csv", True,
+            "2026-06",
+            "MinC",
+            "configs",
+            "input",
+            "roms",
+            "reports",
+            "input/capa.csv",
+            True,
             ["bootstrap", "split", "measure", "report"],
         ]
     )

@@ -48,8 +48,14 @@ def test_cli_main_happy_path(tmp_path: Path) -> None:
     with patch("pyauditor.cli.main.run_measure", return_value=SimpleNamespace(status="done")) as m:
         code = cli_main(
             [
-                "measure", "2026-06",
-                "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out),
+                "measure",
+                "2026-06",
+                "--config-dir",
+                str(cfg),
+                "--data-dir",
+                str(data),
+                "--output-dir",
+                str(out),
             ]
         )
         assert code == 0
@@ -63,9 +69,7 @@ def test_cli_main_split_dispatches(tmp_path: Path) -> None:
     for p in (cfg, data):
         p.mkdir()
     with patch("pyauditor.cli.main.run_split", return_value=SimpleNamespace(status="done")) as m:
-        code = cli_main(
-            ["split", "2026-06", "--config-dir", str(cfg), "--data-dir", str(data)]
-        )
+        code = cli_main(["split", "2026-06", "--config-dir", str(cfg), "--data-dir", str(data)])
         assert code == 0
         assert m.call_args.kwargs["competencia"] == "2026-06"
         assert m.call_args.kwargs["config_dir"] == cfg / "MinC"
@@ -84,15 +88,19 @@ def test_cli_main_measure_dispatch_passes_equipe_periodo_strict(
     with patch("pyauditor.cli.main.run_measure", return_value=SimpleNamespace(status="done")) as m:
         code = cli_main(
             [
-                "measure", "2026-06",
-                "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out),
+                "measure",
+                "2026-06",
+                "--config-dir",
+                str(cfg),
+                "--data-dir",
+                str(data),
+                "--output-dir",
+                str(out),
             ]
         )
         assert code == 0
         assert m.call_args.kwargs["equipe_path"] == data / "equipe.csv"
-        assert m.call_args.kwargs["periodo"] == PeriodoAfericao(
-            date(2026, 6, 1), date(2026, 6, 30)
-        )
+        assert m.call_args.kwargs["periodo"] == PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
         assert m.call_args.kwargs["strict"] is False
 
 
@@ -103,8 +111,14 @@ def test_cli_main_measure_dispatch_strict_flag(tmp_path: Path) -> None:
     with patch("pyauditor.cli.main.run_measure", return_value=SimpleNamespace(status="done")) as m:
         code = cli_main(
             [
-                "measure", "2026-06",
-                "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out),
+                "measure",
+                "2026-06",
+                "--config-dir",
+                str(cfg),
+                "--data-dir",
+                str(data),
+                "--output-dir",
+                str(out),
                 "--strict",
             ]
         )
@@ -118,9 +132,7 @@ def test_cli_main_bootstrap_dispatches_with_capa_path(tmp_path: Path) -> None:
     with patch(
         "pyauditor.cli.main.run_bootstrap", return_value=SimpleNamespace(status="done")
     ) as m:
-        code = cli_main(
-            ["bootstrap", "--data-dir", str(data_dir), "--capa-path", str(capa_path)]
-        )
+        code = cli_main(["bootstrap", "--data-dir", str(data_dir), "--capa-path", str(capa_path)])
         assert code == 0
         assert m.call_args.args[0] == capa_path.parent / "capa_MinC.csv"
 
@@ -152,8 +164,14 @@ def test_cli_main_measure_writes_a_traceable_run_log(tmp_path: Path) -> None:
     with patch("pyauditor.cli.main.run_measure", side_effect=_fake_run):
         code = cli_main(
             [
-                "measure", "2026-06",
-                "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out),
+                "measure",
+                "2026-06",
+                "--config-dir",
+                str(cfg),
+                "--data-dir",
+                str(data),
+                "--output-dir",
+                str(out),
             ]
         )
 
@@ -204,17 +222,22 @@ def test_cli_main_unknown_exits_2() -> None:
 
 
 def test_cli_main_run_dispatches_to_run_run(tmp_path: Path) -> None:
-    cfg, data, out, reports = (
-        tmp_path / "c", tmp_path / "d", tmp_path / "o", tmp_path / "r"
-    )
+    cfg, data, out, reports = (tmp_path / "c", tmp_path / "d", tmp_path / "o", tmp_path / "r")
     for p in (cfg, data, out, reports):
         p.mkdir()
     with patch("pyauditor.cli.main.run_run", return_value=0) as m:
         code = cli_main(
             [
-                "run", "2026-06",
-                "--config-dir", str(cfg), "--data-dir", str(data),
-                "--output-dir", str(out), "--report-dir", str(reports),
+                "run",
+                "2026-06",
+                "--config-dir",
+                str(cfg),
+                "--data-dir",
+                str(data),
+                "--output-dir",
+                str(out),
+                "--report-dir",
+                str(reports),
             ]
         )
         assert code == 0
@@ -233,8 +256,14 @@ def test_dispatch_measure_is_callable_directly_without_argparse(tmp_path: Path) 
         p.mkdir()
     args = build_parser().parse_args(
         [
-            "measure", "2026-06",
-            "--config-dir", str(cfg), "--data-dir", str(data), "--output-dir", str(out),
+            "measure",
+            "2026-06",
+            "--config-dir",
+            str(cfg),
+            "--data-dir",
+            str(data),
+            "--output-dir",
+            str(out),
         ]
     )
     with patch("pyauditor.cli.main.run_measure", return_value=SimpleNamespace(status="done")) as m:

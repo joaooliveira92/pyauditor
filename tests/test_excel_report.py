@@ -132,17 +132,20 @@ def test_split_derived_summary_lands_on_its_own_categoria_tab() -> None:
     assert "INMS 1.01" not in n1_codes  # would be primary_group's first-listed tab
 
     base_sheet = workbook[INMS_BASE_SHEET]
-    grupos = {
-        base_sheet.cell(row=r, column=4).value for r in range(2, base_sheet.max_row + 1)
-    }
+    grupos = {base_sheet.cell(row=r, column=4).value for r in range(2, base_sheet.max_row + 1)}
     assert grupos == {"OPERACAO_N3", "ATENDIMENTO_N2"}
 
 
 def test_indicator_outside_group_tabs_only_appears_in_inms_base() -> None:
     summaries = [
         _summary(
-            "INMS-1.8", "INMS 1.8", shape="external_catalog_sum",
-            numerator=None, denominator=None, target_operator=None, target_value=None,
+            "INMS-1.8",
+            "INMS 1.8",
+            shape="external_catalog_sum",
+            numerator=None,
+            denominator=None,
+            target_operator=None,
+            target_value=None,
         )
     ]
 
@@ -184,7 +187,12 @@ def test_rows_sorted_numerically_not_lexicographically() -> None:
 
     codes = [sheet.cell(row=r, column=5).value for r in range(2, sheet.max_row + 1)]
     assert codes == [
-        "INMS 1.01", "INMS 1.02", "INMS 1.07", "INMS 1.11", "INMS 1.12", "INMS 1.13",
+        "INMS 1.01",
+        "INMS 1.02",
+        "INMS 1.07",
+        "INMS 1.11",
+        "INMS 1.12",
+        "INMS 1.13",
     ]
 
 
@@ -246,12 +254,20 @@ def test_inms_base_never_synthesizes_a_consolidado_row() -> None:
     # map) — pooling MinC+MTur lives in `consolidate` (excel/consolidate.py),
     # not here, even if a caller passes mixed-órgão summaries directly.
     minc = _summary(
-        "INMS-1.1-MINC", "INMS 1.1", orgao="MinC",
-        numerator=90, denominator=100, penalty_points=100.0,
+        "INMS-1.1-MINC",
+        "INMS 1.1",
+        orgao="MinC",
+        numerator=90,
+        denominator=100,
+        penalty_points=100.0,
     )
     mtur = _summary(
-        "INMS-1.1-MTUR", "INMS 1.1", orgao="MTur",
-        numerator=10, denominator=100, penalty_points=50.0,
+        "INMS-1.1-MTUR",
+        "INMS 1.1",
+        orgao="MTur",
+        numerator=10,
+        denominator=100,
+        penalty_points=50.0,
     )
 
     workbook = build_report_workbook("2026-06", [minc, mtur])
@@ -285,14 +301,16 @@ def test_cadastros_sheet_populated_from_configs() -> None:
     configs = [
         IndicatorConfig(
             indicator=Indicator(
-                id="INMS-1.1", contractual_id="INMS 1.1",
+                id="INMS-1.1",
+                contractual_id="INMS 1.1",
                 name="Incidentes atendidos dentro do prazo",
             ),
             scope=Scope(contract="40/2022"),
             source=Source(csv="inms-001-01.csv"),
             quality_gates=QualityGates(),
             calculation=RatioCalculation(
-                shape="ratio", aggregation="count_distinct",
+                shape="ratio",
+                aggregation="count_distinct",
                 numerator_filter=ColumnEquals(column="No prazo", equals="S"),
             ),
             target=Target(operator=">=", value=98.0),
@@ -300,7 +318,8 @@ def test_cadastros_sheet_populated_from_configs() -> None:
         ),
         IndicatorConfig(
             indicator=Indicator(
-                id="INMS-1.8", contractual_id="INMS 1.8",
+                id="INMS-1.8",
+                contractual_id="INMS 1.8",
                 name="Ocorrências de Desconformidade Técnica",
             ),
             scope=Scope(contract="40/2022"),
@@ -356,14 +375,16 @@ def test_evidencias_sheet_populated_from_configs() -> None:
     configs = [
         IndicatorConfig(
             indicator=Indicator(
-                id="INMS-1.1", contractual_id="INMS 1.1",
+                id="INMS-1.1",
+                contractual_id="INMS 1.1",
                 name="Incidentes atendidos dentro do prazo",
             ),
             scope=Scope(contract="40/2022"),
             source=Source(csv="inms-001-01.csv"),
             quality_gates=QualityGates(),
             calculation=RatioCalculation(
-                shape="ratio", aggregation="count_distinct",
+                shape="ratio",
+                aggregation="count_distinct",
                 numerator_filter=ColumnEquals(column="No prazo", equals="S"),
             ),
             target=Target(operator=">=", value=98.0),
@@ -371,7 +392,8 @@ def test_evidencias_sheet_populated_from_configs() -> None:
         ),
         IndicatorConfig(
             indicator=Indicator(
-                id="INMS-1.8", contractual_id="INMS 1.8",
+                id="INMS-1.8",
+                contractual_id="INMS 1.8",
                 name="Ocorrências de Desconformidade Técnica",
             ),
             scope=Scope(contract="40/2022"),
@@ -430,7 +452,8 @@ def test_evidencias_sheet_has_dropdown_validations() -> None:
             source=Source(csv="test.csv"),
             quality_gates=QualityGates(),
             calculation=RatioCalculation(
-                shape="ratio", aggregation="count_distinct",
+                shape="ratio",
+                aggregation="count_distinct",
                 numerator_filter=ColumnEquals(column="X", equals="S"),
             ),
             target=Target(operator=">=", value=98.0),

@@ -1,4 +1,4 @@
-﻿"""Multi-asset file discovery: a per-asset indicator like INMS 1.14 has
+"""Multi-asset file discovery: a per-asset indicator like INMS 1.14 has
 several independent YAML+CSV measurements (one per named service — File
 Server, WI-FI, etc.) sharing one `contractual_id`. `measure` must write each
 to its own ROM/JSON (no collision), and `report` must show one row per asset
@@ -99,4 +99,3 @@ def test_inms_base_and_group_tab_show_one_row_per_asset(tmp_path: Path) -> None:
     }
     assert results["File Server"] == pytest.approx(99.80)
     assert results["WI-FI"] == pytest.approx(98.90)
-
