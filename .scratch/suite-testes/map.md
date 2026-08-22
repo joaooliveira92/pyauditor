@@ -1,7 +1,7 @@
 # Mapa — Recuperação e evolução da suíte de testes do pyauditor
 
 Label: wayfinder:map
-Status: open
+Status: resolved
 
 ## Destination
 
@@ -32,6 +32,8 @@ A suíte de testes do pyauditor sai do vermelho (hoje: 33 falhas / 526 passam / 
 
 - [01 — Que regra do Ruff detecta concatenação implícita de strings?](issues/01-ruff-rule-strings.md) — **Usar a família `ISC` do Ruff como gate anti-costura** (ISC001/ISC002/ISC003, estáveis, sem preview, compatíveis com ruff>=0.12), com `allow-multiline = false` para capturar o padrão multilinha da regressão; formatter funde literais que cabem na linha (auto‑prote); sem driver custom em pytest (Ruff já cobre sintaxe, tem `--fix` e integração de formatter). Findings em `notes/ruff-rule-strings.md`.
 - [03 — Reparar as costuras de strings e deixar a suíte verde](issues/03-reparar-costuras.md) — **Suíte verde**: 559 passed / 34 skipped (era 16 failed / 543 passed), via 3 varreduras complementares (fronteira de concatenação + transição de caixa em literal já fundido + triagem de testes) — nenhum caso intencional de colagem sem espaço encontrado (`notes/casos-intencionais.md`); `ruff check`/`format --check` sem regressão frente ao baseline pré-existente.
+- [02 — Mecanismo do gate contra costura de strings](issues/02-mecanismo-anti-costura.md) — **Gate = `ISC001`+`ISC003` apenas** (sem `allow-multiline = false`): a recomendação do ticket 01 gerou 746 falsos positivos no código real (multi-linha é o estilo idiomático do repo, ex. `rom/render.py`); revertido para o subconjunto de linha única, que fica com 0 hits e sem `per-file-ignores`. `ruff check`/`format --check` inalterados frente ao baseline (18 erros/3 arquivos pré-existentes), suíte segue 559 passed / 34 skipped.
+- [04 — Operacionalizar o ciclo semanal](issues/04-operacionalizar-ciclo.md) — **Layout iniciado agora**: `.testing-progress/state.json` com baseline real (559/34/0/89.28%), `notes/testing-progress.md`, `scripts/assess_project.py`, e **workflow único** `.github/workflows/weekly-testing.yml` (não havia workflow de qualidade prévio do `migracao-ty` a coordenar). Cadeia completa roda já — mas `ty` (150 diag.) e `bandit` (3 findings) pré-existentes deixam o workflow vermelho de propósito; documentado em `known_risks`, não é sinal de regressão nova.
 
 ## Not yet specified
 

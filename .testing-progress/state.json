@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "project": "pyauditor",
+  "last_run": "2026-08-22T16:50:42Z",
+  "baseline": {
+    "tests": 559,
+    "branch_coverage_percent": 89.28,
+    "failures": 0,
+    "skipped": 34
+  },
+  "completed_objectives": [
+    "wayfinder suite-testes/03: reparo das ~90 costuras de string acidentais (regressão do refactor) — suite foi de 16 failed/543 passed para 559 passed/34 skipped.",
+    "wayfinder suite-testes/02: gate anti-regressão ISC001+ISC003 (concatenação implícita de linha única) no ruff.lint — 0 hits, sem per-file-ignores."
+  ],
+  "known_risks": [
+    "ty check reporta 150 diagnósticos pré-existentes (fora do escopo do reparo de costuras; ver mapa migracao-ty) — o workflow semanal vai ficar vermelho nisso até essa dívida ser tratada.",
+    "bandit -r src reporta 3 findings low/high-confidence pré-existentes (B404/B603/B607, uso de subprocess) — mesmo status: vermelho até tratado, fora de escopo.",
+    "34 skips não triados por causa.",
+    "Cobertura branch 89% acima do gate (85%), mas não auditada por risco — teto de sinal ainda não elevado (fog do mapa suite-testes)."
+  ],
+  "next_objective": "Triar os 34 skips e decidir, por risco, entre reativar, converter em xfail documentado ou remover cada um."
+}

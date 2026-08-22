@@ -79,7 +79,7 @@ extend-exclude = [".scratch", ".agents"]
 
 [tool.ruff.lint]
 preview = true
-extend-select = ["ANN", "PYI"]
+extend-select = ["ANN", "PYI", "ISC001", "ISC003"]
 select = [
     "E",
     "F",
@@ -95,6 +95,13 @@ select = [
 ]
 # Cláusulas do pyguide.md: §3.16 naming (N), §3.6 whitespace (W),
 # §3.10.1 logging (G), §2.4 sem assert em produção (S101).
+# ISC001/ISC003 (wayfinder suite-testes, ticket 02): gate contra costura de
+# strings adjacentes numa mesma linha, reintroduzindo o defeito acidental
+# reparado no ticket 03. ISC002 (multi-linha) fica de fora de propósito —
+# `allow-multiline = false` provou 746 falsos positivos no código real (o
+# repo constrói f-strings/tabelas Markdown deliberadamente em várias linhas,
+# ex. `rom/render.py`); o Ruff não tem opção "exigir espaço na junção", só
+# "proibir junção", então o rigor multi-linha não isola o defeito real.
 # pt-BR usa en-dash em intervalos ("01/06–30/06") — spec competencia-cli-equipe
 # §3 exige mensagens verbatim com ele.
 allowed-confusables = ["–"]
