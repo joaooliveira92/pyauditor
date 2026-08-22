@@ -46,7 +46,6 @@ from pyauditor.orchestration.run import (
     dependency_missing,
 )
 from pyauditor.orchestration.state import (
-    CommandState,
     CommandStateEntry,
 )
 from pyauditor.orchestration.summary_json import (
@@ -54,11 +53,15 @@ from pyauditor.orchestration.summary_json import (
     _consolidated_info,
     _duration_ms,
     _errors_count,
-    _orgaos_no_run,
     _organization_summary,
+    _orgaos_no_run,
     _result_for,
     _warnings_count,
     summary_json,
+)
+from pyauditor.state_presentation import (
+    STATE_PRESENTATION,
+    UNKNOWN_STATE_PRESENTATION,
 )
 
 __all__: Final[tuple[str, ...]] = (
@@ -72,19 +75,6 @@ __all__: Final[tuple[str, ...]] = (
 type OutputFormat = Literal["text", "json"]
 type CommandResult = (
     BootstrapResult | SplitResult | MeasureResult | ReportResult | ConsolidateResult
-)
-
-_STATE_PRESENTATION: Final[dict[CommandState, tuple[str, str]]] = {
-    "pending": ("[ ]", "dim"),
-    "running": ("[>]", "cyan"),
-    "done": ("[x]", "green"),
-    "skipped": ("[~]", "yellow"),
-    "error": ("[!]", "bold red"),
-}
-
-_UNKNOWN_STATE_PRESENTATION: Final[tuple[str, str]] = (
-    "[?]",
-    "bold red",
 )
 
 _VALID_OUTPUT_FORMATS: Final[frozenset[str]] = frozenset(
@@ -420,9 +410,9 @@ def _command_table(run_result: RunResult) -> Table:
     table.add_column("Artefatos / avisos")
 
     for entry in run_result.state.commands:
-        icon, style = _STATE_PRESENTATION.get(
+        icon, style = STATE_PRESENTATION.get(
             entry.status,
-            _UNKNOWN_STATE_PRESENTATION,
+            UNKNOWN_STATE_PRESENTATION,
         )
         result = _result_for(
             command=entry.command,

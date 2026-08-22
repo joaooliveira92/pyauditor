@@ -36,6 +36,7 @@ __all__: Final[tuple[str, ...]] = (
     "RunState",
     "RunStateCorrupted",
     "load_state",
+    "parse_iso_timestamp",
     "reset_stale_running",
     "save_state",
     "state_path",
@@ -546,7 +547,20 @@ def _parse_optional_timestamp(
         return None
 
     _validate_non_empty_string(value, field=field)
+    return parse_iso_timestamp(value, field=field)
 
+
+def parse_iso_timestamp(
+    value: str,
+    *,
+    field: str,
+) -> datetime:
+    """Parse a timezone-aware ISO 8601 timestamp (canonical helper).
+
+    Fonte única da normalização do sufixo ``Z`` e da validação de offset
+    explícito — reusada por `_parse_optional_timestamp` (state) e pelo resumo
+    JSON (`summary_json`), que antes duplicavam a lógica (ticket 06 SRP).
+    """
     normalized = f"{value[:-1]}+00:00" if value.endswith("Z") else value
 
     try:

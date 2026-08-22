@@ -5,7 +5,6 @@ SRP). `summary.py` consome o schema via `summary_json()` e renderiza.
 
 from __future__ import annotations
 
-import json
 from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
@@ -19,6 +18,7 @@ from pyauditor.cli.report import ReportResult
 from pyauditor.cli.results import exit_code_name
 from pyauditor.cli.split import SplitResult
 from pyauditor.orchestration.run import RunResult
+from pyauditor.orchestration.state import parse_iso_timestamp
 
 __all__: Final[tuple[str, ...]] = (
     "CompletionSummaryJson",
@@ -290,17 +290,7 @@ def parse_run_timestamp(
     field: str,
 ) -> datetime:
     """Parse a timezone-aware ISO 8601 run timestamp."""
-    normalized = f"{value[:-1]}+00:00" if value.endswith("Z") else value
-
-    try:
-        timestamp = datetime.fromisoformat(normalized)
-    except ValueError as exc:
-        raise ValueError(f"{field} must be a valid ISO 8601 timestamp") from exc
-
-    if timestamp.tzinfo is None or timestamp.utcoffset() is None:
-        raise ValueError(f"{field} must include an explicit UTC offset")
-
-    return timestamp
+    return parse_iso_timestamp(value, field=field)
 
 
 def _duration_ms(run_result: RunResult) -> int | None:
