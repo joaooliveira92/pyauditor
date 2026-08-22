@@ -8,7 +8,21 @@
 
 **Status:** ready-for-agent
 
-- [ ] `measurement_source()` existe em `engine` e encapsula resolve→valida→lê→filtra→gates.
-- [ ] `SourceBundle` expõe config, csv_path, fieldnames, rows pós-filtro, gate_report, accepted_ids e os descartes (fora-de-período e sem data).
-- [ ] `engine.measure` usa o backbone e mantém comportamento idêntico (mesmo `MeasurementResult`, mesmas mensagens de WARN/INFO de janela vazia e descarte) — suíte do engine verde.
-- [ ] Backbone coberto por testes próprios (resolve, filtro de período, gates, validação de colunas).
+- [x] `measurement_source()` existe em `engine` e encapsula resolve→valida→lê→filtra→gates.
+- [x] `SourceBundle` expõe config, csv_path, fieldnames, rows pós-filtro, gate_report, accepted_ids e os descartes (fora-de-período e sem data).
+- [x] `engine.measure` usa o backbone e mantém comportamento idêntico (mesmo `MeasurementResult`, mesmas mensagens de WARN/INFO de janela vazia e descarte) — suíte do engine verde.
+- [x] Backbone coberto por testes próprios (resolve, filtro de período, gates, validação de colunas).
+
+## Comments
+
+- 2026-08-22 — Implementado. `measurement_source()`/`SourceBundle` em
+  `engine/pipeline.py`; `measure()` virou thin-orchestrator. A leitura usa
+  `categoria_filter.read_raw_csv` (não `load_rows`) para herdar a
+  normalização do alias `"Grupo executor"` -> `"Grupo_executor"` que
+  `split`/`sintetico`/`cli.measure` já aplicavam cada um a seu jeito —
+  necessário para as migrações 03-05 não mudarem de comportamento.
+  `emit_empty_window_warning` (default `True`) existe desde já para o
+  ticket 05 poder suprimir o WARN duplicado quando `run` já rodou `split`
+  na mesma passada. Testes: `tests/test_measurement_source.py`. Suíte
+  completa: mesmos 66 failures pré-existentes antes/depois (confirmado via
+  `git stash`), nenhuma regressão.
