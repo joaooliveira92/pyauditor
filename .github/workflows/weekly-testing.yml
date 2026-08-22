@@ -1,5 +1,11 @@
 name: Weekly testing assessment
 
+# Ciclo semanal de saúde do repo. Se o ciclo falhar, um issue é criado no
+# tracker (ticket 05) — o token deste workflow tem escopo mínimo
+# (`issues: write` + `contents: read`), nada além do necessário.
+#
+# Actions pinadas por SHA (ticket 03): a tag de release fica no comentário.
+
 on:
   schedule:
     - cron: '17 12 * * 1'
@@ -7,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: weekly-testing-${{ github.ref }}
@@ -19,13 +26,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           enable-cache: true
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - name: Verify lockfile
@@ -43,7 +50,8 @@ jobs:
         # `uvx` na versão pinada que mediu o baseline (ticket 06).
         run: uvx ty@0.0.73 check src tests
       - name: Tests and branch coverage
-        run: uv run --locked pytest --cov=pyauditor --cov-branch --cov-report=term-missing --cov-report=xml --junitxml=junit.xml --durations=20
+        # Gate de cobertura explícito (ticket 05): `--cov-fail-under=85`.
+        run: uv run --locked pytest --cov=pyauditor --cov-branch --cov-report=term-missing --cov-report=xml --junitxml=junit.xml --durations=20 --cov-fail-under=85
       - name: Security checks
         run: |
           set -euo pipefail
@@ -54,7 +62,7 @@ jobs:
         run: python scripts/assess_project.py --output weekly-testing-assessment.json
       - name: Upload assessment
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: weekly-testing-assessment-${{ github.run_id }}
           path: |
@@ -63,3 +71,18 @@ jobs:
             junit.xml
           if-no-files-found: warn
           retention-days: 30
+      - name: Create issue on failure
+        # Falha do ciclo semanal vira issue no tracker (ticket 05), com
+        # contexto suficiente para diagnóstico (workflow, job e run id).
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "Falha no ciclo semanal de testes (run ${{ github.run_id }})" \
+            --body "Workflow: ${{ github.workflow }}
+          Job: ${{ github.job }}
+          Run: ${{ github.run_id }}
+          URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          O ciclo semanal de qualidade (ruff + ty + pytest + segurança) falhou. Ver o run acima para detalhes do passo que quebrou."

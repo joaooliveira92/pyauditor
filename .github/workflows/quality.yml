@@ -1,20 +1,28 @@
 name: Quality gates
 
 # Wf de qualidade do repo (ty + ruff + pytest), rodando no push/PR.
-# É um workflow novo, que soma aos de deploy existentes (docs.yml, static.yml)
-# — estes não são alterados por esta migração (wayfinder migracao-ty, ticket 06).
+# Fluxo dev -> master (wayfinder pipeline-maturidade, ticket 02): o CI roda em
+# push para `dev` e `master` (e `main`) e em toda PR.
+#
+# Matriz Python 3.12/3.13 (ticket 06) com `fail-fast: false` — uma versão
+# quebrar não cancela a outra. Cada entrada da matriz publica o check
+# "Quality (x.y)"; o job agregado `quality-gates` publica o check único
+# "Quality gates" que a branch protection exige (dev e master).
 #
 # o `ty` NÃO é dependência do projeto (decisão Q1/A do wayfinder: instalado
 # globalmente via `uv tool install ty@latest`), então o CI o resolve via
 # `uvx ty@0.0.73` — pinado na versão que mediu o baseline. O default
 # `terminal.error-on-warning = true` do ty faz qualquer warning falhar o gate
 # (é o "strict do ty" decidido no ticket 03 — sem tolerância).
+#
+# Actions pinadas por SHA (ticket 03): a tag de release fica no comentário.
 
 on:
   push:
     branches:
       - master
       - main
+      - dev
   pull_request:
 
 permissions:
@@ -26,20 +34,24 @@ concurrency:
 
 jobs:
   quality:
-    name: Quality gates
+    name: Quality (${{ matrix.python-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13']
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           enable-cache: true
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
       - name: Verify lockfile
         run: uv lock --check
       - name: Synchronize environment
@@ -52,4 +64,22 @@ jobs:
       - name: Type check (ty, pinado)
         run: uvx ty@0.0.73 check src tests
       - name: Tests and branch coverage
-        run: uv run --locked pytest
+        # Gate de cobertura explícito (ticket 05): `--cov-fail-under=85` no
+        # comando, não só no `[tool.coverage.report]` do pyproject.
+        run: uv run --locked pytest --cov-fail-under=85
+
+  quality-gates:
+    name: Quality gates
+    if: always()
+    needs: [quality]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Aggregate quality result
+        run: |
+          if [ "${{ needs.quality.result }}" = "success" ]; then
+            echo "Todas as verificações de qualidade passaram (3.12 e 3.13)."
+          else
+            echo "::error::Quality gates falhou em pelo menos uma versão do Python."
+            exit 1
+          fi

@@ -1,0 +1,21 @@
+# Supply-chain (ticket 03): Dependabot mantém actions pinadas por SHA e o
+# lockfile do uv atualizados. Cada atualização chega como PR e passa pelo gate
+# de qualidade ("Quality gates") antes de entrar em `dev`/`master`.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    commit-message:
+      prefix: ci
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    commit-message:
+      prefix: deps
