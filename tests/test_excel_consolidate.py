@@ -107,7 +107,7 @@ def test_inms_base_row_shared_rule_honors_operator_direction() -> None:
     assert row.diferenca == pytest.approx(0.5)  # 2.5 - 2.0, sentido invertido
     assert row.conformidade == ("Conforme" if resumo.conforms else "Não conforme")
     assert compliance_margin(97.5, 98.0, ">=") == pytest.approx(0.5)
-    with pytest.raises(ValueError, match="Unsupported target operator"):
+    with pytest.raises(ValueError, match="operador de meta insuportado"):
         compliance_margin(97.5, 98.0, "??")
 
 

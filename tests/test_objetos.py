@@ -40,14 +40,14 @@ def test_rejects_non_numeric_item_index(tmp_path: Path) -> None:
     body = OBJETOS_CSV.replace("\n1,", "\nX,", 1)
     path = _write(tmp_path / "objetos.csv", body)
 
-    with pytest.raises(ValueError, match="positive ASCII integer"):
+    with pytest.raises(ValueError, match="inteiro ASCII positivo"):
         read_objetos(path)
 
 
 def test_rejects_wrong_header(tmp_path: Path) -> None:
     path = _write(tmp_path / "objetos.csv", "a,b,c\n1,2,3\n")
 
-    with pytest.raises(ValueError, match="invalid header"):
+    with pytest.raises(ValueError, match="cabeçalho inválido"):
         read_objetos(path)
 
 
@@ -67,7 +67,7 @@ def test_rejects_empty_item_value(tmp_path: Path) -> None:
     body = OBJETOS_CSV.replace('1,Central de Serviços,"R$ 148.205,54"', "1,Central de Serviços,")
     path = _write(tmp_path / "objetos.csv", body)
 
-    with pytest.raises(ValueError, match="must not be empty"):
+    with pytest.raises(ValueError, match="não pode ser vazio"):
         read_objetos(path)
 
 
@@ -77,5 +77,5 @@ def test_rejects_negative_item_value(tmp_path: Path) -> None:
     )
     path = _write(tmp_path / "objetos.csv", body)
 
-    with pytest.raises(ValueError, match="invalid Valor"):
+    with pytest.raises(ValueError, match="Valor inválido"):
         read_objetos(path)

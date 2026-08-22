@@ -36,3 +36,11 @@ documentada no backbone (1x por dataset bruto).
   ausente do header → hard-failure em todas as categorias derivadas;
   avisos `in_values`/`outros` emitidos apenas quando `split` ainda não
   cross-checkou os mesmos `real_values` (dedup ticket 11). Suíte completa verde.
+
+- 2026-08-22 (code-review) — Fechado o gap do critério 4 no caminho single:
+  `engine.pipeline.measure` ganhou o parâmetro `emit_period_filter_logs`
+  (default `True`, aditivo) e o repassa ao backbone; o caminho single de
+  `run_measure` passa `not already_split`, então `run` (split+measure na mesma
+  passada) não duplica o WARN de janela vazia para INMS whole_indicator —
+  antes só o caminho em-memória suprimia. Coberto por
+  `test_run_measure_single_path_{warns,suppresses}_empty_window_when_(already_)split`.

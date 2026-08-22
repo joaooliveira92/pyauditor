@@ -239,33 +239,33 @@ def _validate_request(request: RunRequest) -> PeriodoAfericao:
             or if the competence cannot be parsed.
     """
     if not isinstance(request, RunRequest):
-        raise TypeError(f"request must be RunRequest, received {type(request).__name__}")
+        raise TypeError(f"request deve ser RunRequest, recebido {type(request).__name__}")
 
     if request.orgao not in _SUPPORTED_ORGAO_SELECTORS:
         raise ValueError(
-            "orgao must be one of "
+            "orgao deve ser um de "
             f"{sorted(_SUPPORTED_ORGAO_SELECTORS)!r}, "
-            f"received {request.orgao!r}"
+            f"recebido {request.orgao!r}"
         )
 
     if not isinstance(request.commands, frozenset):
-        raise TypeError("commands must be a frozenset")
+        raise TypeError("commands deve ser um frozenset")
 
     if not isinstance(request.force_commands, frozenset):
-        raise TypeError("force_commands must be a frozenset")
+        raise TypeError("force_commands deve ser um frozenset")
 
     unknown_commands = request.commands - _ALL_COMMANDS
     if unknown_commands:
-        raise ValueError(f"commands contains unsupported values: {sorted(unknown_commands)!r}")
+        raise ValueError(f"commands contém valores não suportados: {sorted(unknown_commands)!r}")
 
     unknown_forced_commands = request.force_commands - _ALL_COMMANDS
     if unknown_forced_commands:
         raise ValueError(
-            f"force_commands contains unsupported values: {sorted(unknown_forced_commands)!r}"
+            f"force_commands contém valores não suportados: {sorted(unknown_forced_commands)!r}"
         )
 
     if not request.competencia.strip():
-        raise ValueError("competencia must not be empty")
+        raise ValueError("competencia não pode ser vazio")
 
     return month_bounds(request.competencia)
 

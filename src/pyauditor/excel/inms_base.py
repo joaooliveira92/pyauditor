@@ -22,16 +22,13 @@ __all__: Final[tuple[str, ...]] = ("InmsRowFields", "compliance_margin", "inms_b
 
 
 def compliance_margin(result: float, target: float | None, operator: str | None) -> float | None:
-    """Distance from the target boundary — positive in the noncompliant
-    direction, how far the result must move to reach the target (from
-    `excel/report.py`, now the single rule shared with consolidate).
+    """Distância até a fronteira da meta — positiva no sentido da não
+    conformidade (quanto o resultado precisa andar para alcançar a meta).
+    Regra única vinda de `excel/report.py`, agora compartilhada com o
+    consolidate (ticket 08).
 
-    Returns:
-        The target distance, or ``None`` when no target is configured.
-
-    Raises:
-        ValueError: If a target exists but its operator is missing or
-            unsupported.
+    Retorna ``None`` quando não há meta configurada. Com meta mas operador
+    ausente/insuportado, levanta ``ValueError``.
     """
     if target is None:
         return None
@@ -45,7 +42,7 @@ def compliance_margin(result: float, target: float | None, operator: str | None)
     if operator in {"=", "=="}:
         return abs(result - target)
 
-    raise ValueError(f"Unsupported target operator for compliance margin: {operator!r}.")
+    raise ValueError(f"operador de meta insuportado para margem de conformidade: {operator!r}.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,11 +71,11 @@ def inms_base_fields(
     *,
     grupo_operacional: str | None,
 ) -> InmsRowFields:
-    """Compute the shared `INMS_BASE` row values for one `IndicatorSummary`.
+    """Valores da linha `INMS_BASE` para um `IndicatorSummary` (regra única).
 
     ``grupo_operacional`` é renderer-specific (report o computa por categoria,
     consolidate usa `None`) e fica como parâmetro para a regra ser de fato uma
-    função única; o restante dos campos é derivado aquí.
+    função única; o restante dos campos é derivado aqui.
     """
     margin = compliance_margin(summary.result_pct, summary.target_value, summary.target_operator)
     return InmsRowFields(

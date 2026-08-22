@@ -134,13 +134,13 @@ def run_measure(
     collect: list[_MeasuredIndicator] | None = None,
     already_split: bool = False,
 ) -> MeasureResult:
-    """*already_split* (ticket 05): `True` when `split` already ran for this
-    exact competência/órgão earlier in the same `run` (orchestration always
-    dispatches split before measure) — the categorical in-memory path then
-    suppresses its own empty-window WARN/discard INFO, since `split` already
-    logged them for the same raw dataset. Standalone `pyauditor measure`
-    (default `False`) gets the WARN/INFO here — previously this path never
-    emitted them at all, unlike the single/whole_indicator path below."""
+    """*already_split* (ticket 05): `True` quando `split` já rodou para esta
+    competência/órgão na mesma passada de `run` (o orchestration sempre despacha
+    `split` antes de `measure`) — o caminho categorial em memória então suprime
+    o próprio WARN de janela vazia e o INFO de descarte, já que `split` os logou
+    para o mesmo dataset bruto. `pyauditor measure` isolado (default `False`)
+    recebe o WARN/INFO aqui — antes este caminho nunca os emitia, ao contrário
+    do caminho single (whole_indicator) abaixo."""
     orgao = expected_orgao or ""
 
     def _error(message: str) -> MeasureResult:
@@ -568,6 +568,7 @@ def run_measure(
                 config_hash=config_hash,
                 periodo=periodo,
                 strict=strict,
+                emit_period_filter_logs=not already_split,
             )
         except FileNotFoundError:
             _orgao_warn = getattr(getattr(config, "scope", None), "orgao", orgao)

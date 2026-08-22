@@ -462,3 +462,81 @@ def test_run_measure_already_split_dedups_in_values_e_outros_warning(tmp_path: P
     assert measure_result.status == "done"
     said = output.count("sem correspondência")
     assert said == 1  # split emitiu; measure (already_split) não duplica
+
+
+def _write_whole_indicator_empty_window(tmp_path: Path) -> tuple[Path, Path, Path]:
+    config_dir = tmp_path / "configs"
+    data_dir = tmp_path / "input"
+    output_dir = tmp_path / "roms"
+    _write_config_and_data(
+        config_dir,
+        data_dir,
+        "Nº Solicitacao;DataHoraFim;No prazo\n1;20/05/2026 10:00;S\n",
+    )
+    return config_dir, data_dir, output_dir
+
+
+def test_run_measure_single_path_warns_empty_window_when_standalone(tmp_path: Path) -> None:
+    """Ticket 05 — o caminho single (whole_indicator) mantém o WARN de janela
+    vazia no `pyauditor measure` isolado (`already_split=False`)."""
+    import sys
+    from datetime import date
+    from io import StringIO
+
+    from pyauditor.logging import setup_logging
+    from pyauditor.periodo import PeriodoAfericao
+
+    config_dir, data_dir, output_dir = _write_whole_indicator_empty_window(tmp_path)
+    periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
+    buf = StringIO()
+    setup_logging(sink=buf, level="INFO")
+
+    try:
+        result = run_measure(
+            "2026-06",
+            config_dir,
+            data_dir,
+            output_dir,
+            expected_orgao="MinC",
+            periodo=periodo,
+        )
+    finally:
+        setup_logging(sink=sys.stderr, level="INFO")
+
+    assert result.status == "done"
+    assert "nenhuma linha no período" in buf.getvalue()
+
+
+def test_run_measure_single_path_suppresses_empty_window_warn_when_already_split(
+    tmp_path: Path,
+) -> None:
+    """Ticket 05 — `already_split=True` (dispatch de `run`) também suprime o
+    WARN de janela vazia do caminho single (whole_indicator): `split` já o
+    logou para o mesmo dataset bruto na mesma passada."""
+    import sys
+    from datetime import date
+    from io import StringIO
+
+    from pyauditor.logging import setup_logging
+    from pyauditor.periodo import PeriodoAfericao
+
+    config_dir, data_dir, output_dir = _write_whole_indicator_empty_window(tmp_path)
+    periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
+    buf = StringIO()
+    setup_logging(sink=buf, level="INFO")
+
+    try:
+        result = run_measure(
+            "2026-06",
+            config_dir,
+            data_dir,
+            output_dir,
+            expected_orgao="MinC",
+            periodo=periodo,
+            already_split=True,
+        )
+    finally:
+        setup_logging(sink=sys.stderr, level="INFO")
+
+    assert result.status == "done"
+    assert "nenhuma linha no período" not in buf.getvalue()

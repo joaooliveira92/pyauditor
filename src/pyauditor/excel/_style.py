@@ -101,23 +101,23 @@ def new_sheet(
         count even when the file ends a row with an empty cell.
     """
     if not name.strip():
-        raise ValueError("Worksheet name must not be empty.")
+        raise ValueError("Nome da planilha não pode ser vazio.")
 
     if name in workbook.sheetnames:
-        raise ValueError(f"Worksheet already exists: {name!r}.")
+        raise ValueError(f"Planilha já existe: {name!r}.")
 
     if not columns:
-        raise ValueError("Worksheet must declare at least one column.")
+        raise ValueError("Planilha deve declarar pelo menos uma coluna.")
 
     meaningful_columns = list(columns)
     while meaningful_columns and not meaningful_columns[-1].strip():
         meaningful_columns.pop()
 
     if not meaningful_columns or any(not column.strip() for column in meaningful_columns):
-        raise ValueError("Worksheet column headings must not be empty.")
+        raise ValueError("Cabeçalhos de coluna da planilha não podem ser vazios.")
 
     if isinstance(width, bool) or width <= 0:
-        raise ValueError("Worksheet column width must be a positive integer.")
+        raise ValueError("Largura de coluna da planilha deve ser um inteiro positivo.")
 
     sheet: Worksheet = workbook.create_sheet(title=name)
     sheet.sheet_view.showGridLines = False
@@ -162,14 +162,14 @@ def write_row(
             count.
     """
     if isinstance(row_idx, bool) or row_idx < 2:
-        raise ValueError("Body row index must be an integer greater than 1.")
+        raise ValueError("Índice de linha do corpo deve ser um inteiro maior que 1.")
 
     if expected_columns is None:
         expected_columns = sheet.max_column
     if len(values) != expected_columns:
         raise ValueError(
-            "Row value count does not match the worksheet schema: "
-            f"expected {expected_columns}, received {len(values)}."
+            "Quantidade de valores não confere com o esquema da planilha: "
+            f"esperado {expected_columns}, recebido {len(values)}."
         )
 
     for column_index, value in enumerate(values, start=1):

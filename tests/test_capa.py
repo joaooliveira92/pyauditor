@@ -93,7 +93,7 @@ def test_parse_brl_value_accepts_ptbr_and_machine_shapes() -> None:
 
 
 def test_parse_brl_value_rejects_garbage() -> None:
-    with pytest.raises(ValueError, match="Invalid monetary value"):
+    with pytest.raises(ValueError, match="valor monetário inválido"):
         parse_brl_value("abc")
 
 

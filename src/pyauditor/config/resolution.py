@@ -1,20 +1,18 @@
-"""Resolve configuration directories and dataset manifests consistently.
+"""Resolução canônica de diretórios de configuração e manifest de datasets,
+compartilhada por todos os pontos de entrada da aplicação (ticket 01).
 
-This module provides the canonical resolution strategy shared by all
-application entry points.
+A precedência segue o ADR 0003:
 
-Resolution follows ADR 0003:
+1. Usa ``<base>/_shared`` quando existir como diretório.
+2. Senão, usa ``<base>/<orgao>``.
+3. Resolve ``datasets.yaml`` a partir do diretório de configuração escolhido.
 
-1. Use ``<base>/_shared`` when it exists as a directory.
-2. Otherwise, use ``<base>/<orgao>``.
-3. Resolve ``datasets.yaml`` from the selected configuration directory.
+Centralizar esta lógica num módulo impede que comandos escolham raízes de
+configuração diferentes para o mesmo órgão.
 
-Keeping this logic in one module prevents commands from selecting configuration
-files from different roots for the same organization.
-
-It also owns the per-órgão expansion (ticket 12): `cli/main.py` e
+O módulo também é dono da expansão per-órgão (ticket 12): `cli/main.py` e
 `orchestration/run.py` derivam os caminhos por órgão de uma única fonte
-(`per_orgao_paths`) em vez de cada um reimplementar a expansão com sémântica
+(`per_orgao_paths`) em vez de cada um reimplementar a expansão com semântica
 própria.
 """
 
@@ -39,19 +37,10 @@ _SHARED_DIRNAME: Final[str] = "_shared"
 
 
 def resolve_config_dir(base: Path, orgao: str) -> Path:
-    """Resolve the canonical configuration directory for an organization.
+    """Diretório de configuração canônico de um órgão.
 
-    The shared configuration directory takes precedence when it exists.
-    Otherwise, the organization-specific directory is returned. The returned
-    fallback path is not required to exist.
-
-    Args:
-        base: Root directory containing shared and organization configurations.
-        orgao: Organization directory name used when no shared directory exists.
-
-    Returns:
-        The shared configuration directory or the organization-specific
-        fallback path.
+    O diretório compartilhado tem precedência quando existe; senão, devolve o
+    diretório do órgão. O caminho de fallback não precisa existir.
     """
     shared = base / _SHARED_DIRNAME
     if shared.is_dir():
@@ -60,35 +49,20 @@ def resolve_config_dir(base: Path, orgao: str) -> Path:
 
 
 def resolve_manifest_path(base: Path, orgao: str) -> Path:
-    """Resolve the dataset manifest path for an organization.
+    """Caminho do manifest de datasets de um órgão.
 
-    The manifest path is derived from the canonical configuration directory so
-    that all entry points use the same configuration root.
-
-    Args:
-        base: Root directory containing configuration directories.
-        orgao: Organization directory name used when no shared directory exists.
-
-    Returns:
-        The expected path to the canonical ``datasets.yaml`` file.
+    Derivado do diretório de configuração canônico, para todos os pontos de
+    entrada usarem a mesma raiz de configuração.
     """
     return resolve_config_dir(base, orgao) / _MANIFEST_FILENAME
 
 
 def load_manifest_for(base: Path, orgao: str) -> DatasetManifest | None:
-    """Load the canonical dataset manifest for an organization.
+    """Carrega o manifest canônico de datasets de um órgão.
 
-    Args:
-        base: Root directory containing configuration directories.
-        orgao: Organization directory name used when no shared directory exists.
-
-    Returns:
-        The loaded dataset manifest, or ``None`` when the resolved manifest is
-        not a regular file.
-
-    Raises:
-        Exception: Propagates errors raised by ``load_manifest`` when the file
-            cannot be read, parsed, or validated.
+    Devolve ``None`` quando o manifest resolvido não é um arquivo regular.
+    Propaga os erros de ``load_manifest`` quando o arquivo não pode ser lido,
+    parseado ou validado.
     """
     path = resolve_manifest_path(base, orgao)
     if not path.is_file():

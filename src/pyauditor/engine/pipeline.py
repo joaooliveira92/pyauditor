@@ -450,6 +450,7 @@ def measure(
     config_hash: str | None = None,
     periodo: PeriodoAfericao | None = None,
     strict: bool = False,
+    emit_period_filter_logs: bool = True,
 ) -> MeasurementResult:
     """*config_path*/*config_hash* (the YAML this *config* was loaded from,
     and its content hash) are optional — callers that only have a
@@ -461,6 +462,11 @@ def measure(
     reusing the text it already read, so this fallback only fires for direct
     callers that skip `discover_config_files`.
 
+    *emit_period_filter_logs* repassa a decisão do backbone (ticket 05): o
+    chamador que já sabe que `split` logou o WARN de janela vazia e o INFO de
+    descarte para o mesmo dataset bruto na mesma passada de `run` passa
+    `False` para não emitir de novo.
+
     Thin orchestrator (ticket 02) over `measurement_source()`: calcula e monta
     a proveniência; a resolução/leitura/filtro/gates vivem só no backbone."""
     bundle = measurement_source(
@@ -470,6 +476,7 @@ def measure(
         config_path=config_path,
         periodo=periodo,
         strict=strict,
+        emit_period_filter_logs=emit_period_filter_logs,
     )
 
     strategy = SHAPE_REGISTRY[config.calculation.shape]

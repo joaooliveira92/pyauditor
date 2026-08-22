@@ -1,32 +1,30 @@
-"""Read contractual monthly values from ``input/objetos.csv``.
+"""Valores contratuais mensais lidos de ``input/objetos.csv``.
 
-The file is the canonical monetary source for contractual items and must use
-the following exact schema:
+O arquivo é a fonte monetária canônica dos itens contratuais e usa
+exatamente o esquema:
 
     Item,Categoria,Valor
 
-Each row represents one contractual item:
+Cada linha representa um item contratual:
 
-- ``Item`` is a positive, contiguous, one-based integer;
-- ``Categoria`` is a non-empty descriptive value;
-- ``Valor`` is the contractual monthly value.
+- ``Item`` é um inteiro positivo, contíguo e começando em 1;
+- ``Categoria`` é um valor descritivo não vazio;
+- ``Valor`` é o valor mensal do item.
 
-Monetary values may use Brazilian currency notation, such as
-``R$ 148.205,54``, or plain machine notation, such as ``148205.54``.
-Brazilian thousands separators are optional, but decimal values must contain
-exactly two fractional digits.
+Valores monetários podem usar notação brasileira, como ``R$ 148.205,54``,
+ou notação de máquina, como ``148205.54``. Separadores de milhar
+brasileiros são opcionais, mas valores decimais devem ter exatamente duas
+casas.
 
-Values are represented with :class:`decimal.Decimal` to avoid binary
-floating-point errors in contractual totals. The monthly total is the exact
-sum of all item values. The annual total is the monthly total multiplied by
-twelve.
+Os valores são representados com :class:`decimal.Decimal` para evitar erros
+de ponto flutuante binário nos totais contratuais. O total mensal é a soma
+exata de todos os itens; o total anual é o mensal multiplicado por doze.
 
-The file contains no separate summary row. Therefore, there is no
-fiscal-declared total to reconcile against the calculated totals.
+O arquivo não carrega linha de resumo. Por isso não há total declarado
+pelo fiscal para reconciliar contra os totais calculados.
 
-A missing file is not handled here. ``FileNotFoundError`` propagates so the
-caller can decide whether the absence represents incomplete input or a fatal
-condition.
+Arquivo ausente não é tratado aqui: ``FileNotFoundError`` propaga para o
+chamador decidir se a ausência é entrada incompleta ou condição fatal.
 """
 
 from __future__ import annotations
@@ -94,16 +92,14 @@ _MACHINE_MONEY_RE: Final[re.Pattern[str]] = re.compile(
 
 @dataclass(frozen=True, slots=True)
 class Objetos:
-    """Represent validated contractual item values and derived totals.
+    """Valores contratuais validados e totais derivados.
 
-    Attributes:
-        itens: Monthly values ordered by their one-based contractual item
-            index. Position zero corresponds to contractual item 1.
-        total_mensal: Exact sum of all monthly item values.
-        total_anual: Monthly total multiplied by twelve.
-        warnings: Non-fatal diagnostics produced while reading the file.
-            The current strict parser does not emit warnings, but the field is
-            retained as part of the established result contract.
+    ``itens`` ordena os valores mensais pelo índice contratual de 1..N
+    (posição zero corresponde ao item contratual 1). ``total_mensal`` é a
+    soma exata dos itens; ``total_anual`` é o mensal multiplicado por doze.
+    ``warnings`` reserva diagnósticos não fatais da leitura — o parser
+    estrito atual não emite warnings, mas o campo permanece por contrato de
+    resultado.
     """
 
     itens: tuple[Decimal, ...]
@@ -113,39 +109,19 @@ class Objetos:
 
 
 def parse_brl_value(text: str) -> Decimal:
-    """Parse a supported monetary value into an exact decimal.
+    """Converte um valor monetário suportado em ``Decimal`` exato.
 
-    Accepted Brazilian representations include:
+    Representações brasileiras aceitas: ``R$ 148.205,54``, ``148.205,54``,
+    ``148205,54``, ``148205``, ``R$ 0,00``. Representações de máquina
+    aceitas: ``148205.54``, ``148205``, ``0.00``.
 
-    - ``R$ 148.205,54``;
-    - ``148.205,54``;
-    - ``148205,54``;
-    - ``148205``;
-    - ``R$ 0,00``.
-
-    Accepted machine representations include:
-
-    - ``148205.54``;
-    - ``148205``;
-    - ``0.00``.
-
-    Thousands separators must follow Brazilian grouping rules. Decimal
-    values must contain exactly two fractional digits. Negative values,
-    malformed separators, currency symbols other than ``R$``, and non-numeric
-    values are rejected.
-
-    Args:
-        text: Raw monetary field read from the CSV file.
-
-    Returns:
-        The parsed non-negative monetary value as ``Decimal``.
-
-    Raises:
-        TypeError: If ``text`` is not a string.
-        ValueError: If the value does not match a supported monetary format.
+    Separadores de milhar seguem o agrupamento brasileiro; valores decimais
+    devem ter exatamente duas casas. Valores negativos, separadores
+    malformados, símbolos de moeda além de ``R$`` e valores não numéricos
+    são rejeitados.
     """
     if not isinstance(text, str):
-        raise TypeError(f"Monetary value must be a string, received {type(text).__name__}.")
+        raise TypeError(f"valor monetário deve ser string, recebido {type(text).__name__}.")
 
     pt_br_match = _PT_BR_MONEY_RE.fullmatch(text)
     if pt_br_match is not None:
@@ -161,37 +137,21 @@ def parse_brl_value(text: str) -> Decimal:
         normalized = f"{integer_part}{decimal_part}"
         return _to_decimal(normalized, original=text)
 
-    raise ValueError(f"Invalid monetary value: {text!r}.")
+    raise ValueError(f"valor monetário inválido: {text!r}.")
 
 
 def read_objetos(path: Path) -> Objetos:
-    """Read and validate the contractual monetary source.
+    """Lê e valida a fonte monetária contratual.
 
-    The header must match ``Item,Categoria,Valor`` exactly, including column
-    order and spelling. Every data row must contain exactly three fields.
+    O cabeçalho deve ser exatamente ``Item,Categoria,Valor``, na ordem e
+    grafia informadas. Cada linha de dados deve ter exatamente três campos.
 
-    Item indexes may appear in any row order, but after sorting they must form
-    the contiguous sequence ``1..N``. Duplicate indexes, missing indexes, zero,
-    and negative indexes are rejected.
+    Os índices de item podem vir em qualquer ordem, mas, após ordenar,
+    devem formar a sequência contígua ``1..N``. Índices duplicados,
+    ausentes, zero ou negativos são rejeitados.
 
-    At least one contractual item is required. Categories must be non-empty,
-    and monetary fields must satisfy :func:`parse_brl_value`.
-
-    Args:
-        path: Path to ``objetos.csv``.
-
-    Returns:
-        Validated item values ordered by item index, together with exact
-        monthly and annual totals.
-
-    Raises:
-        FileNotFoundError: If the input file does not exist.
-        IsADirectoryError: If ``path`` refers to a directory.
-        PermissionError: If filesystem permissions prevent reading the file.
-        UnicodeDecodeError: If the file cannot be decoded as UTF-8.
-        csv.Error: If the CSV parser encounters malformed CSV syntax.
-        ValueError: If the header, row structure, item indexes, categories, or
-            monetary values violate the file contract.
+    Exige pelo menos um item contratual. Categorias não podem ser vazias e
+    os valores monetários devem satisfazer :func:`parse_brl_value`.
     """
     indexed_values: list[tuple[int, Decimal]] = []
 
@@ -207,13 +167,15 @@ def read_objetos(path: Path) -> Objetos:
         )
 
         if reader.fieldnames is None:
-            raise ValueError(f"{path}: CSV is empty or has no header.")
+            raise ValueError(f"{path}: CSV vazio ou sem cabeçalho.")
 
         actual_headers = tuple(reader.fieldnames)
         if actual_headers != _EXPECTED_HEADERS:
             expected = OBJETOS_DELIMITER.join(_EXPECTED_HEADERS)
             actual = OBJETOS_DELIMITER.join(actual_headers)
-            raise ValueError(f"{path}: invalid header: expected {expected!r}, received {actual!r}.")
+            raise ValueError(
+                f"{path}: cabeçalho inválido: esperado {expected!r}, recebido {actual!r}."
+            )
 
         for row in reader:
             line_number = reader.line_num
@@ -249,19 +211,20 @@ def read_objetos(path: Path) -> Objetos:
             )
 
             if not categoria:
-                raise ValueError(f"{path}: line {line_number}: Categoria must not be empty.")
+                raise ValueError(f"{path}: linha {line_number}: Categoria não pode ser vazio.")
 
             try:
                 valor = parse_brl_value(valor_raw)
             except (TypeError, ValueError) as exc:
                 raise ValueError(
-                    f"{path}: line {line_number}: invalid Valor for item {item}: {valor_raw!r}."
+                    f"{path}: linha {line_number}: Valor inválido para o item {item}: "
+                    f"{valor_raw!r}."
                 ) from exc
 
             indexed_values.append((item, valor))
 
     if not indexed_values:
-        raise ValueError(f"{path}: CSV contains no contractual items.")
+        raise ValueError(f"{path}: CSV sem itens contratuais.")
 
     indexed_values.sort(key=lambda entry: entry[0])
     actual_indexes = tuple(item for item, _ in indexed_values)
@@ -269,8 +232,8 @@ def read_objetos(path: Path) -> Objetos:
 
     if actual_indexes != expected_indexes:
         raise ValueError(
-            f"{path}: item indexes must be unique and contiguous from 1: "
-            f"expected {expected_indexes!r}, received {actual_indexes!r}."
+            f"{path}: índices de item devem ser únicos e contíguos a partir de 1: "
+            f"esperado {expected_indexes!r}, recebido {actual_indexes!r}."
         )
 
     item_values = tuple(value for _, value in indexed_values)
@@ -286,17 +249,17 @@ def read_objetos(path: Path) -> Objetos:
 
 
 def _to_decimal(normalized: str, *, original: str) -> Decimal:
-    """Convert a normalized monetary string into ``Decimal``."""
+    """Converte uma string monetária normalizada em ``Decimal``."""
     try:
         value = Decimal(normalized)
     except InvalidOperation as exc:
-        raise ValueError(f"Invalid monetary value: {original!r}.") from exc
+        raise ValueError(f"valor monetário inválido: {original!r}.") from exc
 
     if not value.is_finite():
-        raise ValueError(f"Monetary value must be finite: {original!r}.")
+        raise ValueError(f"valor monetário deve ser finito: {original!r}.")
 
     if value < _ZERO:
-        raise ValueError(f"Monetary value must not be negative: {original!r}.")
+        raise ValueError(f"valor monetário não pode ser negativo: {original!r}.")
 
     return value
 
@@ -307,15 +270,17 @@ def _validate_row_structure(
     line_number: int,
     row: dict[str | None, str | list[str] | None],
 ) -> None:
-    """Validate that a CSV row contains exactly the expected fields."""
+    """Valida que a linha do CSV contém exatamente os campos esperados."""
     extra_fields = row.get(None)
     if extra_fields:
-        raise ValueError(f"{path}: line {line_number}: unexpected extra fields: {extra_fields!r}.")
+        raise ValueError(
+            f"{path}: linha {line_number}: campos extras inesperados: {extra_fields!r}."
+        )
 
     missing_headers = tuple(header for header in _EXPECTED_HEADERS if row.get(header) is None)
     if missing_headers:
         raise ValueError(
-            f"{path}: line {line_number}: missing fields for columns {missing_headers!r}."
+            f"{path}: linha {line_number}: campos ausentes para as colunas {missing_headers!r}."
         )
 
 
@@ -326,15 +291,15 @@ def _required_field(
     row: dict[str | None, str | list[str] | None],
     header: str,
 ) -> str:
-    """Return a stripped scalar field from a structurally valid CSV row."""
+    """Devolve um campo escalar sem espaços de uma linha CSV estruturalmente válida."""
     value = row.get(header)
 
     if not isinstance(value, str):
-        raise ValueError(f"{path}: line {line_number}: field {header!r} must be scalar.")
+        raise ValueError(f"{path}: linha {line_number}: campo {header!r} deve ser escalar.")
 
     stripped = value.strip()
     if not stripped:
-        raise ValueError(f"{path}: line {line_number}: field {header!r} must not be empty.")
+        raise ValueError(f"{path}: linha {line_number}: campo {header!r} não pode ser vazio.")
 
     return stripped
 
@@ -345,15 +310,17 @@ def _parse_item_index(
     line_number: int,
     value: str,
 ) -> int:
-    """Parse and validate a positive contractual item index."""
+    """Valida e converte um índice de item contratual positivo."""
     if not value.isascii() or not value.isdecimal():
         raise ValueError(
-            f"{path}: line {line_number}: Item must be a positive ASCII "
-            f"integer, received {value!r}."
+            f"{path}: linha {line_number}: Item deve ser um inteiro ASCII positivo, "
+            f"recebido {value!r}."
         )
 
     item = int(value)
     if item < 1:
-        raise ValueError(f"{path}: line {line_number}: Item must be at least 1, received {item}.")
+        raise ValueError(
+            f"{path}: linha {line_number}: Item deve ser no mínimo 1, recebido {item}."
+        )
 
     return item
