@@ -65,7 +65,6 @@ from pyauditor.categoria_filter import (
     GRUPO_EXECUTOR_COLUMN,
     base_config_stem,
     compute_categoria_values,
-    read_raw_csv,
 )
 from pyauditor.config.categorias import (
     CategoriasFile,
@@ -74,11 +73,8 @@ from pyauditor.config.categorias import (
 )
 from pyauditor.config.manifest import DatasetManifest
 from pyauditor.config.models import PrecomputedTableCalculation, RatioCalculation
-from pyauditor.engine.pipeline import load_config, resolve_source
-from pyauditor.engine.quality_gates import QualityGateRunner
-from pyauditor.engine.strategies._filters import filter_rows
-from pyauditor.engine.strategies._numbers import parse_decimal
-from pyauditor.engine.strategies._target import meets_target, safe_pct
+from pyauditor.engine.pipeline import load_config, measurement_source
+from pyauditor.engine.strategies import filter_rows, meets_target, parse_decimal, safe_pct
 from pyauditor.excel import inms_1_1_audit
 from pyauditor.excel._csv_verbatim import read_csv_verbatim
 from pyauditor.excel._style import LABEL_FONT, new_sheet, write_row
@@ -86,7 +82,7 @@ from pyauditor.excel.capa import CAPA_DELIMITER, CAPA_ENCODING
 from pyauditor.excel.equipe import EQUIPE_DELIMITER, EQUIPE_ENCODING
 from pyauditor.excel.objetos import OBJETOS_DELIMITER, OBJETOS_ENCODING
 from pyauditor.excel.prazos import PRAZOS_DELIMITER, PRAZOS_ENCODING, PRAZOS_SHEET_NAME
-from pyauditor.periodo import PeriodoAfericao, filter_periodo, require_period_column
+from pyauditor.periodo import PeriodoAfericao
 
 __all__: Final[tuple[str, ...]] = ("write_sintetico_workbook",)
 
@@ -793,60 +789,33 @@ def write_sintetico_workbook(
             warnings.append(warning)
             continue
 
+        # Backbone (ticket 03): resolve→valida→lê→filtra→gates, um só lugar
+        # para os quatro reimplementadores do pipeline de medição. Sintetico
+        # nunca emite WARN de janela vazia (a mesma passada do bruto coube
+        # ao split) — `emit_empty_window_warning=False`. `period_column`
+        # ausente/não presente no header é erro acionável (spec §2 ponto 1,
+        # issue 01 item 5) — degrada esta aba como os demais erros do loop.
         try:
-            raw_csv_path, delimiter, encoding = resolve_source(
-                base_config, competencia_data_dir, manifest
+            bundle = measurement_source(
+                base_config,
+                competencia_data_dir,
+                manifest,
+                config_path=config_dir / f"{base_stem}.yaml",
+                periodo=periodo,
+                strict=strict,
+                emit_empty_window_warning=False,
             )
-        except ValueError as exc:
-            warning = f"sintetico.xlsx: INMS {inms_key}: falha ao resolver fonte de dados: {exc}"
-            warnings.append(warning)
-            continue
-
-        try:
-            fieldnames, rows = read_raw_csv(raw_csv_path, delimiter, encoding)
         except FileNotFoundError:
             _write_nao_ativado_sheet(workbook, sheet_name)
             continue
         except (OSError, ValueError) as exc:
-            warning = f"sintetico.xlsx: INMS {inms_key}: falha ao ler {raw_csv_path}: {exc}"
-            warnings.append(warning)
+            warnings.append(f"sintetico.xlsx: INMS {inms_key}: {exc}")
             continue
 
-        # Filtro de período (§2 ponto 3): após read_raw_csv, antes dos gates.
-        # Sintetico nunca emite WARN de janela vazia (a mesma passada do
-        # bruto coube ao split); `period_column` ausente é erro acionável
-        # (spec §2 ponto 1, issue 01 item 5) — degrada esta aba como os
-        # demais erros do loop, não filtra "de graça".
-        if periodo is not None and not base_config.source.unfilterable:
-            try:
-                period_column = require_period_column(
-                    base_config.source.period_column,
-                    config_path=config_dir / f"{base_stem}.yaml",
-                )
-            except ValueError as exc:
-                warnings.append(f"sintetico.xlsx: INMS {inms_key}: {exc}")
-                continue
-            if period_column in fieldnames:
-                filtro = filter_periodo(
-                    rows, period_column=period_column, periodo=periodo, strict=strict
-                )
-                rows = filtro.linhas_na_janela
-            else:
-                warnings.append(
-                    f"sintetico.xlsx: INMS {inms_key}: coluna {period_column!r} não "
-                    f"existe em {raw_csv_path.name} — dataset sem filtro"
-                )
-
-        gate_runner = QualityGateRunner(
-            base_config.quality_gates.checks, id_column=base_config.source.id_column
-        )
-        try:
-            gate_report = gate_runner.run(rows)
-        except ValueError as exc:
-            warning = f"sintetico.xlsx: INMS {inms_key}: falha ao aplicar quality gates: {exc}"
-            warnings.append(warning)
-            continue
-        accepted_ids = {id(row) for row in gate_report.accepted}
+        raw_csv_path = bundle.csv_path
+        fieldnames = bundle.fieldnames
+        rows = bundle.rows
+        accepted_ids = bundle.accepted_ids
 
         whole_indicator_entries = [
             (ck, e) for ck, e in entries if isinstance(e, WholeIndicatorMode)
