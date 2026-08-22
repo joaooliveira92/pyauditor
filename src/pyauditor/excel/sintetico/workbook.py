@@ -51,7 +51,7 @@ teste) caem no `_write_grupo_executor_sheet` genérico abaixo, como antes.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+
 from datetime import datetime
 from math import isnan
 from pathlib import Path
@@ -83,6 +83,25 @@ from pyauditor.excel.capa import CAPA_DELIMITER, CAPA_ENCODING
 from pyauditor.excel.equipe import EQUIPE_DELIMITER, EQUIPE_ENCODING
 from pyauditor.excel.objetos import OBJETOS_DELIMITER, OBJETOS_ENCODING
 from pyauditor.excel.prazos import PRAZOS_DELIMITER, PRAZOS_ENCODING, PRAZOS_SHEET_NAME
+from pyauditor.excel.sintetico._stats import (
+    DATA_FIM as DATA_FIM_COLUMN,
+)
+from pyauditor.excel.sintetico._stats import (
+    DATA_SOLICITACAO as DATA_SOLICITACAO_COLUMN,
+)
+from pyauditor.excel.sintetico._stats import (
+    NO_PRAZO_COLUMN,
+)
+from pyauditor.excel.sintetico._stats import (
+    NivelAccumulator,
+    Stats,
+    compute_stats,
+    format_duracao,
+    format_pct_bruto,
+    format_row,
+    fmt_pt_br,
+    parse_datahora,
+)
 from pyauditor.periodo import PeriodoAfericao
 
 __all__: Final[tuple[str, ...]] = ("write_sintetico_workbook",)
@@ -141,115 +160,6 @@ _ATIVO_SUBTOTAL_COLUMNS: Final[tuple[str, ...]] = (
 # independente da ordem de declaração em categorias.yaml.
 _INMS_1_14_CATEGORIA_ORDER: Final[tuple[str, ...]] = ("MONITORAMENTO_NOC_SOC", "OPERACAO_N3")
 
-_NO_PRAZO_COLUMN: Final[str] = "No prazo"
-_DATA_SOLICITACAO_COLUMN: Final[str] = "DataHoraSolicitacao"
-_DATA_FIM_COLUMN: Final[str] = "DataHoraFim"
-_DATAHORA_FORMAT: Final[str] = "%d/%m/%Y %H:%M"
-
-
-def _parse_datahora(raw: str) -> datetime | None:
-    raw = raw.strip()
-    if not raw:
-        return None
-    try:
-        return datetime.strptime(raw, _DATAHORA_FORMAT)
-    except ValueError:
-        return None
-
-
-@dataclass(frozen=True, slots=True)
-class _Stats:
-    linhas: int
-    dentro: int | None
-    fora: int | None
-    duracao_total_segundos: float
-    duracao_contagem: int
-
-
-def _compute_stats(
-    rows: list[dict[str, str]], fieldnames: list[str], accepted_ids: set[int]
-) -> _Stats:
-    dentro: int | None = None
-    fora: int | None = None
-    if _NO_PRAZO_COLUMN in fieldnames:
-        dentro = sum(1 for row in rows if row.get(_NO_PRAZO_COLUMN) == "S")
-        fora = sum(1 for row in rows if row.get(_NO_PRAZO_COLUMN) == "N")
-
-    duracao_total = 0.0
-    duracao_contagem = 0
-    if _DATA_SOLICITACAO_COLUMN in fieldnames and _DATA_FIM_COLUMN in fieldnames:
-        for row in rows:
-            if id(row) not in accepted_ids:
-                continue
-            inicio = _parse_datahora(row.get(_DATA_SOLICITACAO_COLUMN, ""))
-            fim = _parse_datahora(row.get(_DATA_FIM_COLUMN, ""))
-            if inicio is None or fim is None:
-                continue
-            duracao_total += (fim - inicio).total_seconds()
-            duracao_contagem += 1
-
-    return _Stats(
-        linhas=len(rows),
-        dentro=dentro,
-        fora=fora,
-        duracao_total_segundos=duracao_total,
-        duracao_contagem=duracao_contagem,
-    )
-
-
-def _format_duracao(segundos: float) -> str:
-    total_minutos = round(segundos / 60)
-    dias, resto_minutos = divmod(total_minutos, 24 * 60)
-    horas = resto_minutos // 60
-    return f"{dias}d {horas:02d}h"
-
-
-def _fmt_pt_br(value: float, *, decimals: int = 1) -> str:
-    """Separador decimal pt-BR (`,`) — mesma convenção de
-    `orchestration/summary.py.fmt_pt_br`, duplicada aqui em miniatura pra
-    `excel/` não depender de `orchestration/` (que por sua vez depende de
-    `cli/split.py`, o chamador deste módulo — importar de volta ciclaria)."""
-    return f"{value:.{decimals}f}".replace(".", ",")
-
-
-def _format_pct_bruto(dentro: int | None, fora: int | None) -> str:
-    if dentro is None or fora is None or (dentro + fora) == 0:
-        return "—"
-    pct = dentro / (dentro + fora) * 100
-    return f"{_fmt_pt_br(pct)}%"
-
-
-def _format_row(stats: _Stats) -> tuple[int, str | int, str | int, str, str]:
-    dentro_display: str | int = stats.dentro if stats.dentro is not None else "—"
-    fora_display: str | int = stats.fora if stats.fora is not None else "—"
-    pct_display = _format_pct_bruto(stats.dentro, stats.fora)
-    tempo_display = (
-        _format_duracao(stats.duracao_total_segundos / stats.duracao_contagem)
-        if stats.duracao_contagem > 0
-        else "—"
-    )
-    return stats.linhas, dentro_display, fora_display, pct_display, tempo_display
-
-
-@dataclass(frozen=True, slots=True)
-class _NivelAccumulator:
-    linhas: int = 0
-    dentro: int = 0
-    fora: int = 0
-    tem_prazo: bool = False
-    duracao_total_segundos: float = 0.0
-    duracao_contagem: int = 0
-
-    def add(self, stats: _Stats) -> _NivelAccumulator:
-        return _NivelAccumulator(
-            linhas=self.linhas + stats.linhas,
-            dentro=self.dentro + (stats.dentro or 0),
-            fora=self.fora + (stats.fora or 0),
-            tem_prazo=self.tem_prazo or stats.dentro is not None,
-            duracao_total_segundos=self.duracao_total_segundos + stats.duracao_total_segundos,
-            duracao_contagem=self.duracao_contagem + stats.duracao_contagem,
-        )
-
 
 def _write_nao_ativado_sheet(workbook: Workbook, sheet_name: str) -> None:
     sheet = workbook.create_sheet(sheet_name)
@@ -260,7 +170,7 @@ def _write_nao_ativado_sheet(workbook: Workbook, sheet_name: str) -> None:
 
 
 def _write_subtotals(
-    sheet: Worksheet, start_row: int, accumulators: dict[str, _NivelAccumulator]
+    sheet: Worksheet, start_row: int, accumulators: dict[str, NivelAccumulator]
 ) -> None:
     header_cell = sheet.cell(row=start_row, column=1, value="Subtotais por Nível")
     header_cell.font = LABEL_FONT
@@ -275,9 +185,9 @@ def _write_subtotals(
             continue
         dentro = acc.dentro if acc.tem_prazo else None
         fora = acc.fora if acc.tem_prazo else None
-        pct_display = _format_pct_bruto(dentro, fora)
+        pct_display = format_pct_bruto(dentro, fora)
         tempo_display = (
-            _format_duracao(acc.duracao_total_segundos / acc.duracao_contagem)
+            format_duracao(acc.duracao_total_segundos / acc.duracao_contagem)
             if acc.duracao_contagem > 0
             else "—"
         )
@@ -302,7 +212,7 @@ def _write_ativo_subtotals(
     start_row: int,
     order: list[str],
     labels: dict[str, str],
-    accumulators: dict[str, _NivelAccumulator],
+    accumulators: dict[str, NivelAccumulator],
 ) -> None:
     header_cell = sheet.cell(row=start_row, column=1, value="Subtotais por Categoria")
     header_cell.font = LABEL_FONT
@@ -317,9 +227,9 @@ def _write_ativo_subtotals(
             continue
         dentro = acc.dentro if acc.tem_prazo else None
         fora = acc.fora if acc.tem_prazo else None
-        pct_display = _format_pct_bruto(dentro, fora)
+        pct_display = format_pct_bruto(dentro, fora)
         tempo_display = (
-            _format_duracao(acc.duracao_total_segundos / acc.duracao_contagem)
+            format_duracao(acc.duracao_total_segundos / acc.duracao_contagem)
             if acc.duracao_contagem > 0
             else "—"
         )
@@ -355,7 +265,7 @@ def _write_multi_ativo_sheet(
     recalcular nada. Bloco NOC/SOC antes do bloco Operação N3."""
     sheet = new_sheet(workbook, sheet_name, _ATIVO_COLUMNS)
     row_idx = 2
-    accumulators: dict[str, _NivelAccumulator] = {}
+    accumulators: dict[str, NivelAccumulator] = {}
     labels: dict[str, str] = {}
 
     # Ordem de primeira aparição no CSV (Anexo D já lista os 6 ativos numa
@@ -379,8 +289,8 @@ def _write_multi_ativo_sheet(
         labels[categoria_key] = categoria.label
         for ativo in ativos:
             ativo_rows = [row for row in rows if row.get(ativo_column) == ativo]
-            stats = _compute_stats(ativo_rows, fieldnames, accepted_ids)
-            linhas, dentro, fora, pct, tempo = _format_row(stats)
+            stats = compute_stats(ativo_rows, fieldnames, accepted_ids)
+            linhas, dentro, fora, pct, tempo = format_row(stats)
             write_row(
                 sheet,
                 row_idx,
@@ -396,7 +306,7 @@ def _write_multi_ativo_sheet(
                 ),
             )
             row_idx += 1
-            current = accumulators.get(categoria_key, _NivelAccumulator())
+            current = accumulators.get(categoria_key, NivelAccumulator())
             accumulators[categoria_key] = current.add(stats)
 
     if accumulators:
@@ -416,7 +326,7 @@ def _write_grupo_executor_sheet(
 ) -> None:
     sheet = new_sheet(workbook, sheet_name, _COLUMNS)
     row_idx = 2
-    accumulators: dict[str, _NivelAccumulator] = {}
+    accumulators: dict[str, NivelAccumulator] = {}
 
     real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
     per_categoria_values, outros_values = compute_categoria_values(
@@ -427,14 +337,14 @@ def _write_grupo_executor_sheet(
         categoria_label: str, nivel: str | None, grupo: str, group_rows: list[dict[str, str]]
     ) -> None:
         nonlocal row_idx
-        stats = _compute_stats(group_rows, fieldnames, accepted_ids)
-        linhas, dentro, fora, pct, tempo = _format_row(stats)
+        stats = compute_stats(group_rows, fieldnames, accepted_ids)
+        linhas, dentro, fora, pct, tempo = format_row(stats)
         write_row(
             sheet, row_idx, (categoria_label, nivel or "", grupo, linhas, dentro, fora, pct, tempo)
         )
         row_idx += 1
         if nivel is not None:
-            current = accumulators.get(nivel, _NivelAccumulator())
+            current = accumulators.get(nivel, NivelAccumulator())
             accumulators[nivel] = current.add(stats)
 
     for categoria_key, effective_values in per_categoria_values.items():
@@ -467,8 +377,8 @@ def _write_whole_indicator_sheet(
     accepted_ids: set[int],
 ) -> None:
     sheet = new_sheet(workbook, sheet_name, _COLUMNS)
-    stats = _compute_stats(rows, fieldnames, accepted_ids)
-    linhas, dentro, fora, pct, tempo = _format_row(stats)
+    stats = compute_stats(rows, fieldnames, accepted_ids)
+    linhas, dentro, fora, pct, tempo = format_row(stats)
     row_idx = 2
     for categoria_key, _entry in entries:
         categoria = categorias_file.categorias[categoria_key]
@@ -533,9 +443,9 @@ def _write_precomputed_table_sheet(
 
             name = row.get(calculation.name_column, "") if calculation.name_column else ""
             resultado_display = (
-                f"{_fmt_pt_br(value)}%"
+                f"{fmt_pt_br(value)}%"
                 if calculation.result_is_percent
-                else _fmt_pt_br(value, decimals=0)
+                else fmt_pt_br(value, decimals=0)
             )
             meta_display = (
                 _meta_atingida_display(value, target_operator, target_value)
@@ -549,7 +459,7 @@ def _write_precomputed_table_sheet(
                 parse_decimal(penalidade_raw) if penalidade_raw.strip() else float("nan")
             )
             penalidade_display = (
-                "—" if isnan(penalidade_value) else _fmt_pt_br(penalidade_value, decimals=0)
+                "—" if isnan(penalidade_value) else fmt_pt_br(penalidade_value, decimals=0)
             )
 
             write_row(
@@ -626,7 +536,7 @@ def _write_ratio_aggregate_sheet(
                     grupo,
                     int(total),
                     int(subtraido),
-                    f"{_fmt_pt_br(pct)}%",
+                    f"{fmt_pt_br(pct)}%",
                     meta_display,
                 ),
             )

@@ -15,12 +15,11 @@ o detalhe por-(indicador x órgão) que ``GLOSAS`` precisa.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from openpyxl import Workbook, load_workbook
+from openpyxl import Workbook
 from openpyxl.styles import Border, Font, Side
 
 from pyauditor.codes import contractual_sort_key, format_inms_code
@@ -37,13 +36,18 @@ from pyauditor.excel._style import (
 from pyauditor.excel._style import UNIT_BY_SHAPE as _UNIT_BY_SHAPE
 from pyauditor.excel._style import new_sheet as _new_sheet
 from pyauditor.excel._style import write_row as _write
+from pyauditor.excel.consolidate._decisions_io import RowKey, read_existing_decisions
+from pyauditor.excel.consolidate._glosa_calcs import (
+    accumulate_pontos_por_orgao,
+    compute_aggregation,
+    is_amnestied,
+)
 from pyauditor.excel.equipe import RESPONSAVEL_LABELS
 from pyauditor.excel.glosas import (
     CAP_PCT,
     POINTS_TO_PERCENT,
     Historico,
     compute_glosa,
-    saldo_anterior_pct_de,
 )
 from pyauditor.excel.inms_base import inms_base_fields
 from pyauditor.excel.orgao_consolidation import with_orgao_consolidation
@@ -51,6 +55,14 @@ from pyauditor.logging import logger
 from pyauditor.periodo import PeriodoAfericao, format_date_br
 from pyauditor.rom.dedup import deduplicate_summaries
 from pyauditor.rom.summary import IndicatorSummary
+
+__all__ = (
+    "ConsolidationResult",
+    "build_consolidated_workbook",
+    "build_glosas",
+    "build_inms_base",
+    "read_existing_decisions",
+)
 
 CAPA_SHEET: Final = "CAPA_E_CONTROLE"
 SERVICOS_SHEET: Final = "SERVICOS_POR_ORGAO"
@@ -73,8 +85,7 @@ _PERCENT_FMT_FRACTION: Final = "0.00%;0.00%;-"
 _TOP_BORDER: Final = Border(top=Side(style="thin", color="1F2937"))
 
 # Decisão Fiscal — o fiscal aceita a justificativa do fornecedor (anistia: a
-# ocorrência sai da base de pontos) ou não aceita (glosa mantida). Ticket 02.
-_DECISAO_ACEITA: Final = "aceita"
+# ocorrência sai da base de pontos), ver `_glosa_calcs.is_amnestied`. Ticket 02.
 
 # GLOSAS: uma linha por (indicador x órgão) + resumo agregado (ticket 02).
 _GLOSAS_COLUMNS: Final[tuple[str, ...]] = (
@@ -135,8 +146,6 @@ _SERVICOS: Final[tuple[tuple[str, str, str, str], ...]] = (
 
 _CAPA_VALOR_LABELS: Final = ("Valor mensal vigente", "Valor global anual")
 
-RowKey = tuple[str, str]  # (contractual_id, orgao)
-
 
 @dataclass(frozen=True)
 class ConsolidationResult:
@@ -145,109 +154,6 @@ class ConsolidationResult:
     glosa_final: float
     warnings: tuple[str, ...]
     glosa_calculada: bool
-
-
-_TRACKED_HEADER_NAMES: Final[frozenset[str]] = frozenset({"Indicador", "Órgão", *_DECISION_COLUMNS})
-
-
-def _normalize_header(name: str) -> str:
-    """Normaliza espaços/acentos/case para detectar renomeação leve (issue 08)."""
-    import unicodedata
-
-    # strip, collapse internal whitespace, casefold, remove acentos
-    collapsed = " ".join(name.strip().split())
-    folded = collapsed.casefold()
-    nfkd = unicodedata.normalize("NFD", folded)
-    return "".join(c for c in nfkd if not unicodedata.combining(c))
-
-
-def _check_no_duplicate_headers(path: Path, header_row: Sequence[object]) -> None:
-    """A hand-edited workbook with a duplicate column name (two "Indicador"
-    columns, or a stray column literally named "Justificativa" inserted by a
-    fiscal) would otherwise make the header→index lookup silently keep the
-    *last* matching column — decision values then get read from the wrong
-    column with no error. Fail loudly instead."""
-    seen: set[str] = set()
-    duplicates: set[str] = set()
-    for name in header_row:
-        if isinstance(name, str) and name in _TRACKED_HEADER_NAMES:
-            (duplicates if name in seen else seen).add(name)
-    if duplicates:
-        raise ValueError(
-            f"{path}: coluna(s) duplicada(s) em {GLOSAS_SHEET!r}: "
-            f"{', '.join(sorted(duplicates))} — planilha hand-edited em formato inesperado, "
-            "corrija antes de rodar consolidate de novo"
-        )
-
-
-def _check_renamed_headers(path: Path, header_row: Sequence[object]) -> None:
-    """Se um cabeçalho esperado não existe mas há candidato próximo por
-    normalização (espaço extra, acento, case), falha nomeando ambos — em
-    vez de perder a decisão silenciosamente (issue 08)."""
-    present = {h for h in header_row if isinstance(h, str)}
-    present_normalized = {_normalize_header(h): h for h in present}
-    for expected in _TRACKED_HEADER_NAMES:
-        if expected not in present:
-            norm_expected = _normalize_header(expected)
-            candidate = present_normalized.get(norm_expected)
-            if candidate is not None:
-                raise ValueError(
-                    f"{path}: cabeçalho esperado {expected!r} não encontrado, "
-                    f"mas existe candidato próximo {candidate!r} — possível renomeação "
-                    "com espaço/acentuação/case, corrija o cabeçalho"
-                )
-            # também tenta match por um caractere de diferença (ex. espaço extra interno)
-            for actual in present:
-                if _normalize_header(actual) == norm_expected:
-                    raise ValueError(
-                        f"{path}: cabeçalho esperado {expected!r} não encontrado, "
-                        f"mas existe candidato próximo {actual!r}"
-                    )
-
-
-def read_existing_decisions(path: Path) -> dict[RowKey, dict[str, object]]:
-    """Reads the decision columns from a previously-generated consolidado
-    workbook's `GLOSAS` sheet, keyed by (indicador, órgão) — the merge
-    contract's preservation source (ticket 04 Q3). Empty dict if `path`
-    doesn't exist yet or has no `GLOSAS` sheet (first run).
-    """
-    if not path.exists():
-        return {}
-    workbook = load_workbook(path, data_only=True)
-    try:
-        if GLOSAS_SHEET not in workbook.sheetnames:
-            return {}
-        sheet = workbook[GLOSAS_SHEET]
-
-        header_row = [cell.value for cell in sheet[1]]
-        if not header_row:
-            return {}
-        _check_no_duplicate_headers(path, header_row)
-        _check_renamed_headers(path, header_row)
-        if "Indicador" not in header_row:
-            return {}
-        col_idx = {name: i + 1 for i, name in enumerate(header_row) if isinstance(name, str)}
-        indicador_col = col_idx.get("Indicador")
-        orgao_col = col_idx.get("Órgão")
-        if indicador_col is None or orgao_col is None:
-            return {}
-
-        decisions: dict[RowKey, dict[str, object]] = {}
-        for row in range(2, sheet.max_row + 1):
-            indicador = sheet.cell(row=row, column=indicador_col).value
-            orgao = sheet.cell(row=row, column=orgao_col).value
-            if not isinstance(indicador, str) or not isinstance(orgao, str):
-                continue
-            values: dict[str, object] = {
-                name: sheet.cell(row=row, column=idx).value
-                for name, idx in col_idx.items()
-                if name in _DECISION_COLUMNS
-            }
-            if any(v not in (None, "") for v in values.values()):
-                decisions[(format_inms_code(indicador), orgao)] = values
-        return decisions
-    finally:
-        workbook.close()
 
 
 def build_capa(
@@ -446,29 +352,26 @@ def build_glosas(
     por-órgão em vez de teto único sobre o agregado.
     """
     ws = _new_sheet(wb, GLOSAS_SHEET, _GLOSAS_COLUMNS, width=26)
-    seen_keys: set[RowKey] = set()
     row = 2
 
-    # Deduplicação por Categoria (issue 01): base não conta quando derivados existem
-    minc_dedup = deduplicate_summaries(minc)
-    mtur_dedup = deduplicate_summaries(mtur)
+    # Aritmética (dedup, acúmulo de pontos por órgão, agregação financeira)
+    # vive em `_glosa_calcs` — pura, sem planilha (ticket 04 SRP).
+    pontos_por_orgao, seen_keys = accumulate_pontos_por_orgao(
+        minc,
+        mtur,
+        existing_decisions,
+    )
 
     # Primeiro escreve linhas por ocorrência (valor por ocorrência continua pct simples,
     # mas o agregado usa compute_glosa por-órgão)
-    pontos_por_orgao: dict[str, float] = {"MinC": 0.0, "MTur": 0.0}
-    for summary in minc_dedup + mtur_dedup:
+    for summary in deduplicate_summaries(minc) + deduplicate_summaries(mtur):
         if summary.penalty_points <= 0:
             continue
         key: RowKey = (format_inms_code(summary.contractual_id), summary.orgao)
-        seen_keys.add(key)
         decision = existing_decisions.get(key, {})
-        is_amnestied = (
-            str(decision.get("Decisão Fiscal") or "").strip().lower().startswith(_DECISAO_ACEITA)
-        )
+        amnestied = is_amnestied(decision)
 
         pontos = summary.penalty_points
-        if not is_amnestied:
-            pontos_por_orgao[summary.orgao] = pontos_por_orgao.get(summary.orgao, 0.0) + pontos
         pct = pontos * POINTS_TO_PERCENT
         valor_glosa = round((valor_base or 0.0) * pct / 100, 2) if valor_base is not None else None
 
@@ -486,7 +389,7 @@ def build_glosas(
                 _faixa(summary),
                 round(pct, 4),
                 valor_base,
-                0.0 if is_amnestied else valor_glosa,
+                0.0 if amnestied else valor_glosa,
                 _decision_value(decision, "Reincidência"),
                 _decision_value(decision, "Justificativa"),
                 _decision_value(decision, "Número da Ocorrência"),
@@ -511,41 +414,17 @@ def build_glosas(
                 "nesta rodada — preservada apenas no histórico, não reescrita"
             )
 
-    # Agregado por-órgão via compute_glosa (com saldo_anterior e is_final_month)
-    historico = historico or {}
-    saldo_anterior = saldo_anterior_pct_de(historico, competencia)
-    # Rateio do saldo anterior proporcional aos pontos (se ambos têm pontos, divide;
-    # se só um tem, todo saldo vai para ele)
-    total_pontos_bruto = sum(pontos_por_orgao.values())
-    if total_pontos_bruto > 0:
-        # Distribui saldo anterior proporcionalmente — mesma semântica de manter
-        # o teto por-órgão mas respeitar rollover global do período
-        saldo_minc = saldo_anterior * (pontos_por_orgao.get("MinC", 0.0) / total_pontos_bruto)
-        saldo_mtur = saldo_anterior * (pontos_por_orgao.get("MTur", 0.0) / total_pontos_bruto)
-    else:
-        saldo_minc = saldo_mtur = 0.0
-
-    glosa_minc = compute_glosa(
-        pontos_por_orgao.get("MinC", 0.0),
-        valor_base,
+    aggregation = compute_aggregation(
+        pontos_por_orgao=pontos_por_orgao,
+        valor_base=valor_base,
+        competencia=competencia,
+        historico=historico,
         is_final_month=is_final_month,
-        saldo_anterior_pct=saldo_minc,
     )
-    glosa_mtur = compute_glosa(
-        pontos_por_orgao.get("MTur", 0.0),
-        valor_base,
-        is_final_month=is_final_month,
-        saldo_anterior_pct=saldo_mtur,
-    )
-    # Para valor_base por-órgão (rateio), o valor da glosa consolidada é a soma
-    # das glosas por-órgão calculadas sobre o mesmo valor_base proporcional?
-    # Simplificação: se valor_base é único (objetos.csv total), manter soma
-    # direta — reflete o Valor Glosa idêntico ao report por-órgão somado.
-    total_pontos = glosa_minc.total_points + glosa_mtur.total_points
-    glosa_final = (glosa_minc.valor_da_glosa or 0.0) + (glosa_mtur.valor_da_glosa or 0.0)
-    # Fallback se valor_base is None: glosa_final já é 0 via compute_glosa
-    pct_bruto = total_pontos * POINTS_TO_PERCENT + saldo_anterior
-    aplicado = min(pct_bruto, CAP_PCT)
+    total_pontos = aggregation.total_pontos
+    glosa_final = aggregation.glosa_final
+    pct_bruto = aggregation.pct_bruto
+    aplicado = aggregation.aplicado
 
     r = row + 2
     for label, value in (

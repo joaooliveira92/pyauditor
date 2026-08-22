@@ -31,6 +31,8 @@ from pyauditor.categoria_filter import (
     GRUPO_EXECUTOR_COLUMN,
     base_config_stem,
     compute_categoria_values,
+    outros_warning,
+    unmatched_in_values_warnings,
 )
 from pyauditor.cli.results import (
     DIR_FAILURE_HINT,
@@ -376,7 +378,11 @@ def run_measure(
         # Ticket 04 — filtro em memória: quando há categorias grupo_executor
         # para este INMS, expande em N medições filtradas sem materializar
         # _split/*. O caminho single (abaixo) só roda para whole_indicator.
-        if entries is not None and categorias_file is not None:
+        if (
+            entries is not None
+            and categorias_file is not None
+            and inms_key is not None
+        ):
             # Backbone (ticket 05): resolve->valida->lê->filtra o bruto uma
             # vez para todas as categorias. `already_split` evita duplicar o
             # WARN/INFO de período quando `split` já rodou na mesma passada
@@ -451,28 +457,16 @@ def run_measure(
             # in_values/outros contra os mesmos real_values e logou os avisos
             # — emitir aqui de novo duplicaria o aviso no mesmo output (ticket 11).
             if not already_split:
-                for cat_key, entry in entries:
-                    prefixo = (
-                        f"INMS {inms_key} ({config.scope.orgao}/{competencia}), "
-                        f"categoria {cat_key}: "
-                    )
-                    if entry.in_values is not None:
-                        unmatched = [v for v in entry.in_values if v not in real_values]
-                        if unmatched and not (set(entry.in_values) & real_values):
-                            w = (
-                                f"{prefixo}in_values {unmatched!r} sem correspondência em "
-                                f"Grupo_executor do CSV ({raw_csv_path}) — possível "
-                                "typo/renomeação, categoria ficará sem linhas"
-                            )
-                            logger.warning(w)
-                            warnings.append(w)
-                        elif unmatched:
-                            w = (
-                                f"{prefixo}in_values {unmatched!r} sem correspondência — "
-                                "valores não encontrados no CSV"
-                            )
-                            logger.warning(w)
-                            warnings.append(w)
+                for w in unmatched_in_values_warnings(
+                    inms_key=inms_key,
+                    orgao=config.scope.orgao,
+                    competencia=competencia,
+                    entries=entries,
+                    real_values=real_values,
+                    raw_csv_path=raw_csv_path,
+                ):
+                    logger.warning(w)
+                    warnings.append(w)
             per_categoria_values, outros_values = compute_categoria_values(entries, real_values)
             # mede cada categoria filtrada em memória
             for cat_key, effective_values in per_categoria_values.items():
@@ -545,10 +539,11 @@ def run_measure(
             # aviso para o mesmo dataset bruto (ticket 11).
             outros_rows = [r for r in rows if r[GRUPO_EXECUTOR_COLUMN] in outros_values]
             if outros_rows and not already_split:
-                w = (
-                    f"INMS {inms_key} ({config.scope.orgao}/{competencia}), "
-                    f"categoria outros: {len(outros_rows)} linha(s) não "
-                    "classificada(s) em nenhuma categoria — revisar categorias.yaml"
+                w = outros_warning(
+                    inms_key=inms_key,
+                    orgao=config.scope.orgao,
+                    competencia=competencia,
+                    outros_count=len(outros_rows),
                 )
                 logger.warning(w)
                 warnings.append(w)

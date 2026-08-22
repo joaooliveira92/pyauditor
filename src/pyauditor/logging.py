@@ -40,20 +40,24 @@ must call :func:`setup_logging` after parsing command-line options.
 
 from __future__ import annotations
 
-import json
-import re
 import sys
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, is_dataclass
-from datetime import date, datetime
-from decimal import Decimal
-from enum import Enum
-from math import isfinite
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from threading import Lock
 from typing import Final, TextIO, cast
 
 from loguru import logger
+
+from pyauditor.log_contract import (
+    JsonValue,
+    format_text_value,
+    normalize_context,
+    normalize_level,
+    validate_detail,
+    validate_event,
+    validate_single_line_text,
+)
+from pyauditor.log_json_sink import FlatJsonSink
 
 __all__: Final[tuple[str, ...]] = (
     "LoggingHandlers",
@@ -63,20 +67,11 @@ __all__: Final[tuple[str, ...]] = (
     "setup_logging",
 )
 
-type JsonScalar = str | int | float | bool | None
-type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
 type Sink = TextIO | str | Path
 
 _DEFAULT_LOG_LEVEL: Final[str] = "INFO"
-_SUPPORTED_LEVELS: Final[frozenset[str]] = frozenset(
-    {
-        "DEBUG",
-        "INFO",
-        "WARNING",
-        "ERROR",
-        "CRITICAL",
-    }
-)
+_DEFAULT_DETAIL_LEVEL: Final[int] = 0
+_MAX_DETAIL_LEVEL: Final[int] = 2
 
 _STREAM_LOG_FORMAT: Final[str] = (
     "{time:HH:mm:ss} | {level: <8} | {message}"
@@ -86,37 +81,7 @@ _FILE_LOG_FORMAT: Final[str] = (
     "{level: <8} | {name}:{line} | {message}"
 )
 
-_EVENT_RE: Final[re.Pattern[str]] = re.compile(
-    r"^[a-z][a-z0-9_]*$"
-)
-_CONTEXT_KEY_RE: Final[re.Pattern[str]] = re.compile(
-    r"^[a-zA-Z_][a-zA-Z0-9_]*$"
-)
-
-_RESERVED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset(
-    {
-        "time",
-        "level",
-        "event",
-        "message",
-        "detail",
-    }
-)
-
-_SENSITIVE_KEY_FRAGMENTS: Final[frozenset[str]] = frozenset(
-    {
-        "api_key",
-        "authorization",
-        "credential",
-        "password",
-        "secret",
-        "token",
-    }
-)
-
 _LOG_RETENTION: Final[int] = 5
-_DEFAULT_DETAIL_LEVEL: Final[int] = 0
-_MAX_DETAIL_LEVEL: Final[int] = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,13 +129,13 @@ def resolve_log_level(
         ValueError: If verbosity is negative or a level is unsupported.
     """
     normalized_verbosity = _validate_verbosity(verbosity)
-    normalized_default = _normalize_level(
+    normalized_default = normalize_level(
         default,
         field="default",
     )
 
     if explicit is not None:
-        return _normalize_level(
+        return normalize_level(
             explicit,
             field="explicit",
         )
@@ -218,20 +183,20 @@ def log_event(
             value violates its runtime type contract.
         ValueError: If identifiers, severity, detail, or context are invalid.
     """
-    normalized_event = _validate_event(event)
-    normalized_verb = _validate_single_line_text(
+    normalized_event = validate_event(event)
+    normalized_verb = validate_single_line_text(
         verb,
         field="verb",
     )
-    normalized_level = _normalize_level(
+    normalized_level = normalize_level(
         level,
         field="level",
     )
-    normalized_detail = _validate_detail(detail)
-    normalized_context = _normalize_context(context)
+    normalized_detail = validate_detail(detail)
+    normalized_context = normalize_context(context)
 
     readable_context = " ".join(
-        f"{key}={_format_text_value(value)}"
+        f"{key}={format_text_value(value)}"
         for key, value in normalized_context.items()
     )
     readable_message = (
@@ -337,7 +302,7 @@ def setup_logging(
         maximum_detail=maximum_detail,
     )
     json_sink = (
-        _FlatJsonSink(cast(TextIO, sink))
+        FlatJsonSink(cast(TextIO, sink))
         if json_format
         else None
     )
@@ -410,78 +375,6 @@ def setup_logging(
     )
 
 
-class _FlatJsonSink:
-    """Write Loguru records as stable flat one-line JSON objects."""
-
-    def __init__(self, stream: TextIO) -> None:
-        """Initialize the sink with a writable text stream."""
-        if not callable(getattr(stream, "write", None)):
-            raise TypeError(
-                "JSON log sink must provide a writable text interface."
-            )
-
-        self._stream = stream
-        self._lock = Lock()
-
-    def write(self, message: object) -> None:
-        """Serialize and write one Loguru message."""
-        record = getattr(message, "record", None)
-        if not isinstance(record, Mapping):
-            raise TypeError(
-                "Loguru JSON sink received a message without a record."
-            )
-
-        record_values = cast(Mapping[str, object], record)
-
-        extra_raw = record_values.get("extra", {})
-        if not isinstance(extra_raw, Mapping):
-            raise TypeError(
-                "Loguru record extra context must be a mapping."
-            )
-
-        extra_values = cast(Mapping[str, object], extra_raw)
-
-        extra = {
-            str(key): _normalize_json_value(value)
-            for key, value in extra_values.items()
-            if key not in {"event_message", "detail"}
-        }
-
-        timestamp = record_values.get("time")
-        level = record_values.get("level")
-
-        event = extra_values.get("event", "unstructured_log")
-        event_message = extra_values.get(
-            "event_message",
-            record_values.get("message", ""),
-        )
-
-        payload: dict[str, JsonValue] = {
-            "time": _format_timestamp(timestamp),
-            "level": _format_level(level),
-            "event": _validate_event(str(event)),
-            "message": _validate_single_line_text(
-                str(event_message),
-                field="message",
-            ),
-        }
-        payload.update(extra)
-
-        serialized = json.dumps(
-            payload,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            allow_nan=False,
-            sort_keys=False,
-        )
-
-        with self._lock:
-            self._stream.write(f"{serialized}\n")
-            flush = getattr(self._stream, "flush", None)
-            if callable(flush):
-                flush()
-
-
 def _build_detail_filter(
     *,
     maximum_detail: int,
@@ -506,29 +399,6 @@ def _build_detail_filter(
     return filter_record
 
 
-def _normalize_level(
-    level: str,
-    *,
-    field: str,
-) -> str:
-    """Normalize and validate a supported severity."""
-    if type(level) is not str:
-        raise TypeError(
-            f"{field} must be a string, "
-            f"received {type(level).__name__}."
-        )
-
-    normalized = level.strip().upper()
-
-    if normalized not in _SUPPORTED_LEVELS:
-        raise ValueError(
-            f"Unsupported {field} {level!r}; expected one of "
-            f"{sorted(_SUPPORTED_LEVELS)!r}."
-        )
-
-    return normalized
-
-
 def _validate_verbosity(verbosity: int) -> int:
     """Validate and normalize a CLI verbosity count."""
     if type(verbosity) is not int:
@@ -543,227 +413,6 @@ def _validate_verbosity(verbosity: int) -> int:
         )
 
     return min(verbosity, _MAX_DETAIL_LEVEL)
-
-
-def _validate_detail(detail: int) -> int:
-    """Validate an event detail level."""
-    if type(detail) is not int:
-        raise TypeError(
-            "detail must be an integer, "
-            f"received {type(detail).__name__}."
-        )
-
-    if not 0 <= detail <= _MAX_DETAIL_LEVEL:
-        raise ValueError(
-            f"detail must be between 0 and {_MAX_DETAIL_LEVEL}, "
-            f"received {detail}."
-        )
-
-    return detail
-
-
-def _validate_event(event: str) -> str:
-    """Validate a stable event identifier."""
-    if type(event) is not str:
-        raise TypeError(
-            "event must be a string, "
-            f"received {type(event).__name__}."
-        )
-
-    normalized = event.strip()
-
-    if _EVENT_RE.fullmatch(normalized) is None:
-        raise ValueError(
-            "event must use snake_case and match "
-            f"{_EVENT_RE.pattern!r}, received {event!r}."
-        )
-
-    return normalized
-
-
-def _validate_single_line_text(
-    value: str,
-    *,
-    field: str,
-) -> str:
-    """Require non-empty text without line breaks."""
-    if type(value) is not str:
-        raise TypeError(
-            f"{field} must be a string, "
-            f"received {type(value).__name__}."
-        )
-
-    normalized = value.strip()
-
-    if not normalized:
-        raise ValueError(f"{field} must not be empty.")
-
-    if "\n" in normalized or "\r" in normalized:
-        raise ValueError(
-            f"{field} must contain exactly one line."
-        )
-
-    return normalized
-
-
-def _normalize_context(
-    context: Mapping[str, object],
-) -> dict[str, JsonValue]:
-    """Validate context keys and normalize values for text and JSON sinks."""
-    normalized: dict[str, JsonValue] = {}
-
-    for key, value in context.items():
-        if type(key) is not str:
-            raise TypeError(
-                "Context keys must be strings, "
-                f"received {type(key).__name__}."
-            )
-
-        normalized_key = key.strip()
-
-        if _CONTEXT_KEY_RE.fullmatch(normalized_key) is None:
-            raise ValueError(
-                f"Invalid context key: {key!r}."
-            )
-
-        if normalized_key in _RESERVED_CONTEXT_KEYS:
-            raise ValueError(
-                f"Context key {normalized_key!r} is reserved."
-            )
-
-        lowered_key = normalized_key.lower()
-        if any(
-            fragment in lowered_key
-            for fragment in _SENSITIVE_KEY_FRAGMENTS
-        ):
-            raise ValueError(
-                f"Context key {normalized_key!r} may contain sensitive data."
-            )
-
-        if value is None:
-            continue
-
-        normalized[normalized_key] = _normalize_json_value(
-            value
-        )
-
-    return normalized
-
-
-def _normalize_json_value(value: object) -> JsonValue:
-    """Convert a supported context value into a JSON-compatible value."""
-    if value is None or isinstance(value, (str, bool, int)):
-        return value
-
-    if isinstance(value, float):
-        if not isfinite(value):
-            raise ValueError(
-                f"Floating-point log value must be finite: {value!r}."
-            )
-        return value
-
-    if isinstance(value, Decimal):
-        if not value.is_finite():
-            raise ValueError(
-                f"Decimal log value must be finite: {value!r}."
-            )
-        return format(value, "f")
-
-    if isinstance(value, Path):
-        return str(value)
-
-    if isinstance(value, datetime):
-        if value.tzinfo is None or value.utcoffset() is None:
-            raise ValueError(
-                "Datetime log values must include an explicit timezone."
-            )
-        return value.isoformat()
-
-    if isinstance(value, date):
-        return value.isoformat()
-
-    if isinstance(value, Enum):
-        return _normalize_json_value(value.value)
-
-    if isinstance(value, Mapping):
-        normalized_mapping: dict[str, JsonValue] = {}
-        value_typed = cast(Mapping[str, object], value)
-
-        for key, nested_value in value_typed.items():
-            if type(key) is not str:
-                raise TypeError(
-                    "Nested log mapping keys must be strings."
-                )
-
-            normalized_mapping[key] = _normalize_json_value(
-                nested_value
-            )
-
-        return normalized_mapping
-
-    if isinstance(value, (list, tuple)):
-        return [
-            _normalize_json_value(item)
-            for item in cast(Sequence[object], value)
-        ]
-
-    if is_dataclass(value) and not isinstance(value, type):
-        raise TypeError(
-            "Dataclass instances must be converted to an explicit "
-            "non-sensitive logging context before logging."
-        )
-
-    raise TypeError(
-        "Unsupported logging context value type: "
-        f"{type(value).__name__}."
-    )
-
-
-def _format_text_value(value: JsonValue) -> str:
-    """Format one normalized context value without introducing new lines."""
-    if isinstance(value, str):
-        return json.dumps(
-            value,
-            ensure_ascii=False,
-        )
-
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        allow_nan=False,
-    )
-
-
-def _format_timestamp(value: object) -> str:
-    """Return an ISO 8601 timestamp from a Loguru record value."""
-    if isinstance(value, datetime):
-        return value.isoformat()
-
-    isoformat = getattr(value, "isoformat", None)
-    if callable(isoformat):
-        formatted = isoformat()
-        if isinstance(formatted, str):
-            return formatted
-
-    raise TypeError(
-        "Loguru record timestamp does not support ISO 8601 formatting."
-    )
-
-
-def _format_level(value: object) -> str:
-    """Return the textual level name from a Loguru record value."""
-    name = getattr(value, "name", None)
-
-    if not isinstance(name, str):
-        raise TypeError(
-            "Loguru record level does not contain a textual name."
-        )
-
-    return _normalize_level(
-        name,
-        field="record level",
-    )
 
 
 def _validate_sink(

@@ -36,6 +36,8 @@ from pyauditor.categoria_filter import (
     GRUPO_EXECUTOR_COLUMN,
     base_config_stem,
     compute_categoria_values,
+    outros_warning,
+    unmatched_in_values_warnings,
 )
 from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
 from pyauditor.config.categorias import GrupoExecutorMode, load_categorias
@@ -291,25 +293,16 @@ def run_split(
         real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
         # Cross-check in_values contra valores reais (issue 09): typo/renomeação
         # no CSV gera categoria sem linhas — indistinguível de zero atividade
-        for categoria_key, entry in entries:
-            if entry.in_values is not None:
-                unmatched = [v for v in entry.in_values if v not in real_values]
-                if unmatched and not (set(entry.in_values) & real_values):
-                    warning = (
-                        f"INMS {inms_key} ({orgao}/{competencia}), categoria {categoria_key}: "
-                        f"in_values {unmatched!r} sem correspondência em Grupo_executor do CSV "
-                        f"({raw_csv_path}) — possível typo/renomeação, categoria ficará sem linhas"
-                    )
-                    logger.warning(warning)
-                    warnings.append(warning)
-                elif unmatched:
-                    warning = (
-                        f"INMS {inms_key} ({orgao}/{competencia}), categoria {categoria_key}: "
-                        f"in_values {unmatched!r} sem correspondência — "
-                        "valores não encontrados no CSV"
-                    )
-                    logger.warning(warning)
-                    warnings.append(warning)
+        for w in unmatched_in_values_warnings(
+            inms_key=inms_key,
+            orgao=orgao,
+            competencia=competencia,
+            entries=entries,
+            real_values=real_values,
+            raw_csv_path=raw_csv_path,
+        ):
+            logger.warning(w)
+            warnings.append(w)
         per_categoria_values, outros_values = compute_categoria_values(entries, real_values)
 
         split_dir = competencia_data_dir / _SPLIT_DIRNAME / inms_key
@@ -377,10 +370,11 @@ def run_split(
             )
         )
         if outros_rows:
-            warning = (
-                f"INMS {inms_key} ({orgao}/{competencia}), categoria outros: "
-                f"{len(outros_rows)} linha(s) não classificada(s) em nenhuma categoria — "
-                "revisar categorias.yaml"
+            warning = outros_warning(
+                inms_key=inms_key,
+                orgao=orgao,
+                competencia=competencia,
+                outros_count=len(outros_rows),
             )
             logger.warning(warning)
             warnings.append(warning)

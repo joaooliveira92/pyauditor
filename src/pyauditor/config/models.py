@@ -12,16 +12,33 @@ from typing import Annotated, Final, Literal, Self
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from pyauditor.config._paths import reject_unsafe_relative_path
+from pyauditor.config.acceptance import (
+    AcceptanceTest,
+    AcceptanceTestCategoryExpected,
+    AcceptanceTestExpected,
+    AcceptanceTestOccurrenceExpected,
+    CountDifferenceAcceptanceExpected,
+    ExternalCatalogSumAcceptanceExpected,
+    PrecomputedTableAcceptanceExpected,
+    RatioAcceptanceExpected,
+    SegmentedRatioAcceptanceExpected,
+)
 
 type _SafeRelativePath = Annotated[str, AfterValidator(reject_unsafe_relative_path)]
 
 __all__: Final[tuple[str, ...]] = (
+    "AcceptanceTest",
+    "AcceptanceTestCategoryExpected",
+    "AcceptanceTestExpected",
+    "AcceptanceTestOccurrenceExpected",
     "Calculation",
     "ColumnContains",
     "ColumnEquals",
     "ColumnIn",
+    "CountDifferenceAcceptanceExpected",
     "CountDifferenceCalculation",
     "DurationAtMost",
+    "ExternalCatalogSumAcceptanceExpected",
     "ExternalCatalogSumCalculation",
     "Filter",
     "InSetCheck",
@@ -29,12 +46,15 @@ __all__: Final[tuple[str, ...]] = (
     "IndicatorConfig",
     "NotNullCheck",
     "Penalty",
+    "PrecomputedTableAcceptanceExpected",
     "PrecomputedTableCalculation",
     "QualityGateCheck",
     "QualityGates",
+    "RatioAcceptanceExpected",
     "RatioCalculation",
     "Scope",
     "SegmentedCategory",
+    "SegmentedRatioAcceptanceExpected",
     "SegmentedRatioCalculation",
     "Source",
     "Target",
@@ -261,85 +281,6 @@ class Penalty(BaseModel):
     base_points: float = Field(default=0.0, ge=0)
     step_points: float = Field(ge=0)
     step_size_pct: float = Field(gt=0)
-
-
-class AcceptanceTestCategoryExpected(BaseModel):
-    model_config = _StrictFrozen
-    name: str
-    numerator: int = Field(ge=0)
-    denominator: int = Field(ge=0)
-    result_pct: float = Field(ge=0, le=100)
-    penalty_points: float = Field(ge=0)
-
-
-class AcceptanceTestOccurrenceExpected(BaseModel):
-    model_config = _StrictFrozen
-    occurrence_id: str
-    catalog_id: str
-    pontos: int = Field(ge=0)
-
-
-class RatioAcceptanceExpected(BaseModel):
-    model_config = _StrictFrozen
-    shape: Literal["ratio"]
-    numerator: float = Field(ge=0)
-    denominator: float = Field(ge=0)
-    result_pct: float = Field(ge=0, le=100)
-    conforms: bool
-    penalty_points: float = Field(ge=0)
-
-
-class SegmentedRatioAcceptanceExpected(BaseModel):
-    model_config = _StrictFrozen
-    shape: Literal["segmented_ratio"]
-    result_pct: float = Field(ge=0, le=100)
-    conforms: bool
-    penalty_points: float = Field(ge=0)
-    categories: list[AcceptanceTestCategoryExpected] = Field(min_length=1)
-
-
-class CountDifferenceAcceptanceExpected(BaseModel):
-    model_config = _StrictFrozen
-    shape: Literal["count_difference"]
-    result_pct: float = Field(ge=0, le=100)
-    conforms: bool
-    penalty_points: float = Field(ge=0)
-    qrc: int = Field(ge=0)
-    qcsi: int = Field(ge=0)
-    cni: int
-
-
-class ExternalCatalogSumAcceptanceExpected(BaseModel):
-    model_config = _StrictFrozen
-    shape: Literal["external_catalog_sum"]
-    result_pct: float = Field(ge=0, le=100)
-    conforms: bool
-    penalty_points: float = Field(ge=0)
-    total_points: int = Field(ge=0)
-    occurrences: list[AcceptanceTestOccurrenceExpected] = Field(default_factory=list)
-
-
-class PrecomputedTableAcceptanceExpected(BaseModel):
-    model_config = _StrictFrozen
-    shape: Literal["precomputed_table"]
-    result_pct: float = Field(ge=0, le=100)
-    conforms: bool
-    penalty_points: float = Field(ge=0)
-
-
-type AcceptanceTestExpected = Annotated[
-    RatioAcceptanceExpected
-    | SegmentedRatioAcceptanceExpected
-    | CountDifferenceAcceptanceExpected
-    | ExternalCatalogSumAcceptanceExpected
-    | PrecomputedTableAcceptanceExpected,
-    Field(discriminator="shape"),
-]
-
-
-class AcceptanceTest(BaseModel):
-    model_config = _StrictFrozen
-    expected: AcceptanceTestExpected
 
 
 class IndicatorConfig(BaseModel):

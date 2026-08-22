@@ -7,7 +7,6 @@ step-based `penalty`) — varies. See .scratch/melhoria_rom/map.md for the spec
 this template implements.
 """
 
-import math
 from collections.abc import Callable
 from typing import Any
 
@@ -15,7 +14,7 @@ from pyauditor.codes import format_inms_code
 from pyauditor.config.models import IndicatorConfig
 from pyauditor.engine.pipeline import MeasurementProvenance, MeasurementResult
 from pyauditor.engine.quality_gates import QualityGateReport
-from pyauditor.engine.strategies._target import shortfall
+from pyauditor.engine.strategies import penalty_interpretation
 from pyauditor.engine.strategies.base import CalculationResult
 from pyauditor.periodo import PeriodoAfericao, format_period_br
 
@@ -112,6 +111,15 @@ _MEMORIA_RENDERERS: dict[str, Callable[[CalculationResult], str]] = {
 }
 
 
+def _rom_title(config: IndicatorConfig) -> str:
+    """Identificador fiscal apresentado como título: código contractual
+    formatado + sufixo de `asset` quando houver."""
+    titulo = format_inms_code(config.indicator.contractual_id)
+    if config.indicator.asset is not None:
+        titulo += f" — {config.indicator.asset}"
+    return titulo
+
+
 def _capa_value(capa_fields: dict[str, object], label: str) -> str:
     value = capa_fields.get(label)
     if value in (None, ""):
@@ -163,20 +171,14 @@ def _render_ressalva_interpretativa(
 ) -> str | None:
     """Only shapes with a step-based `penalty` (today: `ratio`) have a
     linear-vs-degraus ambiguity to disclose, and only when there's an actual
-    shortfall to score — a conforming indicator has nothing to interpret."""
-    if config.penalty is None or calculation.penalty_points <= 0:
-        return None
-    assert config.target is not None  # `penalty` always accompanies `target` for `ratio`
+    shortfall to score — a conforming indicator has nothing to interpret.
 
-    deficit = max(
-        shortfall(calculation.result_pct, config.target.operator, config.target.value), 0.0
-    )
-    steps = deficit / config.penalty.step_size_pct
-    base = config.penalty.base_points
-    step_points = config.penalty.step_points
-    linear_points = calculation.penalty_points
-    floor_points = base + math.floor(steps) * step_points
-    ceil_points = base + math.ceil(steps) * step_points
+    Formata as leituras já computadas pela engine
+    (`penalty_interpretation`) — o Markdown nunca recalcula a ressalva.
+    """
+    readings = penalty_interpretation(config, calculation)
+    if readings is None:
+        return None
 
     formula_linear = "base + (déficit / passo) x pontos_degrau"
     formula_floor = "base + ⌊déficit / passo⌋ x pontos_degrau"
@@ -184,9 +186,9 @@ def _render_ressalva_interpretativa(
     return (
         "| Leitura | Fórmula | Pontuação apurada |\n"
         "|---|---|---|\n"
-        f"| Linear contínua (adotada) | {formula_linear} | {linear_points:.2f} |\n"
-        f"| Degraus completos | {formula_floor} | {floor_points:.2f} |\n"
-        f"| Qualquer fração inicia novo degrau | {formula_ceil} | {ceil_points:.2f} |\n"
+        f"| Linear contínua (adotada) | {formula_linear} | {readings.linear:.2f} |\n"
+        f"| Degraus completos | {formula_floor} | {readings.floor:.2f} |\n"
+        f"| Qualquer fração inicia novo degrau | {formula_ceil} | {readings.ceil:.2f} |\n"
         "\n"
         "> A leitura linear contínua é a metodologia adotada por este pipeline. As\n"
         "> demais leituras são apresentadas para transparência e não foram validadas\n"
@@ -264,7 +266,12 @@ def _org_body(
         or "| — | nenhuma rejeição |"
     )
 
-    memoria_renderer = _MEMORIA_RENDERERS[config.calculation.shape]
+    memoria_renderer = _MEMORIA_RENDERERS.get(config.calculation.shape)
+    if memoria_renderer is None:
+        raise ValueError(
+            f"shape {config.calculation.shape!r} não tem renderer de memória — "
+            f"suportados: {sorted(_MEMORIA_RENDERERS)}"
+        )
 
     sections = [
         _render_identificacao(config, provenance, h, competencia=competencia, periodo=periodo),
@@ -303,14 +310,10 @@ def render_rom(
     capa_fields = capa_fields or {}
     config = result.config
 
-    titulo = format_inms_code(config.indicator.contractual_id)
-    if config.indicator.asset is not None:
-        titulo += f" — {config.indicator.asset}"
-
     return (
         "\n\n".join(
             [
-                f"# ROM — {titulo} ({config.indicator.name})",
+                f"# ROM — {_rom_title(config)} ({config.indicator.name})",
                 *_org_body(result, capa_fields, "##", competencia=competencia, periodo=periodo),
             ]
         )
@@ -337,12 +340,8 @@ def render_combined_rom(
     capa_a = capa_by_orgao.get(org_a, {})
     capa_b = capa_by_orgao.get(org_b, {})
 
-    titulo = format_inms_code(config_a.indicator.contractual_id)
-    if config_a.indicator.asset is not None:
-        titulo += f" — {config_a.indicator.asset}"
-
     sections = [
-        f"# ROM — {titulo} ({config_a.indicator.name}) — {org_a} e {org_b}",
+        f"# ROM — {_rom_title(config_a)} ({config_a.indicator.name}) — {org_a} e {org_b}",
         f"## {org_a}",
         *_org_body(result_a, capa_a, "###", competencia=competencia, periodo=periodo),
         f"## {org_b}",

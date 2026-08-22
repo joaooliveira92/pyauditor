@@ -199,3 +199,102 @@ categorias:
     assert exit_code == 0
     assert len(provider.summaries) == 1
     assert all(e.status == "done" for e in provider.summaries[0].state.commands)
+
+
+def test_force_commands_for_only_forces_selected_and_applicable() -> None:
+    """`_force_commands_for`: report é forçado quando selecionado; consolidate
+    só quando o plano é `both`; comandos não selecionados nunca são forçados."""
+    from pyauditor.interactive.flow import _force_commands_for
+
+    assert _force_commands_for("MinC", frozenset({"report"})) == frozenset({"report"})
+    assert _force_commands_for(
+        "both", frozenset({"report", "consolidate"})
+    ) == frozenset({"report", "consolidate"})
+    # MinC nunca força consolidate (disponível só em both).
+    assert _force_commands_for("MinC", frozenset({"consolidate"})) == frozenset()
+    assert _force_commands_for("MinC", frozenset({"measure"})) == frozenset()
+
+
+def test_is_pre_dispatch_failure_recognizes_dependency_prefix() -> None:
+    from pyauditor.interactive.flow import _is_pre_dispatch_failure
+    from pyauditor.orchestration.state import CommandStateEntry
+
+    failure = CommandStateEntry(
+        command="report",
+        orgao="MinC",
+        status="error",
+        started_at="2026-06-01T00:00:00+00:00",
+        finished_at="2026-06-01T00:00:01+00:00",
+        error_message="dependência não satisfeita: measure pendente",
+    )
+    technical = CommandStateEntry(
+        command="report",
+        orgao="MinC",
+        status="error",
+        started_at="2026-06-01T00:00:00+00:00",
+        finished_at="2026-06-01T00:00:01+00:00",
+        error_message="falha de escrita: disco cheio",
+    )
+    no_message = CommandStateEntry(
+        command="report",
+        orgao="MinC",
+        status="error",
+        started_at="2026-06-01T00:00:00+00:00",
+        finished_at="2026-06-01T00:00:01+00:00",
+    )
+
+    assert _is_pre_dispatch_failure(failure) is True
+    assert _is_pre_dispatch_failure(technical) is False
+    assert _is_pre_dispatch_failure(no_message) is False
+
+
+def test_select_commands_reselects_when_empty(tmp_path: Path) -> None:
+    """Seleção vazia re-solicita até um conjunto não-vazio ser escolhido."""
+    from pyauditor.interactive.flow import select_commands
+
+    provider = FakeInteractionProvider(
+        answers=[
+            [],  # vazio → mostra aviso e re-cobra
+            ["bootstrap", "measure"],
+        ]
+    )
+
+    selected = select_commands(provider, "MinC")
+
+    assert selected == frozenset({"bootstrap", "measure"})
+    assert any("ao menos uma etapa" in text for text, _ in provider.messages)
+
+
+def test_validate_competencia_rejects_invalid_period() -> None:
+    from pyauditor.interactive.flow import _validate_competencia
+
+    assert _validate_competencia("2026-06") is True
+    invalid = _validate_competencia("2026-13")
+    assert isinstance(invalid, str)
+    assert "Competência inválida" in invalid
+    assert _validate_competencia("?") is True  # help token aceito
+
+
+def test_select_commands_unsupported_orgao_raises() -> None:
+    from pyauditor.interactive.flow import select_commands
+
+    provider = FakeInteractionProvider(answers=[["measure"]])
+    try:
+        select_commands(provider, "Mars")
+    except ValueError as exc:
+        assert "Seletor de órgão não suportado" in str(exc)
+    else:
+        raise AssertionError("esperava ValueError")
+
+
+def test_state_presentation_renders_line(tmp_path: Path) -> None:
+    from pyauditor.interactive.flow import _render_state_line
+    from pyauditor.orchestration.state import CommandStateEntry
+
+    entry = CommandStateEntry(command="measure", orgao="MinC", status="done")
+    text, _style = _render_state_line(entry)
+    assert "[x]" in text
+    assert "measure (MinC)" in text
+    assert _render_state_line(
+        CommandStateEntry(command="report", orgao=None, status="pending")
+    )[0] == "[ ] report (consolidado)"

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 import yaml
 from openpyxl import load_workbook
 
@@ -377,3 +378,45 @@ def test_run_split_sem_period_column_e_erro_com_periodo(tmp_path: Path) -> None:
     assert result.status == "error"
     assert result.categorias == ()
     assert result.error_message is not None
+
+
+def test_run_split_write_failure_marks_error_without_aborting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Erros de escrita (dir sem permissão / bloqueado) em cada artefato —
+    CSV de categoria, config derivada e outros.csv — são OSError capturado;
+    o run termina com status error mas sem derrubar o comando."""
+    config_dir, data_dir = _write_fixture(tmp_path)
+
+    def _failing_write(path: Path, write: object) -> object:
+        raise OSError("disco cheio")
+
+    monkeypatch.setattr("pyauditor.cli.split.atomic_write", _failing_write)
+
+    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+
+    assert result.status == "error"
+    assert result.error_message is not None
+
+
+def test_run_split_derived_config_write_failure_marks_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Falha de escrita só na config derivada (`.yaml`), com os CSVs
+    escrevendo ok — cobre o ramo de erro do segundo artefato."""
+    config_dir, data_dir = _write_fixture(tmp_path)
+
+    def _failing_config_write(path: Path, write: object) -> object:
+        if path.suffix == ".yaml":
+            raise OSError("permissão negada")
+        from pyauditor.atomic_write import atomic_write
+
+        atomic_write(path, write)  # type: ignore[arg-type]
+        return None
+
+    monkeypatch.setattr("pyauditor.cli.split.atomic_write", _failing_config_write)
+
+    result = run_split("2026-06", config_dir, data_dir, expected_orgao="MinC")
+
+    assert result.status == "error"
+    assert result.categorias  # ao menos o outros.csv também entra no resultado

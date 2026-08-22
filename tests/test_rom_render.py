@@ -290,6 +290,62 @@ def test_footer_note_present(tmp_path: Path) -> None:
     assert "Responsáveis refletem o estado da capa no momento em que este ROM foi gerado" in rom
 
 
+def test_penalty_interpretation_computes_three_readings(tmp_path: Path) -> None:
+    """A derivação da ressalva (linear vs degraus) é domínio da engine: a função
+    pura devolve as 3 leituras sem passar por Markdown."""
+    from pyauditor.engine.strategies import penalty_interpretation
+
+    config_path = _write_ratio_fixture(tmp_path, resultado=91.0)
+    config = load_config(config_path)
+    result = measure(config, data_dir=tmp_path, config_path=config_path)
+
+    readings = penalty_interpretation(config, result.calculation)
+
+    assert readings is not None
+    assert readings.linear == pytest.approx(275.0)
+    assert readings.floor == pytest.approx(250.0)
+    assert readings.ceil == pytest.approx(350.0)
+
+
+def test_penalty_interpretation_none_when_conforms(tmp_path: Path) -> None:
+    from pyauditor.engine.strategies import penalty_interpretation
+
+    config_path = _write_ratio_fixture(tmp_path, resultado=100.0)
+    config = load_config(config_path)
+    result = measure(config, data_dir=tmp_path, config_path=config_path)
+
+    assert penalty_interpretation(config, result.calculation) is None
+
+
+def test_render_unknown_shape_raises_actionable_value_error(tmp_path: Path) -> None:
+    """Shape sem renderer de memória → ValueError acionável (não KeyError)."""
+    from pyauditor.config.models import IndicatorConfig
+    from pyauditor.engine.pipeline import MeasurementResult
+    from pyauditor.rom import render
+
+    config_path = _write_ratio_fixture(tmp_path, resultado=100.0)
+    config = load_config(config_path)
+    result = measure(config, data_dir=tmp_path, config_path=config_path)
+    bogus = result.config.model_copy(
+        update={
+            "calculation": config.calculation.model_copy(update={"shape": "bogus_shape"})
+        }
+    )
+    result = MeasurementResult(
+        config=bogus,
+        quality_gate_report=result.quality_gate_report,
+        calculation=result.calculation,
+        provenance=result.provenance,
+    )
+
+    try:
+        render.render_rom(result)
+    except ValueError as exc:
+        assert "não tem renderer de memória" in str(exc)
+    else:
+        raise AssertionError("esperava ValueError")
+
+
 def test_render_combined_rom_stacks_both_orgaos(tmp_path: Path) -> None:
     """The `both` markdown nests each orgão's full ROM body under its own
     `## <órgão>` heading (sections drop one level to `###`)."""

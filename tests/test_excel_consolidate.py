@@ -158,7 +158,7 @@ def test_is_final_month_reaches_compute_glosa() -> None:
     calls: list[dict[str, object]] = []
     from unittest.mock import patch
 
-    import pyauditor.excel.consolidate as consolidate_mod
+    import pyauditor.excel.consolidate._glosa_calcs as glosa_calcs
 
     real_compute_glosa = compute_glosa
 
@@ -169,7 +169,7 @@ def test_is_final_month_reaches_compute_glosa() -> None:
     minc = [_summary("INMS 1.6", orgao="MinC", conforms=False, penalty_points=40000.0)]
     mtur = [_summary("INMS 1.6", orgao="MTur", conforms=False, penalty_points=40000.0)]
 
-    with patch.object(consolidate_mod, "compute_glosa", side_effect=_spy_compute):
+    with patch.object(glosa_calcs, "compute_glosa", side_effect=_spy_compute):
         build_consolidated_workbook(
             "2026-06", minc, mtur, {}, valor_base=100000.0, is_final_month=True
         )
@@ -190,7 +190,7 @@ def test_saldo_rolado_honors_final_month(is_final_month: bool, expected_saldo: f
     comportamento de `report.xlsx` (ticket 10)."""
     from unittest.mock import patch
 
-    import pyauditor.excel.consolidate as consolidate_mod
+    import pyauditor.excel.consolidate._glosa_calcs as glosa_calcs
 
     real_compute_glosa = compute_glosa
     captured: list[object] = []
@@ -203,7 +203,7 @@ def test_saldo_rolado_honors_final_month(is_final_month: bool, expected_saldo: f
     minc = [_summary("INMS 1.1", orgao="MinC", conforms=False, penalty_points=40000.0)]
     mtur: list[IndicatorSummary] = []
 
-    with patch.object(consolidate_mod, "compute_glosa", side_effect=_spy):
+    with patch.object(glosa_calcs, "compute_glosa", side_effect=_spy):
         build_consolidated_workbook(
             "2026-06",
             minc,
