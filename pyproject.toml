@@ -72,13 +72,23 @@ select = [
     "UP",
     "SIM",
     "RUF",
+    "N",
+    "W",
+    "G",
+    "S101",
 ]
+# Cláusulas do pyguide.md: §3.16 naming (N), §3.6 whitespace (W),
+# §3.10.1 logging (G), §2.4 sem assert em produção (S101).
 # pt-BR usa en-dash em intervalos ("01/06–30/06") — spec competencia-cli-equipe
 # §3 exige mensagens verbatim com ele.
 allowed-confusables = ["–"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
+
+[tool.ruff.format]
+# pyguide.md §3.10: escolha única de aspas, prefere `'`.
+quote-style = "single"
 
 [tool.coverage.run]
 branch = true
