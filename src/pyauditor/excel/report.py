@@ -1,12 +1,30 @@
-"""Builds the consolidated Excel final: `CAPA_E_CONTROLE` (first sheet) +
-`CADASTROS` + `INMS_BASE` + the 4 per-group tabs (docs/spreadsheet.md
-§Abas 1-2, 4-8) + `GLOSAS` (spec §12) + `EVIDENCIAS` (spec §Aba 9),
-from the JSON summaries `measure` writes alongside each ROM
-(`rom/summary.py`) and the capa workbook `bootstrap` created.
+"""Build the consolidated Excel report from measured indicator summaries.
+
+The generated workbook may contain the following worksheets, in order:
+
+1. ``CAPA_E_CONTROLE``, when cover fields are supplied;
+2. ``CADASTROS``, when indicator configurations are supplied;
+3. ``INMS_BASE``;
+4. the operational group worksheets declared by ``GROUP_TABS``;
+5. ``GLOSAS``;
+6. ``EVIDENCIAS``, when indicator configurations are supplied.
+
+Indicator summaries are produced by ``measure`` and stored alongside each ROM.
+The cover fields originate from the workbook created by ``bootstrap``.
+
+Workbook construction is performed entirely in memory. Persistence is handled
+separately by :func:`build_report`, which writes the completed workbook
+atomically and closes it deterministically.
+
+Columns intended for manual completion by contract inspectors remain blank.
+The report does not infer or fabricate fiscal evidence, SEI references,
+justifications, applicability decisions, or other manual declarations.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Final
+from typing import Final, Sequence
 
 from openpyxl import Workbook
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -30,14 +48,21 @@ from pyauditor.excel.glosas import (
 from pyauditor.excel.groups import GROUP_TABS, group_for_summary
 from pyauditor.rom.summary import IndicatorSummary
 
-CADASTROS_SHEET: Final = "CADASTROS"
-EVIDENCIAS_SHEET: Final = "EVIDENCIAS"
-INMS_BASE_SHEET: Final = "INMS_BASE"
-GLOSAS_SHEET: Final = "GLOSAS"
+__all__: Final[tuple[str, ...]] = (
+    "CADASTROS_SHEET",
+    "EVIDENCIAS_SHEET",
+    "GLOSAS_SHEET",
+    "INMS_BASE_SHEET",
+    "build_report",
+    "build_report_workbook",
+    "compute_report_glosa",
+)
 
-# docs/spreadsheet.md §Aba 4 "Colunas propostas" — every column, in order.
-# Columns not derivable from a measurement (fiscal-manual-entry-only) stay
-# blank rather than being fabricated, per this ticket's scope.
+CADASTROS_SHEET: Final[str] = "CADASTROS"
+EVIDENCIAS_SHEET: Final[str] = "EVIDENCIAS"
+INMS_BASE_SHEET: Final[str] = "INMS_BASE"
+GLOSAS_SHEET: Final[str] = "GLOSAS"
+
 _INMS_BASE_COLUMNS: Final[tuple[str, ...]] = (
     "Competência",
     "Item contratual",
@@ -78,12 +103,6 @@ _GROUP_TAB_COLUMNS: Final[tuple[str, ...]] = (
     "Penalidade (pontos)",
 )
 
-# spec.md §12.3, plus rollover/reincidência (.scratch/framework-audit/issues/
-# 11-estado-persistente-entre-competencias.md): saldo do mês anterior consumido
-# no cálculo e a flag de reincidência (item 35 do TR — 3+ estouros do teto em
-# 6 meses = inexecução parcial do contrato; não altera o valor da glosa). As
-# demais colunas fiscal-manual de docs/spreadsheet.md §Aba 10 (faixa de
-# descumprimento, justificativa, etc.) seguem fora deste escopo.
 _GLOSAS_COLUMNS: Final[tuple[str, ...]] = (
     "Competência",
     "Σ Pontos_NMS do mês",
@@ -133,16 +152,33 @@ _EVIDENCIAS_STATUS: Final[tuple[str, ...]] = (
     "Validada",
 )
 
-
-def _sort_key(summary: IndicatorSummary) -> tuple[tuple[int, str, int, str], str]:
-    # Multi-asset rows (spec/ticket "multi-asset file discovery") share a
-    # contractual_id, so sort by asset within it for a stable, readable order.
-    return (contractual_sort_key(summary.contractual_id), summary.asset or "")
+_MINIMUM_BODY_ROW: Final[int] = 2
 
 
-def _cadastros_row(config: IndicatorConfig) -> tuple[CellValue, ...]:
+def _sort_key(
+    summary: IndicatorSummary,
+) -> tuple[tuple[int, str, int, str], str]:
+    """Return a deterministic contractual and asset ordering key."""
+    return (
+        contractual_sort_key(summary.contractual_id),
+        summary.asset or "",
+    )
+
+
+def _config_sort_key(
+    config: IndicatorConfig,
+) -> tuple[int, str, int, str]:
+    """Return the contractual ordering key for an indicator configuration."""
+    return contractual_sort_key(config.indicator.contractual_id)
+
+
+def _cadastros_row(
+    config: IndicatorConfig,
+) -> tuple[CellValue, ...]:
+    """Convert an indicator configuration into a CADASTROS worksheet row."""
     target = config.target
     penalty = config.penalty
+
     return (
         format_inms_code(config.indicator.contractual_id),
         config.indicator.name,
@@ -154,58 +190,199 @@ def _cadastros_row(config: IndicatorConfig) -> tuple[CellValue, ...]:
     )
 
 
-def _evidencias_row(competencia: str, config: IndicatorConfig) -> tuple[CellValue, ...]:
+def _evidencias_row(
+    competencia: str,
+    config: IndicatorConfig,
+) -> tuple[CellValue, ...]:
+    """Create an evidence row prepared for manual fiscal completion."""
     return (
         competencia,
         format_inms_code(config.indicator.contractual_id),
-        None,  # Tipo de evidência — fiscal-manual
-        None,  # Descrição — fiscal-manual
-        None,  # Fonte/URL — fiscal-manual
-        None,  # Responsável pela coleta — fiscal-manual
-        None,  # Data de coleta — fiscal-manual
+        None,
+        None,
+        None,
+        None,
+        None,
         "Pendente",
     )
+
+
+def _inline_validation_formula(values: tuple[str, ...]) -> str:
+    """Build a safe inline Excel list-validation formula.
+
+    Inline validation values cannot contain commas or double quotes because
+    Excel interprets those characters as list or formula delimiters.
+
+    Args:
+        values: Controlled values exposed by the validation list.
+
+    Returns:
+        An Excel formula containing the comma-separated validation values.
+
+    Raises:
+        ValueError: If the list is empty, contains unsupported characters, or
+            exceeds Excel's 255-character inline validation limit.
+    """
+    if not values:
+        raise ValueError("Data-validation values must not be empty.")
+
+    if any("," in value or '"' in value for value in values):
+        raise ValueError(
+            "Inline data-validation values must not contain commas or quotes."
+        )
+
+    formula = f'"{",".join(values)}"'
+    if len(formula) > 255:
+        raise ValueError(
+            "Inline data-validation formula exceeds Excel's 255-character limit."
+        )
+
+    return formula
+
+
+def _add_evidencias_validations(
+    sheet,
+    last_row: int,
+) -> None:
+    """Apply controlled-value validation to populated evidence rows."""
+    if last_row < _MINIMUM_BODY_ROW:
+        return
+
+    tipo_validation = DataValidation(
+        type="list",
+        formula1=_inline_validation_formula(_EVIDENCIAS_TIPOS),
+        allow_blank=True,
+        errorStyle="stop",
+        errorTitle="Tipo de evidência inválido",
+        error="Selecione um tipo de evidência disponível na lista.",
+        showErrorMessage=True,
+    )
+    sheet.add_data_validation(tipo_validation)
+    tipo_validation.add(f"C{_MINIMUM_BODY_ROW}:C{last_row}")
+
+    status_validation = DataValidation(
+        type="list",
+        formula1=_inline_validation_formula(_EVIDENCIAS_STATUS),
+        allow_blank=False,
+        errorStyle="stop",
+        errorTitle="Status inválido",
+        error="Selecione um status disponível na lista.",
+        showErrorMessage=True,
+    )
+    sheet.add_data_validation(status_validation)
+    status_validation.add(f"H{_MINIMUM_BODY_ROW}:H{last_row}")
+
+
+def _build_cadastros_sheet(
+    workbook: Workbook,
+    configs: Sequence[IndicatorConfig],
+) -> None:
+    """Create CADASTROS, including an empty schema when no configs exist."""
+    sheet = _new_sheet(
+        workbook,
+        CADASTROS_SHEET,
+        _CADASTROS_COLUMNS,
+        width=28,
+    )
+
+    for row_index, config in enumerate(
+        sorted(configs, key=_config_sort_key),
+        start=_MINIMUM_BODY_ROW,
+    ):
+        _write_row(sheet, row_index, _cadastros_row(config))
 
 
 def _build_evidencias_sheet(
     workbook: Workbook,
     competencia: str,
-    configs: list[IndicatorConfig],
+    configs: Sequence[IndicatorConfig],
 ) -> None:
-    sheet = _new_sheet(workbook, EVIDENCIAS_SHEET, _EVIDENCIAS_COLUMNS, width=24)
-    sorted_configs = sorted(configs, key=lambda c: contractual_sort_key(c.indicator.contractual_id))
-    for row_idx, config in enumerate(sorted_configs, start=2):
-        _write_row(sheet, row_idx, _evidencias_row(competencia, config))
-
-    max_row = len(sorted_configs) + 1
-
-    tipo_validation = DataValidation(
-        type="list",
-        formula1=f'"{",".join(_EVIDENCIAS_TIPOS)}"',
-        allow_blank=True,
+    """Create EVIDENCIAS and its controlled-value validations."""
+    sheet = _new_sheet(
+        workbook,
+        EVIDENCIAS_SHEET,
+        _EVIDENCIAS_COLUMNS,
+        width=24,
     )
-    sheet.add_data_validation(tipo_validation)
-    tipo_validation.add(f"C2:C{max_row}")
+    sorted_configs = sorted(configs, key=_config_sort_key)
 
-    status_validation = DataValidation(
-        type="list",
-        formula1=f'"{",".join(_EVIDENCIAS_STATUS)}"',
-        allow_blank=False,
+    for row_index, config in enumerate(
+        sorted_configs,
+        start=_MINIMUM_BODY_ROW,
+    ):
+        _write_row(
+            sheet,
+            row_index,
+            _evidencias_row(competencia, config),
+        )
+
+    last_row = len(sorted_configs) + 1
+    _add_evidencias_validations(sheet, last_row)
+
+
+def _compliance_margin(
+    result: float,
+    target: float | None,
+    operator: str | None,
+) -> float | None:
+    """Calculate the signed distance from the target boundary.
+
+    A positive value indicates that the result is on the compliant side of
+    the target boundary. A negative value indicates the magnitude of the
+    nonconformity.
+
+    For minimum targets, the margin is ``result - target``. For maximum
+    targets, the margin is ``target - result``.
+
+    Args:
+        result: Calculated indicator result.
+        target: Configured target boundary, if present.
+        operator: Target comparison operator.
+
+    Returns:
+        The signed compliance margin, or ``None`` when no target is configured.
+
+    Raises:
+        ValueError: If a target exists but its operator is missing or
+            unsupported.
+    """
+    if target is None:
+        return None
+
+    if operator in {">", ">="}:
+        return result - target
+
+    if operator in {"<", "<="}:
+        return target - result
+
+    if operator in {"=", "=="}:
+        return -abs(result - target)
+
+    raise ValueError(
+        f"Unsupported target operator for compliance margin: {operator!r}."
     )
-    sheet.add_data_validation(status_validation)
-    status_validation.add(f"H2:H{max_row}")
 
 
-def _inms_base_row(competencia: str, summary: IndicatorSummary) -> tuple[CellValue, ...]:
-    diferenca_para_meta: float | None = None
-    if summary.target_value is not None:
-        diferenca_para_meta = summary.target_value - summary.result_pct
+def _inms_base_row(
+    competencia: str,
+    summary: IndicatorSummary,
+) -> tuple[CellValue, ...]:
+    """Convert a measured summary into an INMS_BASE worksheet row."""
+    group = group_for_summary(
+        summary.indicator_id,
+        summary.contractual_id,
+    )
+    margin = _compliance_margin(
+        summary.result_pct,
+        summary.target_value,
+        summary.target_operator,
+    )
 
     return (
         competencia,
-        None,  # Item contratual — fiscal-manual
-        summary.asset,  # None for single-asset indicators
-        group_for_summary(summary.indicator_id, summary.contractual_id),
+        None,
+        summary.asset,
+        group,
         format_inms_code(summary.contractual_id),
         summary.name,
         summary.orgao,
@@ -215,24 +392,26 @@ def _inms_base_row(competencia: str, summary: IndicatorSummary) -> tuple[CellVal
         summary.denominator,
         round(summary.result_pct, 2),
         _UNIT_BY_SHAPE.get(summary.shape, ""),
-        None,  # Aplicabilidade — fiscal-manual
-        None,  # Resultado esperado — fiscal-manual
-        "Conforme" if summary.conforms else "Não conforme",
-        round(diferenca_para_meta, 2) if diferenca_para_meta is not None else None,
-        # Ocorrência de glosa — glosa é um agregado mensal (GLOSAS), não por indicador (spec §12)
         None,
-        None,  # Percentual de glosa — idem
-        None,  # Valor-base — idem
-        None,  # Valor da glosa — idem
-        None,  # Justificativa — fiscal-manual
-        None,  # Referência da evidência — fiscal-manual
-        None,  # Número SEI — fiscal-manual
-        None,  # Responsável pela evidência — fiscal-manual
-        None,  # Observação do fiscal — fiscal-manual
+        None,
+        "Conforme" if summary.conforms else "Não conforme",
+        round(margin, 2) if margin is not None else None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     )
 
 
-def _group_row(summary: IndicatorSummary) -> tuple[CellValue, ...]:
+def _group_row(
+    summary: IndicatorSummary,
+) -> tuple[CellValue, ...]:
+    """Convert a measured summary into an operational group row."""
     return (
         format_inms_code(summary.contractual_id),
         summary.name,
@@ -246,147 +425,361 @@ def _group_row(summary: IndicatorSummary) -> tuple[CellValue, ...]:
 
 
 def _is_categoria_derived(summary: IndicatorSummary) -> bool:
-    """Derived configs from `split` have ``indicator_id`` like ``INMS-01.ATENDIMENTO_N1``
-    while the base is ``INMS-01`` — same ``contractual_id``. One ``.`` is the marker."""
-    return "." in summary.indicator_id
+    """Return whether a summary represents a split category.
+
+    Split configurations use an indicator identifier formed by a base
+    identifier followed by a category suffix separated by a dot, while
+    retaining the base contractual identifier.
+    """
+    base_identifier = summary.contractual_id
+    derived_prefix = f"{base_identifier}."
+    return summary.indicator_id.startswith(derived_prefix)
 
 
-def _deduplicate_summaries(summaries: list[IndicatorSummary]) -> list[IndicatorSummary]:
-    """When an INMS was segmented by Categoria, ``split`` writes derived
-    configs that all share the same ``contractual_id``/``asset`` as the base.
-    The consolidated financial view must count each INMS once — the base
-    must not contribute when derived categorias exist, otherwise the glosa
-    is counted N+1 times."""
-    by_key: dict[tuple[str, str | None], list[IndicatorSummary]] = {}
-    for s in summaries:
-        by_key.setdefault((s.contractual_id, s.asset), []).append(s)
-    deduped: list[IndicatorSummary] = []
-    for group in by_key.values():
-        if len(group) > 1 and any(_is_categoria_derived(s) for s in group):
-            # keep only derived, drop the base (no dot)
-            deduped.extend(s for s in group if _is_categoria_derived(s))
+def _summaries_for_glosa(
+    summaries: Sequence[IndicatorSummary],
+) -> list[IndicatorSummary]:
+    
+    """Select summaries that contribute to the monthly glosa.
+
+    Summaries are grouped by contractual identifier and asset. When a group
+    contains category-derived summaries, the unsplit base summary is excluded
+    to prevent the base result from being counted in addition to its category
+    components.
+
+    All derived category summaries remain because each represents a measured
+    component whose penalty contributes to the contractual indicator total.
+    Summaries without derived categories are preserved unchanged.
+    """
+    grouped: dict[
+        tuple[str, str | None],
+        list[IndicatorSummary],
+    ] = {}
+
+    for summary in summaries:
+        key = (summary.contractual_id, summary.asset)
+        grouped.setdefault(key, []).append(summary)
+
+    selected: list[IndicatorSummary] = []
+
+    for group in grouped.values():
+        derived = [
+            summary
+            for summary in group
+            if _is_categoria_derived(summary)
+        ]
+
+        if derived:
+            selected.extend(derived)
         else:
-            deduped.extend(group)
-    return deduped
+            selected.extend(group)
+
+    return selected
 
 
 def compute_report_glosa(
     competencia: str,
-    summaries: list[IndicatorSummary],
+    summaries: Sequence[IndicatorSummary],
     valor_base: float | None,
     *,
     is_final_month: bool = False,
     historico: Historico | None = None,
 ) -> GlosaResult:
-    """The same glosa the GLOSAS sheet renders, exposed so `cli/report.py`
-    can persist it to `roms/<orgao>/glosa_historico.json` after a successful
-    `report` run without recomputing the rollover/reincidência logic itself.
+    """Compute the monthly glosa rendered by the report.
+
+    Base summaries are excluded when category-derived summaries exist for the
+    same contractual indicator and asset. The derived category penalties are
+    then summed exactly once.
+
+    Historical state supplies the percentage-point balance rolled over from
+    the previous reporting period. Reincidence is not part of the returned
+    calculation because it is a reporting flag evaluated separately.
+
+    Args:
+        competencia: Reporting period used to resolve historical rollover.
+        summaries: Measured indicator summaries for one organization.
+        valor_base: Monetary base used to calculate the glosa, when available.
+        is_final_month: Whether rollover must follow final-month rules.
+        historico: Previously persisted glosa history. Missing history is
+            treated as empty.
+
+    Returns:
+        The calculated monthly glosa and rollover state.
+
+    Raises:
+        ValueError: Propagates invalid financial inputs or reporting periods
+            rejected by the glosa domain functions.
     """
-    deduped = _deduplicate_summaries(summaries)
-    total_points = sum(summary.penalty_points for summary in deduped)
-    saldo_anterior = saldo_anterior_pct_de(historico or {}, competencia)
+    effective_history = historico if historico is not None else {}
+    selected_summaries = _summaries_for_glosa(summaries)
+    total_points = sum(
+        summary.penalty_points
+        for summary in selected_summaries
+    )
+    previous_balance = saldo_anterior_pct_de(
+        effective_history,
+        competencia,
+    )
+
     return compute_glosa(
-        total_points, valor_base, is_final_month=is_final_month, saldo_anterior_pct=saldo_anterior
+        total_points,
+        valor_base,
+        is_final_month=is_final_month,
+        saldo_anterior_pct=previous_balance,
+    )
+
+
+def _build_inms_base_sheet(
+    workbook: Workbook,
+    competencia: str,
+    summaries: Sequence[IndicatorSummary],
+) -> None:
+    """Create and populate the canonical INMS_BASE worksheet."""
+    sheet = _new_sheet(
+        workbook,
+        INMS_BASE_SHEET,
+        _INMS_BASE_COLUMNS,
+        width=20,
+    )
+
+    for row_index, summary in enumerate(
+        sorted(summaries, key=_sort_key),
+        start=_MINIMUM_BODY_ROW,
+    ):
+        _write_row(
+            sheet,
+            row_index,
+            _inms_base_row(competencia, summary),
+        )
+
+
+def _build_group_sheets(
+    workbook: Workbook,
+    summaries: Sequence[IndicatorSummary],
+) -> None:
+    """Create every configured operational group worksheet."""
+    summaries_by_group: dict[str, list[IndicatorSummary]] = {
+        group: []
+        for group in GROUP_TABS
+    }
+
+    for summary in summaries:
+        group = group_for_summary(
+            summary.indicator_id,
+            summary.contractual_id,
+        )
+        if group is not None:
+            summaries_by_group[group].append(summary)
+
+    for group in GROUP_TABS:
+        sheet = _new_sheet(
+            workbook,
+            group,
+            _GROUP_TAB_COLUMNS,
+            width=22,
+        )
+
+        for row_index, summary in enumerate(
+            sorted(summaries_by_group[group], key=_sort_key),
+            start=_MINIMUM_BODY_ROW,
+        ):
+            _write_row(
+                sheet,
+                row_index,
+                _group_row(summary),
+            )
+
+
+def _build_glosas_sheet(
+    workbook: Workbook,
+    competencia: str,
+    summaries: Sequence[IndicatorSummary],
+    valor_base: float | None,
+    *,
+    is_final_month: bool,
+    historico: Historico,
+) -> None:
+    """Create the monthly financial adjustment worksheet."""
+    sheet = _new_sheet(
+        workbook,
+        GLOSAS_SHEET,
+        _GLOSAS_COLUMNS,
+        width=26,
+    )
+
+    previous_balance = saldo_anterior_pct_de(
+        historico,
+        competencia,
+    )
+    glosa = compute_report_glosa(
+        competencia,
+        summaries,
+        valor_base,
+        is_final_month=is_final_month,
+        historico=historico,
+    )
+    reincidencia = houve_reincidencia(
+        historico,
+        competencia,
+        glosa.teto_atingido,
+    )
+
+    _write_row(
+        sheet,
+        _MINIMUM_BODY_ROW,
+        (
+            competencia,
+            round(glosa.total_points, 2),
+            round(previous_balance, 5) if previous_balance else None,
+            round(glosa.percentual_ajuste, 5),
+            glosa.valor_base,
+            (
+                round(glosa.valor_da_glosa, 2)
+                if glosa.valor_da_glosa is not None
+                else None
+            ),
+            "S" if glosa.teto_atingido else "N",
+            (
+                round(glosa.saldo_rolado_pct, 5)
+                if glosa.saldo_rolado_pct
+                else None
+            ),
+            "S" if reincidencia else "N",
+        ),
     )
 
 
 def build_report_workbook(
     competencia: str,
-    summaries: list[IndicatorSummary],
+    summaries: Sequence[IndicatorSummary],
     valor_base: float | None = None,
     *,
     is_final_month: bool = False,
     capa_fields: dict[str, object] | None = None,
-    configs: list[IndicatorConfig] | None = None,
+    configs: Sequence[IndicatorConfig] | None = None,
     historico: Historico | None = None,
 ) -> Workbook:
-    """Builds the CAPA_E_CONTROLE + CADASTROS + INMS_BASE + group tabs +
-    GLOSAS + EVIDENCIAS workbook in memory — pure, no I/O. `capa_fields`
-    (from `capa.read_capa_fields`) is optional so callers/tests that don't
-    care about the capa tab can omit it; `report`'s CLI always passes it
-    since `bootstrap` is a required precondition. `configs` (from
-    `pipeline.discover_configs`) powers the CADASTROS and EVIDENCIAS tabs;
-    when omitted both tabs are skipped (backward-compatible with callers
-    that don't supply it). `historico` (from `glosas.read_historico`) feeds
-    rollover (`saldo_anterior_pct`) and the reincidência flag; when omitted
-    both default to "no prior history" (0.0 saldo, no reincidência).
+    """Build the consolidated report workbook entirely in memory.
+
+    The cover worksheet is created first when ``capa_fields`` is supplied.
+    ``CADASTROS`` and ``EVIDENCIAS`` are created when ``configs`` is supplied,
+    including when it is an empty sequence. An empty configuration sequence
+    therefore produces both worksheet schemas without data rows.
+
+    ``INMS_BASE``, every group worksheet, and ``GLOSAS`` are always created.
+
+    The caller owns the returned workbook and must close it. If construction
+    fails, this function closes the partially built workbook before propagating
+    the original exception.
+
+    Args:
+        competencia: Reporting period displayed in report rows and used for
+            historical glosa lookup.
+        summaries: Measured indicator summaries for one organization.
+        valor_base: Monetary base used for the monthly glosa.
+        is_final_month: Whether the reporting period follows final-month
+            rollover rules.
+        capa_fields: Cover worksheet fields. When omitted, the cover worksheet
+            is not created.
+        configs: Indicator configurations used by CADASTROS and EVIDENCIAS.
+            When omitted, both worksheets are skipped.
+        historico: Previously persisted glosa history. Missing history is
+            treated as empty.
+
+    Returns:
+        An open, fully constructed workbook owned by the caller.
+
+    Raises:
+        ValueError: If report values violate worksheet or financial contracts.
+        Exception: Propagates errors raised while rendering worksheets or
+            calculating the report.
     """
     workbook = Workbook()
-    default_sheet = workbook.active
-    assert default_sheet is not None
-    workbook.remove(default_sheet)
 
-    if capa_fields is not None:
-        capa_sheet = workbook.create_sheet(CAPA_SHEET_NAME, 0)
-        render_capa_sheet(capa_sheet, capa_fields)
+    try:
+        default_sheet = workbook.worksheets[0]
+        workbook.remove(default_sheet)
 
-    if configs:
-        cadastros_sheet = _new_sheet(workbook, CADASTROS_SHEET, _CADASTROS_COLUMNS, width=28)
-        for row_idx, config in enumerate(
-            sorted(configs, key=lambda c: contractual_sort_key(c.indicator.contractual_id)), start=2
-        ):
-            _write_row(cadastros_sheet, row_idx, _cadastros_row(config))
+        if capa_fields is not None:
+            cover_sheet = workbook.create_sheet(
+                title=CAPA_SHEET_NAME,
+                index=0,
+            )
+            render_capa_sheet(cover_sheet, capa_fields)
 
-    # MinC/MTur pooling lives in `consolidate` (2.1), not here — this report
-    # is per-órgão by construction (`run_report` only ever loads one órgão's
-    # ROMs), so `summaries` never mixes MinC+MTur in practice. See
-    # `pyauditor.excel.consolidate` and .scratch/multi-org-pipeline ticket 02.
-    base_sheet = _new_sheet(workbook, INMS_BASE_SHEET, _INMS_BASE_COLUMNS, width=20)
-    for row_idx, summary in enumerate(sorted(summaries, key=_sort_key), start=2):
-        _write_row(base_sheet, row_idx, _inms_base_row(competencia, summary))
+        if configs is not None:
+            _build_cadastros_sheet(workbook, configs)
 
-    by_group: dict[str, list[IndicatorSummary]] = {group: [] for group in GROUP_TABS}
-    for summary in summaries:
-        group = group_for_summary(summary.indicator_id, summary.contractual_id)
-        if group is not None:
-            by_group[group].append(summary)
-
-    for group in GROUP_TABS:
-        sheet = _new_sheet(workbook, group, _GROUP_TAB_COLUMNS, width=22)
-        rows = sorted(by_group[group], key=_sort_key)
-        for row_idx, summary in enumerate(rows, start=2):
-            _write_row(sheet, row_idx, _group_row(summary))
-
-    glosas_sheet = _new_sheet(workbook, GLOSAS_SHEET, _GLOSAS_COLUMNS, width=26)
-    historico = historico or {}
-    saldo_anterior = saldo_anterior_pct_de(historico, competencia)
-    glosa = compute_report_glosa(
-        competencia, summaries, valor_base, is_final_month=is_final_month, historico=historico
-    )
-    reincidencia = houve_reincidencia(historico, competencia, glosa.teto_atingido)
-    _write_row(
-        glosas_sheet,
-        2,
-        (
+        _build_inms_base_sheet(
+            workbook,
             competencia,
-            round(glosa.total_points, 2),
-            round(saldo_anterior, 5) if saldo_anterior else None,
-            round(glosa.percentual_ajuste, 5),
-            glosa.valor_base,
-            round(glosa.valor_da_glosa, 2) if glosa.valor_da_glosa is not None else None,
-            "S" if glosa.teto_atingido else "N",
-            round(glosa.saldo_rolado_pct, 5) if glosa.saldo_rolado_pct else None,
-            "S" if reincidencia else "N",
-        ),
-    )
+            summaries,
+        )
+        _build_group_sheets(
+            workbook,
+            summaries,
+        )
 
-    if configs:
-        _build_evidencias_sheet(workbook, competencia, configs)
+        effective_history = (
+            historico
+            if historico is not None
+            else {}
+        )
+        _build_glosas_sheet(
+            workbook,
+            competencia,
+            summaries,
+            valor_base,
+            is_final_month=is_final_month,
+            historico=effective_history,
+        )
 
-    return workbook
+        if configs is not None:
+            _build_evidencias_sheet(
+                workbook,
+                competencia,
+                configs,
+            )
+
+        return workbook
+    except BaseException:
+        workbook.close()
+        raise
 
 
 def build_report(
     competencia: str,
-    summaries: list[IndicatorSummary],
+    summaries: Sequence[IndicatorSummary],
     output_path: Path,
     valor_base: float | None = None,
     *,
     is_final_month: bool = False,
     capa_fields: dict[str, object] | None = None,
-    configs: list[IndicatorConfig] | None = None,
+    configs: Sequence[IndicatorConfig] | None = None,
     historico: Historico | None = None,
 ) -> None:
+    """Build and atomically persist the consolidated Excel report.
+
+    The output file is replaced only after the complete workbook has been
+    successfully written through the atomic-write mechanism. The in-memory
+    workbook is closed whether persistence succeeds or fails.
+
+    Args:
+        competencia: Reporting period displayed in the report.
+        summaries: Measured indicator summaries for one organization.
+        output_path: Destination path for the generated XLSX file.
+        valor_base: Monetary base used for the monthly glosa.
+        is_final_month: Whether final-month rollover rules apply.
+        capa_fields: Optional fields for the cover worksheet.
+        configs: Optional indicator configurations for CADASTROS and
+            EVIDENCIAS.
+        historico: Optional previously persisted glosa history.
+
+    Raises:
+        OSError: If the destination cannot be written or replaced.
+        ValueError: If report data violates worksheet or financial contracts.
+        Exception: Propagates workbook-rendering and serialization errors.
+    """
     workbook = build_report_workbook(
         competencia,
         summaries,
@@ -396,6 +789,7 @@ def build_report(
         configs=configs,
         historico=historico,
     )
+
     try:
         atomic_write(output_path, workbook.save)
     finally:
