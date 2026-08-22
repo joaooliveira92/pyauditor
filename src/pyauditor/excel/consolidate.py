@@ -23,7 +23,7 @@ from typing import Final
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Border, Font, Side
 
-from pyauditor.codes import format_inms_code
+from pyauditor.codes import contractual_sort_key, format_inms_code
 from pyauditor.excel._style import (
     BODY_FONT,
     BOTTOM_BORDER,
@@ -342,7 +342,7 @@ def build_inms_base(
     """
     ws = _new_sheet(wb, INMS_BASE_SHEET, _INMS_BASE_COLUMNS, width=20)
     rows = with_orgao_consolidation(minc + mtur)
-    rows.sort(key=lambda s: (s.contractual_id, s.asset or "", s.orgao))
+    rows.sort(key=lambda s: (contractual_sort_key(s.contractual_id), s.asset or "", s.orgao))
     for row_idx, summary in enumerate(rows, start=2):
         _write(ws, row_idx, _inms_base_row(competencia, summary))
         # Percentuais: Meta / Resultado calculado / Diferença para a meta.

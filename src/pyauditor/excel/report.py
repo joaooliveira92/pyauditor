@@ -12,7 +12,7 @@ from openpyxl import Workbook
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from pyauditor.atomic_write import atomic_write
-from pyauditor.codes import format_inms_code
+from pyauditor.codes import contractual_sort_key, format_inms_code
 from pyauditor.config.models import IndicatorConfig
 from pyauditor.excel._style import UNIT_BY_SHAPE as _UNIT_BY_SHAPE
 from pyauditor.excel._style import CellValue
@@ -27,7 +27,7 @@ from pyauditor.excel.glosas import (
     houve_reincidencia,
     saldo_anterior_pct_de,
 )
-from pyauditor.excel.groups import GROUP_TABS, primary_group
+from pyauditor.excel.groups import GROUP_TABS, group_for_summary
 from pyauditor.rom.summary import IndicatorSummary
 
 CADASTROS_SHEET: Final = "CADASTROS"
@@ -134,10 +134,10 @@ _EVIDENCIAS_STATUS: Final[tuple[str, ...]] = (
 )
 
 
-def _sort_key(summary: IndicatorSummary) -> tuple[str, str]:
+def _sort_key(summary: IndicatorSummary) -> tuple[tuple[int, str, int, str], str]:
     # Multi-asset rows (spec/ticket "multi-asset file discovery") share a
     # contractual_id, so sort by asset within it for a stable, readable order.
-    return (summary.contractual_id, summary.asset or "")
+    return (contractual_sort_key(summary.contractual_id), summary.asset or "")
 
 
 def _cadastros_row(config: IndicatorConfig) -> tuple[CellValue, ...]:
@@ -173,7 +173,7 @@ def _build_evidencias_sheet(
     configs: list[IndicatorConfig],
 ) -> None:
     sheet = _new_sheet(workbook, EVIDENCIAS_SHEET, _EVIDENCIAS_COLUMNS, width=24)
-    sorted_configs = sorted(configs, key=lambda c: c.indicator.contractual_id)
+    sorted_configs = sorted(configs, key=lambda c: contractual_sort_key(c.indicator.contractual_id))
     for row_idx, config in enumerate(sorted_configs, start=2):
         _write_row(sheet, row_idx, _evidencias_row(competencia, config))
 
@@ -205,7 +205,7 @@ def _inms_base_row(competencia: str, summary: IndicatorSummary) -> tuple[CellVal
         competencia,
         None,  # Item contratual — fiscal-manual
         summary.asset,  # None for single-asset indicators
-        primary_group(summary.contractual_id),
+        group_for_summary(summary.indicator_id, summary.contractual_id),
         format_inms_code(summary.contractual_id),
         summary.name,
         summary.orgao,
@@ -323,7 +323,7 @@ def build_report_workbook(
     if configs:
         cadastros_sheet = _new_sheet(workbook, CADASTROS_SHEET, _CADASTROS_COLUMNS, width=28)
         for row_idx, config in enumerate(
-            sorted(configs, key=lambda c: c.indicator.contractual_id), start=2
+            sorted(configs, key=lambda c: contractual_sort_key(c.indicator.contractual_id)), start=2
         ):
             _write_row(cadastros_sheet, row_idx, _cadastros_row(config))
 
@@ -337,7 +337,7 @@ def build_report_workbook(
 
     by_group: dict[str, list[IndicatorSummary]] = {group: [] for group in GROUP_TABS}
     for summary in summaries:
-        group = primary_group(summary.contractual_id)
+        group = group_for_summary(summary.indicator_id, summary.contractual_id)
         if group is not None:
             by_group[group].append(summary)
 

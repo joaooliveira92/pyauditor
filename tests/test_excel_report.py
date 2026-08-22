@@ -104,6 +104,40 @@ def test_group_tabs_only_contain_their_indicators() -> None:
     assert "INMS 1.04" in noc_soc_codes
 
 
+def test_split_derived_summary_lands_on_its_own_categoria_tab() -> None:
+    # `split` (spec §14) produces one measurement per Categoria — a derived
+    # summary must land on the tab its own categoria names, not on
+    # `primary_group`'s static first-listed tab for the contractual id.
+    summaries = [
+        _summary("INMS-01.OPERACAO_N3", "INMS 1.1"),
+        _summary("INMS-01.ATENDIMENTO_N2", "INMS 1.1"),
+    ]
+
+    workbook = build_report_workbook("2026-06", summaries)
+
+    n3_codes = [
+        workbook["OPERACAO_N3"].cell(row=r, column=1).value
+        for r in range(2, workbook["OPERACAO_N3"].max_row + 1)
+    ]
+    n2_codes = [
+        workbook["ATENDIMENTO_N2"].cell(row=r, column=1).value
+        for r in range(2, workbook["ATENDIMENTO_N2"].max_row + 1)
+    ]
+    n1_codes = [
+        workbook["ATENDIMENTO_N1"].cell(row=r, column=1).value
+        for r in range(2, workbook["ATENDIMENTO_N1"].max_row + 1)
+    ]
+    assert "INMS 1.01" in n3_codes
+    assert "INMS 1.01" in n2_codes
+    assert "INMS 1.01" not in n1_codes  # would be primary_group's first-listed tab
+
+    base_sheet = workbook[INMS_BASE_SHEET]
+    grupos = {
+        base_sheet.cell(row=r, column=4).value for r in range(2, base_sheet.max_row + 1)
+    }
+    assert grupos == {"OPERACAO_N3", "ATENDIMENTO_N2"}
+
+
 def test_indicator_outside_group_tabs_only_appears_in_inms_base() -> None:
     summaries = [
         _summary(
@@ -131,6 +165,27 @@ def test_rows_sorted_by_contractual_id() -> None:
 
     codes = [str(sheet.cell(row=r, column=1).value) for r in range(2, sheet.max_row + 1)]
     assert codes == sorted(codes)
+
+
+def test_rows_sorted_numerically_not_lexicographically() -> None:
+    # "INMS 1.2" must sort before "INMS 1.10" — plain string comparison on
+    # the minor version gets this backwards (lexicographic: "1.10" < "1.2").
+    summaries = [
+        _summary("INMS-1.1", "INMS 1.1"),
+        _summary("INMS-1.2", "INMS 1.2"),
+        _summary("INMS-1.7", "INMS 1.7"),
+        _summary("INMS-1.11", "INMS 1.11"),
+        _summary("INMS-1.12", "INMS 1.12"),
+        _summary("INMS-1.13", "INMS 1.13"),
+    ]
+
+    workbook = build_report_workbook("2026-06", summaries)
+    sheet = workbook[INMS_BASE_SHEET]
+
+    codes = [sheet.cell(row=r, column=5).value for r in range(2, sheet.max_row + 1)]
+    assert codes == [
+        "INMS 1.01", "INMS 1.02", "INMS 1.07", "INMS 1.11", "INMS 1.12", "INMS 1.13",
+    ]
 
 
 def test_glosas_sheet_sums_penalty_points_across_all_indicators() -> None:

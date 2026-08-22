@@ -3,11 +3,13 @@
 docs/spreadsheet.md lists several indicator numbers under more than one
 group tab (e.g. INMS 1.1 appears in ATENDIMENTO_N1, ATENDIMENTO_N2 and
 OPERACAO_N3) — envisioning one measurement *per group* for shared services.
-That's not what the engine measures: each contractual indicator number has
-exactly one YAML+CSV pair, one measurement, no group dimension in the
-schema (tickets 02-07). Until multiple measurements per indicator number
-exist (fog — see spec.md §13), each indicator is placed on its first-listed
-group tab only, not duplicated across every tab that mentions it.
+Where `split` (spec §14) produces one measurement per Categoria, each
+derived summary is routed to its own categoria's tab by
+`group_for_summary` — see that function and `categoria_from_indicator_id`.
+An indicator that was never split (a `mode: whole_indicator` categoria, or
+one with no categorias.yaml entry at all — e.g. INMS 1.8's catalog sum) has
+only one measurement and falls back to `primary_group`, its first-listed
+tab, not duplicated across every tab that mentions it.
 """
 
 from typing import Final
@@ -57,3 +59,32 @@ def primary_group(contractual_id: str) -> str | None:
         if contractual_id in _GROUP_MEMBERSHIP[group]:
             return group
     return None
+
+
+def categoria_from_indicator_id(indicator_id: str) -> str | None:
+    """The categoria key a `split`-derived indicator id encodes, if any.
+
+    `cli/split.py`'s `_derive_config` names derived configs
+    `f"{base.indicator.id}.{categoria_key}"` (e.g. `"INMS-01.ATENDIMENTO_N1"`)
+    — the categoria key is always exactly a `GROUP_TABS` name (spec §14.2),
+    so this doubles as validation: a dotted id whose suffix isn't a known
+    tab isn't treated as categoria-derived.
+    """
+    if "." not in indicator_id:
+        return None
+    categoria_key = indicator_id.split(".", 1)[1]
+    return categoria_key if categoria_key in GROUP_TABS else None
+
+
+def group_for_summary(indicator_id: str, contractual_id: str) -> str | None:
+    """The group tab a measurement belongs on.
+
+    A `split`-derived measurement (module docstring — one measurement per
+    Categoria, spec §14) belongs on its own categoria's tab, not on
+    whichever tab `contractual_id` happens to list first; only a
+    non-derived (`whole_indicator`) summary falls back to `primary_group`.
+    """
+    categoria = categoria_from_indicator_id(indicator_id)
+    if categoria is not None:
+        return categoria
+    return primary_group(contractual_id)

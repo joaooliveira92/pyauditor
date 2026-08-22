@@ -12,4 +12,5 @@ variant = "modern"
 language = "pt-BR"
 features = [
   "header.autohide",
+  "navigation.footer",
 ]

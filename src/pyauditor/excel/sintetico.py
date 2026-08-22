@@ -8,10 +8,22 @@ restrito às linhas aprovadas pelo quality gate, conforme a spec.
 
 As colunas assumidas (`No prazo`, `DataHoraSolicitacao`, `DataHoraFim`)
 valem para os datasets linha-a-linha (INMS 1.1-1.3, 1.7ish) contra os quais
-`split` foi construído. Datasets `whole_indicator` pré-agregados
-(1.4/1.5/1.9/1.11-1.13, e 1.6 no MinC) não têm essas colunas — elas
-degradam pra "—" em vez de lançar erro, já que este relatório é
-explicitamente uma conferência best-effort, não a medição oficial.
+`split` foi construído. Dois shapes de `calculation` têm renderer dedicado
+em vez de degradar pra "—":
+
+- `precomputed_table` (INMS 1.4/1.5/1.9/1.13 — 1.14 é o caso multi-ativo x
+  categoria abaixo, e 1.8/1.10 não têm entrada em `categorias.yaml`): uma
+  linha por `name_column`, com `result_column`/`penalty_column` lidos
+  direto do CSV e "Meta atingida?" derivada de `target`, não da coluna
+  crua `atingiu_meta` (que não faz parte do schema).
+- `ratio` com `aggregation: sum` + `sum_numerator_subtract_column` (hoje só
+  INMS 1.6): uma linha por valor distinto da coluna de `denominator_filter`
+  (ex. "Acordo de Nível de Serviço"), somando os CSVs elegíveis por grupo —
+  mesma aritmética de `RatioStrategy._aggregate`.
+
+Os demais `whole_indicator` (ex. INMS 1.11/1.12, `ratio` sobre CDR de
+telefonia com colunas de data/prazo próprias) continuam degradando pra
+"—" — fog, não coberto ainda.
 
 INMS 1.14 (spec §14.5, ticket 06) é o único caso de composição multi-ativo x
 categoria: sua aba troca a coluna `Grupo executor` por `Ativo`, lida do
@@ -25,6 +37,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from math import isnan
 from pathlib import Path
 from typing import Final
 
@@ -44,9 +57,12 @@ from pyauditor.config.categorias import (
     WholeIndicatorMode,
 )
 from pyauditor.config.manifest import DatasetManifest
-from pyauditor.config.models import PrecomputedTableCalculation
+from pyauditor.config.models import PrecomputedTableCalculation, RatioCalculation
 from pyauditor.engine.pipeline import load_config, resolve_source
 from pyauditor.engine.quality_gates import QualityGateRunner
+from pyauditor.engine.strategies._filters import filter_rows
+from pyauditor.engine.strategies._numbers import parse_decimal
+from pyauditor.engine.strategies._target import meets_target, safe_pct
 from pyauditor.excel._style import LABEL_FONT, new_sheet, write_row
 from pyauditor.periodo import PeriodoAfericao, filter_periodo, require_period_column
 
@@ -392,6 +408,122 @@ def _write_whole_indicator_sheet(
         row_idx += 1
 
 
+_PRECOMPUTED_COLUMNS: Final[tuple[str, ...]] = (
+    "Categoria", "Nível", "Item", "Resultado", "Meta atingida?", "Penalidade",
+)
+
+
+def _meta_atingida_display(value: float, target_operator: str, target_value: float) -> str:
+    return "Sim" if meets_target(value, target_operator, target_value) else "Não"
+
+
+def _write_precomputed_table_sheet(
+    workbook: Workbook,
+    sheet_name: str,
+    categorias_file: CategoriasFile,
+    entries: list[tuple[str, WholeIndicatorMode]],
+    calculation: PrecomputedTableCalculation,
+    target_operator: str,
+    target_value: float,
+    rows: list[dict[str, str]],
+) -> None:
+    """INMS 1.4/1.5/1.9/1.13: uma linha por `name_column` (o mesmo dado que a
+    medição oficial lê — `PrecomputedTableStrategy`), em vez do colapso
+    "(indicador inteiro)"/traços. "Meta atingida?" reusa `meets_target`
+    contra `target`, não a coluna crua `atingiu_meta` do CSV."""
+    sheet = new_sheet(workbook, sheet_name, _PRECOMPUTED_COLUMNS)
+    row_idx = 2
+    for categoria_key, _entry in entries:
+        categoria = categorias_file.categorias[categoria_key]
+        nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
+        for row in rows:
+            raw_value = row.get(calculation.result_column, "")
+            if not raw_value.strip():
+                continue  # linhas vazias/placeholder (';' sobrando), sem medição
+            value = parse_decimal(raw_value)
+            if isnan(value):
+                continue
+
+            name = row.get(calculation.name_column, "") if calculation.name_column else ""
+            resultado_display = (
+                f"{_fmt_pt_br(value)}%"
+                if calculation.result_is_percent
+                else _fmt_pt_br(value, decimals=0)
+            )
+            meta_display = (
+                _meta_atingida_display(value, target_operator, target_value)
+                if calculation.result_is_percent
+                else "—"
+            )
+            penalidade_raw = (
+                row.get(calculation.penalty_column, "") if calculation.penalty_column else ""
+            )
+            penalidade_value = (
+                parse_decimal(penalidade_raw) if penalidade_raw.strip() else float("nan")
+            )
+            penalidade_display = (
+                "—" if isnan(penalidade_value) else _fmt_pt_br(penalidade_value, decimals=0)
+            )
+
+            write_row(sheet, row_idx, (
+                categoria.label, nivel or "", name,
+                resultado_display, meta_display, penalidade_display,
+            ))
+            row_idx += 1
+
+
+def _write_ratio_aggregate_sheet(
+    workbook: Workbook,
+    sheet_name: str,
+    categorias_file: CategoriasFile,
+    entries: list[tuple[str, WholeIndicatorMode]],
+    calculation: RatioCalculation,
+    target_operator: str,
+    target_value: float,
+    rows: list[dict[str, str]],
+) -> None:
+    """INMS 1.6 (e qualquer futuro `ratio`/`sum` com
+    `sum_numerator_subtract_column`): uma linha por valor distinto da coluna
+    de `denominator_filter` (ex. "Acordo de Nível de Serviço"), agregando os
+    CSVs elegíveis por grupo com a mesma aritmética de
+    `RatioStrategy._aggregate`, em vez do colapso "(indicador inteiro)"."""
+    assert calculation.denominator_filter is not None
+    assert calculation.sum_numerator_column is not None
+    assert calculation.sum_numerator_subtract_column is not None
+    group_column = calculation.denominator_filter.column
+    numerator_column = calculation.sum_numerator_column
+    subtract_column = calculation.sum_numerator_subtract_column
+
+    columns = ("Categoria", "Nível", group_column, numerator_column, subtract_column,
+               "% resultado", "Meta atingida?")
+    sheet = new_sheet(workbook, sheet_name, columns)
+    row_idx = 2
+
+    eligible_rows = filter_rows(rows, calculation.denominator_filter)
+    grupos = list(
+        dict.fromkeys(row[group_column] for row in eligible_rows if row.get(group_column))
+    )
+
+    for categoria_key, _entry in entries:
+        categoria = categorias_file.categorias[categoria_key]
+        nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
+        for grupo in grupos:
+            grupo_rows = [row for row in eligible_rows if row[group_column] == grupo]
+            total = sum(
+                parse_decimal(row.get(numerator_column, "") or "0") for row in grupo_rows
+            )
+            subtraido = sum(
+                parse_decimal(row.get(subtract_column, "") or "0") for row in grupo_rows
+            )
+            pct = safe_pct(total - subtraido, total)
+            meta_display = _meta_atingida_display(pct, target_operator, target_value)
+            write_row(sheet, row_idx, (
+                categoria.label, nivel or "", grupo,
+                int(total), int(subtraido), f"{_fmt_pt_br(pct)}%", meta_display,
+            ))
+            row_idx += 1
+
+
 def write_sintetico_workbook(
     categorias_file: CategoriasFile,
     config_dir: Path,
@@ -521,6 +653,25 @@ def write_sintetico_workbook(
             _write_grupo_executor_sheet(
                 workbook, sheet_name, categorias_file, grupo_executor_entries,
                 whole_indicator_entries, fieldnames, rows, accepted_ids,
+            )
+        elif isinstance(base_config.calculation, PrecomputedTableCalculation):
+            assert base_config.target is not None
+            _write_precomputed_table_sheet(
+                workbook, sheet_name, categorias_file, whole_indicator_entries,
+                base_config.calculation, base_config.target.operator,
+                base_config.target.value, rows,
+            )
+        elif (
+            isinstance(base_config.calculation, RatioCalculation)
+            and base_config.calculation.aggregation == "sum"
+            and base_config.calculation.sum_numerator_subtract_column is not None
+            and base_config.calculation.denominator_filter is not None
+        ):
+            assert base_config.target is not None
+            _write_ratio_aggregate_sheet(
+                workbook, sheet_name, categorias_file, whole_indicator_entries,
+                base_config.calculation, base_config.target.operator,
+                base_config.target.value, rows,
             )
         else:
             _write_whole_indicator_sheet(

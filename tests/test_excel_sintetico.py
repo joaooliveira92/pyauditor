@@ -468,3 +468,173 @@ def test_periodo_filtra_antes_dos_gates_e_falha_sem_period_column(tmp_path: Path
     assert n1[3:6] == [1, 1, 0]  # linha de maio descartada antes da segregação
     n2 = [c.value for c in rows_by_grupo["N2"]]
     assert n2[3:6] == [1, 1, 0]
+
+
+_INMS_04_PRECOMPUTED_CONFIG = """\
+indicator:
+  id: INMS-04
+  contractual_id: "INMS 1.4"
+  name: Disponibilidade de sistema crítico
+
+scope:
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-04.csv
+  delimiter: ";"
+  encoding: utf-8
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: precomputed_table
+  result_column: inms_1_4_percentual
+  name_column: sistema_servico_nome
+  penalty_column: penalidade_pontos
+
+target:
+  operator: ">="
+  value: 99.5
+"""
+
+_INMS_04_PRECOMPUTED_RAW_CSV = (
+    "sistema_servico_nome;inms_1_4_percentual;penalidade_pontos\n"
+    "Barramento de Integracao;99,451;1000\n"
+    "Servico de Correio;99,7744;0\n"
+    ";;\n"  # linha vazia/placeholder — sem medição, deve ser pulada
+)
+
+_CATEGORIAS_YAML_1_4_ONLY = """\
+categorias:
+  MONITORAMENTO_NOC_SOC:
+    label: "Monitoramento de Ambiente (NOC/SOC)"
+    inms:
+      "1.4": {mode: whole_indicator}
+"""
+
+
+def test_precomputed_table_sheet_has_one_row_per_item_with_meta_from_target(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "configs"
+    data_dir = tmp_path / "input" / "2026" / "06"
+    config_dir.mkdir(parents=True)
+    data_dir.mkdir(parents=True)
+    (config_dir / "inms-04.yaml").write_text(_INMS_04_PRECOMPUTED_CONFIG, encoding="utf-8")
+    (config_dir / "categorias.yaml").write_text(_CATEGORIAS_YAML_1_4_ONLY, encoding="utf-8")
+    (data_dir / "inms-04.csv").write_text(_INMS_04_PRECOMPUTED_RAW_CSV, encoding="utf-8")
+    categorias_file = load_categorias(config_dir / "categorias.yaml")
+    output_path = tmp_path / "sintetico.xlsx"
+
+    warnings = write_sintetico_workbook(categorias_file, config_dir, data_dir, output_path)
+
+    assert warnings == []
+    wb = load_workbook(output_path)
+    sheet = wb["INMS 1.4"]
+    assert tuple(cell.value for cell in sheet[1]) == (
+        "Categoria", "Nível", "Item", "Resultado", "Meta atingida?", "Penalidade",
+    )
+    data_rows = [[c.value for c in row] for row in sheet.iter_rows(min_row=2)]
+    assert data_rows == [
+        [
+            "Monitoramento de Ambiente (NOC/SOC)", "N3", "Barramento de Integracao",
+            "99,5%", "Não", "1000",
+        ],
+        [
+            "Monitoramento de Ambiente (NOC/SOC)", "N3", "Servico de Correio",
+            "99,8%", "Sim", "0",
+        ],
+    ]
+
+
+_INMS_06_CONFIG = """\
+indicator:
+  id: INMS-06
+  contractual_id: "INMS 1.6"
+  name: Eficácia no tratamento de chamados
+
+scope:
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-06.csv
+  delimiter: ","
+  encoding: utf-8
+  unfilterable: true
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: sum
+  denominator_filter:
+    column: "Acordo de Nível de Serviço"
+    not_equals: TOTAIS
+  sum_numerator_column: "Total de Chamados"
+  sum_numerator_subtract_column: "Total de Chamados Reabertos"
+
+target:
+  operator: ">="
+  value: 97.0
+
+penalty:
+  step_points: 200
+  step_size_pct: 0.5
+"""
+
+_INMS_06_RAW_CSV = (
+    "Acordo de Nível de Serviço,Total de Chamados,Total de Chamados Reabertos\n"
+    "SLA A,10,1\n"
+    "SLA A,10,0\n"
+    "SLA B,5,0\n"
+    "TOTAIS,25,1\n"
+)
+
+_CATEGORIAS_YAML_1_6_ONLY = """\
+categorias:
+  OPERACAO_N3:
+    label: "Operação e Sustentação da Infraestrutura de TI"
+    inms:
+      "1.6": {mode: whole_indicator}
+"""
+
+
+def test_ratio_sum_subtract_sheet_aggregates_one_row_per_group_excluding_totais(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "configs"
+    data_dir = tmp_path / "input" / "2026" / "06"
+    config_dir.mkdir(parents=True)
+    data_dir.mkdir(parents=True)
+    (config_dir / "inms-06.yaml").write_text(_INMS_06_CONFIG, encoding="utf-8")
+    (config_dir / "categorias.yaml").write_text(_CATEGORIAS_YAML_1_6_ONLY, encoding="utf-8")
+    (data_dir / "inms-06.csv").write_text(_INMS_06_RAW_CSV, encoding="utf-8")
+    categorias_file = load_categorias(config_dir / "categorias.yaml")
+    output_path = tmp_path / "sintetico.xlsx"
+
+    warnings = write_sintetico_workbook(categorias_file, config_dir, data_dir, output_path)
+
+    assert warnings == []
+    wb = load_workbook(output_path)
+    sheet = wb["INMS 1.6"]
+    assert tuple(cell.value for cell in sheet[1]) == (
+        "Categoria", "Nível", "Acordo de Nível de Serviço",
+        "Total de Chamados", "Total de Chamados Reabertos",
+        "% resultado", "Meta atingida?",
+    )
+    data_rows = [[c.value for c in row] for row in sheet.iter_rows(min_row=2)]
+    # TOTAIS excluída (denominator_filter); SLA A soma as 2 linhas (20/1).
+    assert data_rows == [
+        [
+            "Operação e Sustentação da Infraestrutura de TI", "N3", "SLA A",
+            20, 1, "95,0%", "Não",
+        ],
+        [
+            "Operação e Sustentação da Infraestrutura de TI", "N3", "SLA B",
+            5, 0, "100,0%", "Sim",
+        ],
+    ]
