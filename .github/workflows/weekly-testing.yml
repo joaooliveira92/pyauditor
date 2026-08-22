@@ -1,8 +1,9 @@
 name: Weekly testing assessment
 
 # Ciclo semanal de saúde do repo. Se o ciclo falhar, um issue é criado no
-# tracker (ticket 05) — o token deste workflow tem escopo mínimo
-# (`issues: write` + `contents: read`), nada além do necessário.
+# tracker (ticket 05) — o token deste workflow tem escopo mínimo: `contents:
+# read` no workflow e `issues: write` APENAS no job `assess` (job-level
+# permissions), nada além do necessário.
 #
 # Actions pinadas por SHA (ticket 03): a tag de release fica no comentário.
 
@@ -13,7 +14,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 concurrency:
   group: weekly-testing-${{ github.ref }}
@@ -24,6 +24,9 @@ jobs:
     name: Assess test health
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
     steps:
       - name: Check out repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -78,6 +81,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           gh issue create \
             --title "Falha no ciclo semanal de testes (run ${{ github.run_id }})" \
             --body "Workflow: ${{ github.workflow }}

@@ -1,5 +1,7 @@
 # 04 — Unificar o deploy do Pages num único workflow
 
+Type: task
+
 **What to build:** o deploy de Pages passa a ser um único workflow coerente, em vez de dois (`docs.yml` + `static.yml`) que publicam coisas diferentes no mesmo ambiente e podem correr em paralelo. O workflow unificado constrói o `site/` (zensical) e publica só ele; `concurrency` serializa deploys; `timeout-minutes` limita o job; a inconsistência de versões de action (checkout v7 vs v5) desaparece.
 
 **Blocked by:** 01 — Travar vazamento de conteúdo sensível no GitHub Pages.
