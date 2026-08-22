@@ -2,23 +2,26 @@
 gates -> calculation strategy -> ROM-ready result.
 """
 
-import csv
-import functools
+from __future__ import annotations
+
 import hashlib
-import importlib.metadata
-import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-import yaml
-
 from pyauditor.categoria_filter import read_raw_csv
 from pyauditor.config.manifest import DatasetManifest
 from pyauditor.config.models import Filter, IndicatorConfig
+from pyauditor.engine.discovery import (
+    discover_config_files,
+    discover_configs,
+    load_config,
+)
+from pyauditor.engine.loading import load_rows, resolve_source
 from pyauditor.engine.quality_gates import QualityGateReport, QualityGateRunner
 from pyauditor.engine.strategies import SHAPE_REGISTRY
 from pyauditor.engine.strategies.base import CalculationResult
+from pyauditor.engine.version import pipeline_version
 from pyauditor.logging import logger
 from pyauditor.periodo import (
     PeriodoAfericao,
@@ -28,7 +31,19 @@ from pyauditor.periodo import (
     require_period_column,
 )
 
-_DELIMITER_CANDIDATES: tuple[str, ...] = (",", ";")
+__all__ = (
+    "MeasurementProvenance",
+    "MeasurementResult",
+    "SourceBundle",
+    "discover_config_files",
+    "discover_configs",
+    "load_config",
+    "load_rows",
+    "measure",
+    "measurement_source",
+    "pipeline_version",
+    "resolve_source",
+)
 
 
 @dataclass(frozen=True)
@@ -111,27 +126,6 @@ class MeasurementResult:
         return self.calculation.result_pct == 0.0
 
 
-@functools.lru_cache(maxsize=1)
-def _pipeline_version() -> str:
-    """Installed package version, falling back to the git commit for
-    non-installed (source tree) execution, and finally a fixed marker."""
-    try:
-        return importlib.metadata.version("pyauditor")
-    except importlib.metadata.PackageNotFoundError:
-        pass
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=True,
-        )
-        return result.stdout.strip()
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return "dev"
-
-
 def _collect_config_columns(config: IndicatorConfig) -> set[str]:
     """All column names referenced in *config* that must exist in the CSV header.
     ``source.id_column`` é metadata para rastreabilidade, não participa do
@@ -181,182 +175,6 @@ def _validate_columns(config: IndicatorConfig, header: set[str], config_path: Pa
             f"{prefix}coluna(s) referenciada(s) no YAML não existe(m) no header do CSV: "
             f"{', '.join(missing)} — verifique {config_path or config.indicator.id}"
         )
-
-
-def load_config(config_path: Path) -> IndicatorConfig:
-    raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    if isinstance(raw, dict) and "indicator" not in raw:
-        # Detect typo like `indicador:` — instead of silently skipping later
-        for key in raw:
-            if isinstance(key, str) and key.strip().lower() in (
-                "indicador",
-                "indicators",
-                "indicatior",
-            ):
-                raise ValueError(
-                    f"{config_path}: chave {key!r} encontrada, esperado 'indicator:' — "
-                    "typo no YAML, corrija a chave"
-                )
-        # also check if file looks like an indicator config (inms-*.yaml) but missing key
-        if config_path.name.startswith("inms-"):
-            raise ValueError(
-                f"{config_path}: chave 'indicator:' ausente — "
-                "arquivo não é config válida de indicador"
-            )
-    return IndicatorConfig.model_validate(raw)
-
-
-def load_rows(source_path: Path, delimiter: str, encoding: str) -> list[dict[str, str]]:
-    with source_path.open(encoding=encoding, newline="") as handle:
-        reader = csv.DictReader(handle, delimiter=delimiter)
-        if reader.fieldnames is None:
-            raise ValueError(f"{source_path}: CSV vazio ou sem linha de cabeçalho")
-        fieldnames = [name.strip() for name in reader.fieldnames]
-        reader.fieldnames = fieldnames
-        # Real-world rows are occasionally ragged (free-text fields containing
-        # the delimiter shift columns) — DictReader stuffs overflow into a
-        # `None` key holding a list; only the declared columns are kept.
-        return [{name: (row.get(name) or "").strip() for name in fieldnames} for row in reader]
-
-
-def _detect_delimiter(csv_path: Path, encoding: str, configured: str) -> str:
-    """O manifest/config declara um delimiter fixo por dataset, mas exports
-    mensais às vezes divergem por arquivo (confirmado em produção, 2026-06:
-    `datasets.yaml` da MTur declara `;` para todos os 14 datasets, mas 3
-    arquivos daquele mês vieram com `,`). Lê só a linha de cabeçalho e troca
-    para o delimiter mais provável quando o configurado não aparece nela —
-    nunca lança: se o arquivo não existe ou não pode ser lido, o erro real
-    aparece no ponto de leitura de verdade (`load_rows`/`read_raw_csv`)."""
-    if configured not in _DELIMITER_CANDIDATES:
-        return configured  # delimiter incomum e explícito — respeita, não tenta adivinhar
-    try:
-        with csv_path.open(encoding=encoding, newline="") as handle:
-            header = handle.readline()
-    except OSError:
-        return configured
-    if configured in header:
-        return configured
-    detected = next((c for c in _DELIMITER_CANDIDATES if c != configured and c in header), None)
-    if detected is None:
-        return configured
-    logger.warning(
-        f"{csv_path}: delimiter configurado {configured!r} não aparece no cabeçalho, "
-        f"usando {detected!r} (detectado) — corrija o manifest/config se isso persistir"
-    )
-    return detected
-
-
-def resolve_source(
-    config: IndicatorConfig,
-    data_dir: Path,
-    manifest: DatasetManifest | None,
-) -> tuple[Path, str, str]:
-    """Resolve the CSV path + parsing options from the indicator's source config.
-
-    Public (not `measure()`-only) — `cli/split.py` also resolves a base
-    indicator's raw source before filtering it per Categoria.
-
-    Returns:
-        (csv_path, delimiter, encoding)
-    """
-    source = config.source
-    if source.dataset is not None:
-        if manifest is None:
-            raise ValueError(
-                f"{config.indicator.id}: source.dataset={source.dataset!r} "
-                "requires a manifest, but none was provided"
-            )
-        entry = manifest.resolve(source.dataset)
-        csv_path = data_dir / entry.file
-        delimiter = _detect_delimiter(csv_path, entry.encoding, entry.delimiter)
-        return csv_path, delimiter, entry.encoding
-    # Legacy: direct csv filename
-    assert source.csv is not None  # guaranteed by Source model validator
-    csv_path = data_dir / source.csv
-    delimiter = _detect_delimiter(csv_path, source.encoding, source.delimiter)
-    return csv_path, delimiter, source.encoding
-
-
-_ORGAO_CONTRACT: dict[str, str] = {
-    "MinC": "40/2022 - Ministério da Cultura",
-    "MTur": "40/2022 - Ministério do Turismo",
-}
-
-
-def _inject_orgao(config: IndicatorConfig, expected_orgao: str) -> IndicatorConfig:
-    """Injeta `scope.orgao`/`contract` quando o YAML vem de `configs/_shared/`."""
-    desired_contract = _ORGAO_CONTRACT.get(expected_orgao, config.scope.contract)
-    if config.scope.orgao == expected_orgao and config.scope.contract == desired_contract:
-        return config
-    from pyauditor.config.models import Scope
-
-    new_scope = Scope(contract=desired_contract, orgao=expected_orgao)  # type: ignore[arg-type]
-    return config.model_copy(update={"scope": new_scope})
-
-
-def discover_config_files(
-    config_dir: Path, expected_orgao: str | None = None
-) -> list[tuple[Path, str, IndicatorConfig]]:
-    """Same discovery as `discover_configs`, but keeps each config's source
-    path and content hash alongside it — `measure()`'s provenance needs both,
-    computed here (while `raw_text` is in hand) rather than re-reading the
-    file a second time. `discover_configs` can't gain these without breaking
-    its existing `list[IndicatorConfig]` callers.
-
-    Quando `expected_orgao` é informado e o arquivo vem de `configs/_shared/`
-    (single-source), o `scope` é injetado em runtime em vez de validar
-    mismatch — o YAML canônico não carrega `scope` por órgão.
-    """
-    triples: list[tuple[Path, str, IndicatorConfig]] = []
-    is_shared = config_dir.name == "_shared" or (config_dir / "_shared").exists()
-    for path in sorted(config_dir.glob("*.yaml")):
-        raw_text = path.read_text(encoding="utf-8")
-        raw = yaml.safe_load(raw_text)
-        if not isinstance(raw, dict) or "indicator" not in raw:
-            # Detect typo in indicator key before silently skipping
-            if isinstance(raw, dict):
-                for key in raw:
-                    if isinstance(key, str) and key.strip().lower() in (
-                        "indicador",
-                        "indicators",
-                        "indicatior",
-                        "indicator ",
-                    ):
-                        raise ValueError(
-                            f"{path}: chave {key!r} encontrada, esperado 'indicator:' — "
-                            "typo no YAML"
-                        )
-                if path.name.startswith("inms-"):
-                    raise ValueError(
-                        f"{path}: chave 'indicator:' ausente — "
-                        "arquivo não é config válida de indicador"
-                    )
-            # Not an indicator config (e.g. `datasets.yaml`, the manifest that
-            # now lives alongside the indicators) — skip it.
-            continue
-        config = IndicatorConfig.model_validate(raw)
-        if expected_orgao is not None:
-            # Single-source: injetar órgão/contrato em vez de falhar.
-            if is_shared or config_dir.name == "_shared":
-                config = _inject_orgao(config, expected_orgao)
-            elif config.scope.orgao != expected_orgao:
-                raise ValueError(
-                    f"{path}: scope.orgao={config.scope.orgao!r} não corresponde ao "
-                    f"órgão solicitado {expected_orgao!r} — config no diretório errado"
-                )
-        content_hash = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
-        triples.append((path, content_hash, config))
-    return triples
-
-
-def discover_configs(config_dir: Path, expected_orgao: str | None = None) -> list[IndicatorConfig]:
-    """Load every indicator config from *config_dir* (one per `*.yaml`,
-    skipping non-indicator manifests like `datasets.yaml`).
-
-    When *expected_orgao* is given, every config whose ``scope.orgao`` differs
-    is a hard error (per-conf layout is per-órgão: `configs/<órgão>/`).
-    """
-    return [config for _, _, config in discover_config_files(config_dir, expected_orgao)]
 
 
 def measurement_source(
@@ -492,7 +310,7 @@ def measure(
         delimiter=bundle.delimiter,
         encoding=bundle.encoding,
         processed_at=datetime.now(),
-        pipeline_version=_pipeline_version(),
+        pipeline_version=pipeline_version(),
     )
 
     return MeasurementResult(

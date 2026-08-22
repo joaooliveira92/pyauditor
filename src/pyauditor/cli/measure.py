@@ -46,11 +46,11 @@ from pyauditor.config.manifest import DatasetManifest
 from pyauditor.engine.pipeline import (
     MeasurementProvenance,
     MeasurementResult,
-    _pipeline_version,
     discover_config_files,
     measure,
     measurement_source,
 )
+from pyauditor.engine.version import pipeline_version
 from pyauditor.engine.quality_gates import QualityGateRunner
 from pyauditor.engine.strategies import SHAPE_REGISTRY
 from pyauditor.excel.equipe import RESPONSAVEL_LABELS, read_responsaveis
@@ -59,7 +59,7 @@ from pyauditor.periodo import PeriodoAfericao
 from pyauditor.rom.render import render_combined_rom, render_rom
 from pyauditor.rom.summary import summarize
 
-_UNSAFE_ID_CHARS_RE: Final = re.compile(r"[^A-Za-z0-9._-]")
+_UNSAFE_ID_CHARS_RE: Final = re.compile(r'[^A-Za-z0-9._-]')
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,15 +111,15 @@ def _inms_key_from_contractual_id(contractual_id: str) -> str | None:
         return None
     last = parts[-1]
     # Valida formato 1.N
-    if "." not in last:
+    if '.' not in last:
         return None
     return last
 
 
 def _sanitize_indicator_id(raw: str) -> str:
-    """Filesystem-safe ROM filename stem — never traverses out of the output dir."""
-    sanitized = _UNSAFE_ID_CHARS_RE.sub("_", raw).strip("._")
-    return sanitized or "_indicator"
+    """Cria um nome de arquivo seguro sem escapar do diretório de saída."""
+    sanitized = _UNSAFE_ID_CHARS_RE.sub('_', raw).strip('._')
+    return sanitized or '_indicator'
 
 
 def run_measure(
@@ -143,12 +143,12 @@ def run_measure(
     para o mesmo dataset bruto. `pyauditor measure` isolado (default `False`)
     recebe o WARN/INFO aqui — antes este caminho nunca os emitia, ao contrário
     do caminho single (whole_indicator) abaixo."""
-    orgao = expected_orgao or ""
+    orgao = expected_orgao or ''
 
     def _error(message: str) -> MeasureResult:
         logger.error(message)
         return MeasureResult(
-            status="error",
+            status='error',
             competencia=competencia,
             orgao=orgao,
             indicators=(),
@@ -162,21 +162,24 @@ def run_measure(
 
     # Datasets live under <data-dir>/<YYYY>/<MM> for this competência — never
     # at the data-dir root — so past aferições can coexist in the same project.
-    year, month = competencia.split("-")
+    year, month = competencia.split('-')
     competencia_data_dir = data_dir / year / month
 
     try:
-        configs = discover_config_files(config_dir, expected_orgao=expected_orgao)
+        configs = discover_config_files(
+            config_dir, expected_orgao=expected_orgao
+        )
     except (OSError, ValueError) as exc:
-        return _error(f"falha ao carregar configs de {config_dir}: {exc}")
+        return _error(f'falha ao carregar configs de {config_dir}: {exc}')
     if not configs:
-        return _error(f"nenhum config encontrado em {config_dir}")
+        return _error(f'nenhum config encontrado em {config_dir}')
 
     target_dir = output_dir / competencia
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        return _error(f"falha ao criar diretório {target_dir}: {exc} — {DIR_FAILURE_HINT}")
+        message = f'falha ao criar diretório {target_dir}: {exc}'
+        return _error(f'{message} — {DIR_FAILURE_HINT}')
 
     # Responsáveis do ROM vêm exclusivamente de `equipe.csv` (spec §6) —
     # ausente/malformado é warning + '[a preencher]', nunca falha técnica:
@@ -191,9 +194,12 @@ def run_measure(
             warnings.append(warning)
         empty_fields = [f for f in RESPONSAVEL_LABELS if not capa_fields.get(f)]
         if empty_fields:
-            warning = (
-                f"{equipe_path}: sem preencher: {', '.join(empty_fields)} — "
-                "ROM mostra '[a preencher]' nesses campos"
+            warning = ''.join(
+                [
+                    f'{equipe_path}: sem preencher: ',
+                    f'{", ".join(empty_fields)} — ROM mostra ',
+                    "'[a preencher]' nesses campos",
+                ]
             )
             logger.warning(warning)
             warnings.append(warning)
@@ -203,9 +209,9 @@ def run_measure(
     categorias_file = None
     per_inms: dict[str, list[tuple[str, GrupoExecutorMode]]] = {}
     if expected_orgao is not None:
-        categorias_path = config_dir / "categorias.yaml"
-        if not categorias_path.exists() and config_dir.name == "_shared":
-            fallback = config_dir.parent / expected_orgao / "categorias.yaml"
+        categorias_path = config_dir / 'categorias.yaml'
+        if not categorias_path.exists() and config_dir.name == '_shared':
+            fallback = config_dir.parent / expected_orgao / 'categorias.yaml'
             if fallback.exists():
                 categorias_path = fallback
         if categorias_path.exists():
@@ -214,9 +220,15 @@ def run_measure(
                 for cat_key, cat in categorias_file.categorias.items():
                     for cat_inms_key, entry in cat.inms.items():
                         if isinstance(entry, GrupoExecutorMode):
-                            per_inms.setdefault(cat_inms_key, []).append((cat_key, entry))
+                            per_inms.setdefault(cat_inms_key, []).append(
+                                (cat_key, entry)
+                            )
             except (OSError, ValueError) as exc:
-                logger.warning(f"falha ao carregar categorias {categorias_path}: {exc}")
+                logger.warning(
+                    'falha ao carregar categorias %s: %s',
+                    categorias_path,
+                    exc,
+                )
 
     # ADR 0002 (compat retroativa): configs por categoria que o `split`
     # materializa em disco (`inms-NN.<categoria>.yaml`, mesmo diretório) são
@@ -230,7 +242,9 @@ def run_measure(
             stem = base_config_stem(categoria_inms_key)
         except ValueError:
             continue
-        derived_config_stems.update(f"{stem}.{cat_key}" for cat_key, _entry in categoria_entries)
+        derived_config_stems.update(
+            f'{stem}.{cat_key}' for cat_key, _entry in categoria_entries
+        )
 
     any_hard_failure = False
     outcomes: list[IndicatorOutcome] = []
@@ -249,10 +263,10 @@ def run_measure(
         logger.error(message)
         any_hard_failure = True
         for cat_key, _ in entries:
-            derived_id = f"{indicator_id}.{cat_key}"
+            derived_id = f'{indicator_id}.{cat_key}'
             safe_id = _sanitize_indicator_id(derived_id)
-            rom_path = target_dir / f"{safe_id}.md"
-            summary_path = target_dir / f"{safe_id}.json"
+            rom_path = target_dir / f'{safe_id}.md'
+            summary_path = target_dir / f'{safe_id}.json'
             outcomes.append(
                 IndicatorOutcome(
                     contractual_id=contractual_id,
@@ -281,15 +295,20 @@ def run_measure(
                     competencia=competencia,
                     periodo=periodo,
                 ),
-                encoding="utf-8",
+                encoding='utf-8',
             )
             summary = summarize(result)
             summary_path.write_text(
                 json.dumps(summary.to_dict(), ensure_ascii=False, indent=2),
-                encoding="utf-8",
+                encoding='utf-8',
             )
         except OSError as exc:
-            message = f"falha ao escrever {rom_path}: {exc} — {WRITE_FAILURE_HINT}"
+            message = ''.join(
+                [
+                    f'falha ao escrever {rom_path}: {exc} — ',
+                    WRITE_FAILURE_HINT,
+                ]
+            )
             logger.error(message)
             any_hard_failure = True
             outcomes.append(
@@ -304,9 +323,12 @@ def run_measure(
             return
         if result.hard_failure:
             any_hard_failure = True
-            error = (
-                f"{contractual_id}: falha de medição — "
-                f"nenhuma linha sobreviveu aos quality gates ({rom_path})"
+            error = ''.join(
+                [
+                    f'{contractual_id}: falha de medição — ',
+                    'nenhuma linha sobreviveu aos quality gates ',
+                    f'({rom_path})',
+                ]
             )
             logger.error(error)
             outcomes.append(
@@ -318,32 +340,38 @@ def run_measure(
                     error=error,
                 )
             )
-        elif getattr(result, "systematic_failure", False):
+        elif getattr(result, 'systematic_failure', False):
             any_hard_failure = True
-            error2 = (
-                f"{contractual_id}: não-conformidade sistemática — "
-                f"resultado {summary.result_pct:.2f}% sempre não-conforme, "
-                f"possível bug de cálculo ({rom_path})"
+            systematic_error = ''.join(
+                [
+                    f'{contractual_id}: não-conformidade sistemática — ',
+                    f'resultado {summary.result_pct:.2f}% sempre ',
+                    f'não-conforme, possível bug de cálculo ({rom_path})',
+                ]
             )
-            logger.error(error2)
+            logger.error(systematic_error)
             outcomes.append(
                 IndicatorOutcome(
                     contractual_id=contractual_id,
                     rom_path=rom_path,
                     summary_path=summary_path,
                     hard_failure=True,
-                    error=error2,
+                    error=systematic_error,
                 )
             )
         else:
-            status_label = "conforme" if getattr(summary, "conforms", True) else "nao_conforme"
-            if getattr(summary, "systematic_failure", False):
-                status_label = "nao_conforme_sistematica"
+            status_label = (
+                'conforme'
+                if getattr(summary, 'conforms', True)
+                else 'nao_conforme'
+            )
+            if getattr(summary, 'systematic_failure', False):
+                status_label = 'nao_conforme_sistematica'
             log_event(
-                "indicator_measured",
-                "indicador apurado",
-                "DEBUG",
-                orgao=orgao or "",
+                'indicator_measured',
+                'indicador apurado',
+                'DEBUG',
+                orgao=orgao or '',
                 codigo=contractual_id,
                 rom_path=str(rom_path),
                 status=status_label,
@@ -399,13 +427,16 @@ def run_measure(
                 )
             except FileNotFoundError:
                 for cat_key, _ in entries:
-                    derived_id = f"{config.indicator.id}.{cat_key}"
+                    derived_id = f'{config.indicator.id}.{cat_key}'
                     safe_id = _sanitize_indicator_id(derived_id)
-                    rom_path = target_dir / f"{safe_id}.md"
-                    summary_path = target_dir / f"{safe_id}.json"
-                    warning = (
-                        f"{contractual_id} ({config.scope.orgao}/{competencia}, {cat_key}): "
-                        "não ativado — dataset ausente"
+                    rom_path = target_dir / f'{safe_id}.md'
+                    summary_path = target_dir / f'{safe_id}.json'
+                    warning = ''.join(
+                        [
+                            f'{contractual_id} ({config.scope.orgao}/',
+                            f'{competencia}, {cat_key}): não ativado — ',
+                            'dataset ausente',
+                        ]
                     )
                     logger.warning(warning)
                     warnings.append(warning)
@@ -422,7 +453,7 @@ def run_measure(
                 continue
             except (OSError, ValueError) as exc:
                 _hard_fail_todas_categorias(
-                    f"{contractual_id}: exceção na medição: {exc}",
+                    f'{contractual_id}: exceção na medição: {exc}',
                     entries=entries,
                     indicator_id=config.indicator.id,
                     contractual_id=contractual_id,
@@ -439,9 +470,13 @@ def run_measure(
             undated_dropped = bundle.undated_dropped
 
             if GRUPO_EXECUTOR_COLUMN not in fieldnames:
-                message = (
-                    f"{contractual_id}: exceção na medição: {raw_csv_path} não tem coluna "
-                    f"'{GRUPO_EXECUTOR_COLUMN}' — declarado mode: grupo_executor em categorias.yaml"
+                message = ''.join(
+                    [
+                        f'{contractual_id}: exceção na medição: ',
+                        f'{raw_csv_path} não tem coluna ',
+                        f"'{GRUPO_EXECUTOR_COLUMN}' — declarado mode: ",
+                        'grupo_executor em categorias.yaml',
+                    ]
                 )
                 _hard_fail_todas_categorias(
                     message,
@@ -455,7 +490,8 @@ def run_measure(
             real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
             # `already_split` (run na mesma passada): split já cross-checkou
             # in_values/outros contra os mesmos real_values e logou os avisos
-            # — emitir aqui de novo duplicaria o aviso no mesmo output (ticket 11).
+            # Emitir novamente duplicaria o aviso no mesmo output
+            # (ticket 11).
             if not already_split:
                 for w in unmatched_in_values_warnings(
                     inms_key=inms_key,
@@ -467,19 +503,30 @@ def run_measure(
                 ):
                     logger.warning(w)
                     warnings.append(w)
-            per_categoria_values, outros_values = compute_categoria_values(entries, real_values)
+            per_categoria_values, outros_values = compute_categoria_values(
+                entries, real_values
+            )
             # mede cada categoria filtrada em memória
             for cat_key, effective_values in per_categoria_values.items():
-                filtered_rows = [r for r in rows if r[GRUPO_EXECUTOR_COLUMN] in effective_values]
+                filtered_rows = [
+                    row
+                    for row in rows
+                    if row[GRUPO_EXECUTOR_COLUMN] in effective_values
+                ]
                 derived_indicator = config.indicator.model_copy(
-                    update={"id": f"{config.indicator.id}.{cat_key}"}
+                    update={'id': f'{config.indicator.id}.{cat_key}'}
                 )
                 derived_config = config.model_copy(
-                    update={"indicator": derived_indicator, "acceptance_test": None}
+                    update={
+                        'indicator': derived_indicator,
+                        'acceptance_test': None,
+                    }
                 )
-                derived_safe_id = _sanitize_indicator_id(derived_config.indicator.id)
-                rom_path = target_dir / f"{derived_safe_id}.md"
-                summary_path = target_dir / f"{derived_safe_id}.json"
+                derived_safe_id = _sanitize_indicator_id(
+                    derived_config.indicator.id
+                )
+                rom_path = target_dir / f'{derived_safe_id}.md'
+                summary_path = target_dir / f'{derived_safe_id}.json'
                 # quality gates + estratégia sobre linhas filtradas
                 try:
                     gate_runner = QualityGateRunner(
@@ -488,10 +535,17 @@ def run_measure(
                     )
                     gate_report = gate_runner.run(filtered_rows)
                     strategy = SHAPE_REGISTRY[derived_config.calculation.shape]
-                    calculation = strategy.calculate(derived_config, gate_report.accepted)
-                    csv_hash = hashlib.sha256(raw_csv_path.read_bytes()).hexdigest()
+                    calculation = strategy.calculate(
+                        derived_config, gate_report.accepted
+                    )
+                    csv_hash = hashlib.sha256(
+                        raw_csv_path.read_bytes()
+                    ).hexdigest()
                     derived_hash = hashlib.sha256(
-                        json.dumps(derived_config.model_dump(mode="json"), sort_keys=True).encode()
+                        json.dumps(
+                            derived_config.model_dump(mode='json'),
+                            sort_keys=True,
+                        ).encode()
                     ).hexdigest()
                     provenance = MeasurementProvenance(
                         config_path=config_path,
@@ -501,7 +555,7 @@ def run_measure(
                         delimiter=delimiter,
                         encoding=encoding,
                         processed_at=datetime.now(),
-                        pipeline_version=_pipeline_version(),
+                        pipeline_version=pipeline_version(),
                     )
                     result = MeasurementResult(
                         config=derived_config,
@@ -512,7 +566,12 @@ def run_measure(
                         undated_dropped=undated_dropped,
                     )
                 except Exception as exc:
-                    message = f"{contractual_id}.{cat_key}: exceção na medição: {exc}"
+                    message = ''.join(
+                        [
+                            f'{contractual_id}.{cat_key}: exceção na ',
+                            f'medição: {exc}',
+                        ]
+                    )
                     logger.error(message)
                     any_hard_failure = True
                     outcomes.append(
@@ -537,7 +596,11 @@ def run_measure(
             # outros contábil — warning se houver linhas não classificadas.
             # `already_split` (run na mesma passada): split já logou o mesmo
             # aviso para o mesmo dataset bruto (ticket 11).
-            outros_rows = [r for r in rows if r[GRUPO_EXECUTOR_COLUMN] in outros_values]
+            outros_rows = [
+                row
+                for row in rows
+                if row[GRUPO_EXECUTOR_COLUMN] in outros_values
+            ]
             if outros_rows and not already_split:
                 w = outros_warning(
                     inms_key=inms_key,
@@ -551,8 +614,8 @@ def run_measure(
 
         # Caminho single — whole_indicator ou INMS sem categoria grupo_executor
         safe_id = _sanitize_indicator_id(config.indicator.id)
-        rom_path = target_dir / f"{safe_id}.md"
-        summary_path = target_dir / f"{safe_id}.json"
+        rom_path = target_dir / f'{safe_id}.md'
+        summary_path = target_dir / f'{safe_id}.json'
 
         try:
             result = measure(
@@ -566,10 +629,15 @@ def run_measure(
                 emit_period_filter_logs=not already_split,
             )
         except FileNotFoundError:
-            _orgao_warn = getattr(getattr(config, "scope", None), "orgao", orgao)
-            warning = (
-                f"{contractual_id} ({_orgao_warn}/{competencia}): não ativado — "
-                "dataset ausente (serviço não requisitado no período)"
+            scope_orgao = getattr(
+                getattr(config, 'scope', None), 'orgao', orgao
+            )
+            warning = ''.join(
+                [
+                    f'{contractual_id} ({scope_orgao}/{competencia}): ',
+                    'não ativado — dataset ausente ',
+                    '(serviço não requisitado no período)',
+                ]
             )
             logger.warning(warning)
             warnings.append(warning)
@@ -585,7 +653,7 @@ def run_measure(
             )
             continue
         except Exception as exc:
-            message = f"{contractual_id}: exceção na medição: {exc}"
+            message = f'{contractual_id}: exceção na medição: {exc}'
             logger.error(message)
             any_hard_failure = True
             outcomes.append(
@@ -606,24 +674,28 @@ def run_measure(
             summary_path,
             contractual_id,
             config.indicator.id,
-            getattr(getattr(config, "scope", None), "orgao", orgao),
+            getattr(getattr(config, 'scope', None), 'orgao', orgao),
         )
 
     # Resumo conciso por órgão (INFO) — no lugar das N linhas repetidas.
     total = len(outcomes)
     ok = sum(1 for o in outcomes if not o.hard_failure)
     log_event(
-        "measure_done",
-        f"{orgao or 'órgão'}: {ok}/{total} indicador(es) apurado(s)",
-        "INFO",
+        'measure_done',
+        f'{orgao or "órgão"}: {ok}/{total} indicador(es) apurado(s)',
+        'INFO',
         orgao=orgao,
         competencia=competencia,
-        status="error" if any_hard_failure else "done",
+        status='error' if any_hard_failure else 'done',
     )
 
-    error_message = "um ou mais indicadores tiveram falha de medição" if any_hard_failure else None
+    error_message = (
+        'um ou mais indicadores tiveram falha de medição'
+        if any_hard_failure
+        else None
+    )
     return MeasureResult(
-        status="error" if any_hard_failure else "done",
+        status='error' if any_hard_failure else 'done',
         competencia=competencia,
         orgao=orgao,
         indicators=tuple(outcomes),
@@ -644,7 +716,7 @@ def write_combined_roms(
     `output_dir/both/<competencia>/` one markdown per indicator with both
     orgãos' ROMs stacked. Skips indicators that only measured in one orgão
     (warning, no combined render without the pair)."""
-    both_dir = output_dir / "both" / competencia
+    both_dir = output_dir / 'both' / competencia
     both_dir.mkdir(parents=True, exist_ok=True)
 
     by_id: dict[str, dict[str, _MeasuredIndicator]] = {}
@@ -654,16 +726,21 @@ def write_combined_roms(
 
     for indicator_id, orgs in sorted(by_id.items()):
         if len(orgs) < 2:
-            missing = ", ".join(sorted({"MinC", "MTur"} - set(orgs)))
+            missing = ', '.join(sorted({'MinC', 'MTur'} - set(orgs)))
             logger.warning(
-                f"{indicator_id}: ROM combinado 'both' não gerado — falta medição de {missing}"
+                "ROM combinado 'both' não gerado para %s: falta medição de %s",
+                indicator_id,
+                missing,
             )
             continue
 
-        minc = orgs["MinC"]
-        mtur = orgs["MTur"]
-        capa_by_orgao = {"MinC": minc.capa_fields, "MTur": mtur.capa_fields}
-        combined_path = both_dir / f"{minc.safe_id}.md"
+        minc = orgs['MinC']
+        mtur = orgs['MTur']
+        capa_by_orgao = {
+            'MinC': minc.capa_fields,
+            'MTur': mtur.capa_fields,
+        }
+        combined_path = both_dir / f'{minc.safe_id}.md'
         try:
             combined_path.write_text(
                 render_combined_rom(
@@ -673,7 +750,12 @@ def write_combined_roms(
                     competencia=competencia,
                     periodo=periodo,
                 ),
-                encoding="utf-8",
+                encoding='utf-8',
             )
         except OSError as exc:
-            logger.error(f"falha ao escrever {combined_path}: {exc} — {WRITE_FAILURE_HINT}")
+            logger.error(
+                'falha ao escrever %s: %s — %s',
+                combined_path,
+                exc,
+                WRITE_FAILURE_HINT,
+            )

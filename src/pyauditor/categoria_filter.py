@@ -216,12 +216,12 @@ def unmatched_in_values_warnings(
         if not (set(entry.in_values) & real_values):
             warnings.append(
                 f'{prefix}in_values {unmatched!r} sem correspondência em '
-                f'Grupo_executor do CSV ({raw_csv_path}); possível '
+                f'Grupo_executor do CSV ({raw_csv_path}) — possível '
                 'typo/renomeação, categoria ficará sem linhas'
             )
         else:
             warnings.append(
-                f'{prefix}in_values {unmatched!r} sem correspondência; '
+                f'{prefix}in_values {unmatched!r} sem correspondência — '
                 'valores não encontrados no CSV'
             )
     return warnings
@@ -237,6 +237,6 @@ def outros_warning(
     """Cria o aviso para linhas não classificadas em uma categoria."""
     return (
         f'INMS {inms_key} ({orgao}/{competencia}), categoria outros: '
-        f'{outros_count} linha(s) não classificada(s) em nenhuma categoria; '
+        f'{outros_count} linha(s) não classificada(s) em nenhuma categoria — '
         'revisar categorias.yaml'
     )

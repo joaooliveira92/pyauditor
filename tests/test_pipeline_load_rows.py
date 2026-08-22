@@ -57,7 +57,7 @@ def test_detect_delimiter_switches_when_configured_absent_from_header(
 ) -> None:
     """Export diverge do delimiter configurado (fato de produção 2026-06):
     `_detect_delimiter` troca para o candidato presente no cabeçalho."""
-    from pyauditor.engine.pipeline import _detect_delimiter
+    from pyauditor.engine.loading import _detect_delimiter
 
     csv_path = tmp_path / "comma.csv"
     csv_path.write_text("a,b\n1,2\n", encoding="utf-8")
@@ -69,7 +69,7 @@ def test_detect_delimiter_switches_when_configured_absent_from_header(
 
 def test_detect_delimiter_respects_uncommon_explicit_delimiter(tmp_path: Path) -> None:
     """Delimiter incomum e explícito não é adivinhado — é respeitado."""
-    from pyauditor.engine.pipeline import _detect_delimiter
+    from pyauditor.engine.loading import _detect_delimiter
 
     csv_path = tmp_path / "tab.tsv"
     csv_path.write_text("a\tb\n", encoding="utf-8")

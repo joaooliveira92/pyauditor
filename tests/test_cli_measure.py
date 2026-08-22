@@ -843,7 +843,7 @@ def test_write_combined_roms_skips_indicator_with_single_orgao(
     finally:
         setup_logging(sink=sys.stderr, level="INFO")
 
-    assert "não gerado — falta medição de" in buf.getvalue()
+    assert "falta medição de" in buf.getvalue()
     assert list((output_dir / "both" / "2026-06").glob("*.md")) == []
 
 
