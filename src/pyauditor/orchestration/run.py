@@ -195,6 +195,39 @@ def dependency_missing(command: str, orgao: str | None, request: RunRequest) -> 
     return check.missing
 
 
+def _own_artifact_missing(command: str, orgao: str | None, request: RunRequest) -> str | None:
+    """Whether the artifact *this* `command` itself is responsible for
+    producing is missing from disk — distinct from `dependency_missing`
+    (which checks an *upstream* Command's output before dispatch).
+
+    Only `bootstrap` (capa CSVs) and `measure` (ROMs) matter here: they have
+    no `DependencyCheck` on another Command (`CHECKERS` returns
+    `satisfied=True` unconditionally for them — see their own docstrings),
+    so nothing previously caught a persisted `done` status whose artifact
+    was deleted by hand (e.g. `rm -rf roms/ reports/` without also clearing
+    `.pyauditor/runs/`) — resume would skip re-dispatching it, and the next
+    Command downstream (`report` reading capa/ROMs) would fail against an
+    artifact resume thought still existed. `split`'s own artifact
+    (`sintetico.xlsx`) isn't in this set: nothing downstream depends on it
+    (it's a side conference file, not read by `report`/`consolidate`), and
+    it's legitimately absent whenever `categorias.yaml` has no INMS that
+    resolves — that's not a signal of artifact loss. `report`/`consolidate`
+    don't need this either: `cli/run.py` always re-dispatches them via
+    `force_commands`.
+    """
+    if command == "bootstrap":
+        capa_path = _capa_path_for(request.capa_path, orgao or "")
+        if not capa_path.exists():
+            return f"capa de {orgao} ({capa_path}) foi apagada — rode `pyauditor bootstrap` de novo"
+        return None
+    if command == "measure":
+        roms_dir = request.output_dir / (orgao or "") / request.competencia
+        if not roms_dir.is_dir():
+            return f"{roms_dir} foi apagado — rode `pyauditor measure` de novo"
+        return None
+    return None
+
+
 def _resolve_shared_config_dir(base: Path) -> Path:
     shared = base / "_shared"
     return shared if shared.is_dir() else base
@@ -364,11 +397,20 @@ def execute_run(
             continue
 
         current = _find_entry(state, command, orgao)
+        # A persisted "done" only means "no need to re-dispatch" while its
+        # artifact is still on disk — a human deleting roms/reports/capa*
+        # by hand without also clearing .pyauditor/runs/ must not leave
+        # downstream Commands failing against an artifact resume thinks
+        # still exists.
+        stale_done = current is not None and current.status == "done" and _own_artifact_missing(
+            command, orgao, request
+        )
         if (
             current is not None
             and current.status in ("done", "skipped")
             and not request.force
             and command not in request.force_commands
+            and not stale_done
         ):
             continue
         if (command, orgao) in skipped_steps:

@@ -1,3 +1,4 @@
+import shutil
 from dataclasses import replace
 from pathlib import Path
 
@@ -145,6 +146,36 @@ def test_execute_run_persists_state_and_resume_skips_done(tmp_path: Path) -> Non
     execute_run(request, on_state_change=lambda e: calls.append(e.command))
 
     assert calls == []  # nothing re-run — everything already "done"
+
+
+def test_execute_run_resume_redispatches_measure_when_roms_deleted(tmp_path: Path) -> None:
+    """A persisted "done" only means "skip me" while the artifact is still
+    on disk — a human running `rm -rf roms/` without also clearing
+    `.pyauditor/runs/` must not leave `measure` skipped and `report` failing
+    against ROMs that resume thinks still exist."""
+    request = _scaffold(tmp_path, csv_body=_GOOD_CSV)
+    execute_run(request)
+    shutil.rmtree(request.output_dir)
+
+    calls: list[str] = []
+    run_result = execute_run(request, on_state_change=lambda e: calls.append(e.command))
+
+    assert "measure" in calls
+    assert all(entry.status == "done" for entry in run_result.state.commands)
+    assert (request.output_dir / "MinC" / "2026-06").is_dir()
+
+
+def test_execute_run_resume_redispatches_bootstrap_when_capa_deleted(tmp_path: Path) -> None:
+    request = _scaffold(tmp_path, csv_body=_GOOD_CSV)
+    execute_run(request)
+    (request.data_dir / "capa_MinC.csv").unlink()
+
+    calls: list[str] = []
+    run_result = execute_run(request, on_state_change=lambda e: calls.append(e.command))
+
+    assert "bootstrap" in calls
+    assert all(entry.status == "done" for entry in run_result.state.commands)
+    assert (request.data_dir / "capa_MinC.csv").exists()
 
 
 def test_execute_run_force_reruns_commands_marked_done(tmp_path: Path) -> None:
