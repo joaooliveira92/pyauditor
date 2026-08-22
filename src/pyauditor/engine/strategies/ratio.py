@@ -38,9 +38,7 @@ class RatioStrategy:
     ) -> CalculationResult:
         calculation = narrow_calculation(config, RatioCalculation)
         if config.target is None or config.penalty is None:
-            raise ValueError(
-                'ratio exige `target` e `penalty` no calculation'
-            )
+            raise ValueError('ratio exige `target` e `penalty` no calculation')
 
         numerator, denominator = _aggregate(calculation, rows)
         result_pct = safe_pct(numerator, denominator)
@@ -96,9 +94,7 @@ def _aggregate(
 
     if calculation.aggregation == 'sum':
         if calculation.sum_numerator_column is None:
-            raise ValueError(
-                'aggregation sum exige `sum_numerator_column`'
-            )
+            raise ValueError('aggregation sum exige `sum_numerator_column`')
         # `denominator_filter` (otherwise count_distinct-only) doubles as the
         # eligible-rows filter here — e.g. INMS 1.6's data ships a "TOTAIS"
         # summary row alongside per-agreement rows; selecting only that row

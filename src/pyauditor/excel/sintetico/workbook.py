@@ -299,9 +299,7 @@ def write_sintetico_workbook(
                 )
         elif isinstance(base_config.calculation, PrecomputedTableCalculation):
             if base_config.target is None:
-                raise ValueError(
-                    'precomputed exige `target` no sintetico'
-                )
+                raise ValueError('precomputed exige `target` no sintetico')
             _write_precomputed_table_sheet(
                 workbook,
                 sheet_name,
@@ -320,9 +318,7 @@ def write_sintetico_workbook(
             and base_config.calculation.denominator_filter is not None
         ):
             if base_config.target is None:
-                raise ValueError(
-                    'ratio_aggregate exige `target` no sintetico'
-                )
+                raise ValueError('ratio_aggregate exige `target` no sintetico')
             _write_ratio_aggregate_sheet(
                 workbook,
                 sheet_name,

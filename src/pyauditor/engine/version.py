@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import functools
 import importlib.metadata
-import subprocess
+import subprocess  # nosec B404 -- comando fixo, sem shell/entrada externa
 from typing import Final
 
 __all__: Final[tuple[str, ...]] = ('pipeline_version',)
@@ -24,7 +24,9 @@ def pipeline_version() -> str:
     except importlib.metadata.PackageNotFoundError:
         pass
     try:
-        result = subprocess.run(
+        # 'git' resolvido via PATH de propósito, não hardcoded; argumentos
+        # fixos, sem shell nem entrada externa.
+        result = subprocess.run(  # nosec B603 B607
             ['git', 'rev-parse', '--short', 'HEAD'],
             capture_output=True,
             text=True,
