@@ -114,7 +114,11 @@ auto-formatter to avoid arguing over formatting.
 <a id="lint"></a>
 ### 2.1 Lint 
 
-Run `pylint` over your code using this [pylintrc](https://google.github.io/styleguide/pylintrc).
+Run Ruff over your code using the configuration in `pyproject.toml`:
+
+```shell
+uv run ruff check .
+```
 
 <a id="s2.1.1-definition"></a>
 <a id="211-definition"></a>
@@ -122,10 +126,9 @@ Run `pylint` over your code using this [pylintrc](https://google.github.io/style
 <a id="lint-definition"></a>
 #### 2.1.1 Definition 
 
-`pylint`
-is a tool for finding bugs and style problems in Python source code. It finds
-problems that are typically caught by a compiler for less dynamic languages like
-C and C++. Because of the dynamic nature of Python, some
+Ruff is a tool for finding bugs and style problems in Python source code. It
+finds problems that are typically caught by a compiler for less dynamic
+languages like C and C++. Because of the dynamic nature of Python, some
 warnings may be incorrect; however, spurious warnings should be fairly
 infrequent.
 
@@ -143,9 +146,8 @@ Catches easy-to-miss errors like typos, using-vars-before-assignment, etc.
 <a id="lint-cons"></a>
 #### 2.1.3 Cons 
 
-`pylint`
-isn't perfect. To take advantage of it, sometimes we'll need to write around it,
-suppress its warnings or fix it.
+Ruff isn't perfect. To take advantage of it, sometimes we'll need to write
+around it, suppress its warnings or fix it.
 
 <a id="s2.1.4-decision"></a>
 <a id="214-decision"></a>
@@ -154,7 +156,7 @@ suppress its warnings or fix it.
 #### 2.1.4 Decision 
 
 Make sure you run
-`pylint`
+`ruff check`
 on your code.
 
 
@@ -162,35 +164,38 @@ Suppress warnings if they are inappropriate so that other issues are not hidden.
 To suppress warnings, you can set a line-level comment:
 
 ```python
-def do_PUT(self):  # WSGI name, so pylint: disable=invalid-name
+def do_PUT(self):  # noqa: N802  # WSGI name, so invalid-name is expected.
   ...
 ```
 
-`pylint`
-warnings are each identified by symbolic name (`empty-docstring`)
-Google-specific warnings start with `g-`.
+Ruff
+warnings are each identified by a rule code (e.g. `E501`, `F401`). This project
+enables the rule sets `E`, `F`, `I`, `B`, `UP`, `SIM` and `RUF` (see
+`pyproject.toml`).
 
-If the reason for the suppression is not clear from the symbolic name, add an
+If the reason for the suppression is not clear from the rule code, add an
 explanation.
 
 Suppressing in this way has the advantage that we can easily search for
 suppressions and revisit them.
 
 You can get a list of
-`pylint`
-warnings by doing:
+Ruff
+rules by doing:
 
 ```shell
-pylint --list-msgs
+ruff rule
 ```
 
-To get more information on a particular message, use:
+To get more information on a particular rule, use:
 
 ```shell
-pylint --help-msg=invalid-name
+ruff rule invalid-name
 ```
 
-Prefer `pylint: disable` to the deprecated older form `pylint: disable-msg`.
+Prefer fixing the code to silencing the warning. When a `# noqa` is truly
+needed, use the specific rule code (not a bare `# noqa`) and add a localized
+justification.
 
 Unused argument warnings can be suppressed by deleting the variables at the
 beginning of the function. Always include a comment explaining why you are
@@ -1470,9 +1475,10 @@ Use other `from __future__` import statements as you see fit.
 
 You can annotate Python code with
 [type hints](https://docs.python.org/3/library/typing.html). Type-check the code
-at build time with a type checking tool like [pytype](https://github.com/google/pytype).
-In most cases, when feasible, type annotations are in source files. For
-third-party or extension modules, annotations can be in
+at build time with [mypy](https://mypy-lang.org/) in strict mode
+(`[tool.mypy] strict = true` in `pyproject.toml`). In most cases, when feasible,
+type annotations are in source files. For third-party or extension modules,
+annotations can be in
 [stub `.pyi` files](https://peps.python.org/pep-0484/#stub-files).
 
 
@@ -1514,7 +1520,7 @@ your ability to use [Power Features](#power-features).
 You will have to keep the type declarations up to date.
 You might see type errors that you think are
 valid code. Use of a
-[type checker](https://github.com/google/pytype)
+[type checker](https://mypy-lang.org/)
 may reduce your ability to use [Power Features](#power-features).
 
 <a id="s2.21.4-decision"></a>
@@ -1525,8 +1531,8 @@ may reduce your ability to use [Power Features](#power-features).
 
 You are strongly encouraged to enable Python type analysis when updating code.
 When adding or modifying public APIs, include type annotations and enable
-checking via pytype in the build system. As static analysis is relatively new to
-Python, we acknowledge that undesired side-effects (such as
+checking via mypy (strict mode) in the build system. As static analysis is
+relatively new to Python, we acknowledge that undesired side-effects (such as
 wrongly
 inferred types) may prevent adoption by some projects. In those situations,
 authors are encouraged to add a comment with a TODO or link to a bug describing
@@ -1562,7 +1568,7 @@ Explicit exceptions to the 80 character limit:
 -   URLs, pathnames, or long flags in comments.
 -   Long string module-level constants not containing whitespace that would be
     inconvenient to split across lines such as URLs or pathnames.
-    -   Pylint disable comments. (e.g.: `# pylint: disable=invalid-name`)
+    -   Ruff disable comments. (e.g.: `# noqa: N802`)
 
 Do not use a backslash for
 [explicit line continuation](https://docs.python.org/3/reference/lexical_analysis.html#explicit-line-joining).
@@ -3054,9 +3060,9 @@ When using names based on established notation:
     accessible, clearly document the naming conventions.
 2.  Prefer PEP8-compliant `descriptive_names` for public APIs, which are much
     more likely to be encountered out of context.
-3.  Use a narrowly-scoped `pylint: disable=invalid-name` directive to silence
-    warnings. For just a few variables, use the directive as an endline comment
-    for each one; for more, apply the directive at the beginning of a block.
+3.  Use a narrowly-scoped `# noqa: N802` directive to silence warnings. For
+    just a few variables, use the directive as an endline comment for each one;
+    for more, apply the directive at the beginning of a block.
 
 <a id="main"></a>
 ### 3.17 Main 
@@ -3224,7 +3230,7 @@ def my_method(
   ...
 ```
 
-`pylint`
+Ruff
 allows you to move the closing parenthesis to a new line and align with the
 opening one, but this is less readable.
 
@@ -3387,11 +3393,15 @@ ComplexTFMap: TypeAlias = Mapping[str, _LossAndGradient]
 You can disable type checking on a line with the special comment `# type:
 ignore`.
 
-`pytype` has a disable option for specific errors (similar to lint):
+mypy strict mode has a `# mypy: disable-error-code=...` per-module option and
+per-line `# type: ignore[code]` comments for specific errors:
 
 ```python
-# pytype: disable=attribute-error
+# type: ignore[attr-defined]
 ```
+
+Do not introduce new `# type: ignore` without a comment explaining the reason,
+and never use `Any` where a more precise type is available.
 
 <a id="s3.19.8-typing-variables"></a>
 <a id="s3.19.8-comments"></a>
