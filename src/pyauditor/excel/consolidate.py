@@ -42,6 +42,7 @@ from pyauditor.excel.glosas import Historico, compute_glosa, saldo_anterior_pct_
 from pyauditor.excel.orgao_consolidation import with_orgao_consolidation
 from pyauditor.logging import logger
 from pyauditor.periodo import PeriodoAfericao, format_date_br
+from pyauditor.rom.dedup import deduplicate_summaries
 from pyauditor.rom.summary import IndicatorSummary
 
 CAPA_SHEET: Final = "CAPA_E_CONTROLE"
@@ -418,23 +419,6 @@ def _faixa(summary: IndicatorSummary) -> str:
     return f"Déficit de {dif:.2f}pp" if dif > 0 else "Não conforme"
 
 
-def _is_derived(summary: IndicatorSummary) -> bool:
-    return "." in summary.indicator_id
-
-
-def _deduplicate(summaries: list[IndicatorSummary]) -> list[IndicatorSummary]:
-    by_key: dict[tuple[str, str | None], list[IndicatorSummary]] = {}
-    for s in summaries:
-        by_key.setdefault((s.contractual_id, s.asset), []).append(s)
-    deduped: list[IndicatorSummary] = []
-    for group in by_key.values():
-        if len(group) > 1 and any(_is_derived(s) for s in group):
-            deduped.extend(s for s in group if _is_derived(s))
-        else:
-            deduped.extend(group)
-    return deduped
-
-
 def build_glosas(
     wb: Workbook,
     competencia: str,
@@ -461,8 +445,8 @@ def build_glosas(
     row = 2
 
     # Deduplicação por Categoria (issue 01): base não conta quando derivados existem
-    minc_dedup = _deduplicate(minc)
-    mtur_dedup = _deduplicate(mtur)
+    minc_dedup = deduplicate_summaries(minc)
+    mtur_dedup = deduplicate_summaries(mtur)
 
     # Primeiro escreve linhas por ocorrência (valor por ocorrência continua pct simples,
     # mas o agregado usa compute_glosa por-órgão)

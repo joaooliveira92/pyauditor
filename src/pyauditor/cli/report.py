@@ -22,11 +22,10 @@ from pyauditor.engine.pipeline import discover_configs
 from pyauditor.excel.capa import DERIVED_FIELD_LABELS, EQUIPE_FIELD_LABELS, read_capa_csv_fields
 from pyauditor.excel.equipe import EQUIPE_FILENAME, read_responsaveis
 from pyauditor.excel.glosas import historico_entry, read_historico, write_historico
-from pyauditor.excel.objetos import OBJETOS_FILENAME, read_objetos
 from pyauditor.excel.report import build_report, compute_report_glosa
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import format_date_br, month_bounds
-from pyauditor.rom.summary import IndicatorSummary
+from pyauditor.rom.loading import load_summaries, read_valor_base
 
 HISTORICO_FILENAME = "glosa_historico.json"
 
@@ -87,27 +86,6 @@ def check_report_ready(
     return DependencyCheck(satisfied=not missing, missing=tuple(missing))
 
 
-def _load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
-    # orgao esperado vem do diretório roms/<orgao>/<competencia> — cross-check contra sidecar
-    expected_orgao = roms_dir.parent.name if roms_dir.parent.name in ("MinC", "MTur") else None
-    if expected_orgao is None and roms_dir.name in ("MinC", "MTur"):
-        expected_orgao = roms_dir.name
-    summaries = []
-    for summary_path in sorted(roms_dir.glob("*.json")):
-        try:
-            raw = json.loads(summary_path.read_text(encoding="utf-8"))
-            summary = IndicatorSummary(**raw)
-            if expected_orgao is not None and summary.orgao != expected_orgao:
-                raise ValueError(
-                    f"{summary_path}: orgao {summary.orgao!r} no sidecar diverge do diretório "
-                    f"de origem {expected_orgao!r} — sidecar mal-rotulado/copiado"
-                )
-            summaries.append(summary)
-        except (json.JSONDecodeError, TypeError, ValueError) as exc:
-            raise ValueError(f"sumário inválido em {summary_path}: {exc}") from exc
-    return summaries
-
-
 def _load_capa_fields(
     capa_path: Path, orgao: str, data_dir: Path
 ) -> tuple[dict[str, object], list[str]]:
@@ -127,21 +105,6 @@ def _load_capa_fields(
         except (OSError, ValueError) as exc:
             warnings.append(f"falha ao ler capa {label} ({path}): {exc} — campos a preencher")
     return campos, warnings
-
-
-def _read_valor_base(data_dir: Path, warnings: list[str]) -> float | None:
-    """Valor mensal a partir de `objetos.csv`. Ausente → `None` (glosa não
-    calculada, ticket 01); malformado → `ValueError` (falha técnica, Q5)."""
-    path = data_dir / OBJETOS_FILENAME
-    try:
-        objetos = read_objetos(path)
-    except FileNotFoundError:
-        warnings.append(f"objetos.csv não encontrado em {data_dir} — glosa não calculada")
-        return None
-    except ValueError as exc:
-        raise ValueError(f"objetos.csv malformado em {path}: {exc}") from exc
-    warnings.extend(objetos.warnings)
-    return objetos.total_mensal
 
 
 def run_report(
@@ -185,7 +148,7 @@ def run_report(
 
     competencia_dir = roms_dir / competencia
     try:
-        summaries = _load_summaries(competencia_dir)
+        summaries = load_summaries(competencia_dir)
     except (OSError, ValueError) as exc:
         return _error(f"falha ao ler sumários de medição em {competencia_dir}: {exc}")
 
@@ -211,7 +174,7 @@ def run_report(
     warnings_gerais: list[str] = []
 
     try:
-        valor_base = _read_valor_base(data_dir, warnings_gerais)
+        valor_base, _itens = read_valor_base(data_dir, warnings_gerais)
         warnings.extend(warnings_gerais)
     except ValueError as exc:
         return _error(str(exc))  # Q5: malformado é FALHA (exit 1)

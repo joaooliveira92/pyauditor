@@ -46,6 +46,7 @@ from pyauditor.excel.glosas import (
     saldo_anterior_pct_de,
 )
 from pyauditor.excel.groups import GROUP_TABS, group_for_summary
+from pyauditor.rom.dedup import deduplicate_summaries
 from pyauditor.rom.summary import IndicatorSummary
 
 __all__: Final[tuple[str, ...]] = (
@@ -424,57 +425,12 @@ def _group_row(
     )
 
 
-def _is_categoria_derived(summary: IndicatorSummary) -> bool:
-    """Return whether a summary represents a split category.
-
-    Split configurations use an indicator identifier formed by a base
-    identifier followed by a category suffix separated by a dot, while
-    retaining the base contractual identifier.
-    """
-    base_identifier = summary.contractual_id
-    derived_prefix = f"{base_identifier}."
-    return summary.indicator_id.startswith(derived_prefix)
-
-
 def _summaries_for_glosa(
     summaries: Sequence[IndicatorSummary],
 ) -> list[IndicatorSummary]:
-    
-    """Select summaries that contribute to the monthly glosa.
-
-    Summaries are grouped by contractual identifier and asset. When a group
-    contains category-derived summaries, the unsplit base summary is excluded
-    to prevent the base result from being counted in addition to its category
-    components.
-
-    All derived category summaries remain because each represents a measured
-    component whose penalty contributes to the contractual indicator total.
-    Summaries without derived categories are preserved unchanged.
-    """
-    grouped: dict[
-        tuple[str, str | None],
-        list[IndicatorSummary],
-    ] = {}
-
-    for summary in summaries:
-        key = (summary.contractual_id, summary.asset)
-        grouped.setdefault(key, []).append(summary)
-
-    selected: list[IndicatorSummary] = []
-
-    for group in grouped.values():
-        derived = [
-            summary
-            for summary in group
-            if _is_categoria_derived(summary)
-        ]
-
-        if derived:
-            selected.extend(derived)
-        else:
-            selected.extend(group)
-
-    return selected
+    """Select summaries that contribute to the monthly glosa (dedup
+    compartilhado — ``rom.dedup.deduplicate_summaries``, ticket 07)."""
+    return deduplicate_summaries(summaries)
 
 
 def compute_report_glosa(

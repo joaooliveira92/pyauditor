@@ -85,12 +85,12 @@ def _scaffold_capas(tmp_path: Path) -> Path:
 def test_sidecar_legado_sem_campos_de_periodo_carrega_com_defaults(tmp_path: Path) -> None:
     """Spec §8 — sidecar novo lê sidecar antigo: chaves ausentes caem nos
     defaults None e o relatório segue de pé."""
-    from pyauditor.cli.report import _load_summaries
+    from pyauditor.rom.loading import load_summaries
 
     roms_dir = tmp_path / "roms"
     _write_summary(roms_dir, "2026-06", "INMS-1.1", "INMS 1.1")
 
-    summaries = _load_summaries(roms_dir / "2026-06")
+    summaries = load_summaries(roms_dir / "2026-06")
 
     assert len(summaries) == 1
     assert summaries[0].dropped_out_of_period is None

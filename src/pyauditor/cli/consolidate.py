@@ -16,7 +16,6 @@ Competência/períodos/responsáveis idem (spec competencia-cli-equipe §4/§6):
 períodos derivados do argumento da CLI e responsáveis de `equipe.csv`.
 """
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,10 +24,9 @@ from pyauditor.cli.results import WRITE_FAILURE_HINT, DependencyCheck, Status, v
 from pyauditor.excel.capa import read_capa_csv_fields
 from pyauditor.excel.consolidate import build_consolidated_workbook, read_existing_decisions
 from pyauditor.excel.equipe import EQUIPE_FILENAME, read_responsaveis
-from pyauditor.excel.objetos import OBJETOS_FILENAME, read_objetos
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import month_bounds
-from pyauditor.rom.summary import IndicatorSummary
+from pyauditor.rom.loading import load_summaries, read_valor_base
 
 _ORGAOS: tuple[str, str] = ("MinC", "MTur")
 
@@ -58,36 +56,6 @@ def check_consolidate_ready(competencia: str, report_dir: Path, roms_dir: Path) 
     return DependencyCheck(satisfied=not missing, missing=tuple(missing))
 
 
-def _load_summaries(roms_dir: Path) -> list[IndicatorSummary]:
-    expected_orgao = roms_dir.parent.name if roms_dir.parent.name in ("MinC", "MTur") else None
-    if expected_orgao is None and roms_dir.name in ("MinC", "MTur"):
-        expected_orgao = roms_dir.name
-    # fallback: for consolidate's roms_dir/<orgao>/<competencia> structure,
-    # roms_dir itself may be the competencia dir
-    if expected_orgao is None:
-        # try grandparent (e.g. roms/MinC/2026-06)
-        try:
-            candidate = roms_dir.parent.name
-            if candidate in ("MinC", "MTur"):
-                expected_orgao = candidate
-        except Exception:
-            expected_orgao = None
-    summaries: list[IndicatorSummary] = []
-    for summary_path in sorted(roms_dir.glob("*.json")):
-        try:
-            raw = json.loads(summary_path.read_text(encoding="utf-8"))
-            summary = IndicatorSummary(**raw)
-            if expected_orgao is not None and summary.orgao != expected_orgao:
-                raise ValueError(
-                    f"{summary_path}: orgao {summary.orgao!r} no sidecar diverge do diretório "
-                    f"de origem {expected_orgao!r} — sidecar mal-rotulado/copiado"
-                )
-            summaries.append(summary)
-        except (json.JSONDecodeError, TypeError, ValueError) as exc:
-            raise ValueError(f"sumário inválido em {summary_path}: {exc}") from exc
-    return summaries
-
-
 def _load_common_capa(data_dir: Path, warnings: list[str]) -> dict[str, object]:
     """Campos comuns do contrato de `capa.csv` (ticket 07). Ausente/malformado
     é dado incompleto — o consolidado é montado mesmo assim, com a capa
@@ -103,21 +71,6 @@ def _load_common_capa(data_dir: Path, warnings: list[str]) -> dict[str, object]:
     except (OSError, ValueError) as exc:
         warnings.append(f"falha ao ler capa.csv em {data_dir}: {exc} — campos comuns ausentes")
         return {}
-
-
-def _read_objetos(data_dir: Path, warnings: list[str]) -> tuple[float | None, tuple[float, ...]]:
-    """`objetos.csv` → (valor_base, itens). Ausente → `(None, ())` — glosa não
-    calculada (ticket 01); malformado → `ValueError` — falha técnica (Q5)."""
-    path = data_dir / OBJETOS_FILENAME
-    try:
-        objetos = read_objetos(path)
-    except FileNotFoundError:
-        warnings.append(f"objetos.csv não encontrado em {data_dir} — glosa monetária não calculada")
-        return None, ()
-    except ValueError as exc:
-        raise ValueError(f"objetos.csv malformado em {path}: {exc}") from exc
-    warnings.extend(objetos.warnings)
-    return objetos.total_mensal, objetos.itens
 
 
 def run_consolidate(
@@ -154,8 +107,8 @@ def run_consolidate(
     roms_dirs = {orgao: roms_dir / orgao / competencia for orgao in _ORGAOS}
 
     try:
-        minc = _load_summaries(roms_dirs["MinC"])
-        mtur = _load_summaries(roms_dirs["MTur"])
+        minc = load_summaries(roms_dirs["MinC"])
+        mtur = load_summaries(roms_dirs["MTur"])
     except (OSError, ValueError) as exc:
         return _error(f"falha ao ler sumários de medição: {exc}")
 
@@ -165,7 +118,7 @@ def run_consolidate(
     warnings: list[str] = []
     capa = _load_common_capa(data_dir, warnings)
     try:
-        valor_base, itens = _read_objetos(data_dir, warnings)
+        valor_base, itens = read_valor_base(data_dir, warnings)
     except ValueError as exc:
         return _error(str(exc))  # Q5: malformado é FALHA (exit 1)
 
