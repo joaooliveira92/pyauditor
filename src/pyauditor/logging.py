@@ -43,7 +43,7 @@ from __future__ import annotations
 import json
 import re
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, is_dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -307,16 +307,10 @@ def setup_logging(
         _MAX_DETAIL_LEVEL,
     )
 
-    if not isinstance(format_, str):
-        raise TypeError(
-            "format_ must be a string, "
-            f"received {type(format_).__name__}."
-        )
-
     if not format_:
         raise ValueError("format_ must not be empty.")
 
-    if not isinstance(json_format, bool):
+    if type(json_format) is not bool:
         raise TypeError(
             "json_format must be bool, "
             f"received {type(json_format).__name__}."
@@ -410,11 +404,6 @@ def setup_logging(
 
         raise
 
-    if stream_handler_id is None:
-        raise RuntimeError(
-            "Logging configuration completed without a stream handler."
-        )
-
     return LoggingHandlers(
         stream=stream_handler_id,
         file=file_handler_id,
@@ -442,25 +431,29 @@ class _FlatJsonSink:
                 "Loguru JSON sink received a message without a record."
             )
 
-        extra_raw = record.get("extra", {})
+        record_values = cast(Mapping[str, object], record)
+
+        extra_raw = record_values.get("extra", {})
         if not isinstance(extra_raw, Mapping):
             raise TypeError(
                 "Loguru record extra context must be a mapping."
             )
 
+        extra_values = cast(Mapping[str, object], extra_raw)
+
         extra = {
             str(key): _normalize_json_value(value)
-            for key, value in extra_raw.items()
+            for key, value in extra_values.items()
             if key not in {"event_message", "detail"}
         }
 
-        timestamp = record.get("time")
-        level = record.get("level")
+        timestamp = record_values.get("time")
+        level = record_values.get("level")
 
-        event = extra_raw.get("event", "unstructured_log")
-        event_message = extra_raw.get(
+        event = extra_values.get("event", "unstructured_log")
+        event_message = extra_values.get(
             "event_message",
-            record.get("message", ""),
+            record_values.get("message", ""),
         )
 
         payload: dict[str, JsonValue] = {
@@ -500,7 +493,8 @@ def _build_detail_filter(
         if not isinstance(extra, Mapping):
             return True
 
-        detail = extra.get(
+        extra_values = cast(Mapping[str, object], extra)
+        detail = extra_values.get(
             "detail",
             _DEFAULT_DETAIL_LEVEL,
         )
@@ -518,7 +512,7 @@ def _normalize_level(
     field: str,
 ) -> str:
     """Normalize and validate a supported severity."""
-    if not isinstance(level, str):
+    if type(level) is not str:
         raise TypeError(
             f"{field} must be a string, "
             f"received {type(level).__name__}."
@@ -537,7 +531,7 @@ def _normalize_level(
 
 def _validate_verbosity(verbosity: int) -> int:
     """Validate and normalize a CLI verbosity count."""
-    if isinstance(verbosity, bool) or not isinstance(verbosity, int):
+    if type(verbosity) is not int:
         raise TypeError(
             "verbosity must be an integer, "
             f"received {type(verbosity).__name__}."
@@ -553,7 +547,7 @@ def _validate_verbosity(verbosity: int) -> int:
 
 def _validate_detail(detail: int) -> int:
     """Validate an event detail level."""
-    if isinstance(detail, bool) or not isinstance(detail, int):
+    if type(detail) is not int:
         raise TypeError(
             "detail must be an integer, "
             f"received {type(detail).__name__}."
@@ -570,7 +564,7 @@ def _validate_detail(detail: int) -> int:
 
 def _validate_event(event: str) -> str:
     """Validate a stable event identifier."""
-    if not isinstance(event, str):
+    if type(event) is not str:
         raise TypeError(
             "event must be a string, "
             f"received {type(event).__name__}."
@@ -593,7 +587,7 @@ def _validate_single_line_text(
     field: str,
 ) -> str:
     """Require non-empty text without line breaks."""
-    if not isinstance(value, str):
+    if type(value) is not str:
         raise TypeError(
             f"{field} must be a string, "
             f"received {type(value).__name__}."
@@ -619,7 +613,7 @@ def _normalize_context(
     normalized: dict[str, JsonValue] = {}
 
     for key, value in context.items():
-        if not isinstance(key, str):
+        if type(key) is not str:
             raise TypeError(
                 "Context keys must be strings, "
                 f"received {type(key).__name__}."
@@ -693,9 +687,10 @@ def _normalize_json_value(value: object) -> JsonValue:
 
     if isinstance(value, Mapping):
         normalized_mapping: dict[str, JsonValue] = {}
+        value_typed = cast(Mapping[str, object], value)
 
-        for key, nested_value in value.items():
-            if not isinstance(key, str):
+        for key, nested_value in value_typed.items():
+            if type(key) is not str:
                 raise TypeError(
                     "Nested log mapping keys must be strings."
                 )
@@ -709,7 +704,7 @@ def _normalize_json_value(value: object) -> JsonValue:
     if isinstance(value, (list, tuple)):
         return [
             _normalize_json_value(item)
-            for item in value
+            for item in cast(Sequence[object], value)
         ]
 
     if is_dataclass(value) and not isinstance(value, type):
