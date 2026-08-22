@@ -13,10 +13,18 @@ penalidade, tempos, atrasos) são fórmulas do Excel sobre uma base de dados
 de apoio nas colunas R:AM da própria aba (uma linha por incidente do CSV
 bruto), não valores pré-calculados em Python — para que a aba continue
 rastreável/reproduzível quando reaberta sem o pipeline.
+
+`write_sheet` monta a aba seção por seção (Seção 1 · Identificação ...
+Seção 9 · Penalidade); cada seção 1-3 ocupa linhas fixas (o conteúdo não
+depende do número de incidentes), e cada seção 4-9 recebe a linha inicial
+da seção anterior e devolve a próxima linha livre, encadeando o cursor de
+linha — a ordem de chamada em `write_sheet` é a própria ordem visual da
+aba.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Final
@@ -101,6 +109,11 @@ BORDER: Final = Border(bottom=Side(style="thin", color="D1D5DB"))
 _R, _S, _T, _U, _V, _W, _X, _Y, _Z, _AA, _AB, _AC, _AD, _AE, _AF, _AG, _AH, _AI = range(18, 36)
 _AK, _AL, _AM = 37, 38, 39
 
+# Assinatura do range de uma coluna de apoio (`R2:R{last_row}` etc.), fixada
+# uma vez por chamada de `write_sheet` a partir de `last_row` — repassada
+# como parâmetro `rng` às seções que montam fórmulas sobre a base de apoio.
+_ColumnRange = Callable[[int], str]
+
 
 def has_required_columns(fieldnames: list[str]) -> bool:
     return all(column in fieldnames for column in _REQUIRED_COLUMNS)
@@ -172,6 +185,19 @@ def _add_table(sheet: Worksheet, name: str, ref: str) -> None:
         name=None, showRowStripes=False, showFirstColumn=False, showLastColumn=False
     )
     sheet.add_table(table)
+
+
+def _add_situacao_conditional_formatting(sheet: Worksheet, coordinate: str) -> None:
+    """"Meta atingida"/"Meta não atingida" -> verde/vermelho — usado na Seção
+    2 (resultado consolidado) e na Seção 7 (cada metodologia de controle)."""
+    sheet.conditional_formatting.add(
+        coordinate,
+        CellIsRule(operator="equal", formula=['"Meta atingida"'], fill=GREEN_FILL),  # type: ignore[no-untyped-call]
+    )
+    sheet.conditional_formatting.add(
+        coordinate,
+        CellIsRule(operator="equal", formula=['"Meta não atingida"'], fill=RED_FILL),  # type: ignore[no-untyped-call]
+    )
 
 
 def _build_grupo_rows(
@@ -314,48 +340,14 @@ def _write_raw_block(
             c.font = BODY_FONT
 
 
-def write_sheet(
-    workbook: Workbook,
-    sheet_name: str,
+def _write_section_1_identificacao(
+    sheet: Worksheet,
     *,
-    categorias_file: CategoriasFile,
-    grupo_executor_entries: list[tuple[str, GrupoExecutorMode]],
-    whole_indicator_entries: list[tuple[str, WholeIndicatorMode]],
-    fieldnames: list[str],
     rows: list[dict[str, str]],
-    target_operator: str,
-    target_value: float,
-    penalty_base_points: float,
-    penalty_step_points: float,
-    penalty_step_size_pct: float,
     contract: str,
     periodo: PeriodoAfericao | None,
     raw_csv_path: Path,
 ) -> None:
-    del whole_indicator_entries  # categorias.yaml não usa whole_indicator para 1.1 hoje
-    del fieldnames  # validado por has_required_columns antes de chamar
-
-    sheet = workbook.create_sheet(sheet_name)
-    sheet.sheet_view.showGridLines = False
-    for col, width in {
-        1: 42, 2: 24, 3: 16, 4: 12, 5: 14, 6: 12, 7: 12, 8: 16, 9: 14, 10: 34, 11: 20, 12: 40,
-    }.items():
-        sheet.column_dimensions[cl(col)].width = width
-
-    last_row = 1 + len(rows)
-    real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
-    grupo_rows = _build_grupo_rows(categorias_file, grupo_executor_entries, real_values)
-    _write_raw_block(sheet, rows, grupo_rows, last_row)
-
-    def rng(col: int) -> str:
-        return _raw_range(col, last_row)
-
-    iap = f"COUNTA({rng(_R)})"
-    iadp = f'COUNTIF({rng(_X)},"S")'
-    fora = f'COUNTIF({rng(_X)},"N")'
-    meta_value = target_value / 100
-
-    # ---- Seção 1: identificação ----
     sheet.merge_cells("A1:L1")
     t = sheet.cell(row=1, column=1, value="INMS 1.1 – Incidentes atendidos dentro do prazo")
     t.font = TITLE_FONT
@@ -385,7 +377,16 @@ def write_sheet(
     _label_value(sheet, 8, "Data de corte:", data_corte, fmt=data_corte_fmt, fill=GRAY_FILL)
     _label_value(sheet, 9, "Responsável pela elaboração:", "Não informado", fill=GRAY_FILL)
 
-    # ---- Seção 2: resumo executivo ----
+
+def _write_section_2_resumo(
+    sheet: Worksheet,
+    *,
+    iap: str,
+    iadp: str,
+    fora: str,
+    meta_value: float,
+    target_operator: str,
+) -> None:
     _section_bar(sheet, 11, "SEÇÃO 2 · RESUMO EXECUTIVO")
     _header_row(
         sheet, 12,
@@ -415,12 +416,7 @@ def write_sheet(
         sheet[c].alignment = Alignment(horizontal="center")
     sheet.row_dimensions[13].height = 24
 
-    sheet.conditional_formatting.add(
-        "G13", CellIsRule(operator="equal", formula=['"Meta atingida"'], fill=GREEN_FILL)  # type: ignore[no-untyped-call]
-    )
-    sheet.conditional_formatting.add(
-        "G13", CellIsRule(operator="equal", formula=['"Meta não atingida"'], fill=RED_FILL)  # type: ignore[no-untyped-call]
-    )
+    _add_situacao_conditional_formatting(sheet, "G13")
 
     sheet.merge_cells("A14:L14")
     pen_note = sheet.cell(
@@ -430,7 +426,8 @@ def write_sheet(
     pen_note.font = LABEL_FONT
     pen_note.fill = ORANGE_FILL
 
-    # ---- Seção 3: memória do cálculo ----
+
+def _write_section_3_memoria(sheet: Worksheet) -> None:
     _section_bar(sheet, 16, "SEÇÃO 3 · MEMÓRIA DO CÁLCULO CONSOLIDADO")
     _label_value(sheet, 17, "IAP (incidentes abertos no período):", "=B13", fmt="0")
     _label_value(sheet, 18, "IADP (incidentes dentro do prazo):", "=C13", fmt="0")
@@ -460,7 +457,15 @@ def write_sheet(
     )
     sheet["A26"].font = NOTE_FONT
 
-    # ---- Seção 4: detalhamento por grupo executor ----
+
+def _write_section_4_detalhamento(
+    sheet: Worksheet,
+    *,
+    grupo_rows: list[tuple[str, str, str]],
+    rng: _ColumnRange,
+) -> int:
+    """Devolve `last_group_row` — a última linha da tabela de grupos, usada
+    pela Seção 5 para calcular sua própria linha inicial."""
     _section_bar(sheet, 28, "SEÇÃO 4 · DETALHAMENTO POR GRUPO EXECUTOR", last_col=12)
     _header_row(
         sheet, 29,
@@ -518,9 +523,15 @@ def write_sheet(
             sheet.cell(row=r, column=col).border = BORDER
     last_group_row = first_group_row + len(grupo_rows) - 1
     _add_table(sheet, "TabelaGrupoExecutor", f"A29:L{last_group_row}")
+    return last_group_row
 
-    # ---- Seção 5: subtotais por nível ----
-    sub_bar_row = last_group_row + 2
+
+def _write_section_5_subtotais(
+    sheet: Worksheet, *, rng: _ColumnRange, start_row: int
+) -> int:
+    """Devolve `check_row` — a linha da verificação cruzada Seção 5 vs.
+    Seção 2/3, usada como âncora da Seção 6."""
+    sub_bar_row = start_row
     _section_bar(
         sheet, sub_bar_row, "SEÇÃO 5 · SUBTOTAIS POR NÍVEL (informação gerencial)", last_col=6
     )
@@ -604,9 +615,19 @@ def write_sheet(
     sheet.conditional_formatting.add(
         chk.coordinate, CellIsRule(operator="equal", formula=['"DIVERGÊNCIA"'], fill=RED_FILL)  # type: ignore[no-untyped-call]
     )
+    return check_row
 
-    # ---- Seção 6: incidentes fora do prazo ----
-    s6_bar = check_row + 2
+
+def _write_section_6_fora_prazo(
+    sheet: Worksheet,
+    *,
+    rows: list[dict[str, str]],
+    rng: _ColumnRange,
+    start_row: int,
+) -> int:
+    """Devolve `fora_last` — última linha ocupada (nota "nenhum incidente"
+    ou última linha da tabela), usada como âncora da Seção 7."""
+    s6_bar = start_row
     _section_bar(sheet, s6_bar, "SEÇÃO 6 · INCIDENTES FORA DO PRAZO", last_col=11)
     _header_row(
         sheet, s6_bar + 1,
@@ -624,35 +645,46 @@ def write_sheet(
         sheet.merge_cells(f"A{fora_first}:K{fora_first}")
         sheet[f"A{fora_first}"] = "Nenhum incidente fora do prazo no período."
         sheet[f"A{fora_first}"].font = NOTE_FONT
-        fora_last = fora_first
-    else:
-        for n in range(1, fora_count + 1):
-            r = fora_first + n - 1
-            match_expr = f"MATCH({n},{ah_range},0)"
-            c1 = sheet.cell(row=r, column=1, value=f'=IFERROR(INDEX({rng(_R)},{match_expr}),"")')
-            c2 = sheet.cell(row=r, column=2, value=f'=IFERROR(INDEX({rng(_S)},{match_expr}),"")')
-            c3 = sheet.cell(row=r, column=3, value=f'=IFERROR(INDEX({rng(_T)},{match_expr}),"")')
-            c4 = sheet.cell(row=r, column=4, value=f'=IFERROR(INDEX({rng(_U)},{match_expr}),"")')
-            c4.number_format = _DATETIME_FMT
-            c5 = sheet.cell(row=r, column=5, value=f'=IFERROR(INDEX({rng(_V)},{match_expr}),"")')
-            c5.number_format = _DATETIME_FMT
-            c6 = sheet.cell(row=r, column=6, value=f'=IFERROR(INDEX({rng(_W)},{match_expr}),"")')
-            c6.number_format = _DATETIME_FMT
-            c7 = sheet.cell(row=r, column=7, value=f'=IFERROR(INDEX({rng(_AF)},{match_expr}),"")')
-            c7.number_format = "0.0"
-            c8 = sheet.cell(row=r, column=8, value=f'=IFERROR(INDEX({rng(_Y)},{match_expr}),"")')
-            c9 = sheet.cell(row=r, column=9, value="Não informado")
-            c10 = sheet.cell(row=r, column=10, value="Não informado")
-            c11 = sheet.cell(row=r, column=11, value="Não informado")
-            for c in (c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11):
-                c.font = BODY_FONT
-                c.border = BORDER
-            c1.fill = RED_FILL
-        fora_last = fora_first + fora_count - 1
-        _add_table(sheet, "TabelaForaDoPrazo", f"A{s6_bar + 1}:K{fora_last}")
+        return fora_first
 
-    # ---- Seção 7: auditoria do prazo contratual ----
-    s7_bar = fora_last + 2
+    for n in range(1, fora_count + 1):
+        r = fora_first + n - 1
+        match_expr = f"MATCH({n},{ah_range},0)"
+        c1 = sheet.cell(row=r, column=1, value=f'=IFERROR(INDEX({rng(_R)},{match_expr}),"")')
+        c2 = sheet.cell(row=r, column=2, value=f'=IFERROR(INDEX({rng(_S)},{match_expr}),"")')
+        c3 = sheet.cell(row=r, column=3, value=f'=IFERROR(INDEX({rng(_T)},{match_expr}),"")')
+        c4 = sheet.cell(row=r, column=4, value=f'=IFERROR(INDEX({rng(_U)},{match_expr}),"")')
+        c4.number_format = _DATETIME_FMT
+        c5 = sheet.cell(row=r, column=5, value=f'=IFERROR(INDEX({rng(_V)},{match_expr}),"")')
+        c5.number_format = _DATETIME_FMT
+        c6 = sheet.cell(row=r, column=6, value=f'=IFERROR(INDEX({rng(_W)},{match_expr}),"")')
+        c6.number_format = _DATETIME_FMT
+        c7 = sheet.cell(row=r, column=7, value=f'=IFERROR(INDEX({rng(_AF)},{match_expr}),"")')
+        c7.number_format = "0.0"
+        c8 = sheet.cell(row=r, column=8, value=f'=IFERROR(INDEX({rng(_Y)},{match_expr}),"")')
+        c9 = sheet.cell(row=r, column=9, value="Não informado")
+        c10 = sheet.cell(row=r, column=10, value="Não informado")
+        c11 = sheet.cell(row=r, column=11, value="Não informado")
+        for c in (c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11):
+            c.font = BODY_FONT
+            c.border = BORDER
+        c1.fill = RED_FILL
+    fora_last = fora_first + fora_count - 1
+    _add_table(sheet, "TabelaForaDoPrazo", f"A{s6_bar + 1}:K{fora_last}")
+    return fora_last
+
+
+def _write_section_7_auditoria(
+    sheet: Worksheet,
+    *,
+    rows: list[dict[str, str]],
+    rng: _ColumnRange,
+    target_operator: str,
+    start_row: int,
+) -> int:
+    """Devolve `sample_note_row` — última linha da amostra de divergências
+    (ou da nota "nenhuma divergência"), usada como âncora da Seção 8."""
+    s7_bar = start_row
     _section_bar(sheet, s7_bar, "SEÇÃO 7 · AUDITORIA DO PRAZO CONTRATUAL", last_col=7)
     sheet.cell(row=s7_bar + 1, column=1, value="Controles de resultado").font = LABEL_FONT
     _header_row(sheet, s7_bar + 2, ("Metodologia", "Resultado", "Situação"))
@@ -686,16 +718,7 @@ def write_sheet(
         sit.font = BODY_FONT
         for col in range(1, 4):
             sheet.cell(row=r, column=col).border = BORDER
-        sheet.conditional_formatting.add(
-            sit.coordinate,
-            CellIsRule(  # type: ignore[no-untyped-call]
-                operator="equal", formula=['"Meta atingida"'], fill=GREEN_FILL
-            ),
-        )
-        sheet.conditional_formatting.add(
-            sit.coordinate,
-            CellIsRule(operator="equal", formula=['"Meta não atingida"'], fill=RED_FILL),  # type: ignore[no-untyped-call]
-        )
+        _add_situacao_conditional_formatting(sheet, sit.coordinate)
 
     div_header_row = first_ctrl + 3 + 1
     sheet.cell(
@@ -746,55 +769,59 @@ def write_sheet(
         sheet.merge_cells(f"A{sample_header_row}:F{sample_header_row}")
         sheet[f"A{sample_header_row}"] = "Nenhuma divergência de prazo encontrada no período."
         sheet[f"A{sample_header_row}"].font = NOTE_FONT
-        sample_note_row = sample_header_row
-    else:
-        sheet.cell(
-            row=sample_header_row, column=1,
-            value=f"Amostra de divergências ({sample_size} primeiras, ordenadas por ocorrência)",
-        ).font = LABEL_FONT
-        _header_row(
-            sheet, sample_header_row + 1,
-            ("Nº solicitação", "Abertura", "Limite registrado (ITSM)",
-             "Limite bruto (abertura + prazo corrido)", "Diferença (horas)",
-             "No prazo (fornecedor)"),
-        )
-        sample_first = sample_header_row + 2
-        ai_range = rng(_AI)
-        for n in range(1, sample_size + 1):
-            r = sample_first + n - 1
-            match_expr = f"MATCH({n},{ai_range},0)"
-            c1 = sheet.cell(row=r, column=1, value=f'=IFERROR(INDEX({rng(_R)},{match_expr}),"")')
-            c2 = sheet.cell(row=r, column=2, value=f'=IFERROR(INDEX({rng(_U)},{match_expr}),"")')
-            c2.number_format = _DATETIME_FMT
-            c3 = sheet.cell(row=r, column=3, value=f'=IFERROR(INDEX({rng(_V)},{match_expr}),"")')
-            c3.number_format = _DATETIME_FMT
-            c4 = sheet.cell(row=r, column=4, value=f'=IFERROR(INDEX({rng(_AB)},{match_expr}),"")')
-            c4.number_format = _DATETIME_FMT
-            c5 = sheet.cell(
-                row=r, column=5,
-                value=(
-                    f'=IFERROR((INDEX({rng(_V)},{match_expr})-'
-                    f'INDEX({rng(_AB)},{match_expr}))*24,"")'
-                ),
-            )
-            c5.number_format = "0.00"
-            c6 = sheet.cell(row=r, column=6, value=f'=IFERROR(INDEX({rng(_X)},{match_expr}),"")')
-            for c in (c1, c2, c3, c4, c5, c6):
-                c.font = BODY_FONT
-                c.border = BORDER
-        sample_last = sample_first + sample_size - 1
-        _add_table(sheet, "TabelaAmostraDivergencias", f"A{sample_header_row + 1}:F{sample_last}")
-        sample_note_row = sample_last + 1
-        sheet.merge_cells(f"A{sample_note_row}:F{sample_note_row}")
-        sheet[f"A{sample_note_row}"] = (
-            f'=CONCATENATE("Amostra limitada às {sample_size} primeiras ocorrências de ",'
-            f'B{div_count_row},"registros divergentes — colunas de apoio desta aba (coluna AC) '
-            f'permitem reproduzir a lista completa.")'
-        )
-        sheet[f"A{sample_note_row}"].font = NOTE_FONT
+        return sample_header_row
 
-    # ---- Seção 8: tempo corrido médio ----
-    s8_bar = sample_note_row + 2
+    sheet.cell(
+        row=sample_header_row, column=1,
+        value=f"Amostra de divergências ({sample_size} primeiras, ordenadas por ocorrência)",
+    ).font = LABEL_FONT
+    _header_row(
+        sheet, sample_header_row + 1,
+        ("Nº solicitação", "Abertura", "Limite registrado (ITSM)",
+         "Limite bruto (abertura + prazo corrido)", "Diferença (horas)",
+         "No prazo (fornecedor)"),
+    )
+    sample_first = sample_header_row + 2
+    ai_range = rng(_AI)
+    for n in range(1, sample_size + 1):
+        r = sample_first + n - 1
+        match_expr = f"MATCH({n},{ai_range},0)"
+        c1 = sheet.cell(row=r, column=1, value=f'=IFERROR(INDEX({rng(_R)},{match_expr}),"")')
+        c2 = sheet.cell(row=r, column=2, value=f'=IFERROR(INDEX({rng(_U)},{match_expr}),"")')
+        c2.number_format = _DATETIME_FMT
+        c3 = sheet.cell(row=r, column=3, value=f'=IFERROR(INDEX({rng(_V)},{match_expr}),"")')
+        c3.number_format = _DATETIME_FMT
+        c4 = sheet.cell(row=r, column=4, value=f'=IFERROR(INDEX({rng(_AB)},{match_expr}),"")')
+        c4.number_format = _DATETIME_FMT
+        c5 = sheet.cell(
+            row=r, column=5,
+            value=(
+                f'=IFERROR((INDEX({rng(_V)},{match_expr})-'
+                f'INDEX({rng(_AB)},{match_expr}))*24,"")'
+            ),
+        )
+        c5.number_format = "0.00"
+        c6 = sheet.cell(row=r, column=6, value=f'=IFERROR(INDEX({rng(_X)},{match_expr}),"")')
+        for c in (c1, c2, c3, c4, c5, c6):
+            c.font = BODY_FONT
+            c.border = BORDER
+    sample_last = sample_first + sample_size - 1
+    _add_table(sheet, "TabelaAmostraDivergencias", f"A{sample_header_row + 1}:F{sample_last}")
+    sample_note_row = sample_last + 1
+    sheet.merge_cells(f"A{sample_note_row}:F{sample_note_row}")
+    sheet[f"A{sample_note_row}"] = (
+        f'=CONCATENATE("Amostra limitada às {sample_size} primeiras ocorrências de ",'
+        f'B{div_count_row},"registros divergentes — colunas de apoio desta aba (coluna AC) '
+        f'permitem reproduzir a lista completa.")'
+    )
+    sheet[f"A{sample_note_row}"].font = NOTE_FONT
+    return sample_note_row
+
+
+def _write_section_8_tempo(sheet: Worksheet, *, rng: _ColumnRange, start_row: int) -> int:
+    """Devolve `note8` — a linha da nota de rodapé da seção, usada como
+    âncora da Seção 9."""
+    s8_bar = start_row
     _section_bar(sheet, s8_bar, "SEÇÃO 8 · TEMPO CORRIDO MÉDIO ATÉ A RESOLUÇÃO", last_col=6)
     _label_value(
         sheet, s8_bar + 1, "Tempo corrido médio até a resolução (todas as linhas):",
@@ -821,9 +848,19 @@ def write_sheet(
         "verificação linha-a-linha do campo 'No prazo' para o cálculo do INMS 1.1."
     )
     sheet[f"A{note8}"].font = NOTE_FONT
+    return note8
 
-    # ---- Seção 9: penalidade ----
-    s9_bar = note8 + 2
+
+def _write_section_9_penalidade(
+    sheet: Worksheet,
+    *,
+    target_operator: str,
+    penalty_base_points: float,
+    penalty_step_points: float,
+    penalty_step_size_pct: float,
+    start_row: int,
+) -> None:
+    s9_bar = start_row
     _section_bar(sheet, s9_bar, "SEÇÃO 9 · PENALIDADE (CÁLCULO PRELIMINAR)", last_col=6)
     _label_value(sheet, s9_bar + 1, "Meta:", "=A13", fmt=_PCT4)
     _label_value(sheet, s9_bar + 2, "Resultado:", "=E13", fmt=_PCT4)
@@ -881,5 +918,73 @@ def write_sheet(
         "auditável) — mantidos para rastreabilidade; não excluir nem reordenar."
     )
     sheet[f"A{final_note_row}"].font = NOTE_FONT
+
+
+def write_sheet(
+    workbook: Workbook,
+    sheet_name: str,
+    *,
+    categorias_file: CategoriasFile,
+    grupo_executor_entries: list[tuple[str, GrupoExecutorMode]],
+    whole_indicator_entries: list[tuple[str, WholeIndicatorMode]],
+    fieldnames: list[str],
+    rows: list[dict[str, str]],
+    target_operator: str,
+    target_value: float,
+    penalty_base_points: float,
+    penalty_step_points: float,
+    penalty_step_size_pct: float,
+    contract: str,
+    periodo: PeriodoAfericao | None,
+    raw_csv_path: Path,
+) -> None:
+    del whole_indicator_entries  # categorias.yaml não usa whole_indicator para 1.1 hoje
+    del fieldnames  # validado por has_required_columns antes de chamar
+
+    sheet = workbook.create_sheet(sheet_name)
+    sheet.sheet_view.showGridLines = False
+    for col, width in {
+        1: 42, 2: 24, 3: 16, 4: 12, 5: 14, 6: 12, 7: 12, 8: 16, 9: 14, 10: 34, 11: 20, 12: 40,
+    }.items():
+        sheet.column_dimensions[cl(col)].width = width
+
+    last_row = 1 + len(rows)
+    real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
+    grupo_rows = _build_grupo_rows(categorias_file, grupo_executor_entries, real_values)
+    _write_raw_block(sheet, rows, grupo_rows, last_row)
+
+    def rng(col: int) -> str:
+        return _raw_range(col, last_row)
+
+    iap = f"COUNTA({rng(_R)})"
+    iadp = f'COUNTIF({rng(_X)},"S")'
+    fora = f'COUNTIF({rng(_X)},"N")'
+    meta_value = target_value / 100
+
+    _write_section_1_identificacao(
+        sheet, rows=rows, contract=contract, periodo=periodo, raw_csv_path=raw_csv_path
+    )
+    _write_section_2_resumo(
+        sheet, iap=iap, iadp=iadp, fora=fora, meta_value=meta_value,
+        target_operator=target_operator,
+    )
+    _write_section_3_memoria(sheet)
+    last_group_row = _write_section_4_detalhamento(sheet, grupo_rows=grupo_rows, rng=rng)
+    check_row = _write_section_5_subtotais(sheet, rng=rng, start_row=last_group_row + 2)
+    fora_last = _write_section_6_fora_prazo(
+        sheet, rows=rows, rng=rng, start_row=check_row + 2
+    )
+    sample_note_row = _write_section_7_auditoria(
+        sheet, rows=rows, rng=rng, target_operator=target_operator, start_row=fora_last + 2
+    )
+    note8 = _write_section_8_tempo(sheet, rng=rng, start_row=sample_note_row + 2)
+    _write_section_9_penalidade(
+        sheet,
+        target_operator=target_operator,
+        penalty_base_points=penalty_base_points,
+        penalty_step_points=penalty_step_points,
+        penalty_step_size_pct=penalty_step_size_pct,
+        start_row=note8 + 2,
+    )
 
     sheet.freeze_panes = "A2"
