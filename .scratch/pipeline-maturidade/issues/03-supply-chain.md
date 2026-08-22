@@ -1,5 +1,7 @@
 # 03 — Endurecer supply-chain: ações por SHA + Dependabot
 
+Type: task
+
 **What to build:** as dependências de CI deixam de ser frágeis. Todas as actions dos workflows passam a ser pinadas por commit SHA completo (com a tag de release mantida em comentário para legibilidade), e o Dependabot passa a manter GitHub Actions + lockfile do uv atualizados — cada atualização chega como PR, passando pelo gate de qualidade antes de entrar em `dev`.
 
 **Blocked by:** nenhum — pode começar imediatamente.

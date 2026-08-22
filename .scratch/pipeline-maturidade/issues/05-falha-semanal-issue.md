@@ -1,5 +1,7 @@
 # 05 — Falha semanal vira issue + gate de cobertura explícito
 
+Type: task
+
 **What to build:** a saúde do repo deixa de depender de alguém olhar os logs do cron. Quando o ciclo semanal de testes falhar, um issue é criado no tracker (token com `issues: write`, apenas nesse job); o gate de cobertura passa a ser explícito no comando dos workflows (`--cov-fail-under=85`) em vez de depender só do `[tool.coverage.report]` do pyproject.
 
 **Blocked by:** nenhum — pode começar imediatamente.

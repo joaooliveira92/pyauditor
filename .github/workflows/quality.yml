@@ -77,6 +77,7 @@ jobs:
     steps:
       - name: Aggregate quality result
         run: |
+          set -euo pipefail
           if [ "${{ needs.quality.result }}" = "success" ]; then
             echo "Todas as verificações de qualidade passaram (3.12 e 3.13)."
           else
