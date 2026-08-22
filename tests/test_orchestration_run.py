@@ -1,6 +1,8 @@
 import shutil
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from pyauditor.orchestration.run import (
     FailureDecision,
@@ -292,6 +294,45 @@ def test_execute_run_pre_dispatch_failure_abort_preserves_error_entry(tmp_path: 
 
     by_command = {(e.command, e.orgao): e.status for e in run_result.state.commands}
     assert by_command[("report", "MinC")] == "error"
+
+
+def test_execute_run_uses_shared_manifest_when_both_exist(tmp_path: Path) -> None:
+    """Issue 01 — fonte única: com `datasets.yaml` em `_shared` e no per-órgão,
+    o `run` (assim como o `measure`) resolve o manifest de `_shared`, não o
+    per-órgão. Hoje o `_dispatch` do `run` prefere o per-órgão, divergindo do
+    `cli/main.py`."""
+    config_dir = tmp_path / "configs"
+    data_dir = tmp_path / "input"
+    (config_dir / "_shared").mkdir(parents=True)
+    (config_dir / "MinC").mkdir(parents=True)
+    (config_dir / "_shared" / "datasets.yaml").write_text(
+        "datasets:\n  telefonemas:\n    file: tel.csv\n    delimiter: ';'\n", encoding="utf-8"
+    )
+    (config_dir / "MinC" / "datasets.yaml").write_text(
+        "datasets:\n  telefonemas:\n    file: tel.csv\n    delimiter: ','\n", encoding="utf-8"
+    )
+    request = RunRequest(
+        competencia="2026-06",
+        orgao="MinC",
+        config_dir=config_dir,
+        data_dir=data_dir,
+        output_dir=tmp_path / "roms",
+        report_dir=tmp_path / "reports",
+        capa_path=data_dir / "capa.csv",
+        runs_dir=tmp_path / ".pyauditor" / "runs",
+        commands=frozenset({"measure"}),
+    )
+    with patch(
+        "pyauditor.orchestration.run.run_measure",
+        return_value=SimpleNamespace(status="done", error_message=None),
+    ) as m:
+        run_result = execute_run(request)
+
+    by_command = {(e.command, e.orgao): e.status for e in run_result.state.commands}
+    assert by_command[("measure", "MinC")] == "done"
+    manifest = m.call_args.kwargs["manifest"]
+    assert manifest is not None
+    assert manifest.resolve("telefonemas").delimiter == ";"
 
 
 def test_execute_run_both_orgaos_happy_path_runs_consolidate_last(tmp_path: Path) -> None:

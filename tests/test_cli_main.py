@@ -183,6 +183,39 @@ def test_cli_main_measure_writes_a_traceable_run_log(tmp_path: Path) -> None:
     assert "falha simulada no indicador X" in content
 
 
+def test_cli_main_measure_resolves_shared_manifest_when_both_exist(tmp_path: Path) -> None:
+    """Issue 01 — fonte única: com `datasets.yaml` em `_shared` e no per-órgão,
+    o `measure` (assim como o `run`) usa o manifest de `_shared`."""
+    cfg, data, out = tmp_path / "c", tmp_path / "d", tmp_path / "o"
+    for p in (cfg, data, out):
+        p.mkdir()
+    (cfg / "_shared").mkdir()
+    (cfg / "MinC").mkdir()
+    (cfg / "_shared" / "datasets.yaml").write_text(
+        "datasets:\n  telefonemas:\n    file: tel.csv\n    delimiter: ';'\n", encoding="utf-8"
+    )
+    (cfg / "MinC" / "datasets.yaml").write_text(
+        "datasets:\n  telefonemas:\n    file: tel.csv\n    delimiter: ','\n", encoding="utf-8"
+    )
+    with patch("pyauditor.cli.main.run_measure", return_value=SimpleNamespace(status="done")) as m:
+        code = cli_main(
+            [
+                "measure",
+                "2026-06",
+                "--config-dir",
+                str(cfg),
+                "--data-dir",
+                str(data),
+                "--output-dir",
+                str(out),
+            ]
+        )
+        assert code == 0
+        manifest = m.call_args.kwargs["manifest"]
+        assert manifest is not None
+        assert manifest.resolve("telefonemas").delimiter == ";"
+
+
 def test_cli_main_report_dispatches_with_output_filename(tmp_path: Path) -> None:
     capa_path = tmp_path / "capa.xlsx"
     roms_dir = tmp_path / "roms"

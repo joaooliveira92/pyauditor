@@ -24,7 +24,7 @@ from pyauditor.cli.dependencies import CHECKERS
 from pyauditor.cli.measure import MeasureResult, run_measure
 from pyauditor.cli.report import ReportResult, check_report_ready, run_report
 from pyauditor.cli.split import _SINTETICO_FILENAME, SplitResult, run_split
-from pyauditor.config.manifest import DatasetManifest, load_manifest
+from pyauditor.config.resolution import load_manifest_for, resolve_config_dir
 from pyauditor.excel.equipe import EQUIPE_FILENAME
 from pyauditor.excel.objetos import OBJETOS_FILENAME
 from pyauditor.excel.prazos import PRAZOS_FILENAME
@@ -237,36 +237,13 @@ def _own_artifact_missing(command: str, orgao: str | None, request: RunRequest) 
     return None
 
 
-def _resolve_shared_config_dir(base: Path) -> Path:
-    shared = base / "_shared"
-    return shared if shared.is_dir() else base
-
-
-def _manifest_for(per_orgao_config_dir: Path) -> DatasetManifest | None:
-    # Prefer per-órgão manifest quando existe (permite delimiter por órgão:
-    # MTur usa ',' em inms-07/11/12 enquanto MinC usa ';' em inms-07).
-    # Fallback para _shared quando o órgão não tem manifest próprio.
-    manifest_path = per_orgao_config_dir / "datasets.yaml"
-    if manifest_path.exists():
-        return load_manifest(manifest_path)
-    shared_manifest = per_orgao_config_dir.parent / "_shared" / "datasets.yaml"
-    if shared_manifest.exists():
-        return load_manifest(shared_manifest)
-    return None
-
-
 def _dispatch(command: str, orgao: str | None, request: RunRequest) -> CommandResult:
     if command == "bootstrap":
         capa_path = _capa_path_for(request.capa_path, orgao or "")
         return run_bootstrap(capa_path, orgao or "")
     if command == "split":
-        base = request.config_dir
-        shared = base / "_shared"
-        per_orgao_config_dir = shared if shared.is_dir() else base / (orgao or "")
-        # Manifest por órgão (datasets.yaml) tem precedência sobre _shared
-        # para permitir delimiter divergente (MTur ',' vs MinC ';').
-        per_orgao_manifest_dir = base / (orgao or "") if orgao else per_orgao_config_dir
-        manifest = _manifest_for(per_orgao_manifest_dir) or _manifest_for(per_orgao_config_dir)
+        per_orgao_config_dir = resolve_config_dir(request.config_dir, orgao or "")
+        manifest = load_manifest_for(request.config_dir, orgao or "")
         # Ticket 04 — desmaterializado: split não gera _split/* em `run` normal,
         # apenas sintetico.xlsx; medida filtra em memória.
         return run_split(
@@ -285,11 +262,8 @@ def _dispatch(command: str, orgao: str | None, request: RunRequest) -> CommandRe
             objetos_path=request.data_dir / OBJETOS_FILENAME,
         )
     if command == "measure":
-        base = request.config_dir
-        shared = base / "_shared"
-        per_orgao_config_dir = shared if shared.is_dir() else base / (orgao or "")
-        per_orgao_manifest_dir = base / (orgao or "") if orgao else per_orgao_config_dir
-        manifest = _manifest_for(per_orgao_manifest_dir) or _manifest_for(per_orgao_config_dir)
+        per_orgao_config_dir = resolve_config_dir(request.config_dir, orgao or "")
+        manifest = load_manifest_for(request.config_dir, orgao or "")
         return run_measure(
             competencia=request.competencia,
             config_dir=per_orgao_config_dir,
@@ -303,9 +277,7 @@ def _dispatch(command: str, orgao: str | None, request: RunRequest) -> CommandRe
         )
     if command == "report":
         output_path = request.report_dir / f"relatorio_{request.competencia}_{orgao}.xlsx"
-        base = request.config_dir
-        shared = base / "_shared"
-        per_orgao_config_dir = shared if shared.is_dir() else base / (orgao or "")
+        per_orgao_config_dir = resolve_config_dir(request.config_dir, orgao or "")
         return run_report(
             competencia=request.competencia,
             capa_path=request.capa_path,
