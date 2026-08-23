@@ -24,9 +24,11 @@ _CMD_REPORT: Final = 'report'
 _CMD_CONSOLIDATE: Final = 'consolidate'
 _CMD_SPLIT: Final = 'split'
 _CMD_RUN: Final = 'run'
+_CMD_INMS_GROUPED: Final = 'inms-grouped'
 
 type Command = Literal[
-    'measure', 'bootstrap', 'report', 'consolidate', 'split', 'run'
+    'measure', 'bootstrap', 'report', 'consolidate', 'split', 'run',
+    'inms-grouped',
 ]
 
 type Orgao = Literal['MinC', 'MTur', 'both']
@@ -256,6 +258,38 @@ def build_parser() -> argparse.ArgumentParser:
         'TR)',
     )
     _add_logging_arguments(consolidate_parser)
+
+    inms_grouped_parser = subparsers.add_parser(
+        _CMD_INMS_GROUPED,
+        help='gera '
+        'planilha_inms_agrupada_<competência>.xlsx '
+        '— '
+        'INMS_BASE '
+        'consolidado '
+        'com '
+        'agrupamento '
+        'nativo '
+        'de '
+        'linhas '
+        '(Código '
+        'INMS '
+        '-> '
+        'órgão '
+        '-> '
+        'grupo '
+        'executor)',
+    )
+    inms_grouped_parser.add_argument('competencia', help='ex.: "2026-06"')
+    inms_grouped_parser.add_argument(
+        '--report-dir', type=Path, default=_DEFAULT_REPORT_DIR
+    )
+    inms_grouped_parser.add_argument(
+        '--config-dir', type=Path, default=_DEFAULT_CONFIG_DIR
+    )
+    inms_grouped_parser.add_argument(
+        '--data-dir', type=Path, default=_DEFAULT_DATA_DIR
+    )
+    _add_logging_arguments(inms_grouped_parser)
 
     split_parser = subparsers.add_parser(
         _CMD_SPLIT,

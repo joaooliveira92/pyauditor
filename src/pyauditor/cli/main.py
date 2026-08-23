@@ -18,6 +18,7 @@ from typing import Final, NoReturn, TypeGuard, assert_never, cast
 from pyauditor.capa_paths import resolve_capa_path
 from pyauditor.cli.bootstrap import run_bootstrap
 from pyauditor.cli.consolidate import run_consolidate
+from pyauditor.cli.inms_grouped import run_inms_grouped
 from pyauditor.cli.measure import (
     _MeasuredIndicator,
     run_measure,
@@ -26,6 +27,7 @@ from pyauditor.cli.measure import (
 from pyauditor.cli.parser import (
     _CMD_BOOTSTRAP,
     _CMD_CONSOLIDATE,
+    _CMD_INMS_GROUPED,
     _CMD_MEASURE,
     _CMD_REPORT,
     _CMD_RUN,
@@ -38,10 +40,12 @@ from pyauditor.cli.report import run_report
 from pyauditor.cli.requests import (
     _CAPA_COMUM,
     ConsolidateRequest,
+    InmsGroupedRequest,
     MeasureRequest,
     ReportRequest,
     extract_capa_path,
     extract_consolidate_request,
+    extract_inms_grouped_request,
     extract_measure_request,
     extract_report_request,
     extract_split_request,
@@ -59,6 +63,7 @@ from pyauditor.periodo import PeriodoAfericao, month_bounds
 
 __all__: Final[tuple[str, ...]] = (
     'ConsolidateRequest',
+    'InmsGroupedRequest',
     'MeasureRequest',
     'ReportRequest',
     'build_parser',
@@ -80,6 +85,7 @@ def _is_command(value: str) -> TypeGuard[Command]:
         _CMD_CONSOLIDATE,
         _CMD_SPLIT,
         _CMD_RUN,
+        _CMD_INMS_GROUPED,
     )
 
 
@@ -301,6 +307,35 @@ def _dispatch_consolidate(args: argparse.Namespace) -> int:
     return exit_code_for_results((consolidate_result,))
 
 
+def _dispatch_inms_grouped(args: argparse.Namespace) -> int:
+    from pyauditor.cli.results import validate_competencia
+
+    inms_grouped_request = extract_inms_grouped_request(args)
+    if (
+        msg := validate_competencia(inms_grouped_request.competencia)
+    ) is not None:
+        print(msg, file=sys.stderr)
+        return 2
+    setup_logging(
+        log_path=_run_log_path(
+            inms_grouped_request.output_path.parent,
+            _CMD_INMS_GROUPED,
+            inms_grouped_request.competencia,
+        ),
+        **logging_kwargs(args),
+    )
+    # `run_inms_grouped` checa `check_inms_grouped_ready` internamente
+    # (mesmo padrão de `_dispatch_consolidate`) — sem pre-flight duplicado.
+    inms_grouped_result = run_inms_grouped(
+        competencia=inms_grouped_request.competencia,
+        report_dir=inms_grouped_request.report_dir,
+        config_dir=inms_grouped_request.config_dir,
+        data_dir=inms_grouped_request.data_dir,
+        output_path=inms_grouped_request.output_path,
+    )
+    return exit_code_for_results((inms_grouped_result,))
+
+
 def _dispatch_run(args: argparse.Namespace) -> int:
     from pyauditor.cli.results import validate_competencia
 
@@ -381,6 +416,8 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
         return _dispatch_split(args)
     elif command == _CMD_RUN:
         return _dispatch_run(args)
+    elif command == _CMD_INMS_GROUPED:
+        return _dispatch_inms_grouped(args)
     else:
         assert_never(command)
 

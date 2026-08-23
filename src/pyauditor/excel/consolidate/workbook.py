@@ -19,9 +19,13 @@ from dataclasses import dataclass
 from typing import Final
 
 from openpyxl import Workbook
-from openpyxl.styles import Border, Font, Side
+from openpyxl.styles import Border, Side
 
-from pyauditor.codes import contractual_sort_key, format_inms_code
+from pyauditor.codes import (
+    contractual_sort_key,
+    format_inms_code,
+    format_inms_code_numeric,
+)
 from pyauditor.excel._style import (
     BODY_FONT,
     BOTTOM_BORDER,
@@ -76,16 +80,19 @@ CALCULO_SHEET: Final = 'CALCULO_PAGAMENTO'
 
 RATEIO_PADRAO: Final = 0.5  # provisório, até fonte oficial (ticket 01/02)
 
-# docs/styleguide.md number formats — currency and percent, zero as "-".
+# docs/styleguide.md number formats — currency and percent, zero as "-",
+# negatives in parentheses (never a leading minus sign — a bare custom
+# format's negative section needs its own sign literal, or Excel silently
+# drops it and a negative value prints identically to its positive twin).
 # `_style.py` doesn't carry these yet (production report.py/capa.py don't
 # apply them either); local to this module until that becomes a shared need.
-_CURRENCY_FMT: Final = 'R$#,##0.00;R$#,##0.00;-'
+_CURRENCY_FMT: Final = 'R$#,##0.00;(R$#,##0.00);-'
 # `result_pct`/`%Ajuste` are already stored in percent-space (95.5 meaning
 # "95.5%"); the literal "%" symbol auto-multiplies by 100 on display, so it
 # must be escaped for these. Only true 0-1 fractions (rateio) want the real,
 # auto-scaling "%" format.
-_PERCENT_FMT_SCALED: Final = '0.00"%";0.00"%";-'
-_PERCENT_FMT_FRACTION: Final = '0.00%;0.00%;-'
+_PERCENT_FMT_SCALED: Final = '0.00"%";(0.00"%");-'
+_PERCENT_FMT_FRACTION: Final = '0.00%;(0.00%);-'
 _TOP_BORDER: Final = Border(top=Side(style='thin', color='1F2937'))
 
 # Decisão Fiscal — o fiscal aceita a justificativa do fornecedor (anistia: a
@@ -157,6 +164,11 @@ _SERVICOS: Final[tuple[tuple[str, str, str, str], ...]] = (
 )
 
 _CAPA_VALOR_LABELS: Final = ('Valor mensal vigente', 'Valor global anual')
+
+# INMS_BASE row order within an indicator/asset group: per-órgão rows first
+# (MinC, then MTur), the pooled "Consolidado" row last — alphabetical order
+# on `orgao` would put "Consolidado" first, which reads as the odd one out.
+_ORGAO_ORDER: Final[dict[str, int]] = {'MinC': 0, 'MTur': 1, 'Consolidado': 2}
 
 
 @dataclass(frozen=True)
@@ -264,6 +276,7 @@ def build_servicos(
             'Critério de Rateio',
         ),
     )
+    ws.column_dimensions['B'].width = 50
     for i, (nome, minc, mtur, seg) in enumerate(_SERVICOS, start=2):
         valor = (
             itens[i - 2] if itens is not None and i - 2 < len(itens) else None
@@ -337,12 +350,19 @@ def build_inms_base(
     já era testada dentro de `report.py`, agora vivendo só aqui.
     """
     ws = _new_sheet(wb, INMS_BASE_SHEET, _INMS_BASE_COLUMNS, width=20)
+    ws.column_dimensions['F'].width = 45
     rows = with_orgao_consolidation(minc + mtur)
     rows.sort(
         key=lambda s: (
             contractual_sort_key(s.contractual_id),
+            # Synthetic "Consolidado" rows carry
+            # `f'{indicator_id}-CONSOLIDADO'` (see `orgao_consolidation.py`);
+            # stripping that suffix groups all 3 órgão variants of the same
+            # measured indicator (N1/N2/N3 split categories) together instead
+            # of scattering them by asset, which is `None` for all of them.
+            s.indicator_id.removesuffix('-CONSOLIDADO'),
             s.asset or '',
-            s.orgao,
+            _ORGAO_ORDER.get(s.orgao, len(_ORGAO_ORDER)),
         )
     )
     for row_idx, summary in enumerate(rows, start=2):
@@ -421,7 +441,7 @@ def build_glosas(
                 summary.orgao,
                 '',
                 '',
-                format_inms_code(summary.contractual_id),
+                format_inms_code_numeric(summary.contractual_id),
                 round(summary.result_pct, 2),
                 summary.target_value,
                 faixa_descumprimento(summary),
@@ -479,9 +499,9 @@ def build_glosas(
         label_cell = ws.cell(row=r, column=1, value=label)
         value_cell = ws.cell(row=r, column=2, value=value)
         bold = label in ('Total de Pontos', 'Valor Glosa')
-        label_cell.font = Font(bold=True) if bold else BODY_FONT
-        value_cell.font = Font(bold=True) if bold else BODY_FONT
-        if label == 'Total de Pontos':
+        label_cell.font = LABEL_FONT if bold else BODY_FONT
+        value_cell.font = LABEL_FONT if bold else BODY_FONT
+        if bold:
             label_cell.border = _TOP_BORDER
             value_cell.border = _TOP_BORDER
         if label == 'Valor Glosa' and valor_base is not None:
@@ -504,6 +524,7 @@ def build_calculo(
     ws.sheet_view.showGridLines = False
 
     ws['A1'] = 'Parâmetros de Entrada — rateio PROVISÓRIO até fonte oficial'
+    ws['A1'].font = TITLE_FONT
     base = valor_base or 0.0
     params: tuple[tuple[str, float, str], ...] = (
         ('Valor mensal vigente', base, _CURRENCY_FMT),
@@ -514,7 +535,7 @@ def build_calculo(
     for row, (param_label, param_value, param_fmt) in enumerate(
         params, start=3
     ):
-        ws.cell(row=row, column=1, value=param_label).font = Font(bold=True)
+        ws.cell(row=row, column=1, value=param_label).font = LABEL_FONT
         value_cell = ws.cell(row=row, column=2, value=param_value)
         value_cell.font = BODY_FONT
         value_cell.number_format = param_fmt
@@ -537,7 +558,7 @@ def build_calculo(
         row = header_row + 1 + idx
         bold = idx == total_row_idx
         label_cell = ws.cell(row=row, column=1, value=label)
-        label_cell.font = Font(bold=True) if bold else BODY_FONT
+        label_cell.font = LABEL_FONT if bold else BODY_FONT
         if bold:
             label_cell.border = _TOP_BORDER
         fmt: str | None = None
@@ -569,7 +590,7 @@ def build_calculo(
                 row_values.valor_recomendado,
             )[idx]
             value_cell = ws.cell(row=row, column=col, value=value)
-            value_cell.font = Font(bold=True) if bold else BODY_FONT
+            value_cell.font = LABEL_FONT if bold else BODY_FONT
             if fmt:
                 value_cell.number_format = fmt
             if bold:

@@ -24,6 +24,7 @@ __all__: Final[tuple[str, ...]] = (
     'BootstrapResult',
     'ConsolidateResult',
     'IndicatorOutcome',
+    'InmsGroupedResult',
     'MeasureResult',
     'ReportResult',
     'SplitCategoriaOutcome',
@@ -97,6 +98,18 @@ class ConsolidateResult:
     error_message: str | None
     glosa_calculada: bool = True
     total_pontos: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class InmsGroupedResult:
+    status: Status
+    competencia: str
+    output_path: Path
+    code_groups: int
+    org_subgroups: int
+    total_rows: int
+    breakdown_codes: tuple[str, ...]
+    error_message: str | None
 
 
 class _HasResult(Protocol):

@@ -19,11 +19,13 @@ from pyauditor.config.resolution import resolve_manifest_path
 
 __all__: Final[tuple[str, ...]] = (
     'ConsolidateRequest',
+    'InmsGroupedRequest',
     'MeasureRequest',
     'ReportRequest',
     'SplitRequest',
     'extract_capa_path',
     'extract_consolidate_request',
+    'extract_inms_grouped_request',
     'extract_measure_request',
     'extract_report_request',
     'extract_split_request',
@@ -91,6 +93,18 @@ class ConsolidateRequest:
     output_path: Path
     data_dir: Path
     is_final_month: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class InmsGroupedRequest:
+    """Validated, immutable request for `inms-grouped` — reads the
+    consolidado already published by `consolidate`, never re-runs it."""
+
+    competencia: str
+    report_dir: Path
+    config_dir: Path
+    data_dir: Path
+    output_path: Path
 
 
 class LoggingKwargs(TypedDict):
@@ -208,4 +222,20 @@ def extract_consolidate_request(ns: argparse.Namespace) -> ConsolidateRequest:
         output_path=report_dir / f'relatorio_{competencia}_consolidado.xlsx',
         data_dir=require(ns, 'data_dir', Path),
         is_final_month=bool(cast(object, getattr(ns, 'final_month', False))),
+    )
+
+
+def extract_inms_grouped_request(
+    ns: argparse.Namespace,
+) -> InmsGroupedRequest:
+    competencia = require(ns, 'competencia', str)
+    report_dir = require(ns, 'report_dir', Path)
+    return InmsGroupedRequest(
+        competencia=competencia,
+        report_dir=report_dir,
+        config_dir=require(ns, 'config_dir', Path),
+        data_dir=require(ns, 'data_dir', Path),
+        output_path=(
+            report_dir / f'planilha_inms_agrupada_{competencia}.xlsx'
+        ),
     )
