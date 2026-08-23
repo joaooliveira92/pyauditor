@@ -18,4 +18,4 @@ Use `docs/agents/unslop.md`
 
 ### Language
 
-The user communicates in **Brazilian Portuguese (pt-BR)**. Write all replies, comments, and file contents in pt-BR. **Never** write in Spanish — not even by accident, not even a single word. Spanish in this repo's output is a hard error.
+The user communicates in english
