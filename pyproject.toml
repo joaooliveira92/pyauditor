@@ -77,7 +77,8 @@ line-length = 80
 src = ["src", "tests"]
 # Escopo do `ruff check .`/`ruff format --check .` (commands documentados no
 # CODING_STANDARDS.md e pyguide §2.1.1). Exclusões:
-#   - `.scratch`/`.agents`: diretórios de trabalho de agentes, fora do gate.
+#   - `.scratch`/`.agents`/`.claude/worktrees`: diretórios de trabalho de
+#     agentes (incl. checkouts de git worktree), fora do gate.
 #   - `.venv`: ambiente local, nunca auditar.
 #   - `*.md`: o ruff formataria code-fences Python de pyguide.md/docs — estes
 #     snipets são *propositalmente* não-formatados (exemplos "No:" do Google),
@@ -85,7 +86,14 @@ src = ["src", "tests"]
 #   - `pyproject.toml`: é o proprio setup da ferramenta; a regra *preview*
 #     `rule-codes-in-selectors` apontaria os códigos curtos (S101, ANN001...)
 #     que o projeto usa de propósito com comentário explicativo.
-extend-exclude = [".scratch", ".agents", ".venv", "*.md", "pyproject.toml"]
+extend-exclude = [
+    ".scratch",
+    ".agents",
+    ".claude/worktrees",
+    ".venv",
+    "*.md",
+    "pyproject.toml",
+]
 
 [tool.ruff.lint]
 preview = true
