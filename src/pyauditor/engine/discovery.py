@@ -19,6 +19,7 @@ from pyauditor.config.models import IndicatorConfig
 __all__ = (
     'discover_config_files',
     'discover_configs',
+    'inject_orgao',
     'load_config',
 )
 
@@ -53,11 +54,15 @@ def load_config(config_path: Path) -> IndicatorConfig:
     return IndicatorConfig.model_validate(raw)
 
 
-def _inject_orgao(
+def inject_orgao(
     config: IndicatorConfig, expected_orgao: str
 ) -> IndicatorConfig:
     """Injeta `scope.orgao`/`contract` quando o YAML vem de
-    `configs/_shared/`."""
+    `configs/_shared/` (single-source) — usado tanto por
+    `discover_config_files` quanto por qualquer outro consumidor que carregue
+    uma config base diretamente com `load_config` (ex.: `cli/split.py`,
+    `excel/sintetico/workbook.py`) e precise do `scope` correto por órgão
+    antes de derivar ou exibir a config."""
     desired_contract = _ORGAO_CONTRACT.get(
         expected_orgao, config.scope.contract
     )
@@ -71,7 +76,7 @@ def _inject_orgao(
     # `expected_orgao` é str livre no contrato, mas na prática só recebe
     # "MinC"/"MTur" (nível de fronteira) — Scope.orgao é
     # `Literal["MinC","MTur"]`; o range é validado por quem chama
-    # _inject_orgao.
+    # inject_orgao.
     new_scope = Scope(
         contract=desired_contract,
         orgao=cast(Literal['MinC', 'MTur'], expected_orgao),
@@ -126,7 +131,7 @@ def discover_config_files(
         if expected_orgao is not None:
             # Single-source: injetar órgão/contrato em vez de falhar.
             if is_shared or config_dir.name == '_shared':
-                config = _inject_orgao(config, expected_orgao)
+                config = inject_orgao(config, expected_orgao)
             elif config.scope.orgao != expected_orgao:
                 raise ValueError(
                     f'{path}: scope.orgao={config.scope.orgao!r} não'

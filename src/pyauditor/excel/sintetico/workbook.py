@@ -40,7 +40,11 @@ from pyauditor.config.models import (
     PrecomputedTableCalculation,
     RatioCalculation,
 )
-from pyauditor.engine.pipeline import load_config, measurement_source
+from pyauditor.engine.pipeline import (
+    inject_orgao,
+    load_config,
+    measurement_source,
+)
 from pyauditor.excel import inms_1_1_audit
 from pyauditor.excel.equipe import EQUIPE_DELIMITER, EQUIPE_ENCODING
 from pyauditor.excel.prazos import (
@@ -86,6 +90,7 @@ def write_sintetico_workbook(
     competencia_data_dir: Path,
     output_path: Path,
     *,
+    orgao: str = 'MinC',
     manifest: DatasetManifest | None = None,
     periodo: PeriodoAfericao | None = None,
     strict: bool = False,
@@ -99,6 +104,12 @@ def write_sintetico_workbook(
     warnings (nunca lança por causa do problema de um único INMS — um
     config ruim ou um dataset genuinamente ausente pula/degrada a aba
     daquele INMS em vez de derrubar o workbook inteiro).
+
+    `orgao` corrige `scope.orgao`/`scope.contract` da config base antes de
+    usá-la (via `inject_orgao`) — sem isso, uma config single-source vinda
+    de `configs/_shared/` (sem `scope:` próprio) sempre exibiria o órgão/
+    contrato default do modelo (MinC) na Seção 1 do INMS 1.1, mesmo ao
+    gerar o `sintetico.xlsx` de outro órgão.
 
     `generated_at` (default `datetime.now()`, resolvido uma única vez aqui)
     é repassado à aba enriquecida do INMS 1.1 — injetável para permitir
@@ -159,7 +170,9 @@ def write_sintetico_workbook(
 
         try:
             base_stem = base_config_stem(inms_key)
-            base_config = load_config(config_dir / f'{base_stem}.yaml')
+            base_config = inject_orgao(
+                load_config(config_dir / f'{base_stem}.yaml'), orgao
+            )
         except (OSError, ValueError) as exc:
             warning = (
                 f'sintetico.xlsx:INMS{inms_key}:falhaaocarregarconfigbase:{exc}'

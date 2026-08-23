@@ -16,6 +16,7 @@ from pyauditor.config.models import Filter, IndicatorConfig
 from pyauditor.engine.discovery import (
     discover_config_files,
     discover_configs,
+    inject_orgao,
     load_config,
 )
 from pyauditor.engine.loading import load_rows, resolve_source
@@ -38,6 +39,7 @@ __all__ = (
     'SourceBundle',
     'discover_config_files',
     'discover_configs',
+    'inject_orgao',
     'load_config',
     'load_rows',
     'measure',
