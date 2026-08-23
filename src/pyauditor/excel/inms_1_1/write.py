@@ -25,7 +25,11 @@ from pyauditor.excel._workbook import (
     force_recalc,
     unique_table_name,
 )
-from pyauditor.excel.inms_1_1._cells import _protect_support_columns, _raw_range
+from pyauditor.excel.inms_1_1._cells import (
+    _apply_section_outline,
+    _protect_support_columns,
+    _raw_range,
+)
 from pyauditor.excel.inms_1_1._domain import (
     _build_grupo_rows,
     _normalize_no_prazo,
@@ -195,6 +199,12 @@ def write_sheet(
             raw_csv_path=raw_csv_path,
             generated_at=generated_at,
         )
+        # Barras de Seção (linha do rótulo "SEÇÃO N · ..."), usadas ao final
+        # para o agrupamento nativo de linhas (`_apply_section_outline`).
+        # 1-3 têm largura fixa (ver docstrings dos respectivos
+        # `_write_section_*`); as demais são sempre iguais ao `next_row`
+        # devolvido pela Seção anterior.
+        section_bars = [3, 11, 16]
         next_row = _write_section_2_resumo(
             sheet,
             iap=iap,
@@ -216,6 +226,7 @@ def write_sheet(
             sheet, rows, grupo_rows, last_row, first_group_row=first_group_row
         )
 
+        section_bars.append(next_row)  # Seção 4
         next_row = _write_section_4_detalhamento(
             sheet,
             grupo_rows=grupo_rows,
@@ -223,9 +234,11 @@ def write_sheet(
             start_row=next_row,
             table_name=table_names['grupo_executor'],
         )
+        section_bars.append(next_row)  # Seção 5
         next_row = _write_section_5_subtotais(
             sheet, rng=rng, start_row=next_row
         )
+        section_bars.append(next_row)  # Seção 6
         next_row = _write_section_6_fora_prazo(
             sheet,
             rows=rows,
@@ -233,6 +246,7 @@ def write_sheet(
             start_row=next_row,
             table_name=table_names['fora_do_prazo'],
         )
+        section_bars.append(next_row)  # Seção 7
         next_row = _write_section_7_auditoria(
             sheet,
             rows=rows,
@@ -243,7 +257,9 @@ def write_sheet(
                 'amostra_divergencia_fornecedor'
             ],
         )
+        section_bars.append(next_row)  # Seção 8
         next_row = _write_section_8_tempo(sheet, rng=rng, start_row=next_row)
+        section_bars.append(next_row)  # Seção 9
         _write_section_9_penalidade(
             sheet,
             penalty_base_points=penalty_base_points,
@@ -251,6 +267,18 @@ def write_sheet(
             penalty_step_size_pct=penalty_step_size_pct,
             start_row=next_row,
         )
+
+        # Cada Seção vira um grupo de linhas colapsável (fim = 2 linhas
+        # antes da barra seguinte, pulando a linha em branco separadora; a
+        # última Seção vai até `sheet.max_row`).
+        section_bounds = []
+        for i, bar in enumerate(section_bars):
+            if i + 1 < len(section_bars):
+                content_end = section_bars[i + 1] - 2
+            else:
+                content_end = sheet.max_row
+            section_bounds.append((bar, content_end))
+        _apply_section_outline(sheet, section_bounds)
 
         _protect_support_columns(sheet)
         sheet.freeze_panes = 'A2'

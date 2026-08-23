@@ -97,6 +97,7 @@ def run_split(
     equipe_path: Path | None = None,
     perfis_profissionais_path: Path | None = None,
     objetos_path: Path | None = None,
+    localidades_path: Path | None = None,
 ) -> SplitResult:
     orgao = expected_orgao
 
@@ -368,6 +369,7 @@ def run_split(
                 equipe_path=equipe_path,
                 perfis_profissionais_path=perfis_profissionais_path,
                 objetos_path=objetos_path,
+                localidades_path=localidades_path,
             )
             warnings.extend(sintetico_warnings)
             if sintetico_path.exists():

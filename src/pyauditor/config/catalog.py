@@ -1,14 +1,20 @@
-"""Loads the Anexo E catalog (106 itens) from packaged YAML.
+"""Loads the Anexo E catalog (106 itens) from `configs/anexo_e.yaml`.
 
 Source is docs/termo_de_referencia/anexo_e_desconformidade_tecnica.html,
 extracted to YAML at build time. See docs/spec/inms-pipeline.md §11.1.
+
+Lives in `configs/` alongside every other YAML the pipeline reads (single
+user, single checkout — no wheel/zipapp distribution to keep hermetic),
+not packaged under `pyauditor.config.catalogs` anymore: that was the only
+config file resolved via `importlib.resources` instead of a filesystem
+path, an inconsistency with no real payoff here.
 """
 
 from __future__ import annotations
 
-import importlib.resources
 from collections.abc import Mapping
 from functools import lru_cache
+from pathlib import Path
 from types import MappingProxyType
 from typing import Final, TypedDict, TypeGuard, cast
 
@@ -17,8 +23,9 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 __all__: Final[tuple[str, ...]] = ('CatalogItem', 'load_anexo_e_catalog')
 
-_CATALOG_PACKAGE: Final[str] = 'pyauditor.config.catalogs'
-_CATALOG_NAME: Final[str] = 'anexo_e.yaml'
+# Matches cli/parser.py's `_DEFAULT_CONFIG_DIR` — resolved relative to CWD,
+# same convention as every other config path in this app.
+_CATALOG_PATH: Final[Path] = Path('configs/anexo_e.yaml')
 
 
 class CatalogItem(BaseModel):
@@ -59,17 +66,11 @@ def _is_raw_catalog(obj: object) -> TypeGuard[_RawCatalog]:
 
 
 def _read_catalog_text() -> str:
-    # Hermetic: importlib.resources works in wheel, zipapp, Bazel runfiles
-    traversable = importlib.resources.files(_CATALOG_PACKAGE) / _CATALOG_NAME
     try:
-        # Traversable.read_text is available in 3.11+, fallback to as_file
-        if hasattr(traversable, 'read_text'):
-            return traversable.read_text(encoding='utf-8')
-        with importlib.resources.as_file(traversable) as path:
-            return path.read_text(encoding='utf-8')
+        return _CATALOG_PATH.read_text(encoding='utf-8')
     except OSError as exc:
         raise RuntimeError(
-            f'failed to read packaged catalog {_CATALOG_NAME}: {exc}'
+            f'failed to read catalog {_CATALOG_PATH}: {exc}'
         ) from exc
 
 
@@ -80,7 +81,7 @@ def _load_raw() -> _RawCatalog:
         raw_any: object = cast(object, yaml.safe_load(text))
     except yaml.YAMLError as exc:
         raise ValueError(
-            f'malformed YAML in packaged catalog {_CATALOG_NAME}: {exc}'
+            f'malformed YAML in catalog {_CATALOG_PATH}: {exc}'
         ) from exc
     if not _is_raw_catalog(raw_any):
         raise ValueError("catalog YAML must be mapping with 'items: list'")

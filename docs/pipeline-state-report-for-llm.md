@@ -70,10 +70,12 @@ human operator must touch:
 
 - `input/<agency>/<YYYY>/<MM>/inms-<nn>.csv` — one raw extract per indicator,
   per agency, per month. Real names / requesters / technicians / PII live here.
-- Top-level contract-side CSVs: `capa*.csv`, `equipe.csv`, `objetos.csv`,
-  `dados_contratuais.csv`, `prazos.csv`, `localidades.csv`, `perfis_professional.csv`,
-  `sansoes.csv`, `ajuste_inms.csv`, `desconto_regulatório.csv` — the auditor's
-  own contract references and team roster.
+- Top-level contract-side files: `capa*.csv`, `equipe.csv`, `objetos.csv`,
+  `prazos.csv`, `localidades.csv`, `perfis_professional.csv`, `sansoes.csv` —
+  hand-fill forms or genuinely tabular contract data, stay CSV. Static
+  contract reference data with no in-pipeline writer —
+  `dados_contratuais.yaml`, `ajuste_inms.yaml`, `desconto_regulatório.yaml`
+  — moved to YAML: shaped as field/value or formula/text, not rows.
 
 > Because `input/` is git-ignored, the repo is not self-contained: a fresh
 > maintainer cannot reproduce a month without the production files. Tests use

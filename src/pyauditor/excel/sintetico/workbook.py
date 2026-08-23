@@ -90,6 +90,7 @@ def write_sintetico_workbook(
     equipe_path: Path | None = None,
     perfis_profissionais_path: Path | None = None,
     objetos_path: Path | None = None,
+    localidades_path: Path | None = None,
     generated_at: datetime | None = None,
 ) -> list[str]:
     """Constrói e grava `sintetico.xlsx` de um órgão/competência. Devolve
@@ -130,6 +131,7 @@ def write_sintetico_workbook(
         equipe_path=equipe_path,
         perfis_profissionais_path=perfis_profissionais_path,
         prazos_path=prazos_path,
+        localidades_path=localidades_path,
         warnings=warnings,
     )
     sheets_before_inms = set(workbook.sheetnames)

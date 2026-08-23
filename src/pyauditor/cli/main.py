@@ -55,6 +55,7 @@ from pyauditor.commands.contracts import exit_code_for_results
 from pyauditor.config.resolution import per_orgao_paths
 from pyauditor.excel.dados_contratuais import DADOS_CONTRATUAIS_FILENAME
 from pyauditor.excel.equipe import EQUIPE_FILENAME
+from pyauditor.excel.localidades import LOCALIDADES_FILENAME
 from pyauditor.excel.perfis_profissionais import PERFIS_PROFISSIONAIS_FILENAME
 from pyauditor.excel.prazos import PRAZOS_FILENAME
 from pyauditor.logging import setup_logging
@@ -176,8 +177,9 @@ def _dispatch_split(args: argparse.Namespace) -> int:
     capa_path = request.data_dir / _CAPA_COMUM
     equipe_path = request.data_dir / EQUIPE_FILENAME
     objetos_path = request.data_dir / _OBJETOS_FILENAME
-    dados_contratuais_path = request.data_dir / DADOS_CONTRATUAIS_FILENAME
+    dados_contratuais_path = request.config_dir / DADOS_CONTRATUAIS_FILENAME
     perfis_profissionais_path = request.data_dir / PERFIS_PROFISSIONAIS_FILENAME
+    localidades_path = request.data_dir / LOCALIDADES_FILENAME
     split_results = []
     for orgao in _each_single_orgao(request.orgao):
         # setup por órgão dentro do loop para evitar pasta both/ órfã
@@ -213,6 +215,7 @@ def _dispatch_split(args: argparse.Namespace) -> int:
                 objetos_path=objetos_path,
                 dados_contratuais_path=dados_contratuais_path,
                 perfis_profissionais_path=perfis_profissionais_path,
+                localidades_path=localidades_path,
             )
         )
     return exit_code_for_results(split_results)

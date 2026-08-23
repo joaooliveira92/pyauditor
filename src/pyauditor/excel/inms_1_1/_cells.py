@@ -93,6 +93,24 @@ def _header_row(
     sheet.row_dimensions[row].height = 30
 
 
+def _apply_section_outline(
+    sheet: Worksheet, bounds: list[tuple[int, int]]
+) -> None:
+    """Agrupamento nativo de linhas (Dados > Agrupar) — uma Seção por grupo.
+    A barra da Seção (nível 0) fica sempre visível; o conteúdo (nível 1)
+    começa expandido, mas pode ser recolhido pelo toggle "+/-" que o Excel
+    desenha ao lado da barra — mesmo padrão de `inms_grouped.py`
+    (`summaryBelow=False` mantém o resumo acima do detalhe, casando com a
+    barra ficar por cima do conteúdo da Seção, não embaixo)."""
+    for bar_row, content_end_row in bounds:
+        sheet.row_dimensions[bar_row].outlineLevel = 0
+        for r in range(bar_row + 1, content_end_row + 1):
+            sheet.row_dimensions[r].outlineLevel = 1
+    sheet.sheet_properties.outlinePr.summaryBelow = False
+    sheet.sheet_properties.outlinePr.summaryRight = False
+    sheet.sheet_view.showOutlineSymbols = True
+
+
 def _add_table(sheet: Worksheet, name: str, ref: str) -> None:
     """Tabela nativa do Excel — não `sheet.auto_filter` (único por aba, seria
     sobrescrito pela segunda tabela detalhada); cada tabela tem seu próprio
