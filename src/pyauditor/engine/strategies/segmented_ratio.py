@@ -15,7 +15,7 @@ from math import isclose
 from pyauditor.config.models import IndicatorConfig, SegmentedRatioCalculation
 from pyauditor.engine.strategies._filters import filter_rows
 from pyauditor.engine.strategies._numbers import as_float
-from pyauditor.engine.strategies._target import safe_pct, shortfall
+from pyauditor.engine.strategies._target import ratio_penalty_points, safe_pct
 from pyauditor.engine.strategies.base import (
     CalculationResult,
     narrow_calculation,
@@ -45,15 +45,14 @@ class SegmentedRatioStrategy:
             denominator = len(denominator_rows)
             result_pct = safe_pct(numerator, denominator)
 
-            category_shortfall = max(
-                shortfall(
-                    result_pct, config.target.operator, config.target.value
-                ),
-                0.0,
+            penalty = ratio_penalty_points(
+                numerator=numerator,
+                denominator=denominator,
+                operator=config.target.operator,
+                target=config.target.value,
+                step_size_pct=calculation.step_size_pct,
+                step_points=category.step_points,
             )
-            penalty = (
-                category_shortfall / calculation.step_size_pct
-            ) * category.step_points
 
             categories.append(
                 {

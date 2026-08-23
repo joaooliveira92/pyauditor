@@ -11,8 +11,8 @@ from pyauditor.engine.strategies._filters import filter_rows
 from pyauditor.engine.strategies._numbers import as_float, parse_decimal
 from pyauditor.engine.strategies._target import (
     meets_target,
+    ratio_penalty_points,
     safe_pct,
-    shortfall,
 )
 from pyauditor.engine.strategies.base import (
     CalculationResult,
@@ -43,29 +43,25 @@ class RatioStrategy:
         numerator, denominator = _aggregate(calculation, rows)
         result_pct = safe_pct(numerator, denominator)
 
-        if denominator == 0:
-            # No eligible activity in the competência (e.g. zero
-            # projects/mudanças
-            # that month) is not the same as 0% performance — there's nothing to
-            # measure against the target, so it can't be penalized as a failure.
-            conforms = True
-            penalty_points = 0.0
-        else:
-            conforms = meets_target(
-                result_pct, config.target.operator, config.target.value
+        # No eligible activity in the competência (e.g. zero projects/mudanças
+        # that month) is not the same as 0% performance — there's nothing to
+        # measure against the target, so it can't be penalized as a failure.
+        conforms = denominator == 0 or meets_target(
+            result_pct, config.target.operator, config.target.value
+        )
+        penalty_points = (
+            0.0
+            if conforms
+            else ratio_penalty_points(
+                numerator=numerator,
+                denominator=denominator,
+                operator=config.target.operator,
+                target=config.target.value,
+                step_size_pct=config.penalty.step_size_pct,
+                step_points=config.penalty.step_points,
+                base_points=config.penalty.base_points,
             )
-            penalty_points = (
-                0.0
-                if conforms
-                else _linear_penalty(
-                    result_pct=result_pct,
-                    target=config.target.value,
-                    operator=config.target.operator,
-                    base_points=config.penalty.base_points,
-                    step_points=config.penalty.step_points,
-                    step_size_pct=config.penalty.step_size_pct,
-                )
-            )
+        )
 
         return CalculationResult(
             result_pct=result_pct,
@@ -130,15 +126,3 @@ def _aggregate(
             'aggregation: precomputed espera exatamente 1 linha por CSV'
         )
     return float(rows[0][calculation.precomputed_result_column]), 100.0
-
-
-def _linear_penalty(
-    result_pct: float,
-    target: float,
-    operator: str,
-    base_points: float,
-    step_points: float,
-    step_size_pct: float,
-) -> float:
-    steps = max(shortfall(result_pct, operator, target), 0.0) / step_size_pct
-    return base_points + steps * step_points
