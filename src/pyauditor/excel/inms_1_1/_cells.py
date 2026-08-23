@@ -15,7 +15,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.excel.inms_1_1._layout import (
     _AJ,
-    _AM,
+    _AO,
     _R,
     BODY_FONT,
     BORDER,
@@ -117,7 +117,7 @@ def _add_situacao_conditional_formatting(
 
 
 def _protect_support_columns(sheet: Worksheet) -> None:
-    """Oculta as colunas de apoio (R:AM) e protege a aba contra edição
+    """Oculta as colunas de apoio (R:AO) e protege a aba contra edição
     acidental das fórmulas — os únicos campos que continuam editáveis são
     os marcados com `_UNLOCKED` (justificativa/documento/evidência de
     preenchimento manual da auditoria, Seções 4 e 6). Sem senha: o
@@ -131,7 +131,7 @@ def _protect_support_columns(sheet: Worksheet) -> None:
     preenchida em Python, não alimenta fórmula alguma, e é o indicador
     visual de linhas com data ausente/inválida exigido pelo ticket 02
     (C-02) — ocultá-la anularia a sinalização (consenso C-02 x B-03)."""
-    for col in range(_R, _AM + 1):
+    for col in range(_R, _AO + 1):
         if col == _AJ:
             continue
         sheet.column_dimensions[cl(col)].hidden = True
