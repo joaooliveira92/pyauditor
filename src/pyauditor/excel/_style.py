@@ -264,7 +264,9 @@ def setup_institutional_print(
     sheet.page_setup.orientation = 'portrait'
     sheet.page_setup.fitToWidth = 1
     sheet.page_setup.fitToHeight = 0
-    sheet.sheet_properties.pageSetUpPr.fitToPage = True
+    page_setup_pr = sheet.sheet_properties.pageSetUpPr
+    if page_setup_pr is not None:
+        page_setup_pr.fitToPage = True
     sheet.print_options.horizontalCentered = True
     sheet.page_margins.left = 0.5
     sheet.page_margins.right = 0.5
@@ -283,6 +285,8 @@ def setup_institutional_print(
         sheet.print_title_rows = f'{header_row}:{header_row}'
 
     contract_part = f'Contrato {contract_number} — ' if contract_number else ''
-    sheet.oddFooter.center.text = (
-        f'{contract_part}{sheet.title} — Página &P de &N'
-    )
+    odd_footer = sheet.oddFooter
+    if odd_footer is not None and odd_footer.center is not None:
+        odd_footer.center.text = (
+            f'{contract_part}{sheet.title} — Página &P de &N'
+        )
