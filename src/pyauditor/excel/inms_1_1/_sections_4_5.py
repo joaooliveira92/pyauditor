@@ -91,7 +91,12 @@ def _write_section_4_detalhamento(
         error=f'Selecione "{_INCLUIDO_SIM}" ou "{_INCLUIDO_NAO}".',
         showErrorMessage=True,
     )
-    sheet.add_data_validation(toggle_validation)
+    # Só registra a validação na aba se algum grupo realmente a usar — um
+    # órgão sem nenhum grupo "não previsto" (categoria
+    # `_AUDIT_REVIEW_LABEL`) nunca chama `.add()`, e registrar mesmo assim
+    # grava `<dataValidations count="0" />` no XML: o Excel recusa abrir o
+    # arquivo e oferece "reparar", descartando conteúdo.
+    has_toggle_target = False
     for offset, (grupo, nivel, categoria) in enumerate(grupo_rows):
         r = first_group_row + offset
         sheet.cell(
@@ -153,6 +158,7 @@ def _write_section_4_detalhamento(
                 cc.fill = ORANGE_FILL
             incluido.protection = _UNLOCKED
             toggle_validation.add(incluido.coordinate)
+            has_toggle_target = True
         else:
             just = 'Não aplicável — nenhuma exclusão aplicada.'
             obs = '—'
@@ -183,6 +189,8 @@ def _write_section_4_detalhamento(
         # de justificativa/documento/observação (colunas J/K/L) sem cortar
         # visualmente o conteúdo até o usuário redimensionar manualmente.
         sheet.row_dimensions[r].height = 30
+    if has_toggle_target:
+        sheet.add_data_validation(toggle_validation)
     last_group_row = first_group_row + len(grupo_rows) - 1
     _add_table(sheet, table_name, f'A{start_row + 1}:L{last_group_row}')
     sheet.conditional_formatting.add(
