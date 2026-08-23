@@ -156,9 +156,112 @@ def test_period_filter_counts_and_warns_once(tmp_path: Path) -> None:
     assert bundle.rows == []
 
 
-def test_emit_period_filter_logs_false_suppresses_both_warn_and_info(
+def test_ragged_rows_are_counted_not_silently_dropped(tmp_path: Path) -> None:
+    """Fila com campos além do cabeçalho (campo livre deslocando colunas):
+    `raw.ragged_rows`/`bundle.ragged_rows` contam em vez de só truncar."""
+    config_path = _write_config(tmp_path)
+    (tmp_path / 'data.csv').write_text(
+        'Nº Solicitação,DataHoraFim,Atendido\n'
+        '1,20/06/2026 10:00,S\n'
+        '2,21/06/2026 10:00,S,EXTRA\n',
+        encoding='utf-8',
+    )
+    config = load_config(config_path)
+
+    bundle = measurement_source(
+        config, data_dir=tmp_path, config_path=config_path
+    )
+    result = measure(config, data_dir=tmp_path, config_path=config_path)
+
+    assert bundle.ragged_rows == 1
+    assert result.ragged_rows == 1
+    assert len(bundle.rows) == 2
+
+
+_SUM_CONFIG_YAML = """\
+indicator:
+  id: INMS-SUM
+  contractual_id: "INMS SUM"
+  name: Sum com coluna numérica
+
+scope:
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
+
+source:
+  csv: data.csv
+  delimiter: ","
+  encoding: utf-8
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: sum
+  sum_numerator_column: "Valor"
+  sum_denominator_extra_column: "Base"
+
+target:
+  operator: ">="
+  value: 90.0
+
+penalty:
+  base_points: 0
+  step_points: 10
+  step_size_pct: 1.0
+"""
+
+
+def test_unparseable_numeric_cells_are_counted(tmp_path: Path) -> None:
+    """Célula numérica ilegível (`parse_decimal` → nan) é ignorada no cálculo
+    mas fica contada na trilha de auditoria (`unparseable_numerics`), em vez
+    de sumir em silêncio."""
+    config_path = tmp_path / 'config.yaml'
+    config_path.write_text(_SUM_CONFIG_YAML, encoding='utf-8')
+    (tmp_path / 'data.csv').write_text(
+        'Valor,Base\n10,100\nabc,100\n',
+        encoding='utf-8',
+    )
+    config = load_config(config_path)
+
+    bundle = measurement_source(
+        config, data_dir=tmp_path, config_path=config_path
+    )
+    result = measure(config, data_dir=tmp_path, config_path=config_path)
+
+    assert bundle.unparseable_numerics == 1
+    assert result.unparseable_numerics == 1
+    # `abc` descartado -> só o 10 entra no numerador.
+    assert result.calculation.memoria['numerator'] == 10.0
+
+
+def test_measurement_source_delimiter_ambiguous_strict_raises(
     tmp_path: Path,
 ) -> None:
+    """Delimiter ambíguo (ambos candidatos presentes na amostra) falha em
+    `strict` em vez de adivinhar — aferição não pode aceitar parsing de
+    baixo custo sobre dado ilegível."""
+    config_path = tmp_path / 'config.yaml'
+    config_path.write_text(
+        _CONFIG_YAML.replace('delimiter: ","', 'delimiter: ";"'),
+        encoding='utf-8',
+    )
+    (tmp_path / 'data.csv').write_text(
+        'Nº Solicitação,DataHoraFim;Atendido\n1,20/06/2026 10:00;S\n',
+        encoding='utf-8',
+    )
+    config = load_config(config_path)
+
+    with pytest.raises(ValueError, match='delimiter ambíguo'):
+        measurement_source(
+            config, data_dir=tmp_path, config_path=config_path, strict=True
+        )
+    # modo normal: mantém o configurado com warning, não falha
+    bundle = measurement_source(
+        config, data_dir=tmp_path, config_path=config_path
+    )
+    assert bundle.delimiter == ';'
     """Chamadores que logam com seu próprio contexto estruturado (`split`,
     via `log_event`) desligam ambos e usam as contagens do `SourceBundle`."""
     config_path = _write_config(tmp_path)

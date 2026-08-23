@@ -1,10 +1,11 @@
-"""Generic ROM Markdown template + per-shape memória de cálculo renderers.
+"""Template genérico de ROM Markdown + renderers de memória de cálculo por
+shape.
 
-Fixed sections (identificação, linhas aprovadas, rejeições, resultado vs
-meta, responsáveis) are the same for every shape; only the memória de
-cálculo — and the "ressalva interpretativa" (only shown for indicators with a
-step-based `penalty`) — varies. See .scratch/melhoria_rom/map.md for the spec
-this template implements.
+As seções fixas (identificação, linhas aprovadas, rejeições, resultado vs
+meta, responsáveis) são iguais para todo shape; só a memória de cálculo — e a
+"ressalva interpretativa" (exibida apenas para indicadores com `penalty` em
+degraus) — variam. Ver .scratch/melhoria_rom/map.md para a spec que este
+template implementa.
 """
 
 from collections.abc import Callable
@@ -30,10 +31,10 @@ def _require_list(value: object, *, field: str) -> list[Any]:
 
 
 def _md_cell(value: object) -> str:
-    """Escape a value before it lands in a Markdown table cell — a stray
-    `|` or embedded newline from CSV-derived data would otherwise silently
-    shift the table's column alignment in what's meant to be a formal,
-    auditable record."""
+    """Escape um valor antes de entrar numa célula de tabela Markdown — um
+    `|` solto ou uma quebra de linha embutida vinda de dado de CSV deslocaria
+    silenciosamente o alinhamento das colunas num registro que deveria ser
+    formal e auditável."""
     return str(value).replace('|', '\\|').replace('\n', ' ')
 
 
@@ -189,9 +190,9 @@ def _render_responsaveis(capa_fields: dict[str, object], h: str = '##') -> str:
 def _render_ressalva_interpretativa(
     config: IndicatorConfig, calculation: CalculationResult
 ) -> str | None:
-    """Only shapes with a step-based `penalty` (today: `ratio`) have a
-    linear-vs-degraus ambiguity to disclose, and only when there's an actual
-    shortfall to score — a conforming indicator has nothing to interpret.
+    """Só shapes com `penalty` em degraus (hoje: `ratio`) têm ambiguidade
+    linear-vs-degraus a declarar, e só quando há déficit real a pontuar — um
+    indicador conforme não tem nada a interpretar.
 
     Formata as leituras já computadas pela engine
     (`penalty_interpretation`) — o Markdown nunca recalcula a ressalva.
@@ -285,6 +286,27 @@ def _render_linhas_aprovadas(
     )
 
 
+def _render_anomalias(result: MeasurementResult, h: str = '##') -> str | None:
+    """Anomalias de leitura (fila ragged + célula numérica ilegível) viram
+    seção própria no ROM quando existem — em aferição, registro formal é
+    durabilidade: o número apresentado ao lado delas só é auditável se o
+    leitor souber que houve descarte local."""
+    itens: list[str] = []
+    if result.ragged_rows:
+        itens.append(
+            f'- Filas com campos além do cabeçalho (descartados localmente): '
+            f'{result.ragged_rows}'
+        )
+    if result.unparseable_numerics:
+        itens.append(
+            f'- Células numéricas ilegíveis ignoradas no cálculo: '
+            f'{result.unparseable_numerics}'
+        )
+    if not itens:
+        return None
+    return f'{h} Anomalias de leitura\n' + '\n'.join(itens) + '\n'
+
+
 def _render_resultado_vs_meta(
     config: IndicatorConfig, calculation: CalculationResult, h: str = '##'
 ) -> str:
@@ -327,10 +349,10 @@ def _org_body(
     competencia: str = '',
     periodo: PeriodoAfericao | None = None,
 ) -> list[str]:
-    """The per-orgão body sections of a ROM — shared by the standalone
-    `render_rom` (h=`##`) and the combined `render_combined_rom` (nested
-    under each orgão heading, h=`###`). `capa_fields` alimenta só os
-    Responsáveis (§5); Competência/Período vêm dos argumentos da CLI."""
+    """As seções do corpo de um ROM por órgão — compartilhadas pelo
+    `render_rom` standalone (h=`##`) e pelo combinado `render_combined_rom`
+    (aninhado sob o heading de cada órgão, h=`###`). `capa_fields` alimenta só
+    os Responsáveis (§5); Competência/Período vêm dos argumentos da CLI."""
     config = result.config
     gate_report = result.quality_gate_report
     calculation = result.calculation
@@ -358,9 +380,18 @@ def _org_body(
         _render_linhas_aprovadas(
             gate_report, h, dropped_out_of_period=result.dropped_out_of_period
         ),
-        f'{h} Rejeições\n| ID | Motivo |\n|---|---|\n{rejected_table}',
-        f'{h} Memória de cálculo\n{memoria_renderer(calculation)}',
     ]
+
+    anomalias = _render_anomalias(result, h)
+    if anomalias is not None:
+        sections.append(anomalias)
+
+    sections.extend(
+        [
+            f'{h} Rejeições\n| ID | Motivo |\n|---|---|\n{rejected_table}',
+            f'{h} Memória de cálculo\n{memoria_renderer(calculation)}',
+        ]
+    )
 
     ressalva = _render_ressalva_interpretativa(config, calculation)
     if ressalva is not None:
@@ -437,9 +468,9 @@ def render_combined_rom(
     competencia: str = '',
     periodo: PeriodoAfericao | None = None,
 ) -> str:
-    """One markdown per indicator covering both orgãos: the full ROM body of
-    each, stacked under a `## <órgão>` heading. Written when `measure` runs
-    with `--orgao both`, alongside the per-orgão ROMs."""
+    """Um markdown por indicador cobrindo os dois órgãos: o corpo completo do
+    ROM de cada um, empilhado sob um heading `## <órgão>`. Escrito quando
+    `measure` roda com `--orgao both`, ao lado dos ROMs por órgão."""
     capa_by_orgao = capa_by_orgao or {}
     config_a = result_a.config
     config_b = result_b.config

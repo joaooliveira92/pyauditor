@@ -177,9 +177,7 @@ def _dispatch_split(args: argparse.Namespace) -> int:
     equipe_path = request.data_dir / EQUIPE_FILENAME
     objetos_path = request.data_dir / _OBJETOS_FILENAME
     dados_contratuais_path = request.data_dir / DADOS_CONTRATUAIS_FILENAME
-    perfis_profissionais_path = (
-        request.data_dir / PERFIS_PROFISSIONAIS_FILENAME
-    )
+    perfis_profissionais_path = request.data_dir / PERFIS_PROFISSIONAIS_FILENAME
     split_results = []
     for orgao in _each_single_orgao(request.orgao):
         # setup por órgão dentro do loop para evitar pasta both/ órfã

@@ -300,9 +300,7 @@ def _write_capa_sheet(
     termino_dt: datetime | None = None
 
     if dados_contratuais_path is not None:
-        _write_dados_contratuais_block(
-            sheet, dados_contratuais_path, warnings
-        )
+        _write_dados_contratuais_block(sheet, dados_contratuais_path, warnings)
 
     row = _ROW_BODY_START
     for index, label in enumerate(rendered_labels):

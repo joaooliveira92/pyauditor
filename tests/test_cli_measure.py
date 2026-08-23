@@ -1004,3 +1004,36 @@ def test_run_measure_categorias_fallback_parent_orgao_dir(
 
     assert result.status == 'done'
     assert len(result.indicators) == 2
+
+
+def test_run_measure_malformed_categorias_is_hard_error(
+    tmp_path: Path,
+) -> None:
+    """categorias.yaml presente mas malformado = falha de config, não warning:
+    se a segmentação sumisse em silêncio, os números sairiam errados parecendo
+    válidos (item 2 do hardening de auditoria)."""
+    config_dir = tmp_path / 'configs'
+    data_dir = tmp_path / 'input'
+    output_dir = tmp_path / 'roms'
+    competencia_data_dir = data_dir / '2026' / '06'
+    competencia_data_dir.mkdir(parents=True)
+    config_dir.mkdir(parents=True)
+    (config_dir / 'inms-01.yaml').write_text(
+        _CATEGORIA_CONFIG_YAML, encoding='utf-8'
+    )
+    (competencia_data_dir / 'inms-01.csv').write_text(
+        _CATEGORIA_RAW_CSV, encoding='utf-8'
+    )
+    (config_dir / 'categorias.yaml').write_text(
+        'categorias:\n  ATENDIMENTO_N1: {errado: sim}\n',
+        encoding='utf-8',
+    )
+
+    result = run_measure(
+        '2026-06', config_dir, data_dir, output_dir, expected_orgao='MinC'
+    )
+
+    assert result.status == 'error'
+    assert result.error_message is not None
+    assert 'categorias.yaml' in result.error_message
+    assert len(result.indicators) == 0
