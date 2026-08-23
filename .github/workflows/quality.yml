@@ -73,6 +73,25 @@ jobs:
         # Mesmo comando local `ty check` (CODING_STANDARDS.md): usa o
         # `[tool.ty]` do pyproject como única fonte de escopo (src/tests).
         run: uvx ty@0.0.73 check
+      - name: Complexity gate (xenon, pinado)
+        # Gate de complexidade ciclomática via `uvx` (ferramenta global do
+        # repo como o ty — não é dependência do projeto). Baseline medido com
+        # radon 6.0.1/xenon 0.9.3 no relatório SRP (2026-08-22).
+        #
+        # Limites ATUAIS: absoluto F, média C — passa com o baseline de hoje,
+        # cujos piores blocos são `cli/split.run_split` (F),
+        # `excel/sintetico/workbook.write_sintetico_workbook` (E) e
+        # `orchestration/run.execute_run`, `cli/report.run_report`,
+        # `orchestration/summary._result_panel` (D).
+        #
+        # Plano de aperto (apertar só após a refatoração SRP de cada bloco):
+        #   1. -> --max-absolute D --max-average C (quando run_split e
+        #      write_sintetico_workbook saírem de F/E);
+        #   2. -> --max-absolute C --max-average B (quando os blocos D e os
+        #      demais rank C forem extraídos).
+        # O objetivo do gate é impedir REGRESSÃO de complexidade em PRs, não
+        # travar o repo no débito já mapeado.
+        run: uvx xenon@0.9.3 src --max-absolute F --max-average C
       - name: Tests and branch coverage
         # Gate de cobertura explícito (ticket 05): `--cov-fail-under=85` no
         # comando, não só no `[tool.coverage.report]` do pyproject.

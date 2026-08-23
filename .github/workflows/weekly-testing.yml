@@ -61,6 +61,14 @@ jobs:
           set -euo pipefail
           uv run --locked bandit -r src
           uv run --locked pip-audit
+      - name: Complexity report (radon, pinado)
+        # Observabilidade de complexidade ciclomática semanal (não é gate de
+        # PR — o gate é o xenon no quality.yml). Gera o JSON anexado ao
+        # artifact para acompanhar a evolução da dívida de complexidade mapeada
+        # no relatório SRP (baseline medido com radon 6.0.1/xenon 0.9.3).
+        # `--min D` foca só nos módulos que importam: não polui o relatório com
+        # dezenas de blocos rank A/B.
+        run: uvx radon@6.0.1 cc src --average --min D -j > complexity.json
       - name: Create assessment
         if: always()
         run: python scripts/assess_project.py --output weekly-testing-assessment.json
@@ -71,6 +79,7 @@ jobs:
           name: weekly-testing-assessment-${{ github.run_id }}
           path: |
             weekly-testing-assessment.json
+            complexity.json
             coverage.xml
             junit.xml
           if-no-files-found: warn

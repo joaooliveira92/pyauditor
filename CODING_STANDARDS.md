@@ -102,9 +102,16 @@ específicas deste projeto:
 2.  `uv run ruff format --check .` (ou aplicar formatação, se apropriado)
 3.  `uv run ty check`
 4.  `uv run pytest`
+5.  `xenon src --max-absolute F --max-average C` (gate de complexidade, igual ao CI)
 
 Nunca reportar sucesso sem ter rodado esses comandos. Se algum não puder
 rodar, dizer exatamente qual, por quê, e o risco residual.
+
+O xenon e o radon são ferramentas globais do repo (via `uv tool install`),
+não dependências do projeto — por isso aparecem sem `uv run`. A versão local
+deve coincidir com a pinada no CI: xenon 0.9.3 e radon 6.0.1. Para ver a
+evolução da dívida de complexidade (rank D+), use `radon cc src --average
+--min D` — o mesmo critério do relatório semanal do GitHub Actions.
 
 ## Veja também
 
