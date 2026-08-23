@@ -765,6 +765,7 @@ def test_divergencia_no_prazo_fornecedor_vs_itsm_e_sinalizada(
         for cell in row
         if cell.value == 'Registros divergentes:'
     )
+    assert isinstance(count_row, int)
     assert sheet.cell(row=count_row, column=2).value == (
         '=COUNTIF($AN$2:$AN$5,"Sim")'
     )
@@ -775,6 +776,7 @@ def test_divergencia_no_prazo_fornecedor_vs_itsm_e_sinalizada(
         if isinstance(cell.value, str)
         and cell.value.startswith('Amostra de registros divergentes')
     )
+    assert isinstance(sample_row, int)
     header_row = sample_row + 1
     assert sheet.cell(row=header_row, column=1).value == 'Nº solicitação'
     first_sample_data_row = header_row + 1
@@ -815,6 +817,7 @@ def test_divergencia_no_prazo_fornecedor_vs_itsm_vazia_quando_consistente(
         if isinstance(cell.value, str)
         and cell.value.startswith('Nenhuma divergência entre')
     )
+    assert isinstance(note_row, int)
     assert note_row > 0
 
 
