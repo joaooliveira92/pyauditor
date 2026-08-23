@@ -42,16 +42,17 @@ jobs:
         run: uv lock --check
       - name: Synchronize environment
         run: uv sync --locked --group dev
-      - name: Ruff
+      - name: Ruff (check e format, repo inteiro)
         run: |
           set -euo pipefail
-          uv run --locked ruff check src tests
-          uv run --locked ruff format --check src tests
-      - name: Type check
+          uv run --locked ruff check .
+          uv run --locked ruff format --check .
+      - name: Type check (ty, pinado, config-driven)
         # `ty` é tool global do repo (Q1/A do wayfinder migracao-ty), não
         # dependência do projeto — no CI o `uv run ty` não o acharia; vai via
-        # `uvx` na versão pinada que mediu o baseline (ticket 06).
-        run: uvx ty@0.0.73 check src tests
+        # `uvx` na versão pinada que mediu o baseline (ticket 06). `check`
+        # sem paths usa o `[tool.ty]` como escopo, igual ao comando local.
+        run: uvx ty@0.0.73 check
       - name: Tests and branch coverage
         # Gate de cobertura explícito (ticket 05): `--cov-fail-under=85`.
         run: uv run --locked pytest --cov=pyauditor --cov-branch --cov-report=term-missing --cov-report=xml --junitxml=junit.xml --durations=20 --cov-fail-under=85
