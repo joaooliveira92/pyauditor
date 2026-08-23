@@ -89,7 +89,5 @@ def test_derive_config_both_paths_agree_except_source() -> None:
     )
 
     in_memory_dump = in_memory.model_dump(mode='json', exclude={'source'})
-    materialized_dump = materialized.model_dump(
-        mode='json', exclude={'source'}
-    )
+    materialized_dump = materialized.model_dump(mode='json', exclude={'source'})
     assert in_memory_dump == materialized_dump
