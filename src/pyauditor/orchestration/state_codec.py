@@ -29,6 +29,7 @@ __all__: Final[tuple[str, ...]] = (
     'decode_state',
     'encode_state',
     'parse_iso_timestamp',
+    'validate_path_component',
     'validate_state',
 )
 
@@ -210,8 +211,8 @@ def validate_state(state: RunState) -> None:
             f'state must be RunState, received {type(state).__name__}'
         )
 
-    _validate_path_component('competencia', state.competencia)
-    _validate_path_component('orgao_selector', state.orgao_selector)
+    validate_path_component('competencia', state.competencia)
+    validate_path_component('orgao_selector', state.orgao_selector)
 
     if not isinstance(state.commands, tuple):
         raise TypeError('commands must be a tuple')
@@ -418,7 +419,7 @@ def _validate_command_entry(
         )
 
 
-def _validate_path_component(field: str, value: str) -> None:
+def validate_path_component(field: str, value: str) -> None:
     """Validate a canonical identifier used in a state filename."""
     _validate_non_empty_string(value, field=field)
 

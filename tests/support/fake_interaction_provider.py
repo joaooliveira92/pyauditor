@@ -10,7 +10,7 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
-from pyauditor.interactive.provider import InteractionCancelledError
+from pyauditor.interactive._contract import InteractionCancelledError
 from pyauditor.orchestration.run import RunResult
 
 CANCEL = object()

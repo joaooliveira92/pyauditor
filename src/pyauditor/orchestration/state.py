@@ -39,6 +39,7 @@ from pyauditor.orchestration.state_codec import (
     RunState,
     RunStateCorruptedError,
     parse_iso_timestamp,
+    validate_path_component,
 )
 
 __all__: Final[tuple[str, ...]] = (
@@ -81,8 +82,8 @@ def state_path(
     Raises:
         ValueError: If either identifier is not filename-safe.
     """
-    _codec._validate_path_component('competencia', competencia)
-    _codec._validate_path_component('orgao_selector', orgao_selector)
+    validate_path_component('competencia', competencia)
+    validate_path_component('orgao_selector', orgao_selector)
 
     filename = f'{competencia}--{len(orgao_selector)}-{orgao_selector}.json'
     return runs_dir / filename

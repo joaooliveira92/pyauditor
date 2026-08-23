@@ -41,30 +41,36 @@ def write_filtered_csv(
 
 
 def derive_config(
-    base: IndicatorConfig, categoria_key: str, csv_relpath: str, delimiter: str
+    base: IndicatorConfig,
+    categoria_key: str,
+    csv_relpath: str | None = None,
+    delimiter: str | None = None,
 ) -> IndicatorConfig:
     """Copia `quality_gates`/`calculation`/`target`/`penalty` de *base*,
-    trocando só `indicator.id` e `source` (nunca `source.dataset` — a config
-    derivada aponta pro CSV filtrado direto, `split` não toca em
-    `datasets.yaml`). `acceptance_test` (números do dataset inteiro) não se
-    aplica ao subconjunto filtrado — omitido."""
+    trocando só `indicator.id`. `acceptance_test` (números do dataset
+    inteiro) não se aplica ao subconjunto filtrado — omitido.
+
+    `csv_relpath`/`delimiter` materializam `source` apontando pro CSV
+    filtrado em disco (`split`, nunca `source.dataset` — `split` não toca
+    em `datasets.yaml`). Omitidos (default), a config derivada mantém o
+    `source` de *base* — o caminho em memória (`measure`/categorias)
+    filtra as linhas do CSV bruto já lido, sem escrever nada."""
     derived_indicator = base.indicator.model_copy(
         update={'id': f'{base.indicator.id}.{categoria_key}'}
     )
-    derived_source = Source(
-        csv=csv_relpath,
-        delimiter=delimiter,
-        encoding='utf-8',
-        id_column=base.source.id_column,
-        period_column=base.source.period_column,
-    )
-    return base.model_copy(
-        update={
-            'indicator': derived_indicator,
-            'source': derived_source,
-            'acceptance_test': None,
-        }
-    )
+    update: dict[str, object] = {
+        'indicator': derived_indicator,
+        'acceptance_test': None,
+    }
+    if csv_relpath is not None:
+        update['source'] = Source(
+            csv=csv_relpath,
+            delimiter=delimiter or base.source.delimiter,
+            encoding='utf-8',
+            id_column=base.source.id_column,
+            period_column=base.source.period_column,
+        )
+    return base.model_copy(update=update)
 
 
 def write_derived_config(path: Path, config: IndicatorConfig) -> None:

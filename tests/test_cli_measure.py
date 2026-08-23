@@ -754,7 +754,7 @@ def test_run_measure_categoria_strategy_exception_is_hard_failure(
 ) -> None:
     """Ramo 520-533: exceção dentro da medição por categoria (QualityGateRunner
     falha) — categoria específica vira hard_failure sem derrubar o run."""
-    from pyauditor.cli import measure_run as measure_module
+    from pyauditor.cli import measure as measure_module
 
     config_dir = tmp_path / 'configs'
     data_dir = tmp_path / 'input'
@@ -911,7 +911,7 @@ def test_run_measure_single_path_measure_error_is_hard_failure(
 ) -> None:
     """Caminho single: exceção arbitrária dentro de `measure` vira hard-failure
     do indicador, sem derrubar o comando."""
-    from pyauditor.cli import measure_run as measure_module
+    from pyauditor.cli import measure as measure_module
     from pyauditor.config.models import IndicatorConfig
 
     config_dir, data_dir, output_dir = _write_whole_indicator_empty_window(

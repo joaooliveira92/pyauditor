@@ -26,6 +26,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from pyauditor.interactive._contract import (
+    InteractionCancelledError,
+    InteractionProvider,
+)
 from pyauditor.interactive.commands import (
     ALL_COMMANDS,
     COMMAND_LABELS,
@@ -36,11 +40,7 @@ from pyauditor.interactive.fields import (
     fields_spec,
     validate_non_empty_text,
 )
-from pyauditor.interactive.provider import (
-    InteractionCancelledError,
-    InteractionProvider,
-    RichQuestionaryProvider,
-)
+from pyauditor.interactive.rich_provider import RichQuestionaryProvider
 from pyauditor.interactive.status_view import render_state_line
 from pyauditor.orchestration.run import (
     FailureDecision,

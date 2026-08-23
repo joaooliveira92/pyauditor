@@ -3,10 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pyauditor.interactive.provider import (
-    InteractionCancelledError,
-    RichQuestionaryProvider,
-)
+from pyauditor.interactive._contract import InteractionCancelledError
+from pyauditor.interactive.rich_provider import RichQuestionaryProvider
 
 
 def _cancelled_ask() -> MagicMock:

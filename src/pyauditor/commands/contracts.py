@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Protocol
 
-from pyauditor.cli.measure_contracts import IndicatorOutcome
 from pyauditor.cli.results import Status, exit_code_name, is_production_command
 
 __all__: Final[tuple[str, ...]] = (
@@ -32,6 +31,16 @@ __all__: Final[tuple[str, ...]] = (
     'exit_code_name',
     'is_production_command',
 )
+
+
+@dataclass(frozen=True, slots=True)
+class IndicatorOutcome:
+    contractual_id: str
+    rom_path: Path
+    summary_path: Path
+    hard_failure: bool
+    error: str | None
+    not_activated: bool = False
 
 
 @dataclass(frozen=True, slots=True)

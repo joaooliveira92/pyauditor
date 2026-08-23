@@ -3,18 +3,23 @@
 `write_combined_roms` (que vivia em `cli/measure.py`) escreve, sob
 `output_dir/both/<competencia>/`, um markdown por indicador com os ROMs de
 ambos os órgãos empilhados. `cli/measure.py` reexporta a função mantendo a
-API pública (consumidores: `cli/main.py`).
+API pública (consumidores: `cli/main.py`). Concern distinto de
+`cli/measure.py`: junta dois órgãos já medidos, não mede um indicador —
+`_MeasuredIndicator` (de lá) só entra como tipo, nunca é construído aqui.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from pyauditor.cli.measure_contracts import _MeasuredIndicator
 from pyauditor.cli.results import WRITE_FAILURE_HINT
 from pyauditor.logging import logger
 from pyauditor.periodo import PeriodoAfericao
 from pyauditor.rom.render import render_combined_rom
+
+if TYPE_CHECKING:
+    from pyauditor.cli.measure import _MeasuredIndicator
 
 __all__: tuple[str, ...] = ('write_combined_roms',)
 
