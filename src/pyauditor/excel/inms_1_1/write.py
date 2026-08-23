@@ -237,4 +237,15 @@ def write_sheet(
         _protect_support_columns(sheet)
         sheet.freeze_panes = 'A2'
 
+        # Impressão/exportação a PDF para auditoria: área restrita às
+        # colunas visíveis (A:L — R:AO são apoio oculto), ajustada à
+        # largura da página e com o título (linha 1) repetido em cada
+        # página impressa.
+        sheet.print_area = f'A1:L{sheet.max_row}'
+        sheet.print_title_rows = '1:1'
+        sheet.page_setup.orientation = 'landscape'
+        sheet.page_setup.fitToWidth = 1
+        sheet.page_setup.fitToHeight = 0
+        sheet.sheet_properties.pageSetUpPr.fitToPage = True
+
     force_recalc(workbook)

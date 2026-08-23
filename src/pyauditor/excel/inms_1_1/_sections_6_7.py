@@ -84,6 +84,7 @@ def _write_section_6_fora_prazo(
             'Aceite da justificativa',
             'Documento/evidência',
         ),
+        numeric_cols=frozenset({4, 5, 6, 7}),
     )
     fora_first = s6_bar + 2
     # Tabela dimensionada ao número real de incidentes fora do prazo (não um
@@ -126,7 +127,7 @@ def _write_section_6_fora_prazo(
             column=7,
             value=f'=IFERROR(INDEX({rng(_AF)},{match_expr}),"")',
         )
-        c7.number_format = '0.0'
+        c7.number_format = '0'
         c8 = sheet.cell(
             row=r, column=8, value=f'=IFERROR(INDEX({rng(_Y)},{match_expr}),"")'
         )
@@ -136,7 +137,9 @@ def _write_section_6_fora_prazo(
         for c in (c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11):
             c.font = BODY_FONT
             c.border = BORDER
-        c1.fill = RED_FILL
+            # Linha inteira sinalizada — não só a 1ª coluna — para deixar
+            # claro que o incidente todo está fora do prazo, não só o Nº.
+            c.fill = RED_FILL
         # Justificativa/aceite/evidência são preenchimento manual da
         # auditoria — permanecem editáveis com a planilha protegida
         # (ticket 20 / B-03).
@@ -167,7 +170,12 @@ def _write_section_7_auditoria(
     sheet.cell(
         row=s7_bar + 1, column=1, value='Controles de resultado'
     ).font = LABEL_FONT
-    _header_row(sheet, s7_bar + 2, ('Metodologia', 'Resultado', 'Situação'))
+    _header_row(
+        sheet,
+        s7_bar + 2,
+        ('Metodologia', 'Resultado', 'Situação'),
+        numeric_cols=frozenset({2}),
+    )
     ctrl_rows = [
         ("Resultado informado pelo fornecedor (campo 'No prazo')", 'C13/B13'),
         (
@@ -310,6 +318,7 @@ def _write_section_7_auditoria(
             'Diferença (horas)',
             'No prazo (fornecedor)',
         ),
+        numeric_cols=frozenset({2, 3, 4, 5}),
     )
     sample_first = sample_header_row + 2
     ai_range = rng(_AI)
@@ -476,6 +485,7 @@ def _write_section_7b_divergencia_fornecedor(
             'Limite (ITSM)',
             'Encerramento',
         ),
+        numeric_cols=frozenset({4, 5, 6}),
     )
     sample_first = sample_header_row + 2
     ao_range = rng(_AO)

@@ -72,13 +72,23 @@ def _label_value(
         vc.fill = fill
 
 
-def _header_row(sheet: Worksheet, row: int, headers: tuple[str, ...]) -> None:
+def _header_row(
+    sheet: Worksheet,
+    row: int,
+    headers: tuple[str, ...],
+    *,
+    numeric_cols: frozenset[int] = frozenset(),
+) -> None:
+    """`numeric_cols` — índices 1-based (dentro de `headers`) das colunas
+    cujo conteúdo é numérico/data; o styleguide pede cabeçalho alinhado à
+    direita sobre dado numérico, para casar com o valor abaixo."""
     for idx, text in enumerate(headers, start=1):
         cell = sheet.cell(row=row, column=idx, value=text)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
+        horizontal = 'right' if idx in numeric_cols else 'left'
         cell.alignment = Alignment(
-            horizontal='left', wrap_text=True, vertical='center'
+            horizontal=horizontal, wrap_text=True, vertical='center'
         )
     sheet.row_dimensions[row].height = 30
 

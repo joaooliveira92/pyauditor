@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from openpyxl.formatting.rule import CellIsRule
+from openpyxl.formatting.rule import CellIsRule, ColorScaleRule
 from openpyxl.styles import Alignment, Font
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -70,6 +70,7 @@ def _write_section_4_detalhamento(
             'Documento autorizador',
             'Observação de auditoria',
         ),
+        numeric_cols=frozenset({4, 5, 6, 7, 8}),
     )
     first_group_row = start_row + 2
     for offset, (grupo, nivel, categoria) in enumerate(grupo_rows):
@@ -141,6 +142,8 @@ def _write_section_4_detalhamento(
             linhas_cell,
             dentro_cell,
             fora_cell,
+            pct_cell,
+            tempo_cell,
             incluido,
             just_cell,
             doc_cell,
@@ -155,8 +158,24 @@ def _write_section_4_detalhamento(
         # (ticket 20 / B-03) — os demais campos desta seção são fórmulas.
         just_cell.protection = _UNLOCKED
         doc_cell.protection = _UNLOCKED
+        # Altura maior que o padrão (~15pt) para acomodar o texto quebrado
+        # de justificativa/documento/observação (colunas J/K/L) sem cortar
+        # visualmente o conteúdo até o usuário redimensionar manualmente.
+        sheet.row_dimensions[r].height = 30
     last_group_row = first_group_row + len(grupo_rows) - 1
     _add_table(sheet, table_name, f'A{start_row + 1}:L{last_group_row}')
+    sheet.conditional_formatting.add(
+        f'G{first_group_row}:G{last_group_row}',
+        ColorScaleRule(
+            start_type='min',
+            start_color='FECACA',
+            mid_type='percentile',
+            mid_value=50,
+            mid_color='FEF9C3',
+            end_type='max',
+            end_color='BBF7D0',
+        ),
+    )
     return last_group_row + 2
 
 
@@ -183,6 +202,7 @@ def _write_section_5_subtotais(
             '% bruto',
             'Tempo médio',
         ),
+        numeric_cols=frozenset({2, 3, 4, 5, 6}),
     )
     nivel_rows = list(
         range(sub_bar_row + 2, sub_bar_row + 2 + len(_NIVEL_ORDER))
