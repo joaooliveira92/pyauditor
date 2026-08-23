@@ -11,12 +11,14 @@ from decimal import Decimal
 from math import isfinite
 from typing import Final, TypedDict
 
-from pyauditor.cli.bootstrap import BootstrapResult
-from pyauditor.cli.consolidate import ConsolidateResult
-from pyauditor.cli.measure import MeasureResult
-from pyauditor.cli.report import ReportResult
-from pyauditor.cli.results import exit_code_name
-from pyauditor.cli.split import SplitResult
+from pyauditor.commands.contracts import (
+    BootstrapResult,
+    ConsolidateResult,
+    MeasureResult,
+    ReportResult,
+    SplitResult,
+    exit_code_name,
+)
 from pyauditor.orchestration.run import RunResult
 from pyauditor.orchestration.state import parse_iso_timestamp
 

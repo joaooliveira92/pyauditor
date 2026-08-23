@@ -24,14 +24,9 @@ coverage, which spans both `grupo_executor` and `whole_indicator`.
 
 from __future__ import annotations
 
-import csv
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-import yaml
-
-from pyauditor.atomic_write import atomic_write
 from pyauditor.categoria_filter import (
     GRUPO_EXECUTOR_COLUMN,
     base_config_stem,
@@ -39,10 +34,15 @@ from pyauditor.categoria_filter import (
     outros_warning,
     unmatched_in_values_warnings,
 )
-from pyauditor.cli.results import DependencyCheck, Status, validate_competencia
+from pyauditor.cli.results import DependencyCheck, validate_competencia
+from pyauditor.cli.split_derive import (
+    derive_config,
+    write_derived_config,
+    write_filtered_csv,
+)
+from pyauditor.commands import contracts
 from pyauditor.config.categorias import GrupoExecutorMode, load_categorias
 from pyauditor.config.manifest import DatasetManifest
-from pyauditor.config.models import IndicatorConfig, Source
 from pyauditor.engine.pipeline import load_config, measurement_source
 from pyauditor.excel.sintetico import write_sintetico_workbook
 from pyauditor.logging import log_event, logger
@@ -63,91 +63,17 @@ _SPLIT_DIRNAME: Final[str] = '_split'
 _OUTROS_NAME: Final[str] = 'outros'
 _SINTETICO_FILENAME: Final[str] = 'sintetico.xlsx'
 
-
-@dataclass(frozen=True, slots=True)
-class SplitCategoriaOutcome:
-    inms: str
-    categoria: str
-    csv_path: Path
-    config_path: Path | None  # None só para `outros` (sem config derivada)
-    row_count: int
-
-
-@dataclass(frozen=True, slots=True)
-class SplitResult:
-    status: Status
-    competencia: str
-    orgao: str
-    categorias: tuple[SplitCategoriaOutcome, ...]
-    warnings: tuple[str, ...]
-    error_message: str | None
-    # `None` quando `report_dir` não foi passado, ou quando nada em
-    # categorias.yaml resolveu — `write_sintetico_workbook` não escreve
-    # workbook vazio (comentário no próprio módulo), então a checagem real
-    # de "foi gerado" é a existência do arquivo, não só "foi tentado".
-    sintetico_path: Path | None = None
+# `SplitCategoriaOutcome`/`SplitResult` vivem no contrato neutro
+# `pyauditor.commands.contracts` (ticket 11 SRP) — reexportados aqui para
+# preservar a API pública.
+SplitCategoriaOutcome = contracts.SplitCategoriaOutcome
+SplitResult = contracts.SplitResult
 
 
 def check_split_ready(*_args: object, **_kwargs: object) -> DependencyCheck:
     """`split` só precisa de `categorias.yaml` + CSVs brutos, ambos entradas
     externas que ele mesmo valida — sem dependência de outro Command."""
     return DependencyCheck(satisfied=True, missing=())
-
-
-def _write_filtered_csv(
-    path: Path,
-    fieldnames: list[str],
-    rows: list[dict[str, str]],
-    delimiter: str,
-) -> None:
-    def _write(tmp_path: Path) -> None:
-        with tmp_path.open('w', encoding='utf-8', newline='') as handle:
-            writer = csv.DictWriter(
-                handle, fieldnames=fieldnames, delimiter=delimiter
-            )
-            writer.writeheader()
-            writer.writerows(rows)
-
-    atomic_write(path, _write)
-
-
-def _derive_config(
-    base: IndicatorConfig, categoria_key: str, csv_relpath: str, delimiter: str
-) -> IndicatorConfig:
-    """Copia `quality_gates`/`calculation`/`target`/`penalty` de *base*,
-    trocando só `indicator.id` e `source` (nunca `source.dataset` — a config
-    derivada aponta pro CSV filtrado direto, `split` não toca em
-    `datasets.yaml`). `acceptance_test` (números do dataset inteiro) não se
-    aplica ao subconjunto filtrado — omitido."""
-    derived_indicator = base.indicator.model_copy(
-        update={'id': f'{base.indicator.id}.{categoria_key}'}
-    )
-    derived_source = Source(
-        csv=csv_relpath,
-        delimiter=delimiter,
-        encoding='utf-8',
-        id_column=base.source.id_column,
-        period_column=base.source.period_column,
-    )
-    return base.model_copy(
-        update={
-            'indicator': derived_indicator,
-            'source': derived_source,
-            'acceptance_test': None,
-        }
-    )
-
-
-def _write_derived_config(path: Path, config: IndicatorConfig) -> None:
-    raw = config.model_dump(mode='json', exclude_none=True)
-
-    def _write(tmp_path: Path) -> None:
-        tmp_path.write_text(
-            yaml.safe_dump(raw, allow_unicode=True, sort_keys=False),
-            encoding='utf-8',
-        )
-
-    atomic_write(path, _write)
 
 
 def run_split(
@@ -332,7 +258,7 @@ def run_split(
             csv_path = split_dir / f'{categoria_key}.csv'
             if materialize:
                 try:
-                    _write_filtered_csv(
+                    write_filtered_csv(
                         csv_path, fieldnames, filtered_rows, delimiter
                     )
                 except OSError as exc:
@@ -341,7 +267,7 @@ def run_split(
                     continue
 
             csv_relpath = f'{_SPLIT_DIRNAME}/{inms_key}/{categoria_key}.csv'
-            derived_config = _derive_config(
+            derived_config = derive_config(
                 base_config, categoria_key, csv_relpath, delimiter
             )
             # Single-source: derivados vivem no dir per-órgão, não em _shared
@@ -351,7 +277,7 @@ def run_split(
             config_path = derived_dir / f'{base_stem}.{categoria_key}.yaml'
             if materialize:
                 try:
-                    _write_derived_config(config_path, derived_config)
+                    write_derived_config(config_path, derived_config)
                 except OSError as exc:
                     logger.error(f'falha ao escrever {config_path}: {exc}')
                     any_error = True
@@ -377,7 +303,7 @@ def run_split(
         outros_path = split_dir / f'{_OUTROS_NAME}.csv'
         if materialize:
             try:
-                _write_filtered_csv(
+                write_filtered_csv(
                     outros_path, fieldnames, outros_rows, delimiter
                 )
             except OSError as exc:

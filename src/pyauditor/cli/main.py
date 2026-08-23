@@ -48,9 +48,9 @@ from pyauditor.cli.requests import (
     logging_kwargs,
     require,
 )
-from pyauditor.cli.results import exit_code_for_results
 from pyauditor.cli.run import run_run
 from pyauditor.cli.split import run_split
+from pyauditor.commands.contracts import exit_code_for_results
 from pyauditor.config.resolution import per_orgao_paths
 from pyauditor.excel.equipe import EQUIPE_FILENAME
 from pyauditor.excel.prazos import PRAZOS_FILENAME

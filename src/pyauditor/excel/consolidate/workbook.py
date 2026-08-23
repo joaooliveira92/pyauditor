@@ -35,6 +35,7 @@ from pyauditor.excel._style import (
 from pyauditor.excel._style import UNIT_BY_SHAPE as _UNIT_BY_SHAPE
 from pyauditor.excel._style import new_sheet as _new_sheet
 from pyauditor.excel._style import write_row as _write
+from pyauditor.excel.consolidate._calculo_calcs import compute_calculo_row
 from pyauditor.excel.consolidate._decisions_io import (
     RowKey,
     read_existing_decisions,
@@ -42,14 +43,15 @@ from pyauditor.excel.consolidate._decisions_io import (
 from pyauditor.excel.consolidate._glosa_calcs import (
     accumulate_pontos_por_orgao,
     compute_aggregation,
+    faixa_descumprimento,
     is_amnestied,
+    ocorrencia_glosa,
 )
 from pyauditor.excel.equipe import RESPONSAVEL_LABELS
 from pyauditor.excel.glosas import (
     CAP_PCT,
     POINTS_TO_PERCENT,
     Historico,
-    compute_glosa,
 )
 from pyauditor.excel.inms_base import inms_base_fields
 from pyauditor.excel.orgao_consolidation import with_orgao_consolidation
@@ -364,21 +366,6 @@ def _decision_value(decision: dict[str, object], key: str) -> CellValue:
     return str(value)
 
 
-def _faixa(summary: IndicatorSummary) -> str:
-    if summary.target_operator is None or summary.target_value is None:
-        return (
-            'Ocorrência sob detalhamento por-ativo'
-            if summary.penalty_points > 0
-            else ''
-        )
-    dif = (
-        summary.target_value - summary.result_pct
-        if summary.target_operator == '>='
-        else summary.result_pct - summary.target_value
-    )
-    return f'Déficit de {dif:.2f}pp' if dif > 0 else 'Não conforme'
-
-
 def build_glosas(
     wb: Workbook,
     competencia: str,
@@ -422,12 +409,9 @@ def build_glosas(
         amnestied = is_amnestied(decision)
 
         pontos = summary.penalty_points
-        pct = pontos * POINTS_TO_PERCENT
-        valor_glosa = (
-            round((valor_base or 0.0) * pct / 100, 2)
-            if valor_base is not None
-            else None
-        )
+        ocorrencia = ocorrencia_glosa(pontos, valor_base)
+        pct = ocorrencia.pct_ajuste
+        valor_glosa = ocorrencia.valor_glosa
 
         _write(
             ws,
@@ -440,7 +424,7 @@ def build_glosas(
                 format_inms_code(summary.contractual_id),
                 round(summary.result_pct, 2),
                 summary.target_value,
-                _faixa(summary),
+                faixa_descumprimento(summary),
                 round(pct, 4),
                 valor_base,
                 0.0 if amnestied else valor_glosa,
@@ -507,15 +491,6 @@ def build_glosas(
     return total_pontos, glosa_final
 
 
-def _glosa_bruto(pontos: float, bruto: float) -> float:
-    """Valor da glosa sobre um bruto — a mesma aritmética de
-    ``glosas.compute_glosa`` (fonte única, ticket 09), sem rollover
-    (``is_final_month=True``) porque as células de ``CALCULO_PAGAMENTO``
-    computam o ajuste do mês corrente, não o saldo rolado."""
-    glosa = compute_glosa(pontos, bruto, is_final_month=True)
-    return glosa.valor_da_glosa or 0.0
-
-
 def build_calculo(
     wb: Workbook,
     valor_base: float | None,
@@ -580,20 +555,19 @@ def build_calculo(
         for col, (_nome, rateio, pontos) in zip(
             range(2, len(_CALCULO_COLUMNS) + 1), colunas, strict=True
         ):
-            if label.startswith('Percentual de rateio'):
-                value: object = rateio
-            elif label.startswith('Valor bruto'):
-                value = round(base * rateio, 2)
-            elif label.startswith('Pontos de glosa'):
-                value = round(pontos, 2)
-            elif label.startswith('Valor da glosa'):
-                value = round(_glosa_bruto(pontos, base * rateio), 2)
-            elif label.startswith('Outros ajustes'):
-                value = 0
-            else:
-                bruto = base * rateio
-                glosa = _glosa_bruto(pontos, bruto)
-                value = round(max(0.0, bruto - glosa), 2)
+            row_values = compute_calculo_row(
+                rateio=rateio,
+                base=base,
+                pontos=pontos,
+            )
+            value: object = (
+                row_values.percentual_rateio,
+                row_values.valor_bruto,
+                row_values.pontos_glosa,
+                row_values.valor_glosa,
+                row_values.outros_ajustes,
+                row_values.valor_recomendado,
+            )[idx]
             value_cell = ws.cell(row=row, column=col, value=value)
             value_cell.font = Font(bold=True) if bold else BODY_FONT
             if fmt:

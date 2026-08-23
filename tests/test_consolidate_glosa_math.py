@@ -1,8 +1,9 @@
-"""Unidade da matemática financeira de `excel/consolidate/workbook.py`
-(ticket 01 rede-testes): os helpers puros (`_glosa_bruto`, `_faixa`,
-`_decision_value`), a agregação determinística de `_glosa_calcs` e o cálculo
-da aba `CALCULO_PAGAMENTO` — o rateio MinC/MTur e a linha da glosa — travados
-com valores esperados concretos, prontos para a extração do ticket 03.
+"""Unidade da matemática financeira de `excel/consolidate/` (tickets 01
+rede-testes e 03 SRP): os helpers puros `glosa_valor_sobre_bruto` e
+`faixa_descumprimento` (vivem nos módulos de matemática, não no builder),
+a agregação determinística de `_glosa_calcs` e o cálculo da aba
+`CALCULO_PAGAMENTO` — o rateio MinC/MTur e a linha da glosa — travados com
+valores esperados concretos.
 
 Inclui a regressão da linha "Valor da glosa" (o refactor SRP anterior
 removeu o espaço da label `Valordaglosa(...)`, fazendo a linha cair no ramo
@@ -15,12 +16,14 @@ from datetime import date
 import pytest
 from openpyxl import Workbook
 
-from pyauditor.excel.consolidate._glosa_calcs import compute_aggregation
+from pyauditor.excel.consolidate._calculo_calcs import glosa_valor_sobre_bruto
+from pyauditor.excel.consolidate._glosa_calcs import (
+    compute_aggregation,
+    faixa_descumprimento,
+)
 from pyauditor.excel.consolidate.workbook import (
     CALCULO_SHEET,
     _decision_value,
-    _faixa,
-    _glosa_bruto,
     build_calculo,
 )
 from pyauditor.rom.summary import IndicatorSummary
@@ -86,16 +89,20 @@ def _calculo_rows(
 
 class TestGlosaBruto:
     def test_below_cap(self) -> None:
-        assert _glosa_bruto(1000.0, 100_000.0) == pytest.approx(1000.0)
+        assert glosa_valor_sobre_bruto(1000.0, 100_000.0) == pytest.approx(
+            1000.0
+        )
 
     def test_above_cap_is_capped_without_rollover(self) -> None:
-        assert _glosa_bruto(40_000.0, 100_000.0) == pytest.approx(30_000.0)
+        assert glosa_valor_sobre_bruto(40_000.0, 100_000.0) == pytest.approx(
+            30_000.0
+        )
 
     def test_zero_pontos(self) -> None:
-        assert _glosa_bruto(0.0, 50_000.0) == pytest.approx(0.0)
+        assert glosa_valor_sobre_bruto(0.0, 50_000.0) == pytest.approx(0.0)
 
     def test_per_orgao_bruto_partial(self) -> None:
-        assert _glosa_bruto(150.0, 100_000.0) == pytest.approx(150.0)
+        assert glosa_valor_sobre_bruto(150.0, 100_000.0) == pytest.approx(150.0)
 
 
 class TestFaixa:
@@ -103,19 +110,19 @@ class TestFaixa:
         summary = _summary(
             'INMS 1.1', target_operator='>=', target_value=98.0, result_pct=97.5
         )
-        assert _faixa(summary) == 'Déficit de 0.50pp'
+        assert faixa_descumprimento(summary) == 'Déficit de 0.50pp'
 
     def test_ge_operator_met_is_nao_conforme(self) -> None:
         summary = _summary(
             'INMS 1.1', target_operator='>=', target_value=98.0, result_pct=98.5
         )
-        assert _faixa(summary) == 'Não conforme'
+        assert faixa_descumprimento(summary) == 'Não conforme'
 
     def test_le_operator_inverts_deficit_direction(self) -> None:
         summary = _summary(
             'INMS 1.6', target_operator='<=', target_value=2.0, result_pct=2.5
         )
-        assert _faixa(summary) == 'Déficit de 0.50pp'
+        assert faixa_descumprimento(summary) == 'Déficit de 0.50pp'
 
     def test_asset_detail_with_breach(self) -> None:
         summary = _summary(
@@ -124,11 +131,14 @@ class TestFaixa:
             target_value=None,
             penalty_points=50.0,
         )
-        assert _faixa(summary) == 'Ocorrência sob detalhamento por-ativo'
+        assert (
+            faixa_descumprimento(summary)
+            == 'Ocorrência sob detalhamento por-ativo'
+        )
 
     def test_asset_detail_without_breach(self) -> None:
         summary = _summary('INMS 1.14', target_operator=None, target_value=None)
-        assert _faixa(summary) == ''
+        assert faixa_descumprimento(summary) == ''
 
 
 class TestDecisionValue:

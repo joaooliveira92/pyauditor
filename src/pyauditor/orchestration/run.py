@@ -30,12 +30,24 @@ targeting the same competence and organization selector are unsupported.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, Literal, cast
+from typing import Final
 
 from pyauditor.logging import logger
+from pyauditor.orchestration._decision import (
+    FailureDecision,
+    _abort_on_failure,
+    handle_failure,
+    isolate_on_failure,
+)
+from pyauditor.orchestration._flow_helpers import (
+    find_entry,
+    notify_state_change,
+    now,
+    sanitize_error_message,
+    upsert,
+)
 from pyauditor.orchestration.command_dispatch import (
     dependency_missing,
     dispatch,
@@ -61,12 +73,6 @@ __all__: Final[tuple[str, ...]] = (
 )
 
 type CommandResult = object
-type FailureDecision = Literal[
-    'retry',
-    'skip',
-    'isolate',
-    'abort',
-]
 type PlanStep = tuple[str, str | None]
 type ResultKey = tuple[str, str | None]
 
@@ -94,16 +100,6 @@ _SUPPORTED_ORGAO_SELECTORS: Final[frozenset[str]] = frozenset(
         'both',
     }
 )
-_FAILURE_DECISIONS: Final[frozenset[str]] = frozenset(
-    {
-        'retry',
-        'skip',
-        'isolate',
-        'abort',
-    }
-)
-
-_MAX_ERROR_MESSAGE_LENGTH: Final[int] = 2_000
 _DEFAULT_RUNS_DIR: Final[Path] = Path('.pyauditor/runs')
 
 
@@ -175,29 +171,6 @@ def _noop_state_change(_entry: CommandStateEntry) -> None:
     return None
 
 
-def _abort_on_failure(_entry: CommandStateEntry) -> FailureDecision:
-    """Abort after the first command failure."""
-    return 'abort'
-
-
-def isolate_on_failure(
-    _entry: CommandStateEntry,
-) -> FailureDecision:
-    """Isolate a failed organization while preserving technical failure.
-
-    The failed command remains in ``error`` state so the aggregate exit code
-    reports a technical failure. Later commands for the same organization and
-    the shared consolidation are marked ``skipped``. Commands belonging to
-    another organization remain eligible to run.
-    """
-    return 'isolate'
-
-
-def _now() -> str:
-    """Return the current UTC time as a timezone-aware ISO 8601 string."""
-    return datetime.now(UTC).isoformat()
-
-
 def _validate_request(request: RunRequest) -> PeriodoAfericao:
     """Validate an orchestration request before creating persistent state.
 
@@ -247,87 +220,6 @@ def _validate_request(request: RunRequest) -> PeriodoAfericao:
     return month_bounds(request.competencia)
 
 
-def _find_entry(
-    state: RunState,
-    command: str,
-    orgao: str | None,
-) -> CommandStateEntry | None:
-    """Find one command state by command and organization."""
-    for entry in state.commands:
-        if entry.command == command and entry.orgao == orgao:
-            return entry
-
-    return None
-
-
-def _upsert(
-    state: RunState,
-    entry: CommandStateEntry,
-) -> RunState:
-    """Replace a command entry without changing plan order.
-
-    A new entry is appended only when the state does not already contain its
-    command and organization key.
-    """
-    key = (entry.command, entry.orgao)
-    replaced = False
-    commands: list[CommandStateEntry] = []
-
-    for current in state.commands:
-        if (current.command, current.orgao) == key:
-            if replaced:
-                raise ValueError(
-                    'Run state contains duplicate command entries for '
-                    f'command={entry.command!r}, orgao={entry.orgao!r}'
-                )
-
-            commands.append(entry)
-            replaced = True
-        else:
-            commands.append(current)
-
-    if not replaced:
-        commands.append(entry)
-
-    return replace(state, commands=tuple(commands))
-
-
-def _sanitize_error_message(
-    message: str | None,
-    *,
-    fallback: str,
-) -> str:
-    """Return a bounded, single-line message suitable for persisted state."""
-    value = message or fallback
-    sanitized = ' '.join(value.split())
-
-    if not sanitized:
-        sanitized = fallback
-
-    if len(sanitized) > _MAX_ERROR_MESSAGE_LENGTH:
-        return sanitized[: _MAX_ERROR_MESSAGE_LENGTH - 3] + '...'
-
-    return sanitized
-
-
-def _validate_failure_decision(
-    decision: object,
-) -> FailureDecision:
-    """Validate a decision returned by the failure callback."""
-    if not isinstance(decision, str):
-        raise TypeError(
-            f'on_failure must return a string decision, received'
-            f'{type(decision).__name__}'
-        )
-
-    if decision not in _FAILURE_DECISIONS:
-        raise ValueError(
-            f'on_failure returned an unsupported decision: {decision!r}'
-        )
-
-    return cast(FailureDecision, decision)
-
-
 def _result_key(
     command: str,
     orgao: str | None,
@@ -342,67 +234,6 @@ def _ordered_results(
 ) -> tuple[CommandResult, ...]:
     """Return latest command results in phase-major plan order."""
     return tuple(results[key] for key in plan if key in results)
-
-
-def _notify_state_change(
-    callback: Callable[[CommandStateEntry], None],
-    entry: CommandStateEntry,
-) -> None:
-    """Invoke a state callback after its transition is persisted.
-
-    Callback failures propagate because the caller controls the interaction
-    boundary. The persisted transition remains available for resume.
-    """
-    callback(entry)
-
-
-def _cascade_skip(
-    plan: tuple[PlanStep, ...],
-    command: str,
-    orgao: str | None,
-    state: RunState,
-    path: Path,
-    on_state_change: Callable[[CommandStateEntry], None],
-    skipped_steps: set[PlanStep],
-    *,
-    reason: str,
-) -> RunState:
-    """Mark every dependent planned step as skipped."""
-    from pyauditor.orchestration.plan import downstream
-
-    for later_command, later_orgao in downstream(
-        plan,
-        command,
-        orgao,
-    ):
-        step = (later_command, later_orgao)
-        if step in skipped_steps:
-            continue
-
-        current = _find_entry(
-            state,
-            later_command,
-            later_orgao,
-        )
-        if current is not None and current.status == 'done':
-            continue
-
-        entry = CommandStateEntry(
-            command=later_command,
-            orgao=later_orgao,
-            status='skipped',
-            finished_at=_now(),
-            error_message=_sanitize_error_message(
-                reason,
-                fallback='etapa ignorada por falha anterior',
-            ),
-        )
-        skipped_steps.add(step)
-        state = _upsert(state, entry)
-        save_state(path, state)
-        _notify_state_change(on_state_change, entry)
-
-    return state
 
 
 def execute_run(
@@ -446,7 +277,7 @@ def execute_run(
         OSError: If state persistence or command filesystem access fails.
         Exception: Propagates failures raised by run command callbacks.
     """
-    session_started_at = _now()
+    session_started_at = now()
     periodo = _validate_request(request)
     plan = build_plan(request.orgao)
     state = ensure_state(
@@ -482,71 +313,8 @@ def execute_run(
             state=state,
             request=request,
             started_at=session_started_at,
-            finished_at=_now(),
+            finished_at=now(),
         )
-
-    def record_failure_and_decide(
-        command: str,
-        orgao: str | None,
-        error_message: str | None,
-        *,
-        started_at: str,
-        finished_at: str,
-    ) -> FailureDecision:
-        nonlocal state
-
-        safe_message = _sanitize_error_message(
-            error_message,
-            fallback='comando terminou com erro sem mensagem',
-        )
-        error_entry = CommandStateEntry(
-            command=command,
-            orgao=orgao,
-            status='error',
-            started_at=started_at,
-            finished_at=finished_at,
-            error_message=safe_message,
-        )
-        state = _upsert(state, error_entry)
-        save_state(path, state)
-        _notify_state_change(
-            on_state_change,
-            error_entry,
-        )
-
-        decision = _validate_failure_decision(on_failure(error_entry))
-
-        if decision == 'skip':
-            skipped_entry = CommandStateEntry(
-                command=command,
-                orgao=orgao,
-                status='skipped',
-                finished_at=_now(),
-                error_message=safe_message,
-            )
-            state = _upsert(state, skipped_entry)
-            save_state(path, state)
-            _notify_state_change(
-                on_state_change,
-                skipped_entry,
-            )
-
-        if decision in {'skip', 'isolate'}:
-            state = _cascade_skip(
-                plan,
-                command,
-                orgao,
-                state,
-                path,
-                on_state_change,
-                skipped_steps,
-                reason=(
-                    f'etapa dependente de {command} ({orgao or "global"}) não '
-                    f'executada'
-                ),
-            )
-
-        return decision
 
     for command, orgao in plan:
         step = (command, orgao)
@@ -556,12 +324,12 @@ def execute_run(
                 command=command,
                 orgao=orgao,
                 status='skipped',
-                finished_at=_now(),
+                finished_at=now(),
                 error_message=('comando desabilitado para esta execução'),
             )
-            state = _upsert(state, disabled_entry)
+            state = upsert(state, disabled_entry)
             save_state(path, state)
-            _notify_state_change(
+            notify_state_change(
                 on_state_change,
                 disabled_entry,
             )
@@ -571,7 +339,7 @@ def execute_run(
         if step in skipped_steps:
             continue
 
-        current = _find_entry(
+        current = find_entry(
             state,
             command,
             orgao,
@@ -604,13 +372,20 @@ def execute_run(
             )
 
             if missing:
-                failed_at = _now()
-                decision = record_failure_and_decide(
-                    command,
-                    orgao,
-                    'dependência não satisfeita: ' + '; '.join(missing),
+                failed_at = now()
+                state, decision = handle_failure(
+                    state,
+                    command=command,
+                    orgao=orgao,
+                    error_message='dependência não satisfeita: '
+                    + '; '.join(missing),
                     started_at=failed_at,
                     finished_at=failed_at,
+                    plan=plan,
+                    path=path,
+                    on_state_change=on_state_change,
+                    on_failure=on_failure,
+                    skipped_steps=skipped_steps,
                 )
 
                 if decision == 'retry':
@@ -625,11 +400,11 @@ def execute_run(
                 command=command,
                 orgao=orgao,
                 status='running',
-                started_at=_now(),
+                started_at=now(),
             )
-            state = _upsert(state, running_entry)
+            state = upsert(state, running_entry)
             save_state(path, state)
-            _notify_state_change(
+            notify_state_change(
                 on_state_change,
                 running_entry,
             )
@@ -652,15 +427,21 @@ def execute_run(
                     command,
                     orgao,
                 )
-                decision = record_failure_and_decide(
-                    command,
-                    orgao,
-                    _sanitize_error_message(
+                state, decision = handle_failure(
+                    state,
+                    command=command,
+                    orgao=orgao,
+                    error_message=sanitize_error_message(
                         str(exc),
                         fallback=(f'{type(exc).__name__} durante {command}'),
                     ),
-                    started_at=(running_entry.started_at or _now()),
-                    finished_at=_now(),
+                    started_at=(running_entry.started_at or now()),
+                    finished_at=now(),
+                    plan=plan,
+                    path=path,
+                    on_state_change=on_state_change,
+                    on_failure=on_failure,
+                    skipped_steps=skipped_steps,
                 )
 
                 if decision == 'retry':
@@ -681,23 +462,29 @@ def execute_run(
                     command=command,
                     orgao=orgao,
                     status='done',
-                    started_at=(running_entry.started_at or _now()),
-                    finished_at=_now(),
+                    started_at=(running_entry.started_at or now()),
+                    finished_at=now(),
                 )
-                state = _upsert(state, done_entry)
+                state = upsert(state, done_entry)
                 save_state(path, state)
-                _notify_state_change(
+                notify_state_change(
                     on_state_change,
                     done_entry,
                 )
                 break
 
-            decision = record_failure_and_decide(
-                command,
-                orgao,
-                getattr(result, 'error_message', None),
-                started_at=(running_entry.started_at or _now()),
-                finished_at=_now(),
+            state, decision = handle_failure(
+                state,
+                command=command,
+                orgao=orgao,
+                error_message=getattr(result, 'error_message', None),
+                started_at=(running_entry.started_at or now()),
+                finished_at=now(),
+                plan=plan,
+                path=path,
+                on_state_change=on_state_change,
+                on_failure=on_failure,
+                skipped_steps=skipped_steps,
             )
 
             if decision == 'retry':
