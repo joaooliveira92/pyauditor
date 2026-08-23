@@ -93,7 +93,9 @@ def run_split(
     strict: bool = False,
     prazos_path: Path | None = None,
     capa_path: Path | None = None,
+    dados_contratuais_path: Path | None = None,
     equipe_path: Path | None = None,
+    perfis_profissionais_path: Path | None = None,
     objetos_path: Path | None = None,
 ) -> SplitResult:
     orgao = expected_orgao
@@ -362,7 +364,9 @@ def run_split(
                 strict=strict,
                 prazos_path=prazos_path,
                 capa_path=capa_path,
+                dados_contratuais_path=dados_contratuais_path,
                 equipe_path=equipe_path,
+                perfis_profissionais_path=perfis_profissionais_path,
                 objetos_path=objetos_path,
             )
             warnings.extend(sintetico_warnings)

@@ -962,8 +962,8 @@ def test_capa_equipe_prazos_sheets_come_first_in_order(tmp_path: Path) -> None:
     )
     assert equipe_sheet['B6'].value == 'FUNÇÃO'
     assert equipe_sheet['B7'].value == 'Gestor do Contrato'
-    assert equipe_sheet['C7'].value == 'Thiago Augusto Arcanjo Lima'
-    assert equipe_sheet['D7'].value == '1500967'
+    assert equipe_sheet['D7'].value == 'Thiago Augusto Arcanjo Lima'
+    assert equipe_sheet['G7'].value == '1500967'
 
 
 def test_objetos_is_appended_below_capa_not_a_separate_sheet(

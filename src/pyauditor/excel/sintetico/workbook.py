@@ -86,7 +86,9 @@ def write_sintetico_workbook(
     strict: bool = False,
     prazos_path: Path | None = None,
     capa_path: Path | None = None,
+    dados_contratuais_path: Path | None = None,
     equipe_path: Path | None = None,
+    perfis_profissionais_path: Path | None = None,
     objetos_path: Path | None = None,
     generated_at: datetime | None = None,
 ) -> list[str]:
@@ -123,8 +125,10 @@ def write_sintetico_workbook(
     write_institutional_sheets(
         workbook,
         capa_path=capa_path,
+        dados_contratuais_path=dados_contratuais_path,
         objetos_path=objetos_path,
         equipe_path=equipe_path,
+        perfis_profissionais_path=perfis_profissionais_path,
         prazos_path=prazos_path,
         warnings=warnings,
     )

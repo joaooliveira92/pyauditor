@@ -22,8 +22,10 @@ from pyauditor.cli.split import (
     run_split,
 )
 from pyauditor.config.resolution import per_orgao_paths
+from pyauditor.excel.dados_contratuais import DADOS_CONTRATUAIS_FILENAME
 from pyauditor.excel.equipe import EQUIPE_FILENAME
 from pyauditor.excel.objetos import OBJETOS_FILENAME
+from pyauditor.excel.perfis_profissionais import PERFIS_PROFISSIONAIS_FILENAME
 from pyauditor.excel.prazos import PRAZOS_FILENAME
 from pyauditor.orchestration.plan import ORGANIZATION_COMMANDS
 
@@ -233,7 +235,11 @@ def dispatch(
             strict=request.strict,
             prazos_path=request.data_dir / PRAZOS_FILENAME,
             capa_path=request.capa_path,
+            dados_contratuais_path=request.data_dir
+            / DADOS_CONTRATUAIS_FILENAME,
             equipe_path=request.data_dir / EQUIPE_FILENAME,
+            perfis_profissionais_path=request.data_dir
+            / PERFIS_PROFISSIONAIS_FILENAME,
             objetos_path=request.data_dir / OBJETOS_FILENAME,
         )
 

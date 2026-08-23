@@ -21,6 +21,7 @@ from openpyxl import Workbook
 from openpyxl.cell.cell import Cell
 from openpyxl.comments import Comment
 from openpyxl.styles import Alignment
+from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.excel._style import (
@@ -42,11 +43,22 @@ from pyauditor.excel._style import (
     setup_institutional_print,
 )
 from pyauditor.excel.capa import read_capa_csv_fields
+from pyauditor.excel.dados_contratuais import read_dados_contratuais_fields
 from pyauditor.excel.equipe import EQUIPE_DELIMITER, EQUIPE_ENCODING
 from pyauditor.excel.objetos import (
     OBJETOS_DELIMITER,
     OBJETOS_ENCODING,
     parse_brl_value,
+)
+from pyauditor.excel.perfis_profissionais import (
+    CATEGORIA_HEADER,
+    CBO_HEADER,
+    DENOMINACAO_HEADER,
+    N_ITEM_HEADER,
+    PRESENCIAL_HEADER,
+    QUANTIDADE_HEADER,
+    QUANTIDADE_TOTAL_HEADER,
+    read_perfis_profissionais,
 )
 from pyauditor.excel.prazos import PRAZOS_SHEET_NAME, read_prazos
 from pyauditor.excel.sintetico._sheets._shared import (
@@ -98,6 +110,14 @@ _IDENTIFICACAO_LABELS: Final[tuple[str, ...]] = (
 _SINTETICOS_VIGENCIA: Final[frozenset[str]] = frozenset(
     {'Vigência Contratual', 'Vigência Restante'}
 )
+# Bloco "Dados Contratuais" (parâmetros contratuais complementares lidos de
+# `input/dados_contratuais.csv`): colunas F (Campo) e G (Valor), alinhadas ao
+# mesmo cabeçalho do bloco B:D — uma linha por par `label;value` do CSV, na
+# ordem do arquivo, sem mescla (a coluna F é o rótulo e a G o valor).
+_DADOS_CONTRATUAIS_LABEL_COL: Final[int] = 6
+_DADOS_CONTRATUAIS_VALUE_COL: Final[int] = 7
+_DADOS_CONTRATUAIS_LABEL_WIDTH: Final[float] = 40.5
+_DADOS_CONTRATUAIS_VALUE_WIDTH: Final[float] = 50.16
 _DATE_LABELS: Final[frozenset[str]] = frozenset(
     {'Início da vigência', 'Término da vigência'}
 )
@@ -201,14 +221,19 @@ def _rendered_identificacao_labels(
 def _write_capa_sheet(
     workbook: Workbook,
     capa_path: Path,
+    dados_contratuais_path: Path | None,
     objetos_path: Path | None,
     warnings: list[str],
 ) -> CapaContext:
     """Aba "Capa": título/subtítulo do documento + seção "INFORMAÇÕES
     INICIAIS" (identificação contratual, com vigência calculada por fórmula
-    a partir das datas reais) + itens/valores. Devolve o número do contrato,
-    que Equipe/Prazos usam só no rodapé — título/subtítulo delas referenciam
-    esta aba diretamente via fórmula, nunca por segunda digitação."""
+    a partir das datas reais) + itens/valores. Quando
+    `dados_contratuais_path` é dado, um bloco complementar de parâmetros
+    contratuais (Fator-K, valor global, garantias, limites, prazos) é
+    anexado nas colunas F/G, alinhado ao mesmo cabeçalho. Devolve o número
+    do contrato, que Equipe/Prazos usam só no rodapé — título/subtítulo
+    delas referenciam esta aba diretamente via fórmula, nunca por segunda
+    digitação."""
     try:
         raw_fields = _strip_fields(read_capa_csv_fields(capa_path))
     except FileNotFoundError:
@@ -274,6 +299,11 @@ def _write_capa_sheet(
     inicio_dt: datetime | None = None
     termino_dt: datetime | None = None
 
+    if dados_contratuais_path is not None:
+        _write_dados_contratuais_block(
+            sheet, dados_contratuais_path, warnings
+        )
+
     row = _ROW_BODY_START
     for index, label in enumerate(rendered_labels):
         value = raw_fields.get(label, '')
@@ -285,13 +315,21 @@ def _write_capa_sheet(
             start_row=row, start_column=2, end_row=row, end_column=3
         )
         label_cell = sheet.cell(row=row, column=2, value=label)
-        # Estilo alinhado à Equipe: rótulos do corpo não são negrito — só o
-        # cabeçalho ('Campo'/'Valor') carrega o destaque.
+        # Estilo alinhado ao da Equipe: os rótulos do corpo não são negrito —
+        # só o cabeçalho ('Campo'/'Valor') leva o destaque.
         label_cell.font = BODY_FONT
         label_cell.alignment = LEFT_ALIGN
         label_cell.border = THIN_BORDER
         if row_fill is not None:
             label_cell.fill = row_fill
+        # A célula fusionada B:C só estiliza sua âncora (B); sem isto, a
+        # borda direita da região fusionada não se cerra (fica a cargo da
+        # célula 'Valor' em D). Aplicar borda/preenchimento também a C fecha
+        # o perímetro da célula 'Campo'.
+        merged_label_cell = cast(Cell, sheet.cell(row=row, column=3))
+        merged_label_cell.border = THIN_BORDER
+        if row_fill is not None:
+            merged_label_cell.fill = row_fill
 
         value_cell = cast(Cell, sheet.cell(row=row, column=4))
         value_cell.font = BODY_FONT
@@ -381,10 +419,90 @@ def _write_capa_sheet(
         sheet,
         contract_number=numero_contrato,
         last_row=last_row,
-        last_column=4,
+        last_column=(
+            _DADOS_CONTRATUAIS_VALUE_COL
+            if dados_contratuais_path is not None
+            else 4
+        ),
         first_column=2,
     )
     return CapaContext(numero_contrato)
+
+
+def _write_dados_contratuais_block(
+    sheet: Worksheet,
+    path: Path,
+    warnings: list[str],
+) -> None:
+    """Bloco complementar "Dados Contratuais" na aba Capa (colunas F/G).
+    Lê os pares `label;value` de `dados_contratuais.csv` e escreve uma linha
+    por par, alinhado ao mesmo cabeçalho da seção de identificação (linha
+    `_ROW_HEADER`): coluna F = Campo, G = Valor, com zebra alternada, bordas
+    finas e quebra de texto para valores longos. Preserva o texto original do
+    CSV (nunca interpreta `25%` como número) — a coerção que o Excel faria ao
+    colar (ex.: `25%` → 0,25) é evitada de propósito."""
+    try:
+        fields = read_dados_contratuais_fields(path)
+    except FileNotFoundError:
+        warnings.append(
+            f'sintetico.xlsx: {path} não encontrado — bloco de dados '
+            f"contratuais não anexado à aba '{CAPA_SHEET_NAME}'"
+        )
+        return
+    except (OSError, ValueError) as exc:
+        warnings.append(
+            f'sintetico.xlsx: falha ao ler {path}: {exc} — bloco de dados '
+            f"contratuais não anexado à aba '{CAPA_SHEET_NAME}'"
+        )
+        return
+
+    sheet.column_dimensions[
+        get_column_letter(_DADOS_CONTRATUAIS_LABEL_COL)
+    ].width = _DADOS_CONTRATUAIS_LABEL_WIDTH
+    sheet.column_dimensions[
+        get_column_letter(_DADOS_CONTRATUAIS_VALUE_COL)
+    ].width = _DADOS_CONTRATUAIS_VALUE_WIDTH
+
+    label_header = sheet.cell(
+        row=_ROW_HEADER,
+        column=_DADOS_CONTRATUAIS_LABEL_COL,
+        value='Campo',
+    )
+    label_header.font = HEADER_FONT
+    label_header.fill = HEADER_FILL
+    value_header = sheet.cell(
+        row=_ROW_HEADER,
+        column=_DADOS_CONTRATUAIS_VALUE_COL,
+        value='Valor',
+    )
+    value_header.font = HEADER_FONT
+    value_header.fill = HEADER_FILL
+
+    row = _ROW_BODY_START
+    for index, (label, value) in enumerate(fields.items()):
+        row_fill = SUBSTITUTO_FILL if index % 2 == 1 else None
+
+        field_cell = sheet.cell(row=row, column=_DADOS_CONTRATUAIS_LABEL_COL)
+        field_cell.value = label
+        field_cell.font = BODY_FONT
+        field_cell.alignment = LEFT_ALIGN
+        field_cell.border = THIN_BORDER
+        if row_fill is not None:
+            field_cell.fill = row_fill
+
+        value_cell = sheet.cell(row=row, column=_DADOS_CONTRATUAIS_VALUE_COL)
+        value_cell.value = value
+        value_cell.font = BODY_FONT
+        value_cell.alignment = LEFT_WRAP_ALIGN
+        value_cell.border = THIN_BORDER
+        value_cell.number_format = '@'
+        if row_fill is not None:
+            value_cell.fill = row_fill
+        height = _wrapped_row_height(value, _DADOS_CONTRATUAIS_VALUE_WIDTH)
+        if height is not None:
+            sheet.row_dimensions[row].height = height
+
+        row += 1
 
 
 def _write_objetos_section(
@@ -492,13 +610,16 @@ def _normalize_funcao_display(funcao: str) -> tuple[str, bool]:
 def _write_equipe_sheet(
     workbook: Workbook,
     equipe_path: Path,
+    perfis_profissionais_path: Path | None,
     contract_number: str | None,
     warnings: list[str],
 ) -> None:
     """Aba "Equipe": título/subtítulo compartilhados com a Capa (subtítulo
-    via fórmula `=Capa!B2`, nunca redigitado) + FUNÇÃO/NOME/SIAPE, com
-    pendências sinalizadas por célula, nunca corrigidas automaticamente
-    (SIAPE ausente/fora do padrão, duplicidades)."""
+    via fórmula `=Capa!B2`, nunca redigitado) + tabela de gestão e
+    fiscalização (FUNÇÃO/NOME/SIAPE, com merges B:C na função e D:F no nome)
+    + seção de perfis profissionais lida de `perfis_profissionais.csv`
+    (quando o arquivo é dado). Pendências são sinalizadas por célula, nunca
+    corrigidas automaticamente (SIAPE ausente/fora do padrão, duplicidades)."""
     try:
         with equipe_path.open(encoding=EQUIPE_ENCODING, newline='') as handle:
             rows = list(csv.DictReader(handle, delimiter=EQUIPE_DELIMITER))
@@ -518,9 +639,13 @@ def _write_equipe_sheet(
     sheet = workbook.create_sheet(title=EQUIPE_SHEET_NAME)
     sheet.sheet_view.showGridLines = False
     sheet.column_dimensions['A'].width = 5
-    sheet.column_dimensions['B'].width = 22.5
+    sheet.column_dimensions['B'].width = 6.5
     sheet.column_dimensions['C'].width = 44.5
-    sheet.column_dimensions['D'].width = 13.5
+    sheet.column_dimensions['D'].width = 12.8
+    sheet.column_dimensions['E'].width = 17.8
+    sheet.column_dimensions['F'].width = 38.3
+    sheet.column_dimensions['G'].width = 17.3
+    sheet.column_dimensions['I'].width = 36.7
 
     sheet.cell(row=_ROW_TITLE, column=2, value=_TITLE).font = TITLE_FONT
     sheet.row_dimensions[_ROW_TITLE].height = 18
@@ -542,13 +667,23 @@ def _write_equipe_sheet(
     sheet.row_dimensions[_ROW_SECTION].height = 16
 
     header_row = _ROW_HEADER
-    for column, label in zip(
-        (2, 3, 4), ('FUNÇÃO', 'NOME', 'SIAPE'), strict=True
-    ):
-        cell = sheet.cell(row=header_row, column=column, value=label)
+    # Coluna B (função) e D (nome) levam merges: a função ocupa B:C e o nome
+    # D:F; o SIAPE fica na coluna G. Os cabeçalhos são centralizados.
+    for column in (2, 4, 7):
+        cell = sheet.cell(row=header_row, column=column)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
-        cell.alignment = CENTER_ALIGN if label == 'SIAPE' else LEFT_ALIGN
+        cell.alignment = CENTER_ALIGN
+    sheet.cell(row=header_row, column=2, value='FUNÇÃO')
+    sheet.cell(row=header_row, column=4, value='NOME')
+    sheet.cell(row=header_row, column=7, value='SIAPE')
+    for column in (2, 4):
+        sheet.merge_cells(
+            start_row=header_row,
+            start_column=column,
+            end_row=header_row,
+            end_column=column + 1 if column == 2 else column + 2,
+        )
 
     seen_funcoes: set[str] = set()
     seen_siapes: set[str] = set()
@@ -562,12 +697,18 @@ def _write_equipe_sheet(
 
         funcao_display, eh_substituto = _normalize_funcao_display(funcao_raw)
 
+        sheet.merge_cells(
+            start_row=row, start_column=2, end_row=row, end_column=3
+        )
+        sheet.merge_cells(
+            start_row=row, start_column=4, end_row=row, end_column=6
+        )
         funcao_cell = sheet.cell(row=row, column=2, value=funcao_display)
-        nome_cell = sheet.cell(row=row, column=3, value=nome)
-        siape_cell = sheet.cell(row=row, column=4, value=siape)
+        nome_cell = sheet.cell(row=row, column=4, value=nome)
+        siape_cell = sheet.cell(row=row, column=7, value=siape)
 
         funcao_cell.font = BODY_FONT
-        funcao_cell.alignment = LEFT_ALIGN
+        funcao_cell.alignment = LEFT_WRAP_ALIGN
         funcao_cell.border = THIN_BORDER
         nome_cell.font = BODY_FONT
         nome_cell.alignment = LEFT_WRAP_ALIGN
@@ -576,7 +717,7 @@ def _write_equipe_sheet(
         siape_cell.alignment = CENTER_ALIGN
         siape_cell.border = THIN_BORDER
         siape_cell.number_format = '@'
-        nome_height = _wrapped_row_height(nome, 44.5)
+        nome_height = _wrapped_row_height(nome, 68.9)
         if nome_height is not None:
             sheet.row_dimensions[row].height = nome_height
 
@@ -610,15 +751,190 @@ def _write_equipe_sheet(
 
         row += 1
 
-    last_row = row - 1
+    last_gestao_row = row - 1
+
+    if perfis_profissionais_path is not None:
+        last_row = _write_perfis_profissionais_section(
+            sheet, last_gestao_row, perfis_profissionais_path, warnings
+        )
+        last_column = 9
+    else:
+        last_row = last_gestao_row
+        last_column = 4
+
     setup_institutional_print(
         sheet,
         contract_number=contract_number,
         last_row=last_row,
-        last_column=4,
+        last_column=last_column,
         header_row=header_row,
         first_column=2,
     )
+
+
+def _write_perfis_profissionais_section(
+    sheet: Worksheet,
+    last_gestao_row: int,
+    path: Path,
+    warnings: list[str],
+) -> int:
+    """Seção de perfis profissionais da aba Equipe (abaixo da tabela de
+    gestão/fiscalização), lida de `perfis_profissionais.csv`: título da
+    seção, cabeçalho ITEM/CATEGORIA/QUANTIDADE/CBO/DENOMINAÇÃO/QUANTIDADE/
+    PRESENCIAL-REMOTO, uma linha por perfil (zebra alternada) e totais de
+    quantidade por fórmula. Devolve a última linha escrita (para a área de
+    impressão); devolve `last_gestao_row` quando o arquivo está ausente/em
+    branco."""
+    try:
+        perfis = read_perfis_profissionais(path)
+    except FileNotFoundError:
+        warnings.append(
+            f'sintetico.xlsx: {path} não encontrado — seção de perfis '
+            f"profissionais não anexada à aba '{EQUIPE_SHEET_NAME}'"
+        )
+        return last_gestao_row
+    except (OSError, ValueError) as exc:
+        warnings.append(
+            f'sintetico.xlsx: falha ao ler {path}: {exc} — seção de perfis '
+            f"profissionais não anexada à aba '{EQUIPE_SHEET_NAME}'"
+        )
+        return last_gestao_row
+
+    if not perfis:
+        return last_gestao_row
+
+    # Layout da edição: 3 linhas em branco após a tabela de gestão, título da
+    # seção (mesmo texto da seção superior), 1 branco, cabeçalho, corpo.
+    title_row = last_gestao_row + 4
+    header_row = title_row + 2
+    body_start = header_row + 1
+
+    sheet.merge_cells(
+        start_row=title_row, start_column=2, end_row=title_row, end_column=4
+    )
+    title_cell = sheet.cell(
+        row=title_row,
+        column=2,
+        value='PERFIS PROFISSIONAIS',
+    )
+    title_cell.font = SECTION_FONT
+    sheet.row_dimensions[title_row].height = 16
+
+    headers: tuple[tuple[int, str], ...] = (
+        (2, 'ITEM'),
+        (3, 'CATEGORIA'),
+        (4, 'QUANTIDADE'),
+        (5, 'CBO'),
+        (6, 'DENOMINAÇÃO DO PERFIL'),
+        (8, 'QUANTIDADE'),
+        (9, 'PRESENCIAL/REMOTO'),
+    )
+    for column, label in headers:
+        cell = sheet.cell(row=header_row, column=column, value=label)
+        cell.font = HEADER_FONT
+        cell.fill = HEADER_FILL
+        cell.alignment = CENTER_ALIGN if column in (4, 8, 9) else LEFT_ALIGN
+
+    def _as_int(raw: str) -> int | str:
+        """QUANTIDADE/ITEM do CSV vêm como texto; vira int quando numérico,
+        senão preserva o texto — a fórmula `SUM` do total precisa de números."""
+        try:
+            return int(raw)
+        except ValueError:
+            return raw
+
+    row = body_start
+    for index, perfil in enumerate(perfis):
+        row_fill = SUBSTITUTO_FILL if index % 2 == 1 else None
+
+        item_cell = sheet.cell(
+            row=row, column=2, value=_as_int(perfil[N_ITEM_HEADER])
+        )
+        item_cell.font = BODY_FONT
+        item_cell.alignment = Alignment(horizontal='right', vertical='center')
+        item_cell.border = THIN_BORDER
+
+        categoria_cell = sheet.cell(
+            row=row, column=3, value=perfil[CATEGORIA_HEADER]
+        )
+        categoria_cell.font = BODY_FONT
+        categoria_cell.alignment = LEFT_WRAP_ALIGN
+        categoria_cell.border = THIN_BORDER
+
+        quantidade_total_cell = sheet.cell(
+            row=row,
+            column=4,
+            value=_as_int(perfil[QUANTIDADE_TOTAL_HEADER]),
+        )
+        quantidade_total_cell.font = BODY_FONT
+        quantidade_total_cell.alignment = CENTER_ALIGN
+        quantidade_total_cell.border = THIN_BORDER
+        quantidade_total_cell.number_format = '@'
+
+        cbo_cell = sheet.cell(row=row, column=5, value=perfil[CBO_HEADER])
+        cbo_cell.font = BODY_FONT
+        cbo_cell.alignment = LEFT_ALIGN
+        cbo_cell.border = THIN_BORDER
+
+        sheet.merge_cells(
+            start_row=row, start_column=6, end_row=row, end_column=7
+        )
+        denominacao_cell = sheet.cell(
+            row=row, column=6, value=perfil[DENOMINACAO_HEADER]
+        )
+        denominacao_cell.font = BODY_FONT
+        denominacao_cell.alignment = LEFT_WRAP_ALIGN
+        denominacao_cell.border = THIN_BORDER
+
+        quantidade_cell = sheet.cell(
+            row=row, column=8, value=_as_int(perfil[QUANTIDADE_HEADER])
+        )
+        quantidade_cell.font = BODY_FONT
+        quantidade_cell.alignment = CENTER_ALIGN
+        quantidade_cell.border = THIN_BORDER
+        quantidade_cell.number_format = '@'
+
+        presencial_cell = sheet.cell(
+            row=row, column=9, value=perfil[PRESENCIAL_HEADER]
+        )
+        presencial_cell.font = BODY_FONT
+        presencial_cell.alignment = LEFT_ALIGN
+        presencial_cell.border = THIN_BORDER
+        presencial_cell.number_format = '@'
+
+        for cell in (
+            item_cell,
+            categoria_cell,
+            quantidade_total_cell,
+            cbo_cell,
+            denominacao_cell,
+            quantidade_cell,
+            presencial_cell,
+        ):
+            if row_fill is not None:
+                cell.fill = row_fill
+
+        row += 1
+
+    total_row = row
+    total_qtd_cell = sheet.cell(
+        row=total_row,
+        column=4,
+        value=f'=SUM(D{body_start}:D{row - 1})',
+    )
+    total_qtd_cell.number_format = '@'
+    total_qtd_cell.alignment = CENTER_ALIGN
+    total_qtd_cell.font = BODY_FONT
+    total_perfil_cell = sheet.cell(
+        row=total_row,
+        column=8,
+        value=f'=SUM(H{body_start}:H{row - 1})',
+    )
+    total_perfil_cell.number_format = '@'
+    total_perfil_cell.alignment = CENTER_ALIGN
+    total_perfil_cell.font = BODY_FONT
+
+    return total_row
 
 
 _PRAZO_HORAS_RE: Final = re.compile(
@@ -786,8 +1102,10 @@ def write_institutional_sheets(
     workbook: Workbook,
     *,
     capa_path: Path | None,
+    dados_contratuais_path: Path | None = None,
     objetos_path: Path | None,
     equipe_path: Path | None,
+    perfis_profissionais_path: Path | None = None,
     prazos_path: Path | None,
     warnings: list[str],
 ) -> None:
@@ -798,7 +1116,11 @@ def write_institutional_sheets(
     contexto = CapaContext(None)
     if capa_path is not None:
         contexto = _write_capa_sheet(
-            workbook, capa_path, objetos_path, warnings
+            workbook,
+            capa_path,
+            dados_contratuais_path,
+            objetos_path,
+            warnings,
         )
     elif objetos_path is not None:
         warnings.append(
@@ -809,7 +1131,11 @@ def write_institutional_sheets(
 
     if equipe_path is not None:
         _write_equipe_sheet(
-            workbook, equipe_path, contexto.numero_contrato, warnings
+            workbook,
+            equipe_path,
+            perfis_profissionais_path,
+            contexto.numero_contrato,
+            warnings,
         )
 
     if prazos_path is not None:
