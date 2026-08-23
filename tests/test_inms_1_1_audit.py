@@ -730,6 +730,97 @@ def test_limite_itsm_menor_que_contratual_bruto_nao_e_sinalizado(
     assert sample_row > 0
 
 
+def test_divergencia_no_prazo_fornecedor_vs_itsm_e_sinalizada(
+    tmp_path: Path,
+) -> None:
+    """Seção 7b: quando o "No prazo" informado pelo fornecedor diverge do
+    resultado reproduzido pela data limite registrada no próprio ITSM
+    (DataHoraFim ≤ DataHoraLimite), a linha deve aparecer marcada na coluna
+    de apoio AN e contabilizada/listada na amostra da Seção 7b — sem
+    presumir que o fornecedor esteja errado (a suspeita fica registrada
+    para checagem manual, não é usada para corrigir o cálculo do INMS
+    1.1)."""
+    config_dir, data_dir = _write_fixture(tmp_path)
+    # A fixture padrão já contém uma divergência: registro 4 tem
+    # "No prazo"=S mas DataHoraFim (20:00) > DataHoraLimite (10:00), logo
+    # o resultado reproduzido pelo ITSM é "N".
+    categorias_file = load_categorias(config_dir / 'categorias.yaml')
+    output_path = tmp_path / 'sintetico.xlsx'
+    periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
+
+    write_sintetico_workbook(
+        categorias_file, config_dir, data_dir, output_path, periodo=periodo
+    )
+
+    wb = load_workbook(output_path)
+    sheet = wb['INMS 1.1']
+    assert sheet['AN1'].value == ('Divergência No prazo (fornecedor x ITSM)')
+    # Registro 4 é a 4ª linha de dados -> linha 5 da planilha (header na 1).
+    assert sheet.cell(row=5, column=40).value == (
+        '=IF(OR(X5="",AD5=""),"",IF(X5<>AD5,"Sim","Não"))'
+    )
+    count_row = next(
+        cell.row
+        for row in sheet.iter_rows(min_col=1, max_col=1)
+        for cell in row
+        if cell.value == 'Registros divergentes:'
+    )
+    assert isinstance(count_row, int)
+    assert sheet.cell(row=count_row, column=2).value == (
+        '=COUNTIF($AN$2:$AN$5,"Sim")'
+    )
+    sample_row = next(
+        cell.row
+        for row in sheet.iter_rows(min_col=1, max_col=1)
+        for cell in row
+        if isinstance(cell.value, str)
+        and cell.value.startswith('Amostra de registros divergentes')
+    )
+    assert isinstance(sample_row, int)
+    header_row = sample_row + 1
+    assert sheet.cell(row=header_row, column=1).value == 'Nº solicitação'
+    first_sample_data_row = header_row + 1
+    assert sheet.cell(row=first_sample_data_row, column=1).value == (
+        '=IFERROR(INDEX($R$2:$R$5,MATCH(1,$AO$2:$AO$5,0)),"")'
+    )
+
+
+def test_divergencia_no_prazo_fornecedor_vs_itsm_vazia_quando_consistente(
+    tmp_path: Path,
+) -> None:
+    """Sem divergência entre o campo do fornecedor e o resultado
+    reproduzido pelo ITSM, a Seção 7b deve mostrar contagem zero e a nota
+    "nenhuma divergência", não uma tabela vazia."""
+    config_dir, data_dir = _write_fixture(tmp_path)
+    csv_consistente = (
+        'Nº '
+        'Solicitacao;Atividades;DataHoraSolicitacao;DataHoraLimite;DataHoraFim;'
+        'No prazo;Grupo_executor;TecnicoExecutor\n'
+        '1;Reset de senha;01/06/2026 08:00;01/06/2026 10:00;01/06/2026 09:30;'
+        'S;N1;Fulano\n'
+    )
+    (data_dir / 'inms-01.csv').write_text(csv_consistente, encoding='utf-8')
+    categorias_file = load_categorias(config_dir / 'categorias.yaml')
+    output_path = tmp_path / 'sintetico.xlsx'
+    periodo = PeriodoAfericao(date(2026, 6, 1), date(2026, 6, 30))
+
+    write_sintetico_workbook(
+        categorias_file, config_dir, data_dir, output_path, periodo=periodo
+    )
+
+    wb = load_workbook(output_path)
+    sheet = wb['INMS 1.1']
+    note_row = next(
+        cell.row
+        for row in sheet.iter_rows(min_col=1, max_col=1)
+        for cell in row
+        if isinstance(cell.value, str)
+        and cell.value.startswith('Nenhuma divergência entre')
+    )
+    assert isinstance(note_row, int)
+    assert note_row > 0
+
+
 def test_duplicate_grupo_with_different_categories_raises() -> None:
     """M-05: se o mesmo grupo executor aparecesse mapeado em duas
     categorias diferentes, o VLOOKUP da aba mascararia isso silenciosamente
