@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from pyauditor.engine.pipeline import load_config, measurement_source
+from pyauditor.engine.pipeline import load_config, measure, measurement_source
 from pyauditor.logging import setup_logging
 from pyauditor.periodo import PeriodoAfericao
 
@@ -93,6 +93,42 @@ def test_missing_yaml_column_raises(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match='coluna\\(s\\) referenciada'):
         measurement_source(config, data_dir=tmp_path, config_path=config_path)
+
+
+def test_empty_csv_skips_missing_column_check_warns_and_measures_0_0(
+    tmp_path: Path,
+) -> None:
+    """Competência legitima vazia (CSV só com cabeçalho, zero linhas de dados)
+    não é falha técnica: as colunas referenciadas no YAML nem existem no header
+    e não há dado para computar contra elas — o resultado é 0/0 sem base para
+    glosa (caso real INMS 1.3: zero projetos confirmado pela fiscalização — ver
+    tests/fixtures/configs/inms-1.3.yaml). O backbone deve WARN (não levantar)
+    e `measure` deve retornar conforms com 0 pontos."""
+    config_path = _write_config(tmp_path)
+    # Header sem a coluna "Atendido" referenciada no YAML, e zero linhas.
+    (tmp_path / 'data.csv').write_text(
+        'Nº Solicitação,DataHoraFim\n', encoding='utf-8'
+    )
+    config = load_config(config_path)
+    buf = StringIO()
+    setup_logging(sink=buf, level='INFO')
+
+    try:
+        bundle = measurement_source(
+            config, data_dir=tmp_path, config_path=config_path
+        )
+        result = measure(config, data_dir=tmp_path, config_path=config_path)
+    finally:
+        setup_logging(sink=sys.stderr, level='INFO')
+
+    assert bundle.rows == []
+    logs = buf.getvalue()
+    assert 'coluna(s) referenciada(s) no YAML não existe(m)' in logs
+    assert 'Atendido' in logs
+    assert result.calculation.memoria == {'numerator': 0.0, 'denominator': 0.0}
+    assert result.calculation.conforms is True
+    assert result.calculation.penalty_points == pytest.approx(0.0)
+    assert result.hard_failure is False
 
 
 def test_period_filter_counts_and_warns_once(tmp_path: Path) -> None:
