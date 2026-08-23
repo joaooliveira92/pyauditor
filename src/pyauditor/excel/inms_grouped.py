@@ -1,7 +1,7 @@
-"""`planilha_inms_agrupada_<competência>.xlsx` — uma visão do `INMS_BASE`
-consolidado com agrupamento nativo de linhas do Excel (Dados > Agrupar),
-substituindo o pooling por Nível (N1/N2/N3) por um detalhamento real em dois
-grupos de INMS:
+"""Aba `INMS_BASE_AGRUPADO` do `relatorio_<competência>_consolidado.xlsx` —
+uma visão do `INMS_BASE` da mesma aba com agrupamento nativo de linhas do
+Excel (Dados > Agrupar), substituindo o pooling por Nível (N1/N2/N3) por um
+detalhamento real em dois grupos de INMS:
 
 - Por Grupo executor, nos INMS com essa granularidade em `categorias.yaml`
   (hoje: 1.1, 1.2, 1.3, 1.7 — descoberto em runtime via `_grupo_detail_by_
@@ -43,6 +43,14 @@ Os INMS sem nenhum dos dois detalhamentos (a maioria — `whole_indicator` de
 categoria única, ou `precomputed_table` sem essa granularidade pedida) são
 copiados **verbatim** do `INMS_BASE` já publicado: nada é recalculado, nada
 é fabricado para eles.
+
+`add_inms_agrupado_sheet` é chamada por `cli/consolidate.py` logo depois de
+`build_consolidated_workbook` montar o workbook em memória — lê o
+`INMS_BASE` que acabou de ser escrito nele (nunca abre nada do disco) e
+grava a aba nova ao lado. Se a recomputação falhar (configs/CSV brutos
+ausentes, por exemplo num ambiente sem `input/`), `consolidate` degrada com
+um aviso e publica o consolidado sem essa aba — nunca bloqueia o artefato
+financeiro principal por causa dela.
 """
 
 from __future__ import annotations
@@ -84,11 +92,12 @@ from pyauditor.excel.inms_base import compliance_margin
 from pyauditor.periodo import month_bounds
 
 __all__: Final[tuple[str, ...]] = (
-    'GroupedBuildResult',
-    'build_inms_grouped_workbook',
+    'GroupedSheetResult',
+    'add_inms_agrupado_sheet',
 )
 
 _INMS_BASE_SHEET: Final[str] = 'INMS_BASE'
+_INMS_BASE_AGRUPADO_SHEET: Final[str] = 'INMS_BASE_AGRUPADO'
 _ORGAOS: Final[tuple[str, ...]] = ('MinC', 'MTur')
 _SEM_NIVEL: Final[str] = '—'
 _AUDIT_REVIEW_LABEL: Final[str] = 'Grupo sob análise de responsabilidade'
@@ -133,11 +142,10 @@ class _CodeInfo:
 
 
 @dataclass(frozen=True, slots=True)
-class GroupedBuildResult:
-    """Saída de `build_inms_grouped_workbook` — o workbook em memória mais
-    as contagens que o comando de CLI reporta ao usuário."""
+class GroupedSheetResult:
+    """Saída de `add_inms_agrupado_sheet` — as contagens que `consolidate`
+    reporta ao usuário (a aba já foi escrita direto no workbook recebido)."""
 
-    workbook: openpyxl.Workbook
     code_groups: int
     org_subgroups: int
     total_rows: int
@@ -523,38 +531,47 @@ def _write_rows(ws: Worksheet, final_rows: list[list[CellValue]]) -> None:
 def _apply_breakdown_outline(
     ws: Worksheet, r: int, block: list[list[CellValue]]
 ) -> int:
-    """Agrupamento de um bloco com detalhamento. Cada linha-cabeçalho é
-    identificada pelo rótulo `Consolidado`/`Consolidado - {órgão}`; a
-    primeira do bloco é o nível 0 — o total geral, quando o shape é
-    consolidável entre órgãos (`_CodeInfo.consolidatable`), senão o
-    primeiro subtotal por órgão já assume esse papel (shapes como
-    `precomputed_table`, onde não existe pooling entre órgãos validado —
-    ver `_CONSOLIDATABLE_SHAPES`). Cabeçalhos seguintes são nível 1; suas
-    linhas de detalhe, nível 2. Devolve a quantidade de subgrupos (nível 1)
-    criados."""
+    """Agrupamento de um bloco com detalhamento.
+
+    Quando existe total geral (rótulo exatamente `"Consolidado"` — shape
+    consolidável entre órgãos, ver `_CONSOLIDATABLE_SHAPES`), ele é o único
+    nível 0 e cada `"Consolidado - {órgão}"` é nível 1, filho dele — igual
+    a antes.
+
+    Quando não existe (shapes como `precomputed_table`, sem pooling entre
+    órgãos validado — `_CodeInfo.consolidatable=False`), os `"Consolidado -
+    {órgão}"` são **irmãos**: todos nível 0, nenhum filho do outro — Excel
+    não deixa recolher um irmão de nível 0 sob o outro sem um pai comum, e
+    inventar um pai aqui sugeriria uma relação entre órgãos que a apuração
+    não valida. Cada um continua com seu próprio detalhe recolhido (nível
+    1 neste caso, em vez de 2).
+
+    Devolve a quantidade de subgrupos `"Consolidado - {órgão}"` criados
+    (não conta o total geral, quando existe)."""
     n = len(block)
+    has_grand = block[0][1] == 'Consolidado'
     n_subgroups = 0
     offset = 0
-    first = True
     while offset < n:
         header_row = r + offset
-        level = 0 if first else 1
+        is_grand_row = has_grand and offset == 0
+        level = 0 if (is_grand_row or not has_grand) else 1
         ws.row_dimensions[header_row].outlineLevel = level
-        ws.row_dimensions[header_row].hidden = not first
-        if not first:
+        ws.row_dimensions[header_row].hidden = has_grand and level != 0
+        if not is_grand_row:
             n_subgroups += 1
         offset += 1
         detail_start = offset
+        detail_level = level + 1
         while offset < n and not _is_subtotal_label(
             block[offset][1], prefix='Consolidado'
         ):
-            ws.row_dimensions[r + offset].outlineLevel = 2
+            ws.row_dimensions[r + offset].outlineLevel = detail_level
             ws.row_dimensions[r + offset].hidden = True
             offset += 1
         if offset > detail_start:
             ws.row_dimensions[header_row].collapsed = True
-        first = False
-    if n > 1:
+    if has_grand and n > 1:
         ws.row_dimensions[r].collapsed = True
     return n_subgroups
 
@@ -564,11 +581,15 @@ def _apply_outline(
     code_blocks: list[tuple[str, list[list[CellValue]]]],
     breakdown_codes: frozenset[str],
 ) -> int:
-    """Agrupamento nativo em 3 níveis: nível 0 = 1 linha por Código INMS;
-    nível 1 = subtotal por órgão ("Consolidado - {órgão}" ou a linha
-    existente); nível 2 = detalhe. `summaryBelow=False` (setado pelo
-    chamador) mantém a linha-resumo acima do seu detalhe. Devolve a
-    quantidade de subgrupos (nível 1) criados."""
+    """Agrupamento nativo em até 3 níveis por Código INMS. Para os INMS sem
+    detalhamento (verbatim) e os com total geral entre órgãos: nível 0 = 1
+    linha (o total geral, ou a linha existente); nível 1 = subtotal por
+    órgão; nível 2 = detalhe. Para os INMS com detalhamento mas sem total
+    geral validado (`precomputed_table`): nível 0 = os subtotais por órgão,
+    lado a lado como irmãos (ver `_apply_breakdown_outline`); nível 1 = o
+    detalhe de cada um. `summaryBelow=False` (setado pelo chamador) mantém
+    a linha-resumo acima do seu detalhe. Devolve a quantidade de subgrupos
+    "Consolidado - {órgão}" criados."""
     r = 2
     n_org_subgroups = 0
     for code_full, block in code_blocks:
@@ -596,37 +617,29 @@ def _apply_outline(
     return n_org_subgroups
 
 
-def build_inms_grouped_workbook(
+def add_inms_agrupado_sheet(
+    wb: openpyxl.Workbook,
     competencia: str,
-    consolidado_path: Path,
     config_dir: Path,
     data_dir: Path,
     scratch_dir: Path,
-) -> GroupedBuildResult:
-    """Monta o workbook completo (in-memory, o chamador grava). Requer que
-    `consolidado_path` (o `relatorio_<competência>_consolidado.xlsx` do
-    `consolidate`) já exista — a fonte dos 10 INMS sem detalhamento por
-    grupo executor e da Descrição de cada código.
+) -> GroupedSheetResult:
+    """Adiciona a aba `INMS_BASE_AGRUPADO` a `wb` — um workbook consolidado
+    já montado em memória por `build_consolidated_workbook`, ainda não
+    salvo. Lê o `INMS_BASE` que acabou de ser escrito nele (fonte dos INMS
+    sem detalhamento por grupo executor/ativo e da Descrição de cada
+    código) e recomputa o detalhamento direto de `config_dir`/`data_dir`.
+    Nunca abre nada do disco além disso.
 
     Raises:
-        FileNotFoundError: se `consolidado_path` não existe.
-        ValueError: se `INMS_BASE` estiver ausente/vazia, ou se
+        ValueError: se `INMS_BASE` estiver ausente/vazia em `wb`, ou se
             `resolve_measure_inputs` falhar para um dos órgãos.
     """
-    if not consolidado_path.is_file():
-        raise FileNotFoundError(
-            f'{consolidado_path} não existe — rode `pyauditor consolidate '
-            f'{competencia}` antes'
-        )
-
-    wb_src = openpyxl.load_workbook(consolidado_path)
-    if _INMS_BASE_SHEET not in wb_src.sheetnames:
-        raise ValueError(
-            f'{consolidado_path}: aba {_INMS_BASE_SHEET!r} ausente'
-        )
-    existing_by_code = _existing_rows_by_code(wb_src[_INMS_BASE_SHEET])
+    if _INMS_BASE_SHEET not in wb.sheetnames:
+        raise ValueError(f'workbook consolidado sem aba {_INMS_BASE_SHEET!r}')
+    existing_by_code = _existing_rows_by_code(wb[_INMS_BASE_SHEET])
     if not existing_by_code:
-        raise ValueError(f'{consolidado_path}: {_INMS_BASE_SHEET} sem linhas')
+        raise ValueError(f'{_INMS_BASE_SHEET} sem linhas')
 
     rows_by_inms, info_by_inms = _grupo_detail_by_inms(
         competencia, config_dir, data_dir, scratch_dir
@@ -667,12 +680,12 @@ def build_inms_grouped_workbook(
         code_blocks.append((code_full, block))
         final_rows.extend(block)
 
-    wb = openpyxl.Workbook()
-    default_sheet = wb.active
-    if default_sheet is None:
-        raise RuntimeError('workbook novo sem aba ativa (openpyxl)')
-    wb.remove(default_sheet)
-    ws = wb.create_sheet(_INMS_BASE_SHEET)
+    # Logo depois de `INMS_BASE` na ordem das abas — substitui uma execução
+    # anterior da mesma competência em vez de duplicar.
+    if _INMS_BASE_AGRUPADO_SHEET in wb.sheetnames:
+        del wb[_INMS_BASE_AGRUPADO_SHEET]
+    insert_at = wb.sheetnames.index(_INMS_BASE_SHEET) + 1
+    ws = wb.create_sheet(_INMS_BASE_AGRUPADO_SHEET, index=insert_at)
     ws.sheet_view.showGridLines = False
 
     for c, name in enumerate(_COLUMNS, start=1):
@@ -693,8 +706,7 @@ def build_inms_grouped_workbook(
     ws.sheet_properties.outlinePr.summaryRight = False
     ws.sheet_view.showOutlineSymbols = True
 
-    return GroupedBuildResult(
-        workbook=wb,
+    return GroupedSheetResult(
         code_groups=len(code_blocks),
         org_subgroups=n_org_subgroups,
         total_rows=len(final_rows),

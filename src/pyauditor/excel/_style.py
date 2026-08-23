@@ -21,23 +21,34 @@ from typing import Final
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 __all__: Final[tuple[str, ...]] = (
     'BODY_FONT',
     'BOTTOM_BORDER',
+    'CENTER_ALIGN',
+    'CENTER_WRAP_ALIGN',
+    'CRITICIDADE_FILL_BY_VALUE',
     'HEADER_FILL',
     'HEADER_FONT',
     'LABEL_FONT',
     'LEFT_ALIGN',
+    'LEFT_WRAP_ALIGN',
+    'PENDING_FILL',
+    'SUBSTITUTO_FILL',
+    'SUBTITLE_FONT',
+    'THIN_BORDER',
     'TITLE_FONT',
     'UNIT_BY_SHAPE',
     'CellValue',
     'new_sheet',
+    'setup_institutional_print',
     'write_row',
 )
 
 TITLE_FONT: Final = Font(name='Arial', size=14, bold=True)
+SUBTITLE_FONT: Final = Font(name='Arial', size=11, bold=True)
 LABEL_FONT: Final = Font(name='Arial', size=10, bold=True)
 BODY_FONT: Final = Font(name='Arial', size=10)
 HEADER_FONT: Final = Font(
@@ -54,7 +65,47 @@ HEADER_FILL: Final = PatternFill(
 BOTTOM_BORDER: Final = Border(
     bottom=Side(style='thin', color='FFD1D5DB'),
 )
-LEFT_ALIGN: Final = Alignment(horizontal='left')
+THIN_BORDER: Final = Border(
+    top=Side(style='thin', color='FFD1D5DB'),
+    bottom=Side(style='thin', color='FFD1D5DB'),
+    left=Side(style='thin', color='FFD1D5DB'),
+    right=Side(style='thin', color='FFD1D5DB'),
+)
+LEFT_ALIGN: Final = Alignment(horizontal='left', vertical='center')
+CENTER_ALIGN: Final = Alignment(horizontal='center', vertical='center')
+LEFT_WRAP_ALIGN: Final = Alignment(
+    horizontal='left', vertical='center', wrap_text=True
+)
+CENTER_WRAP_ALIGN: Final = Alignment(
+    horizontal='center', vertical='center', wrap_text=True
+)
+
+# Sinalização de pendência documental (spec de revisão Capa/Equipe/Prazos) —
+# amarelo-claro para questões que exigem interpretação/fonte externa, nunca
+# corrigidas automaticamente.
+PENDING_FILL: Final = PatternFill(
+    start_color='FFFFF3CD', end_color='FFFFF3CD', fill_type='solid'
+)
+# Linhas de substituto na aba Equipe — discreto, não reduz relevância formal.
+SUBSTITUTO_FILL: Final = PatternFill(
+    start_color='FFF3F4F6', end_color='FFF3F4F6', fill_type='solid'
+)
+CRITICIDADE_FILL_BY_VALUE: Final[Mapping[str, PatternFill]] = MappingProxyType(
+    {
+        'Alta': PatternFill(
+            start_color='FFF8D7DA', end_color='FFF8D7DA', fill_type='solid'
+        ),
+        'Média': PatternFill(
+            start_color='FFFFF3CD', end_color='FFFFF3CD', fill_type='solid'
+        ),
+        'Baixa': PatternFill(
+            start_color='FFD4EDDA', end_color='FFD4EDDA', fill_type='solid'
+        ),
+        'Não aplicável': PatternFill(
+            start_color='FFE9ECEF', end_color='FFE9ECEF', fill_type='solid'
+        ),
+    }
+)
 
 type CellValue = str | float | int | None
 
@@ -184,3 +235,40 @@ def write_row(
         cell = sheet.cell(row=row_idx, column=column_index, value=value)
         cell.font = BODY_FONT
         cell.border = BOTTOM_BORDER
+
+
+def setup_institutional_print(
+    sheet: Worksheet,
+    *,
+    contract_number: str | None,
+    last_row: int,
+    last_column: int,
+    header_row: int | None = None,
+) -> None:
+    """Aplica a configuração de impressão institucional (revisão Capa/
+    Equipe/Prazos): área de impressão sobre o conteúdo, uma página de
+    largura, centralizado horizontalmente, margens moderadas e rodapé
+    discreto com contrato/aba/página. `header_row`, se informado, repete
+    aquela linha em páginas subsequentes (ex.: cabeçalho de tabela)."""
+    sheet.page_setup.orientation = 'portrait'
+    sheet.page_setup.fitToWidth = 1
+    sheet.page_setup.fitToHeight = 0
+    sheet.sheet_properties.pageSetUpPr.fitToPage = True
+    sheet.print_options.horizontalCentered = True
+    sheet.page_margins.left = 0.5
+    sheet.page_margins.right = 0.5
+    sheet.page_margins.top = 0.75
+    sheet.page_margins.bottom = 0.75
+
+    # Não usar `sheet.cell(row=1, column=last_column).column_letter`: quando
+    # a linha 1 tem células mescladas (ex.: título em `A1:F1`), a célula
+    # naquela posição pode ser uma `MergedCell`, que não tem esse atributo.
+    last_col_letter = get_column_letter(last_column)
+    sheet.print_area = f'A1:{last_col_letter}{last_row}'
+    if header_row is not None:
+        sheet.print_title_rows = f'{header_row}:{header_row}'
+
+    contract_part = f'Contrato {contract_number} — ' if contract_number else ''
+    sheet.oddFooter.center.text = (
+        f'{contract_part}{sheet.title} — Página &P de &N'
+    )

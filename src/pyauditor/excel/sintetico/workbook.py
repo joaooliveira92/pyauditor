@@ -1,11 +1,12 @@
 """`sintetico.xlsx` (spec §14.4, ticket 05) — um workbook por órgão/
 competência, uma aba por INMS com entrada em `categorias.yaml`, mais as abas
-verbatim de `input/{capa,equipe,prazos}.csv`.
+institucionais Capa/Equipe/Prazos de `input/{capa,equipe,prazos}.csv`.
 
 Este módulo é o **dispatcher**: decide o renderer por INMS (config herdada,
 colunas do CSV, shape), acumula warnings e executa o `atomic_write` final.
-Os renderers por-shape vivem em `excel/sintetico/_sheets/`, os verbatim em
-`_sheets/verbatim_sheets.py`, e a aritmética em `_stats.py` (ticket 04 SRP).
+Os renderers por-shape vivem em `excel/sintetico/_sheets/`, Capa/Equipe/
+Prazos em `_sheets/institutional.py`, e a aritmética em `_stats.py`
+(ticket 04 SRP).
 
 Contagens são brutas/pré-quality-gate — conferência rápida, não substitui o
 ROM da categoria. A única exceção é `Tempo médio criação→resolução`,
@@ -46,19 +47,12 @@ from pyauditor.engine.pipeline import (
     measurement_source,
 )
 from pyauditor.excel import inms_1_1_audit
-from pyauditor.excel.equipe import EQUIPE_DELIMITER, EQUIPE_ENCODING
-from pyauditor.excel.prazos import (
-    PRAZOS_DELIMITER,
-    PRAZOS_ENCODING,
-    PRAZOS_SHEET_NAME,
-)
-from pyauditor.excel.sintetico._sheets._shared import (
-    CAPA_SHEET_NAME,
-    EQUIPE_SHEET_NAME,
-)
 from pyauditor.excel.sintetico._sheets.grupo_executor import (
     _write_grupo_executor_sheet,
     _write_whole_indicator_sheet,
+)
+from pyauditor.excel.sintetico._sheets.institutional import (
+    write_institutional_sheets,
 )
 from pyauditor.excel.sintetico._sheets.multi_ativo import (
     _write_multi_ativo_sheet,
@@ -71,10 +65,6 @@ from pyauditor.excel.sintetico._sheets.precomputed import (
 )
 from pyauditor.excel.sintetico._sheets.ratio_aggregate import (
     _write_ratio_aggregate_sheet,
-)
-from pyauditor.excel.sintetico._sheets.verbatim_sheets import (
-    _write_capa_sheet,
-    _write_csv_verbatim_sheet,
 )
 from pyauditor.periodo import PeriodoAfericao
 
@@ -130,38 +120,15 @@ def write_sintetico_workbook(
         raise RuntimeError('workbook novo sem aba ativa (openpyxl)')
     workbook.remove(default_sheet)
 
-    if capa_path is not None:
-        _write_capa_sheet(workbook, capa_path, objetos_path, warnings)
-    elif objetos_path is not None:
-        warnings.append(
-            f'sintetico.xlsx: '
-            f'capa_path '
-            f'não '
-            f'informado '
-            f'— '
-            f'dados '
-            f'de '
-            f'{objetos_path} '
-            f"não anexados (dependem da aba '{CAPA_SHEET_NAME}')"
-        )
-    if equipe_path is not None:
-        _write_csv_verbatim_sheet(
-            workbook,
-            EQUIPE_SHEET_NAME,
-            equipe_path,
-            delimiter=EQUIPE_DELIMITER,
-            encoding=EQUIPE_ENCODING,
-            warnings=warnings,
-        )
-    if prazos_path is not None:
-        _write_csv_verbatim_sheet(
-            workbook,
-            PRAZOS_SHEET_NAME,
-            prazos_path,
-            delimiter=PRAZOS_DELIMITER,
-            encoding=PRAZOS_ENCODING,
-            warnings=warnings,
-        )
+    write_institutional_sheets(
+        workbook,
+        capa_path=capa_path,
+        objetos_path=objetos_path,
+        equipe_path=equipe_path,
+        prazos_path=prazos_path,
+        periodo=periodo,
+        warnings=warnings,
+    )
     sheets_before_inms = set(workbook.sheetnames)
 
     for inms_key in sorted(per_inms, key=lambda k: int(k.split('.')[1])):

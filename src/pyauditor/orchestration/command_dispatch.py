@@ -298,6 +298,7 @@ def dispatch(
             roms_dir=request.output_dir,
             output_path=output_path,
             data_dir=request.data_dir,
+            config_dir=request.config_dir,
             is_final_month=request.final_month,
         )
 

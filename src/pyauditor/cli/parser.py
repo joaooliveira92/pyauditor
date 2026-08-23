@@ -24,11 +24,9 @@ _CMD_REPORT: Final = 'report'
 _CMD_CONSOLIDATE: Final = 'consolidate'
 _CMD_SPLIT: Final = 'split'
 _CMD_RUN: Final = 'run'
-_CMD_INMS_GROUPED: Final = 'inms-grouped'
 
 type Command = Literal[
-    'measure', 'bootstrap', 'report', 'consolidate', 'split', 'run',
-    'inms-grouped',
+    'measure', 'bootstrap', 'report', 'consolidate', 'split', 'run'
 ]
 
 type Orgao = Literal['MinC', 'MTur', 'both']
@@ -238,6 +236,13 @@ def build_parser() -> argparse.ArgumentParser:
         help='onde vive objetos.csv, a fonte do valor mensal (default: input)',
     )
     consolidate_parser.add_argument(
+        '--config-dir',
+        type=Path,
+        default=_DEFAULT_CONFIG_DIR,
+        help='fonte do detalhamento por grupo executor/ativo da aba '
+        'INMS_BASE_AGRUPADO (default: configs)',
+    )
+    consolidate_parser.add_argument(
         '--final-month',
         action='store_true',
         help='último '
@@ -258,38 +263,6 @@ def build_parser() -> argparse.ArgumentParser:
         'TR)',
     )
     _add_logging_arguments(consolidate_parser)
-
-    inms_grouped_parser = subparsers.add_parser(
-        _CMD_INMS_GROUPED,
-        help='gera '
-        'planilha_inms_agrupada_<competência>.xlsx '
-        '— '
-        'INMS_BASE '
-        'consolidado '
-        'com '
-        'agrupamento '
-        'nativo '
-        'de '
-        'linhas '
-        '(Código '
-        'INMS '
-        '-> '
-        'órgão '
-        '-> '
-        'grupo '
-        'executor)',
-    )
-    inms_grouped_parser.add_argument('competencia', help='ex.: "2026-06"')
-    inms_grouped_parser.add_argument(
-        '--report-dir', type=Path, default=_DEFAULT_REPORT_DIR
-    )
-    inms_grouped_parser.add_argument(
-        '--config-dir', type=Path, default=_DEFAULT_CONFIG_DIR
-    )
-    inms_grouped_parser.add_argument(
-        '--data-dir', type=Path, default=_DEFAULT_DATA_DIR
-    )
-    _add_logging_arguments(inms_grouped_parser)
 
     split_parser = subparsers.add_parser(
         _CMD_SPLIT,
@@ -385,6 +358,15 @@ def build_parser() -> argparse.ArgumentParser:
             'reprocessa tudo, mesmo etapas já concluídas numa tentativa '
             'anterior '
             "(default: retoma de onde parou, pulando o que já está 'done')"
+        ),
+    )
+    run_parser.add_argument(
+        '--clean',
+        action='store_true',
+        help=(
+            'apaga --output-dir (roms) e --report-dir (reports) antes de '
+            'rodar, para garantir uma reprocessagem do zero (combine com '
+            '--force para também ignorar o estado de retomada salvo)'
         ),
     )
     run_parser.add_argument(

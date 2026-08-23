@@ -14,8 +14,15 @@ Migração das capas para CSV (ticket 07): os campos comuns vêm de `capa.csv`
 e o valor monetário de `objetos.csv` — a capa não carrega mais valores.
 Competência/períodos/responsáveis idem (spec competencia-cli-equipe §4/§6):
 períodos derivados do argumento da CLI e responsáveis de `equipe.csv`.
+
+A aba `INMS_BASE_AGRUPADO` (`excel/inms_grouped.py`) é a única parte deste
+comando que toca `config_dir`/CSV bruto — recomputa o detalhamento por
+grupo executor/ativo direto das configs, sem nada em disco além do
+consolidado sendo montado. Se essa recomputação falhar, degrada com um
+aviso; nunca impede a publicação do consolidado.
 """
 
+import tempfile
 from pathlib import Path
 from typing import cast
 
@@ -32,11 +39,13 @@ from pyauditor.excel.consolidate import (
     read_existing_decisions,
 )
 from pyauditor.excel.equipe import EQUIPE_FILENAME, read_responsaveis
+from pyauditor.excel.inms_grouped import add_inms_agrupado_sheet
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import month_bounds
 from pyauditor.rom.loading import load_summaries, read_valor_base
 
 _ORGAOS: tuple[str, str] = ('MinC', 'MTur')
+_DEFAULT_CONFIG_DIR: Path = Path('configs')
 
 # `ConsolidateResult` reexportado de `commands.contracts` (ticket 11 SRP).
 ConsolidateResult = contracts.ConsolidateResult
@@ -90,9 +99,11 @@ def run_consolidate(
     output_path: Path,
     data_dir: Path | None = None,
     *,
+    config_dir: Path | None = None,
     is_final_month: bool = False,
 ) -> ConsolidateResult:
     data_dir = data_dir or report_dir.parent
+    config_dir = config_dir or _DEFAULT_CONFIG_DIR
 
     def _error(message: str) -> ConsolidateResult:
         logger.error(message)
@@ -181,6 +192,29 @@ def run_consolidate(
         return _error(
             f'falha inesperada ao montar consolidado de {competencia}: {exc}'
         )
+
+    # `INMS_BASE_AGRUPADO` (aba com o detalhamento por grupo executor/ativo
+    # e agrupamento nativo de linhas) é um extra sobre o `INMS_BASE` que
+    # acabou de ser montado — nunca deve impedir a publicação do
+    # consolidado (o artefato financeiro principal) se a recomputação
+    # falhar por falta de configs/CSV brutos.
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix='pyauditor-inms-grouped-'
+        ) as scratch:
+            add_inms_agrupado_sheet(
+                result.workbook,
+                competencia,
+                config_dir,
+                data_dir,
+                scratch_dir=Path(scratch),
+            )
+    except Exception as exc:  # boundary: nunca vazar traceback nem bloquear
+        warning = (
+            f'aba INMS_BASE_AGRUPADO não gerada: {exc}'
+        )
+        logger.warning(warning)
+        warnings.append(warning)
 
     try:
         atomic_write(output_path, result.workbook.save)
