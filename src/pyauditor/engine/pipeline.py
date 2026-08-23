@@ -175,16 +175,36 @@ def _collect_config_columns(config: IndicatorConfig) -> set[str]:
 
 
 def _validate_columns(
-    config: IndicatorConfig, header: set[str], config_path: Path | None
+    config: IndicatorConfig,
+    header: set[str],
+    config_path: Path | None,
+    *,
+    empty: bool = False,
 ) -> None:
     missing = sorted(_collect_config_columns(config) - header)
-    if missing:
-        prefix = f'{config_path}: ' if config_path else ''
-        raise ValueError(
-            f'{prefix}coluna(s) referenciada(s) no YAML não existe(m) '
-            f'no header do CSV: {", ".join(missing)} — verifique '
-            f'{config_path or config.indicator.id}'
+    if not missing:
+        return
+    prefix = f'{config_path}: ' if config_path else ''
+    if empty:
+        # Competência legitimamente vazia (CSV só com cabeçalho, zero linhas):
+        # não há dado para computar contra as colunas referenciadas, e o
+        # resultado é 0/0 sem base para glosa — derrubar o run aqui trataria
+        # "sem atividade no período" como falha técnica (caso real INMS 1.3 —
+        # zero projetos confirmado pela fiscalização, ver
+        # tests/fixtures/configs/inms-1.3.yaml). Rebaixa para WARN: quando
+        # houver dados, a divergência volta a ser erro.
+        logger.warning(
+            f'{prefix}coluna(s) referenciada(s) no YAML não existe(m) no '
+            f'header do CSV e o CSV está sem linhas de dados (competência '
+            f'vazia) — apuração 0/0 sem base de glosa. Revisar quando houver '
+            f'dados: {", ".join(missing)}'
         )
+        return
+    raise ValueError(
+        f'{prefix}coluna(s) referenciada(s) no YAML não existe(m) '
+        f'no header do CSV: {", ".join(missing)} — verifique '
+        f'{config_path or config.indicator.id}'
+    )
 
 
 def measurement_source(
@@ -222,8 +242,9 @@ def measurement_source(
     header = set(fieldnames)
     # Validate every column referenced in YAML against real CSV header — single
     # border check before any strategy runs (replaces silent .get("", "") and
-    # raw KeyErrors)
-    _validate_columns(config, header, config_path)
+    # raw KeyErrors). CSV sem linhas de dados (competência vazia) não tem dado
+    # para validar: rebaixa a divergência para WARN em vez de derrubar o run.
+    _validate_columns(config, header, config_path, empty=not rows)
 
     # Filtro de período (§2 ponto 2): após load_rows, inclusive CSVs `_split`
     # derivados — re-filtrar é idempotente e protege contra artefato órfão.

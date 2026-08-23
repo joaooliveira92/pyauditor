@@ -131,7 +131,10 @@ _CALCULO_LINHAS: Final[tuple[str, ...]] = (
     'Percentual de rateio',
     'Valor bruto (= mensal x rateio)',
     'Pontos de glosa',
-    f'Valordaglosa(=MIN(pontosx{_FATOR_PCT_TEXTO},{CAP_PCT:g}%)/100xbruto)',
+    (
+        f'Valor da glosa (= MIN(pontos x {_FATOR_PCT_TEXTO}, '
+        f'{CAP_PCT:g}%)/100 x bruto)'
+    ),
     'Outros ajustes',
     'Valor recomendado (= max(0, bruto - glosa - outros))',
 )
