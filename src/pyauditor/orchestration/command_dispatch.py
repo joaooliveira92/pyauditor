@@ -30,12 +30,13 @@ from pyauditor.orchestration.plan import ORGANIZATION_COMMANDS
 if TYPE_CHECKING:
     from pyauditor.periodo import PeriodoAfericao
 
-    from .run import CommandResult, RunRequest
+    from .run import CommandResult, PlanStep, RunRequest
 
 __all__: Final[tuple[str, ...]] = (
     'OrgaoContractError',
     'dependency_missing',
     'dispatch',
+    'resolve_suppress_duplicate_split_warnings',
 )
 
 
@@ -188,20 +189,40 @@ def own_artifact_missing(
     raise ValueError(f'Unsupported command: {command!r}')
 
 
+def resolve_suppress_duplicate_split_warnings(
+    command: str,
+    orgao: str | None,
+    executed_steps: set[PlanStep],
+) -> bool:
+    """Whether `measure` should suppress the `in_values`/`outros` warnings
+    it would otherwise re-emit for the same raw dataset that `split` just
+    logged them for.
+
+    Only `True` when `split` actually **executed** for this `orgao` in the
+    current invocation of `run` — `('split', orgao) in executed_steps`. A
+    `split` that was reused from a previous invocation (state `done` or
+    `skipped`, not freshly executed) does not count: its warnings were
+    logged in an earlier process, not this one, so `measure` still needs to
+    emit them for anyone watching this run's output.
+    """
+    if command != 'measure':
+        return False
+    return ('split', orgao) in executed_steps
+
+
 def dispatch(
     command: str,
     orgao: str | None,
     request: RunRequest,
     periodo: PeriodoAfericao,
     *,
-    already_split: bool = False,
+    suppress_duplicate_split_warnings: bool = False,
 ) -> CommandResult:
     """Execute one planned command using validated arguments.
 
-    ``already_split`` (ticket 05/11): only honored by `measure` — whether
-    `split` actually ran in this invocation, so the in-memory categorical
-    path can suppress the duplicate `in_values`/`outros` warnings it would
-    otherwise re-emit for the same raw dataset.
+    ``suppress_duplicate_split_warnings`` (ticket 05/11): only honored by
+    `measure` — see `resolve_suppress_duplicate_split_warnings` for how
+    callers should compute it.
     """
     if command == 'bootstrap':
         organization = _require_orgao(command, orgao)
@@ -256,7 +277,7 @@ def dispatch(
             equipe_path=request.data_dir / EQUIPE_FILENAME,
             periodo=periodo,
             strict=request.strict,
-            already_split=already_split,
+            suppress_duplicate_split_warnings=suppress_duplicate_split_warnings,
         )
 
     if command == 'report':

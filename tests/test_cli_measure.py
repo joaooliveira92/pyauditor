@@ -402,8 +402,9 @@ def test_run_measure_categoria_warns_empty_window_when_standalone(
     tmp_path: Path,
 ) -> None:
     """Ticket 05 — o caminho em-memória (categorias) ganha o mesmo WARN de
-    janela vazia que o caminho single já emitia; sem `already_split`
-    (`pyauditor measure` isolado), o aviso deve aparecer."""
+    janela vazia que o caminho single já emitia; sem
+    `suppress_duplicate_split_warnings` (`pyauditor measure` isolado), o
+    aviso deve aparecer."""
     import sys
     from datetime import date
     from io import StringIO
@@ -434,11 +435,12 @@ def test_run_measure_categoria_warns_empty_window_when_standalone(
     assert 'nenhuma linha no período' in buf.getvalue()
 
 
-def test_run_measure_categoria_already_split_suppresses_duplicate_warn(
+def test_run_measure_categoria_suppress_duplicate_split_warnings(
     tmp_path: Path,
 ) -> None:
-    """`already_split=True` (dispatch de `run`) suprime o WARN/INFO — `split`
-    já os logou para o mesmo dataset bruto na mesma passada."""
+    """`suppress_duplicate_split_warnings=True` (dispatch de `run`) suprime
+    o WARN/INFO — `split` já os logou para o mesmo dataset bruto na mesma
+    passada."""
     import sys
     from datetime import date
     from io import StringIO
@@ -461,7 +463,7 @@ def test_run_measure_categoria_already_split_suppresses_duplicate_warn(
             output_dir,
             expected_orgao='MinC',
             periodo=periodo,
-            already_split=True,
+            suppress_duplicate_split_warnings=True,
         )
     finally:
         setup_logging(sink=sys.stderr, level='INFO')
@@ -470,13 +472,13 @@ def test_run_measure_categoria_already_split_suppresses_duplicate_warn(
     assert 'nenhuma linha no período' not in buf.getvalue()
 
 
-def test_run_measure_already_split_dedups_in_values_e_outros_warning(
+def test_run_measure_suppress_duplicate_split_warnings_dedups_in_values(
     tmp_path: Path,
 ) -> None:
     """Ticket 11 — quando `run` roda split+measure na mesma passada, os avisos
     de `in_values` sem correspondência e de `outros` saem 1x por passada:
     `split` já os emitiu sobre os mesmos `real_values`, `run_measure`
-    (`already_split=True`) não duplica."""
+    (`suppress_duplicate_split_warnings=True`) não duplica."""
     import sys
     from datetime import date
     from io import StringIO
@@ -514,7 +516,7 @@ def test_run_measure_already_split_dedups_in_values_e_outros_warning(
             output_dir,
             expected_orgao='MinC',
             periodo=periodo,
-            already_split=True,
+            suppress_duplicate_split_warnings=True,
         )
     finally:
         setup_logging(sink=sys.stderr, level='INFO')
@@ -523,7 +525,7 @@ def test_run_measure_already_split_dedups_in_values_e_outros_warning(
     assert split_result.status == 'done'
     assert measure_result.status == 'done'
     said = output.count('sem correspondência')
-    assert said == 1  # split emitiu; measure (already_split) não duplica
+    assert said == 1  # split emitiu; measure suprime, não duplica
 
 
 def _write_whole_indicator_empty_window(
@@ -544,7 +546,8 @@ def test_run_measure_single_path_warns_empty_window_when_standalone(
     tmp_path: Path,
 ) -> None:
     """Ticket 05 — o caminho single (whole_indicator) mantém o WARN de janela
-    vazia no `pyauditor measure` isolado (`already_split=False`)."""
+    vazia no `pyauditor measure` isolado
+    (`suppress_duplicate_split_warnings=False`)."""
     import sys
     from datetime import date
     from io import StringIO
@@ -575,12 +578,13 @@ def test_run_measure_single_path_warns_empty_window_when_standalone(
     assert 'nenhuma linha no período' in buf.getvalue()
 
 
-def test_run_measure_single_path_suppresses_empty_window_warn_when_already_split(  # ruff: ignore[line-too-long]
+def test_run_measure_single_path_suppresses_empty_window_warn_when_suppressed(
     tmp_path: Path,
 ) -> None:
-    """Ticket 05 — `already_split=True` (dispatch de `run`) também suprime o
-    WARN de janela vazia do caminho single (whole_indicator): `split` já o
-    logou para o mesmo dataset bruto na mesma passada."""
+    """Ticket 05 — `suppress_duplicate_split_warnings=True` (dispatch de
+    `run`) também suprime o WARN de janela vazia do caminho single
+    (whole_indicator): `split` já o logou para o mesmo dataset bruto na
+    mesma passada."""
     import sys
     from datetime import date
     from io import StringIO
@@ -603,7 +607,7 @@ def test_run_measure_single_path_suppresses_empty_window_warn_when_already_split
             output_dir,
             expected_orgao='MinC',
             periodo=periodo,
-            already_split=True,
+            suppress_duplicate_split_warnings=True,
         )
     finally:
         setup_logging(sink=sys.stderr, level='INFO')
@@ -788,8 +792,9 @@ class _FailingQualityGateRunner:
 def test_run_measure_categoria_outros_warns_when_standalone(
     tmp_path: Path,
 ) -> None:
-    """Ramo 548-554: `measure` isolado (already_split=False) emite o warning de
-    linhas `outros` que `split` emeteria no seu caminho — mesma regra."""
+    """Ramo 548-554: `measure` isolado
+    (`suppress_duplicate_split_warnings=False`) emite o warning de linhas
+    `outros` que `split` emeteria no seu caminho — mesma regra."""
     import sys
     from io import StringIO
 

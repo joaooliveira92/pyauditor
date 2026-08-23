@@ -80,7 +80,7 @@ class MeasureLoop:
         manifest: DatasetManifest | None,
         periodo: PeriodoAfericao | None,
         strict: bool,
-        already_split: bool,
+        suppress_duplicate_split_warnings: bool,
         capa_fields: dict[str, object],
     ) -> None:
         self.orgao = orgao
@@ -93,7 +93,9 @@ class MeasureLoop:
         self.manifest = manifest
         self.periodo = periodo
         self.strict = strict
-        self.already_split = already_split
+        # Resolvido uma vez aqui — os pontos de uso abaixo consultam este
+        # atributo, não o parâmetro bruto, para não repetir a negação.
+        self._suppress_period_logs = suppress_duplicate_split_warnings
         self.capa_fields = capa_fields
         self.outcomes: list[IndicatorOutcome] = []
         self.warnings: list[str] = []
@@ -163,8 +165,8 @@ class MeasureLoop:
         collect: list[_MeasuredIndicator] | None,
     ) -> None:
         """Backbone (ticket 05): resolve->valida->lê->filtra o bruto uma vez
-        para todas as categorias. `already_split` evita duplicar WARN/INFO de
-        período quando `split` já rodou na mesma passada."""
+        para todas as categorias. `_suppress_period_logs` evita duplicar
+        WARN/INFO de período quando `split` já rodou na mesma passada."""
         competencia = self.competencia
         target_dir = self.target_dir
         contractual_id = config.indicator.contractual_id
@@ -176,7 +178,7 @@ class MeasureLoop:
                 config_path=config_path,
                 periodo=self.periodo,
                 strict=self.strict,
-                emit_period_filter_logs=not self.already_split,
+                emit_period_filter_logs=not self._suppress_period_logs,
             )
         except FileNotFoundError:
             for cat_key, _ in entries:
@@ -239,7 +241,7 @@ class MeasureLoop:
             return
 
         real_values = {row[GRUPO_EXECUTOR_COLUMN] for row in rows}
-        if not self.already_split:
+        if not self._suppress_period_logs:
             for w in unmatched_in_values_warnings(
                 inms_key=inms_key,
                 orgao=config.scope.orgao,
@@ -340,7 +342,7 @@ class MeasureLoop:
         outros_rows = [
             row for row in rows if row[GRUPO_EXECUTOR_COLUMN] in outros_values
         ]
-        if outros_rows and not self.already_split:
+        if outros_rows and not self._suppress_period_logs:
             w = outros_warning(
                 inms_key=inms_key,
                 orgao=config.scope.orgao,
@@ -432,7 +434,7 @@ class MeasureLoop:
             config_hash=config_hash,
             periodo=self.periodo,
             strict=self.strict,
-            emit_period_filter_logs=not self.already_split,
+            emit_period_filter_logs=not self._suppress_period_logs,
         )
 
     def _hard_fail_todas_categorias(

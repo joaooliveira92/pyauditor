@@ -15,8 +15,8 @@ da CLI (`periodo`) e os Responsáveis de `equipe.csv` (`equipe_path`) — nada
 vem mais da capa. Com `periodo`, tanto o caminho single (whole_indicator) via
 `engine.measure()` quanto o caminho derivado (categorias em memória) filtram
 pela janela da competência através do backbone `measurement_source()`
-(ticket 05) — `already_split` evita emitir o mesmo aviso duas vezes quando
-`run` já rodou `split` na mesma passada.
+(ticket 05) — `suppress_duplicate_split_warnings` evita emitir o mesmo
+aviso duas vezes quando `run` já rodou `split` na mesma passada.
 
 Ticket 07 SRP: a resolução de entradas vive em `cli/measure_inputs.py`, o
 loop de medição em `cli/measure_run.py`, os ROMs combinados `both` em
@@ -77,15 +77,16 @@ def run_measure(
     periodo: PeriodoAfericao | None = None,
     strict: bool = False,
     collect: list[_MeasuredIndicator] | None = None,
-    already_split: bool = False,
+    suppress_duplicate_split_warnings: bool = False,
 ) -> MeasureResult:
-    """*already_split* (ticket 05): `True` quando `split` já rodou para esta
-    competência/órgão na mesma passada de `run` (o orchestration sempre despacha
-    `split` antes de `measure`) — o caminho categorial em memória então suprime
-    o próprio WARN de janela vazia e o INFO de descarte, já que `split` os logou
-    para o mesmo dataset bruto. `pyauditor measure` isolado (default `False`)
-    recebe o WARN/INFO aqui — antes este caminho nunca os emitia, ao contrário
-    do caminho single (whole_indicator) abaixo."""
+    """*suppress_duplicate_split_warnings* (ticket 05): `True` quando `split`
+    já rodou para esta competência/órgão na mesma passada de `run` (o
+    orchestration sempre despacha `split` antes de `measure`) — o caminho
+    categorial em memória então suprime o próprio WARN de janela vazia e o
+    INFO de descarte, já que `split` os logou para o mesmo dataset bruto.
+    `pyauditor measure` isolado (default `False`) recebe o WARN/INFO aqui —
+    antes este caminho nunca os emitia, ao contrário do caminho single
+    (whole_indicator) abaixo."""
     orgao = expected_orgao or ''
 
     def _error(message: str) -> MeasureResult:
@@ -124,7 +125,7 @@ def run_measure(
         manifest=manifest,
         periodo=periodo,
         strict=strict,
-        already_split=already_split,
+        suppress_duplicate_split_warnings=suppress_duplicate_split_warnings,
         capa_fields=inputs.capa_fields,
     )
     result = loop.run_configs(inputs.configs, collect=collect)

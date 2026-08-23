@@ -52,6 +52,7 @@ from pyauditor.orchestration.command_dispatch import (
     dependency_missing,
     dispatch,
     own_artifact_missing,
+    resolve_suppress_duplicate_split_warnings,
 )
 from pyauditor.orchestration.plan import plan as build_plan
 from pyauditor.orchestration.resume import ensure_state
@@ -295,11 +296,9 @@ def execute_run(
     latest_results: dict[ResultKey, CommandResult] = {}
     skipped_steps: set[PlanStep] = set()
     # Etapas efetivamente executadas nesta invocação (não apenas reutilizadas
-    # de uma passada anterior) — ticket 11: `already_split` de `measure` só
-    # suprime os avisos de `in_values`/`outros` quando `split` rodou de fato
-    # na mesma passada; numa retomada em que o `split` foi reutilizado
-    # (done/skipped) e só o `measure` re-executou, os avisos continuam saindo
-    # — `execute_run` decide e repassa ao `_dispatch`.
+    # de uma passada anterior) — ver
+    # `command_dispatch.resolve_suppress_duplicate_split_warnings` para a
+    # regra completa de quando `measure` suprime avisos de `split`.
     executed_steps: set[PlanStep] = set()
 
     def finish_result() -> RunResult:
@@ -415,10 +414,12 @@ def execute_run(
                     orgao,
                     request,
                     periodo,
-                    already_split=(
-                        ('split', orgao) in executed_steps
-                        if command == 'measure'
-                        else False
+                    suppress_duplicate_split_warnings=(
+                        resolve_suppress_duplicate_split_warnings(
+                            command,
+                            orgao,
+                            executed_steps,
+                        )
                     ),
                 )
             except Exception as exc:
