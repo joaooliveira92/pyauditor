@@ -177,6 +177,9 @@ def write_sheet(
             'amostra_divergencias': unique_table_name(
                 workbook, 'TabelaAmostraDivergencias'
             ),
+            'amostra_divergencia_fornecedor': unique_table_name(
+                workbook, 'TabelaAmostraDivergenciaFornecedor'
+            ),
         }
 
         _write_section_1_identificacao(
@@ -218,6 +221,9 @@ def write_sheet(
             rng=rng,
             start_row=next_row,
             table_name=table_names['amostra_divergencias'],
+            table_name_fornecedor_itsm=table_names[
+                'amostra_divergencia_fornecedor'
+            ],
         )
         next_row = _write_section_8_tempo(sheet, rng=rng, start_row=next_row)
         _write_section_9_penalidade(

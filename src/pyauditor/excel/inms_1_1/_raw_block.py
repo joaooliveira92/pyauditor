@@ -25,6 +25,8 @@ from pyauditor.excel.inms_1_1._layout import (
     _AK,
     _AL,
     _AM,
+    _AN,
+    _AO,
     _ATIVIDADE_COLUMN,
     _DATA_FIM_COLUMN,
     _DATA_LIMITE_COLUMN,
@@ -79,6 +81,8 @@ def _write_raw_block(
         _AH: 'Ordem — fora do prazo',
         _AI: 'Ordem — limite ITSM superior ao contratual bruto',
         _AJ: 'Situação dos dados',
+        _AN: 'Divergência No prazo (fornecedor x ITSM)',
+        _AO: 'Ordem — divergência fornecedor x ITSM',
     }
     note = sheet.cell(
         row=1,
@@ -235,3 +239,18 @@ def _write_raw_block(
         )
         for c in (ah_cell, ai_cell):
             c.font = BODY_FONT
+
+        adc = f'{cl(_AD)}{i}'
+        an_cell = sheet.cell(
+            row=i,
+            column=_AN,
+            value=f'=IF(OR({xc}="",{adc}=""),"",IF({xc}<>{adc},"Sim","Não"))',
+        )
+        an_cell.font = BODY_FONT
+        anc = f'{cl(_AN)}{i}'
+        ao_cell = sheet.cell(
+            row=i,
+            column=_AO,
+            value=f'=IF({anc}="Sim",COUNTIF($AN$2:{anc},"Sim"),"")',
+        )
+        ao_cell.font = BODY_FONT

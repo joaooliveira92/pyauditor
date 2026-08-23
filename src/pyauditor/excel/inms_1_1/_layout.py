@@ -83,5 +83,6 @@ _UNLOCKED: Final = Protection(locked=False)
 ) = range(18, 36)
 _AJ = 36
 _AK, _AL, _AM = 37, 38, 39
+_AN, _AO = 40, 41
 
 _DATA_QUALIDADE_OK: Final[str] = 'OK'
