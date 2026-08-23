@@ -13,16 +13,15 @@ são derivados do argumento `--competência` e os responsáveis, de
 """
 
 import json
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
 from pyauditor.cli.results import (
     WRITE_FAILURE_HINT,
     DependencyCheck,
-    Status,
     validate_competencia,
 )
+from pyauditor.commands import contracts
 from pyauditor.engine.pipeline import discover_configs
 from pyauditor.excel.capa import (
     DERIVED_FIELD_LABELS,
@@ -71,17 +70,8 @@ def missing_publication_fields(
     )
 
 
-@dataclass(frozen=True, slots=True)
-class ReportResult:
-    status: Status
-    competencia: str
-    orgao: str
-    output_path: Path
-    indicator_count: int
-    warnings: tuple[str, ...]
-    error_message: str | None
-    publicable: bool = True
-    glosa_calculada: bool = True
+# `ReportResult` reexportado de `commands.contracts` (ticket 11 SRP).
+ReportResult = contracts.ReportResult
 
 
 def check_report_ready(

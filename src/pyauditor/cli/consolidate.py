@@ -16,7 +16,6 @@ Competência/períodos/responsáveis idem (spec competencia-cli-equipe §4/§6):
 períodos derivados do argumento da CLI e responsáveis de `equipe.csv`.
 """
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
@@ -24,9 +23,9 @@ from pyauditor.atomic_write import atomic_write
 from pyauditor.cli.results import (
     WRITE_FAILURE_HINT,
     DependencyCheck,
-    Status,
     validate_competencia,
 )
+from pyauditor.commands import contracts
 from pyauditor.excel.capa import read_capa_csv_fields
 from pyauditor.excel.consolidate import (
     build_consolidated_workbook,
@@ -39,17 +38,8 @@ from pyauditor.rom.loading import load_summaries, read_valor_base
 
 _ORGAOS: tuple[str, str] = ('MinC', 'MTur')
 
-
-@dataclass(frozen=True, slots=True)
-class ConsolidateResult:
-    status: Status
-    competencia: str  # sem orgao — consolidate é agnóstico de órgão
-    output_path: Path
-    decisions_preserved: int
-    warnings: tuple[str, ...]
-    error_message: str | None
-    glosa_calculada: bool = True
-    total_pontos: float = 0.0
+# `ConsolidateResult` reexportado de `commands.contracts` (ticket 11 SRP).
+ConsolidateResult = contracts.ConsolidateResult
 
 
 def check_consolidate_ready(

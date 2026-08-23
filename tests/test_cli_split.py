@@ -443,7 +443,9 @@ def test_run_split_write_failure_marks_error_without_aborting(
     def _failing_write(path: Path, write: object) -> object:
         raise OSError('disco cheio')
 
-    monkeypatch.setattr('pyauditor.cli.split.atomic_write', _failing_write)
+    monkeypatch.setattr(
+        'pyauditor.cli.split_derive.atomic_write', _failing_write
+    )
 
     result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')
 
@@ -467,7 +469,7 @@ def test_run_split_derived_config_write_failure_marks_error(
         return None
 
     monkeypatch.setattr(
-        'pyauditor.cli.split.atomic_write', _failing_config_write
+        'pyauditor.cli.split_derive.atomic_write', _failing_config_write
     )
 
     result = run_split('2026-06', config_dir, data_dir, expected_orgao='MinC')

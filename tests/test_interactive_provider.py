@@ -21,19 +21,19 @@ def _cancelled_ask() -> MagicMock:
     'questionary_target,call',
     [
         (
-            'pyauditor.interactive.provider.questionary.text',
+            'pyauditor.interactive.rich_provider.questionary.text',
             lambda p: p.ask_text('x'),
         ),
         (
-            'pyauditor.interactive.provider.questionary.select',
+            'pyauditor.interactive.rich_provider.questionary.select',
             lambda p: p.ask_choice('x', ['a']),
         ),
         (
-            'pyauditor.interactive.provider.questionary.checkbox',
+            'pyauditor.interactive.rich_provider.questionary.checkbox',
             lambda p: p.ask_multi_choice('x', [('a', 'a', True, None)]),
         ),
         (
-            'pyauditor.interactive.provider.questionary.confirm',
+            'pyauditor.interactive.rich_provider.questionary.confirm',
             lambda p: p.confirm('x'),
         ),
     ],
