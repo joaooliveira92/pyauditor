@@ -32,8 +32,9 @@ from pyauditor.excel.inms_1_1._domain import (
     has_required_columns,
 )
 from pyauditor.excel.inms_1_1._layout import (
+    _AP,
+    _INCLUIDO_SIM,
     _NO_PRAZO_COLUMN,
-    _R,
     _X,
 )
 from pyauditor.excel.inms_1_1._raw_block import _write_raw_block
@@ -159,15 +160,6 @@ def write_sheet(
         grupo_rows = _build_grupo_rows(
             categorias_file, grupo_executor_entries, real_values
         )
-        _write_raw_block(sheet, rows, grupo_rows, last_row)
-
-        def rng(col: int) -> str:
-            return _raw_range(col, last_row)
-
-        iap = f'ROWS({rng(_R)})'
-        iadp = f'COUNTIF({rng(_X)},"S")'
-        fora = f'COUNTIF({rng(_X)},"N")'
-        meta_value = target_value / 100
 
         table_names = {
             'grupo_executor': unique_table_name(
@@ -181,6 +173,19 @@ def write_sheet(
                 workbook, 'TabelaAmostraDivergenciaFornecedor'
             ),
         }
+
+        def rng(col: int) -> str:
+            return _raw_range(col, last_row)
+
+        # IAP/IADP/fora contam só incidentes cujo grupo está habilitado no
+        # toggle "Incluído no INMS?" da Seção 4 (coluna `_AP`, ao vivo) — não
+        # mais todas as linhas do CSV bruto, permitindo desabilitar
+        # individualmente grupos executores não previstos sem reprocessar
+        # o pipeline (ver Seção 4).
+        iap = f'COUNTIF({rng(_AP)},"{_INCLUIDO_SIM}")'
+        iadp = f'COUNTIFS({rng(_AP)},"{_INCLUIDO_SIM}",{rng(_X)},"S")'
+        fora = f'COUNTIFS({rng(_AP)},"{_INCLUIDO_SIM}",{rng(_X)},"N")'
+        meta_value = target_value / 100
 
         _write_section_1_identificacao(
             sheet,
@@ -198,6 +203,19 @@ def write_sheet(
             meta_value=meta_value,
         )
         next_row = _write_section_3_memoria(sheet)
+
+        # Seções 1–3 têm largura fixa (não dependem de `rows`/`grupo_rows`):
+        # `next_row` já é a primeira linha de cabeçalho da Seção 4, então a
+        # primeira linha de grupo (`first_group_row`) é conhecida *antes* de
+        # escrever a Seção 4 — o bloco de apoio referencia essas linhas
+        # diretamente (coluna `_AQ`, lookup por linha do toggle "Incluído no
+        # INMS?" de cada grupo), sem depender de referência estruturada de
+        # tabela.
+        first_group_row = next_row + 2
+        _write_raw_block(
+            sheet, rows, grupo_rows, last_row, first_group_row=first_group_row
+        )
+
         next_row = _write_section_4_detalhamento(
             sheet,
             grupo_rows=grupo_rows,
@@ -246,6 +264,8 @@ def write_sheet(
         sheet.page_setup.orientation = 'landscape'
         sheet.page_setup.fitToWidth = 1
         sheet.page_setup.fitToHeight = 0
-        sheet.sheet_properties.pageSetUpPr.fitToPage = True
+        sheet.sheet_properties.pageSetUpPr.fitToPage = (  # ty: ignore[invalid-assignment]
+            True
+        )
 
     force_recalc(workbook)

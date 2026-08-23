@@ -1,4 +1,4 @@
-"""Base de apoio R–AM da aba INMS 1.1 (dados brutos + fórmulas) — extraída de
+"""Base de apoio R–AQ da aba INMS 1.1 (dados brutos + fórmulas) — extraída de
 `excel/inms_1_1_audit.py` (ticket 04 SRP).
 """
 
@@ -27,6 +27,8 @@ from pyauditor.excel.inms_1_1._layout import (
     _AM,
     _AN,
     _AO,
+    _AP,
+    _AQ,
     _ATIVIDADE_COLUMN,
     _DATA_FIM_COLUMN,
     _DATA_LIMITE_COLUMN,
@@ -34,6 +36,7 @@ from pyauditor.excel.inms_1_1._layout import (
     _DATA_SOLICITACAO_COLUMN,
     _DATETIME_FMT,
     _DUR,
+    _INCLUIDO_SIM,
     _NO_PRAZO_COLUMN,
     _NUM_SOLICITACAO_COLUMN,
     _PRAZO_HORAS_CORRIDAS,
@@ -60,6 +63,8 @@ def _write_raw_block(
     rows: list[dict[str, str]],
     grupo_rows: list[tuple[str, str, str]],
     last_row: int,
+    *,
+    first_group_row: int,
 ) -> None:
     headers = {
         _R: 'Nº Solicitação',
@@ -83,6 +88,8 @@ def _write_raw_block(
         _AJ: 'Situação dos dados',
         _AN: 'Divergência No prazo (fornecedor x ITSM)',
         _AO: 'Ordem — divergência fornecedor x ITSM',
+        _AP: 'Incluído no cálculo (Seção 4)',
+        _AQ: 'Incluído no INMS? (mapa por grupo)',
     }
     note = sheet.cell(
         row=1,
@@ -119,7 +126,17 @@ def _write_raw_block(
         sheet.cell(
             row=idx, column=_AM, value=safe_excel_text(categoria)
         ).font = BODY_FONT
+        # Referência direta (não estruturada) à célula "Incluído no INMS?"
+        # da linha do grupo na Seção 4 — grupo_rows alimenta as duas seções
+        # na mesma ordem, então a linha correspondente é sempre
+        # `first_group_row + offset`.
+        section4_row = first_group_row + (idx - 2)
+        sheet.cell(
+            row=idx, column=_AQ, value=f'=I{section4_row}'
+        ).font = BODY_FONT
     map_range = f'${cl(_AK)}$2:${cl(_AM)}${1 + len(grupo_rows)}'
+    ak_range = f'${cl(_AK)}$2:${cl(_AK)}${1 + len(grupo_rows)}'
+    aq_range = f'${cl(_AQ)}$2:${cl(_AQ)}${1 + len(grupo_rows)}'
 
     for i, row in enumerate(rows, start=2):
         num_solicitacao = safe_excel_text(row[_NUM_SOLICITACAO_COLUMN])
@@ -254,3 +271,18 @@ def _write_raw_block(
             value=f'=IF({anc}="Sim",COUNTIF($AN$2:{anc},"Sim"),"")',
         )
         ao_cell.font = BODY_FONT
+
+        # Lookup ao vivo contra o toggle "Incluído no INMS?" da Seção 4, via
+        # o mapa por grupo `_AQ` (que por sua vez referencia a célula da
+        # Seção 4 diretamente — ver acima); `IFERROR`/`"Sim"` como padrão
+        # cobre o caso (não deveria ocorrer) de um grupo sem linha
+        # correspondente no mapa.
+        ap_cell = sheet.cell(
+            row=i,
+            column=_AP,
+            value=(
+                f'=IFERROR(INDEX({aq_range},MATCH({sc},{ak_range},0)),'
+                f'"{_INCLUIDO_SIM}")'
+            ),
+        )
+        ap_cell.font = BODY_FONT

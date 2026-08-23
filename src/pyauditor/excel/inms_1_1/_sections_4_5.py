@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from openpyxl.formatting.rule import CellIsRule, ColorScaleRule
 from openpyxl.styles import Alignment, Font
+from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.excel._safety import safe_excel_text
@@ -17,8 +18,11 @@ from pyauditor.excel.inms_1_1._cells import (
 )
 from pyauditor.excel.inms_1_1._layout import (
     _AG,
+    _AP,
     _AUDIT_REVIEW_LABEL,
     _DUR,
+    _INCLUIDO_NAO,
+    _INCLUIDO_SIM,
     _NIVEL_ORDER,
     _PCT2,
     _S,
@@ -73,6 +77,21 @@ def _write_section_4_detalhamento(
         numeric_cols=frozenset({4, 5, 6, 7, 8}),
     )
     first_group_row = start_row + 2
+    # Grupos "não previstos" (fora de categorias.yaml) podem ser
+    # individualmente desabilitados do cálculo — toggle Sim/Não nesta
+    # coluna, lido ao vivo pela coluna de apoio `_AP` (Seção 2 em diante).
+    # Grupos previstos (categoria conhecida) não são toggleáveis: ficam
+    # como texto fixo "Sim", sem validação nem desbloqueio.
+    toggle_validation = DataValidation(
+        type='list',
+        formula1=f'"{_INCLUIDO_SIM},{_INCLUIDO_NAO}"',
+        allow_blank=False,
+        errorStyle='stop',
+        errorTitle='Valor inválido',
+        error=f'Selecione "{_INCLUIDO_SIM}" ou "{_INCLUIDO_NAO}".',
+        showErrorMessage=True,
+    )
+    sheet.add_data_validation(toggle_validation)
     for offset, (grupo, nivel, categoria) in enumerate(grupo_rows):
         r = first_group_row + offset
         sheet.cell(
@@ -108,7 +127,7 @@ def _write_section_4_detalhamento(
             value=f'=IF(D{r}=0,"—",AVERAGEIF({rng(_S)},{grupo_ref},{rng(_AG)}))',
         )
         tempo_cell.number_format = _DUR
-        incluido = sheet.cell(row=r, column=9, value='Sim')
+        incluido = sheet.cell(row=r, column=9, value=_INCLUIDO_SIM)
         is_audit_review = categoria == _AUDIT_REVIEW_LABEL
         if is_audit_review:
             just = (
@@ -117,11 +136,11 @@ def _write_section_4_detalhamento(
                 'para exclusão do grupo.'
             )
             obs = (
-                'Grupo mantido no consolidado do INMS 1.1 por força da regra '
-                'contratual '
-                '(denominador = total de incidentes abertos no período); '
-                'reclassificação '
-                'exigiria documento autorizador válido — ver Seção 9.'
+                'Grupo não previsto em categorias.yaml. Por padrão continua '
+                'no consolidado do INMS 1.1 (denominador = total de '
+                'incidentes abertos no período); para excluí-lo, altere '
+                f'"Incluído no INMS?" para "{_INCLUIDO_NAO}" e preencha '
+                'Justificativa/Documento autorizador ao lado.'
             )
             for cc in (
                 linhas_cell,
@@ -132,6 +151,8 @@ def _write_section_4_detalhamento(
                 incluido,
             ):
                 cc.fill = ORANGE_FILL
+            incluido.protection = _UNLOCKED
+            toggle_validation.add(incluido.coordinate)
         else:
             just = 'Não aplicável — nenhuma exclusão aplicada.'
             obs = '—'
@@ -165,6 +186,12 @@ def _write_section_4_detalhamento(
     last_group_row = first_group_row + len(grupo_rows) - 1
     _add_table(sheet, table_name, f'A{start_row + 1}:L{last_group_row}')
     sheet.conditional_formatting.add(
+        f'I{first_group_row}:I{last_group_row}',
+        CellIsRule(
+            operator='equal', formula=[f'"{_INCLUIDO_NAO}"'], fill=RED_FILL
+        ),
+    )
+    sheet.conditional_formatting.add(
         f'G{first_group_row}:G{last_group_row}',
         ColorScaleRule(
             start_type='min',
@@ -176,7 +203,21 @@ def _write_section_4_detalhamento(
             end_color='BBF7D0',
         ),
     )
-    return last_group_row + 2
+    toggle_note_row = last_group_row + 1
+    sheet.merge_cells(f'A{toggle_note_row}:L{toggle_note_row}')
+    sheet[f'A{toggle_note_row}'] = (
+        f'Apenas grupos não previstos em categorias.yaml (categoria '
+        f'"{_AUDIT_REVIEW_LABEL}", destacados em laranja) podem ser '
+        f'desabilitados — altere "Incluído no INMS?" para '
+        f'"{_INCLUIDO_NAO}" para excluir o grupo do IAP/IADP consolidado '
+        f'(Seção 2) e dos subtotais por nível (Seção 5); registre a '
+        f'justificativa e o documento autorizador nas colunas ao lado.'
+    )
+    sheet[f'A{toggle_note_row}'].font = NOTE_FONT
+    sheet[f'A{toggle_note_row}'].alignment = Alignment(
+        wrap_text=True, vertical='center'
+    )
+    return toggle_note_row + 2
 
 
 def _write_section_5_subtotais(
@@ -210,17 +251,28 @@ def _write_section_5_subtotais(
     for r, nivel_label in zip(nivel_rows, _NIVEL_ORDER, strict=True):
         sheet.cell(row=r, column=1, value=nivel_label).font = BODY_FONT
         linhas = sheet.cell(
-            row=r, column=2, value=f'=COUNTIFS({rng(_Z)},"{nivel_label}")'
+            row=r,
+            column=2,
+            value=(
+                f'=COUNTIFS({rng(_Z)},"{nivel_label}",'
+                f'{rng(_AP)},"{_INCLUIDO_SIM}")'
+            ),
         )
         dentro = sheet.cell(
             row=r,
             column=3,
-            value=f'=COUNTIFS({rng(_Z)},"{nivel_label}",{rng(_X)},"S")',
+            value=(
+                f'=COUNTIFS({rng(_Z)},"{nivel_label}",{rng(_X)},"S",'
+                f'{rng(_AP)},"{_INCLUIDO_SIM}")'
+            ),
         )
         fora_c = sheet.cell(
             row=r,
             column=4,
-            value=f'=COUNTIFS({rng(_Z)},"{nivel_label}",{rng(_X)},"N")',
+            value=(
+                f'=COUNTIFS({rng(_Z)},"{nivel_label}",{rng(_X)},"N",'
+                f'{rng(_AP)},"{_INCLUIDO_SIM}")'
+            ),
         )
         pct = sheet.cell(
             row=r, column=5, value=f'=IF(B{r}=0,"Sem ocorrências",C{r}/B{r})'
@@ -242,17 +294,28 @@ def _write_section_5_subtotais(
         row=outr, column=1, value=f'Sem nível ({_AUDIT_REVIEW_LABEL})'
     ).font = BODY_FONT
     linhas = sheet.cell(
-        row=outr, column=2, value=f'=COUNTIFS({rng(_Z)},"{_SEM_NIVEL}")'
+        row=outr,
+        column=2,
+        value=(
+            f'=COUNTIFS({rng(_Z)},"{_SEM_NIVEL}",'
+            f'{rng(_AP)},"{_INCLUIDO_SIM}")'
+        ),
     )
     dentro = sheet.cell(
         row=outr,
         column=3,
-        value=f'=COUNTIFS({rng(_Z)},"{_SEM_NIVEL}",{rng(_X)},"S")',
+        value=(
+            f'=COUNTIFS({rng(_Z)},"{_SEM_NIVEL}",{rng(_X)},"S",'
+            f'{rng(_AP)},"{_INCLUIDO_SIM}")'
+        ),
     )
     fora_c = sheet.cell(
         row=outr,
         column=4,
-        value=f'=COUNTIFS({rng(_Z)},"{_SEM_NIVEL}",{rng(_X)},"N")',
+        value=(
+            f'=COUNTIFS({rng(_Z)},"{_SEM_NIVEL}",{rng(_X)},"N",'
+            f'{rng(_AP)},"{_INCLUIDO_SIM}")'
+        ),
     )
     pct = sheet.cell(
         row=outr,

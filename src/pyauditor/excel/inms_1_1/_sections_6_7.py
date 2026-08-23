@@ -27,10 +27,12 @@ from pyauditor.excel.inms_1_1._layout import (
     _AI,
     _AN,
     _AO,
+    _AP,
     _DATA_FIM_COLUMN,
     _DATA_LIMITE_COLUMN,
     _DATA_SOLICITACAO_COLUMN,
     _DATETIME_FMT,
+    _INCLUIDO_SIM,
     _NO_PRAZO_COLUMN,
     _PCT2,
     _PCT4,
@@ -176,17 +178,20 @@ def _write_section_7_auditoria(
         ('Metodologia', 'Resultado', 'Situação'),
         numeric_cols=frozenset({2}),
     )
+    # `_AP` filtra os mesmos grupos excluídos pelo toggle da Seção 4, para
+    # que estes controles continuem batendo com B13/C13 (já filtrados).
+    ap_sim = f'{rng(_AP)},"{_INCLUIDO_SIM}"'
     ctrl_rows = [
         ("Resultado informado pelo fornecedor (campo 'No prazo')", 'C13/B13'),
         (
             'Resultado reproduzido pela data limite registrada no ITSM '
             '(DataHoraFim ≤ DataHoraLimite)',
-            f'COUNTIF({rng(_AD)},"S")/B13',
+            f'COUNTIFS({rng(_AD)},"S",{ap_sim})/B13',
         ),
         (
             f'Controle contratual bruto (DataHoraFim ≤ DataHoraSolicitacao + '
             f'{_PRAZO_HORAS_CORRIDAS:g}h corridas)',
-            f'COUNTIF({rng(_AE)},"S")/B13',
+            f'COUNTIFS({rng(_AE)},"S",{ap_sim})/B13',
         ),
     ]
     first_ctrl = s7_bar + 3

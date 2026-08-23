@@ -147,10 +147,17 @@ def test_enriched_sheet_is_used_when_raw_csv_has_detail_columns(
     }
 
     # Seção 2 — resumo executivo: fórmulas dependem só da base de apoio.
+    # IAP/IADP/fora filtram pela coluna de apoio `_AP` (toggle "Incluído no
+    # INMS?" da Seção 4), não mais por contagem bruta de linhas — permite
+    # desabilitar individualmente grupos executores não previstos.
     assert sheet['A13'].value == '=0.98'
-    assert sheet['B13'].value == '=ROWS($R$2:$R$5)'
-    assert sheet['C13'].value == '=COUNTIF($X$2:$X$5,"S")'
-    assert sheet['D13'].value == '=COUNTIF($X$2:$X$5,"N")'
+    assert sheet['B13'].value == '=COUNTIF($AP$2:$AP$5,"Sim")'
+    assert (
+        sheet['C13'].value == '=COUNTIFS($AP$2:$AP$5,"Sim",$X$2:$X$5,"S")'
+    )
+    assert (
+        sheet['D13'].value == '=COUNTIFS($AP$2:$AP$5,"Sim",$X$2:$X$5,"N")'
+    )
     assert sheet['E13'].value == '=IF(B13=0,"Sem ocorrências",C13/B13)'
 
     # Seção 4 — uma linha por grupo executor real do CSV.
@@ -578,7 +585,7 @@ def test_iap_denominator_uses_rows_not_counta(tmp_path: Path) -> None:
 
     wb = load_workbook(output_path)
     sheet = wb['INMS 1.1']
-    assert sheet['B13'].value == '=ROWS($R$2:$R$4)'
+    assert sheet['B13'].value == '=COUNTIF($AP$2:$AP$4,"Sim")'
     assert sheet['B6'].value == 'inms-01.csv (3 registros brutos)'
 
 
