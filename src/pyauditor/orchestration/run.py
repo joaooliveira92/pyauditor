@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from pyauditor.logging import logger
+from pyauditor.logging import log_event, logger
 from pyauditor.orchestration._decision import (
     FailureDecision,
     _abort_on_failure,
@@ -47,6 +47,11 @@ from pyauditor.orchestration._flow_helpers import (
     now,
     sanitize_error_message,
     upsert,
+)
+from pyauditor.orchestration._warning_decision import (
+    WarningDecision,
+    continue_on_warning,
+    validate_warning_decision,
 )
 from pyauditor.orchestration.command_dispatch import (
     dependency_missing,
@@ -67,6 +72,8 @@ __all__: Final[tuple[str, ...]] = (
     'FailureDecision',
     'RunRequest',
     'RunResult',
+    'WarningDecision',
+    'continue_on_warning',
     'dependency_missing',
     'execute_run',
     'isolate_on_failure',
@@ -246,6 +253,10 @@ def execute_run(
         [CommandStateEntry],
         FailureDecision,
     ] = _abort_on_failure,
+    on_warning: Callable[
+        [str, str | None, tuple[str, ...]],
+        WarningDecision,
+    ] = continue_on_warning,
 ) -> RunResult:
     """Execute or resume a phase-major orchestration run.
 
@@ -266,6 +277,14 @@ def execute_run(
         on_state_change: Callback invoked after each persisted transition.
         on_failure: Callback that decides ``retry``, ``skip``, ``isolate``, or
             ``abort`` after a command failure.
+        on_warning: Callback invoked after a command finishes ``done`` with
+            non-empty ``result.warnings``. Decides ``continue`` (default —
+            matches the direct, non-interactive flow), ``retry`` — dispatches
+            the same command and organization again, letting the operator fix
+            something outside the process (e.g. ``categorias.yaml``, an input
+            CSV) before the run advances — or ``abort``. Unlike
+            ``on_failure``, there is no ``skip``: the command already
+            succeeded.
 
     Returns:
         The invocation result, including final state and latest command
@@ -408,6 +427,13 @@ def execute_run(
                 on_state_change,
                 running_entry,
             )
+            log_event(
+                'run_step_started',
+                f'▶ {command} · {orgao or "-"}',
+                'INFO',
+                command=command,
+                orgao=orgao,
+            )
 
             try:
                 result = dispatch(
@@ -471,6 +497,22 @@ def execute_run(
                     on_state_change,
                     done_entry,
                 )
+
+                result_warnings = getattr(result, 'warnings', ())
+                if result_warnings:
+                    warning_decision = validate_warning_decision(
+                        on_warning(
+                            command,
+                            orgao,
+                            tuple(result_warnings),
+                        )
+                    )
+                    if warning_decision == 'abort':
+                        return finish_result()
+
+                    if warning_decision == 'retry':
+                        continue
+
                 break
 
             state, decision = handle_failure(

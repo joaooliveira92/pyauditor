@@ -316,6 +316,7 @@ def _dispatch_run(args: argparse.Namespace) -> int:
         **logging_kwargs(args),
     )
     output_raw = require(args, 'output', str)
+    on_warning_raw = require(args, 'on_warning', str)
     return run_run(
         competencia=competencia,
         orgao=orgao,
@@ -330,6 +331,7 @@ def _dispatch_run(args: argparse.Namespace) -> int:
         output='json' if output_raw == 'json' else 'text',
         force=bool(cast(object, getattr(args, 'force', False))),
         strict=bool(cast(object, getattr(args, 'strict', False))),
+        on_warning='pause' if on_warning_raw == 'pause' else 'continue',
     )
 
 

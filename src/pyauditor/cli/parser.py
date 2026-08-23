@@ -353,5 +353,18 @@ def build_parser() -> argparse.ArgumentParser:
             "(default: retoma de onde parou, pulando o que já está 'done')"
         ),
     )
+    run_parser.add_argument(
+        '--on-warning',
+        type=str,
+        choices=('continue', 'pause'),
+        default='continue',
+        help=(
+            "'continue' (default): fluxo direto, avisos só aparecem no "
+            "resumo final. 'pause': para ao fim de cada etapa com avisos e "
+            'pergunta se deve continuar, corrigir e tentar de novo (ex.: '
+            'ajustar categorias.yaml ou um CSV de entrada e reprocessar a '
+            'mesma etapa), ou abortar'
+        ),
+    )
 
     return parser

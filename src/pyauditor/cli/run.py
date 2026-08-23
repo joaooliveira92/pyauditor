@@ -20,9 +20,17 @@ even for an órgão whose upstream steps were skipped this invocation. Pass
 
 from __future__ import annotations
 
+from contextlib import suppress
 from pathlib import Path
-from typing import Final
+from typing import Final, Literal
 
+from rich.console import Console
+from rich.prompt import Prompt
+
+from pyauditor.orchestration._warning_decision import (
+    WarningDecision,
+    continue_on_warning,
+)
 from pyauditor.orchestration.run import (
     RunRequest,
     execute_run,
@@ -35,6 +43,69 @@ from pyauditor.orchestration.summary import (
 )
 
 _DEFAULT_RUNS_DIR: Final[Path] = Path('.pyauditor/runs')
+
+type OnWarningMode = Literal['continue', 'pause']
+
+_VALID_ON_WARNING_MODES: Final[frozenset[str]] = frozenset(
+    {'continue', 'pause'}
+)
+
+
+_ON_WARNING_PROMPT_CHOICES: Final[dict[str, WarningDecision]] = {
+    'c': 'continue',
+    'r': 'retry',
+    'a': 'abort',
+}
+
+
+def _pause_on_warning(
+    command: str,
+    orgao: str | None,
+    warnings: tuple[str, ...],
+) -> WarningDecision:
+    """Ask the operator how to proceed after a step finished with warnings.
+
+    Prompts on stderr, alongside the log stream, so it never interleaves with
+    the stdout summary. ``retry`` gives the operator a real third option
+    besides "run anyway" and "give up entirely": fix something outside the
+    process — ``categorias.yaml``, an input CSV — then have the same command
+    and organization dispatched again before the run advances.
+    """
+    console = Console(stderr=True)
+    console.print(
+        f'[yellow]{len(warnings)} aviso(s) em {command} '
+        f'({orgao or "-"}):[/yellow]'
+    )
+    for warning in warnings:
+        console.print(f'  • {warning}')
+
+    try:
+        choice = Prompt.ask(
+            'continuar mesmo assim (c), corrigir e tentar de novo (r), '
+            'ou abortar (a)?',
+            choices=list(_ON_WARNING_PROMPT_CHOICES),
+            default='c',
+            console=console,
+        )
+    except (EOFError, KeyboardInterrupt):
+        console.print(
+            '[bold red]entrada interativa indisponível — abortando.'
+            '[/bold red]'
+        )
+        return 'abort'
+
+    decision = _ON_WARNING_PROMPT_CHOICES[choice]
+
+    if decision == 'retry':
+        console.print(
+            '[cyan]Ajuste o que for necessário (categorias.yaml, CSV de '
+            f'entrada etc.) e pressione Enter para refazer {command} '
+            f'({orgao or "-"}).[/cyan]'
+        )
+        with suppress(EOFError, KeyboardInterrupt):
+            Prompt.ask('Pronto', console=console, default='')
+
+    return decision
 
 
 def run_run(
@@ -51,7 +122,11 @@ def run_run(
     output: OutputFormat = 'text',
     force: bool = False,
     strict: bool = False,
+    on_warning: OnWarningMode = 'continue',
 ) -> int:
+    if on_warning not in _VALID_ON_WARNING_MODES:
+        raise ValueError(f'Unsupported on_warning mode: {on_warning!r}.')
+
     request = RunRequest(
         competencia=competencia,
         orgao=orgao,
@@ -66,6 +141,12 @@ def run_run(
         force_commands=frozenset({'report', 'consolidate'}),
         strict=strict,
     )
-    run_result = execute_run(request, on_failure=isolate_on_failure)
+    run_result = execute_run(
+        request,
+        on_failure=isolate_on_failure,
+        on_warning=(
+            _pause_on_warning if on_warning == 'pause' else continue_on_warning
+        ),
+    )
     render_summary(run_result, output=output)
     return exit_code_for_run(run_result.state.commands, run_result.results)

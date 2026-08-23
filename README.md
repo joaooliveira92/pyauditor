@@ -128,11 +128,35 @@ uv run pyauditor run 2026-06 --orgao both
 ```
 
 `run` aceita os mesmos flags que os subcomandos individuais (`--config-dir`,
-`--data-dir`, `--output-dir`, `--final-month`, `--strict`). Cada invocação
-regenera desde zero os ROMs e Excels; `bootstrap` segue idempotente (nunca
-recria um arquivo existente). `split` também pode ser executado isoladamente
-(`--manifest` aponta para um `datasets.yaml` alternativo) para materializar
-`_split/*` (CSVs filtrados + configs por Categoria) e o `sintetico.xlsx`.
+`--data-dir`, `--output-dir`, `--final-month`, `--strict`). Por padrão `run`
+**retoma** de onde parou: etapas já persistidas como `done` (de uma tentativa
+anterior) não são reprocessadas, exceto `report`/`consolidate`, sempre
+regenerados a partir dos ROMs já materializados. `--force` reprocessa tudo
+desde o zero (ex.: depois de corrigir manualmente `capa.csv`/`objetos.csv`).
+`bootstrap` segue idempotente (nunca recria um arquivo existente). `split`
+também pode ser executado isoladamente (`--manifest` aponta para um
+`datasets.yaml` alternativo) para materializar `_split/*` (CSVs filtrados +
+configs por Categoria) e o `sintetico.xlsx`.
+
+`run` também aceita `--on-warning {continue,pause}` (default `continue`) para
+controlar o que fazer quando uma etapa termina com avisos (`in_values` sem
+correspondência, linhas não classificadas em `categorias.yaml` etc.):
+
+- `continue` (default): fluxo direto e scriptável, sem pausas — avisos ficam
+  só registrados no log e no resumo final, como sempre.
+- `pause`: ao final de cada etapa com avisos, a execução para e pergunta como
+  seguir — `continuar mesmo assim`, `corrigir e tentar de novo` (dá tempo de
+  ajustar `categorias.yaml`, um CSV de entrada etc. e redespacha a mesma
+  etapa antes de avançar) ou `abortar` (o estado da etapa já concluída fica
+  persistido, retomável numa próxima invocação sem `--force`).
+
+```bash
+# Direto, sem pausas (comportamento padrão, ideal para automação/CI)
+uv run pyauditor run 2026-06 --orgao both
+
+# Pausa a cada etapa com avisos para revisar/corrigir antes de seguir
+uv run pyauditor run 2026-06 --orgao both --on-warning pause
+```
 
 ### Competência, período e responsáveis automáticos
 
