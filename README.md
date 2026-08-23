@@ -44,9 +44,11 @@ por camada (quality gates, resolução de dataset, shapes de cálculo):
 
 ## Funcionalidades
 
-- **4 shapes de indicador** reduzem o engine a um único fluxo de execução
+- **5 shapes de indicador** reduzem o engine a um único fluxo de execução
   (`load config → valida quality_gates → aplica strategy → gera ROM`):
-  `ratio`, `segmented_ratio`, `count_difference` e `external_catalog_sum`.
+  `ratio`, `segmented_ratio`, `count_difference`, `external_catalog_sum` e
+  `precomputed_table` — a configuração canônica usa `ratio`,
+  `segmented_ratio` e `precomputed_table`.
 - **Strategy/registry pattern**: cada `shape` declara seu próprio modelo Pydantic
   (discriminated union) — `ty` (strict mode) garante que cada strategy
   só recebe o config que sabe processar, sem `dict[str, Any]`.
@@ -55,12 +57,17 @@ por camada (quality gates, resolução de dataset, shapes de cálculo):
   "config quebrada" de "dado rejeitado".
 - **Multi-órgão** (`MinC`/`MTur`/`both`): cada órgão roda isolado, sem cruzar
   dados; `consolidate` funde-os só ao final.
-- **Multi-ativo por indicador** (`Indicator.asset`): um CSV por ativo/serviço
-  (ex. INMS 1.14 File Server, WI-FI), sem colisão de nomes.
+- **Multi-ativo por indicador**: indicadores por ativo/serviço (ex. INMS 1.14
+  File Server, WI-FI) são um dataset único declarado como `precomputed_table` —
+  cada linha já traz o resultado calculado daquele item
+  (`numerator_column`/`denominator_column`/`name_column`), e o shape soma por
+  órgão em vez de exigir um CSV por serviço.
 - **Glosa fiscal** (`GLOSAS`): fórmula linear contínua do item 35 do TR
   (`min(30%, Σ Pontos × 0,001%) × valor mensal`) com teto e rollover.
-- **Idempotência**: `bootstrap` nunca recria uma capa existente; `run`
-  regenera sempre todos os artefactos (ROMs + Excel) desde zero.
+- **Idempotência**: `bootstrap` nunca recria uma capa existente; `run` **retoma**
+  de onde parou (etapas `done` não são reprocessadas, exceto
+  `report`/`consolidate`, sempre regenerados), com `--force` para reprocessar
+  tudo do zero e `--clean` para apagar `roms/`/`reports/` antes de rodar.
 
 ---
 
@@ -82,10 +89,10 @@ Isso instala o pacote e os grupos de dependências definidos em `pyproject.toml`
 ### Fluxo interativo
 
 Execute `pyauditor` sem argumentos para um fluxo guiado que percorre toda a
-competência (bootstrap → measure → report → consolidate), mostra progresso em
-vivo e oferece reintentar/omitir/abortar ante falhas. Requer um terminal real; a
-entrada por pipe/não-interativa cai em um erro que indica usar um subcomando
-diretamente.
+competência (bootstrap → split → measure → report → consolidate), mostra
+progresso em vivo e oferece reintentar/omitir/abortar ante falhas. Requer um
+terminal real; a entrada por pipe/não-interativa cai em um erro que indica usar
+um subcomando diretamente.
 
 ### Subcomandos
 
@@ -107,8 +114,10 @@ todos em uma invocação scriptable:
 `categorias.yaml` por órgão em `configs/<órgão>/`; dados em
 `input/<órgão>/<AAAA>/<MM>`, ROMs em `roms/<órgão>/<competência>/`, e cada
 órgão obtém sua própria capa (`capa_<órgão>.csv`) e relatório
-(`reports/relatorio_<competência>_<órgão>.xlsx`). `measure` filtra categorias
-`Grupo_executor` em memória — `input/_split` não é mais pré-requisito.
+(`reports/relatorio_<competência>_<órgão>.xlsx`); `consolidate` funde os dois
+em `reports/relatorio_<competência>_consolidado.xlsx`. `measure` filtra
+categorias `Grupo_executor` em memória — `input/_split` não é mais
+pré-requisito.
 
 ```bash
 # Cria as capas + esqueleto de equipe de cada órgão (idempotente)
@@ -123,20 +132,24 @@ uv run pyauditor report 2026-06 --orgao both --roms-dir roms --output-dir report
 # Funde os relatórios de ambos os órgãos no workbook financeiro do contrato
 uv run pyauditor consolidate 2026-06 --report-dir reports --roms-dir roms
 
-# Ou, equivalentemente, encadeia os quatro passos em uma invocação
+# Ou, equivalentemente, encadeia os cinco passos em uma invocação
 uv run pyauditor run 2026-06 --orgao both
 ```
 
 `run` aceita os mesmos flags que os subcomandos individuais (`--config-dir`,
-`--data-dir`, `--output-dir`, `--final-month`, `--strict`). Por padrão `run`
-**retoma** de onde parou: etapas já persistidas como `done` (de uma tentativa
-anterior) não são reprocessadas, exceto `report`/`consolidate`, sempre
-regenerados a partir dos ROMs já materializados. `--force` reprocessa tudo
-desde o zero (ex.: depois de corrigir manualmente `capa.csv`/`objetos.csv`).
-`bootstrap` segue idempotente (nunca recria um arquivo existente). `split`
-também pode ser executado isoladamente (`--manifest` aponta para um
-`datasets.yaml` alternativo) para materializar `_split/*` (CSVs filtrados +
-configs por Categoria) e o `sintetico.xlsx`.
+`--data-dir`, `--output-dir`, `--report-dir`, `--capa-path`, `--final-month`,
+`--strict`), mais `--force` e `--clean`. Por padrão `run` **retoma** de onde
+parou: etapas já persistidas como `done` (de uma tentativa anterior) não são
+reprocessadas, exceto `report`/`consolidate`, sempre regenerados a partir dos
+ROMs já materializados. `--force` reprocessa tudo desde o zero (ex.: depois de
+corrigir manualmente `capa.csv`/`objetos.csv`). `--clean` apaga `--output-dir`
+(roms) e `--report-dir` (reports) antes de rodar — combine com `--force` para
+também ignorar o estado de retomada salvo em `.pyauditor/runs/`.
+`--output {text,json}` controla o resumo final (painel rich vs JSON para
+automação). `bootstrap` segue idempotente (nunca recria um arquivo
+existente). `split` também pode ser executado isoladamente (`--manifest` aponta
+para um `datasets.yaml` alternativo) para materializar `_split/*` (CSVs
+filtrados + configs por Categoria) e o `sintetico.xlsx`.
 
 `run` também aceita `--on-warning {continue,pause}` (default `continue`) para
 controlar o que fazer quando uma etapa termina com avisos (`in_values` sem
@@ -162,7 +175,7 @@ uv run pyauditor run 2026-06 --orgao both --on-warning pause
 
 A capa dos relatórios e ROMs não pede mais hand-fill para campos deriváveis:
 
-- **Competência e Período da aferição** vêm do argumento `--competência`
+- **Competência e Período da aferição** vêm do argumento de competência da CLI
   (`2026-06` → 01/06/2026 a 30/06/2026) e são gravados em ROM, relatório do
   órgão e consolidado.
 - **Responsáveis** (fiscal técnico, fiscal requisitante, fiscal administrativo,
@@ -180,19 +193,22 @@ A capa dos relatórios e ROMs não pede mais hand-fill para campos deriváveis:
 
 ---
 
-## Como funciona: os 14 indicadores em 4 shapes
+## Como funciona: os indicadores por shape
 
-A leitura integral do Anexo D (Tabela 28) reduz o engine a quatro shapes:
+O engine roda um único fluxo (`load config → valida quality_gates → aplica a
+strategy → gera ROM`). O registry declara **cinco shapes** (`ratio`,
+`segmented_ratio`, `count_difference`, `external_catalog_sum`,
+`precomputed_table`); a configuração canônica em `configs/_shared/` usa três:
 
 | Shape | Indicadores | Descrição |
 |---|---|---|
-| `ratio` | 1.1, 1.3–1.7, 1.9, 1.11–1.14 | numerador/denominador × 100, meta com operador (`>=`/`<=`), penalidade em degraus |
+| `ratio` | 1.1, 1.3, 1.6, 1.7, 1.11, 1.12 | numerador/denominador × 100, meta com operador (`>=`/`<=`), penalidade em degraus |
 | `segmented_ratio` | 1.2 | 3 sub‑razões por categoria (Alta/Média/Baixa), cada uma com meta e taxa própria; penalidade = soma |
-| `count_difference` | 1.10 | `CNI = QRC − QCSI` (diferença de contagem), penalidade fixa por unidade |
-| `external_catalog_sum` | 1.8 | soma de pontos de um catálogo externo fechado (Anexo E), sem meta percentual |
+| `precomputed_table` | 1.4, 1.5, 1.8, 1.9, 1.10, 1.13, 1.14 | cada linha do dataset já é o resultado calculado de um item; soma numerador/denominador por órgão |
 
-Variações de `ratio`: `count_distinct` (1.1, 1.6, 1.7, 1.9, 1.11–1.13), `sum`
-(1.3), `precomputed` (1.4, 1.5, 1.14 — uma medição independente por ativo).
+Variações de `ratio`: `count_distinct` (1.1, 1.7, 1.11, 1.12) e `sum` de
+colunas (1.3, 1.6). `count_difference` e `external_catalog_sum` seguem
+disponíveis no registry para quando a configuração voltar a precisar deles.
 Detalhe e justificação contratual em
 [`docs/spec/inms-pipeline.md`](docs/spec/inms-pipeline.md#2-classificação-dos-14-indicadores-por-shape).
 
@@ -202,21 +218,24 @@ Detalhe e justificação contratual em
 
 ```
 src/pyauditor/
-├── config/        # modelos Pydantic, discriminated union por `shape`, catálogo Anexo E
-├── engine/
-│   ├── quality_gates.py   # QualityGateRunner
-│   └── strategies/        # ratio, segmented_ratio, count_difference, external_catalog_sum
-├── rom/           # render Markdown (template genérico + renderer por shape)
-├── excel/         # builder da planilha final + capa + glosas + consolidação
-├── orchestration/ # estado do `run`, summary, execução encadeada
-├── interactive/   # fluxo guiado (TTY)
-└── cli/           # bootstrap / measure / report / consolidate / run
+├── config/            # modelos Pydantic, discriminated union por `shape`, resolução de paths
+├── engine/            # backbone de medição (leitura/filtro/janela) + strategies por shape
+│   └── strategies/    # ratio, segmented_ratio, count_difference, external_catalog_sum
+├── rom/               # ROM Markdown + summary JSON por indicador
+├── excel/             # builders de workbook: capa, relatório, sintetico, consolidado
+│   ├── sintetico/     # sintetico.xlsx (uma aba por INMS + abas institucionais)
+│   └── consolidate/   # CAPA_E_CONTROLE, SERVICOS_POR_ORGAO, INMS_BASE, GLOSAS, CALCULO_PAGAMENTO (+ INMS_BASE_AGRUPADO em excel/inms_grouped.py)
+├── orchestration/     # estado do `run` (.pyauditor/runs/), plan, retomada, summary
+├── interactive/       # fluxo guiado (TTY)
+├── commands/          # contratos neutros de status/resultado por comando
+└── cli/               # parser + dispatch: bootstrap / split / measure / report / consolidate / run
 
 configs/_shared/            # 14 inms-0N.yaml + datasets.yaml (single-source)
 configs/<órgão>/            # categorias.yaml (por órgão; datasets.yaml fallback)
 input/<órgão>/<AAAA>/<MM>   # datasets CSV (git-ignored; contém PII real)
 roms/<órgão>/<competência>/ # ROMs .md + summary .json
 reports/                    # Excel de relatório por órgão + consolidado
+.pyauditor/runs/            # estado de retomada do `run` (git-ignored)
 docs/                       # spec, ADR, spreadsheet, styleguide, termo de referência
 portal/                     # fonte do site de documentação (zensical)
 ```
