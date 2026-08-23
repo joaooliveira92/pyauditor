@@ -121,14 +121,38 @@ _PRECOMPUTED_BREAKDOWN_CODES: Final[frozenset[str]] = frozenset(
 )
 
 _COLUMNS: Final[tuple[str, ...]] = (
-    'Competência', 'Item contratual', 'Serviço', 'Grupo operacional',
-    'Código INMS', 'Descrição', 'Órgão', 'Meta mínima ou máxima',
-    'Sentido da meta', 'Numerador', 'Denominador', 'Resultado calculado',
-    'Unidade', 'Conformidade', 'Diferença para a meta',
+    'Competência',
+    'Item contratual',
+    'Serviço',
+    'Grupo operacional',
+    'Código INMS',
+    'Descrição',
+    'Órgão',
+    'Meta mínima ou máxima',
+    'Sentido da meta',
+    'Numerador',
+    'Denominador',
+    'Resultado calculado',
+    'Unidade',
+    'Conformidade',
+    'Diferença para a meta',
 )
 _COLUMN_WIDTHS: Final[dict[int, int]] = {
-    1: 12, 2: 34, 3: 34, 4: 12, 5: 12, 6: 42, 7: 14, 8: 16, 9: 12,
-    10: 12, 11: 12, 12: 16, 13: 10, 14: 14, 15: 16,
+    1: 12,
+    2: 34,
+    3: 34,
+    4: 12,
+    5: 12,
+    6: 42,
+    7: 14,
+    8: 16,
+    9: 12,
+    10: 12,
+    11: 12,
+    12: 16,
+    13: 10,
+    14: 14,
+    15: 16,
 }
 _TOP_BORDER: Final = Border(top=Side(style='thin', color='1F2937'))
 
@@ -166,9 +190,7 @@ def _compute_for_grupo(
     ).run(rows_for_grupo)
     strategy = SHAPE_REGISTRY[config.calculation.shape]
     result = strategy.calculate(config, gate_report.accepted)
-    numerator, denominator = strategy.pool_numerator_denominator(
-        result.memoria
-    )
+    numerator, denominator = strategy.pool_numerator_denominator(result.memoria)
     return numerator or 0.0, denominator or 0.0
 
 
@@ -452,7 +474,8 @@ def compute_glosa_item_detail(
         code_key = format_inms_code_numeric(f'INMS {inms_key}')
         for orgao in _ORGAOS:
             org_rows = [
-                row for row in by_orgao.get(orgao, [])
+                row
+                for row in by_orgao.get(orgao, [])
                 if row[0] != _AUDIT_REVIEW_LABEL
             ]
             failing = tuple(
@@ -487,9 +510,21 @@ def _consolidado_row(
     )
     diff = compliance_margin(resultado, info.target_value, info.target_operator)
     return [
-        competencia, label, None, None, inms_code, descricao, orgao,
-        info.target_value, info.target_operator, numerator, denominator,
-        resultado, '%', conforme, round(diff, 2) if diff is not None else None,
+        competencia,
+        label,
+        None,
+        None,
+        inms_code,
+        descricao,
+        orgao,
+        info.target_value,
+        info.target_operator,
+        numerator,
+        denominator,
+        resultado,
+        '%',
+        conforme,
+        round(diff, 2) if diff is not None else None,
     ]
 
 
@@ -582,10 +617,21 @@ def _restructure_verbatim(
     conforme = _conformidade(resultado, 1.0, target_value, target_operator)
     diff = compliance_margin(resultado, target_value, target_operator)
     grand: list[CellValue] = [
-        competencia, 'Consolidado', None, None, inms_code,
-        minc_row[5] if isinstance(minc_row[5], str) else None, 'Consolidado',
-        target_value, target_operator, None, None, resultado, minc_row[12],
-        conforme, round(diff, 2) if diff is not None else None,
+        competencia,
+        'Consolidado',
+        None,
+        None,
+        inms_code,
+        minc_row[5] if isinstance(minc_row[5], str) else None,
+        'Consolidado',
+        target_value,
+        target_operator,
+        None,
+        None,
+        resultado,
+        minc_row[12],
+        conforme,
+        round(diff, 2) if diff is not None else None,
     ]
     return [grand, *children]
 
@@ -612,7 +658,8 @@ def _build_breakdown_rows(
 
         for orgao in _ORGAOS:
             org_rows = [
-                row for row in by_orgao.get(orgao, [])
+                row
+                for row in by_orgao.get(orgao, [])
                 if row[0] != _AUDIT_REVIEW_LABEL
             ]
             org_num = sum(n for _, _, _, n, _ in org_rows)
@@ -630,26 +677,56 @@ def _build_breakdown_rows(
                 diff = compliance_margin(
                     resultado, info.target_value, info.target_operator
                 )
-                detail_rows.append([
-                    competencia, grupo, categoria_label, nivel, inms_code,
-                    descricao, orgao, info.target_value, info.target_operator,
-                    num, den, resultado, '%', conforme,
-                    round(diff, 2) if diff is not None else None,
-                ])
+                detail_rows.append(
+                    [
+                        competencia,
+                        grupo,
+                        categoria_label,
+                        nivel,
+                        inms_code,
+                        descricao,
+                        orgao,
+                        info.target_value,
+                        info.target_operator,
+                        num,
+                        den,
+                        resultado,
+                        '%',
+                        conforme,
+                        round(diff, 2) if diff is not None else None,
+                    ]
+                )
 
-            code_rows.append(_consolidado_row(
-                competencia, f'Consolidado - {orgao}', orgao, inms_code,
-                descricao, info, org_num, org_den,
-            ))
+            code_rows.append(
+                _consolidado_row(
+                    competencia,
+                    f'Consolidado - {orgao}',
+                    orgao,
+                    inms_code,
+                    descricao,
+                    info,
+                    org_num,
+                    org_den,
+                )
+            )
             code_rows.extend(detail_rows)
 
         if info.consolidatable:
             grand_num = sum(n for _, n, _ in org_subtotals)
             grand_den = sum(d for _, _, d in org_subtotals)
-            code_rows.insert(0, _consolidado_row(
-                competencia, 'Consolidado', 'Consolidado', inms_code,
-                descricao, info, grand_num, grand_den,
-            ))
+            code_rows.insert(
+                0,
+                _consolidado_row(
+                    competencia,
+                    'Consolidado',
+                    'Consolidado',
+                    inms_code,
+                    descricao,
+                    info,
+                    grand_num,
+                    grand_den,
+                ),
+            )
 
         if code_rows:
             rows_by_code[inms_key] = code_rows

@@ -236,9 +236,7 @@ def run_consolidate(
                 scratch_dir=Path(scratch),
             )
     except Exception as exc:  # boundary: nunca vazar traceback nem bloquear
-        warning = (
-            f'aba INMS_BASE_AGRUPADO não gerada: {exc}'
-        )
+        warning = f'aba INMS_BASE_AGRUPADO não gerada: {exc}'
         logger.warning(warning)
         warnings.append(warning)
 

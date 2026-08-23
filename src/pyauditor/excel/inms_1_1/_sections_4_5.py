@@ -305,8 +305,7 @@ def _write_section_5_subtotais(
         row=outr,
         column=2,
         value=(
-            f'=COUNTIFS({rng(_Z)},"{_SEM_NIVEL}",'
-            f'{rng(_AP)},"{_INCLUIDO_SIM}")'
+            f'=COUNTIFS({rng(_Z)},"{_SEM_NIVEL}",{rng(_AP)},"{_INCLUIDO_SIM}")'
         ),
     )
     dentro = sheet.cell(

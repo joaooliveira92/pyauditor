@@ -152,12 +152,8 @@ def test_enriched_sheet_is_used_when_raw_csv_has_detail_columns(
     # desabilitar individualmente grupos executores não previstos.
     assert sheet['A13'].value == '=0.98'
     assert sheet['B13'].value == '=COUNTIF($AP$2:$AP$5,"Sim")'
-    assert (
-        sheet['C13'].value == '=COUNTIFS($AP$2:$AP$5,"Sim",$X$2:$X$5,"S")'
-    )
-    assert (
-        sheet['D13'].value == '=COUNTIFS($AP$2:$AP$5,"Sim",$X$2:$X$5,"N")'
-    )
+    assert sheet['C13'].value == '=COUNTIFS($AP$2:$AP$5,"Sim",$X$2:$X$5,"S")'
+    assert sheet['D13'].value == '=COUNTIFS($AP$2:$AP$5,"Sim",$X$2:$X$5,"N")'
     assert sheet['E13'].value == '=IF(B13=0,"Sem ocorrências",C13/B13)'
 
     # Seção 4 — uma linha por grupo executor real do CSV.

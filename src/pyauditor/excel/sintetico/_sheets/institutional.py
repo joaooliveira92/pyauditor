@@ -181,12 +181,12 @@ def _rendered_identificacao_labels(
     campos ausentes no CSV somem; os sintéticos só entram quando o campo do
     qual dependem está presente (e, no caso das vigências, com datas
     válidas: sem datas reais não há como montar a fórmula)."""
-    inicio_valido = _parse_data_br(
-        raw_fields.get('Início da vigência', '')
-    ) is not None
-    termino_valido = _parse_data_br(
-        raw_fields.get('Término da vigência', '')
-    ) is not None
+    inicio_valido = (
+        _parse_data_br(raw_fields.get('Início da vigência', '')) is not None
+    )
+    termino_valido = (
+        _parse_data_br(raw_fields.get('Término da vigência', '')) is not None
+    )
 
     rendered: list[str] = []
     for label in _IDENTIFICACAO_LABELS:
@@ -213,7 +213,7 @@ def _write_capa_sheet(
         raw_fields = _strip_fields(read_capa_csv_fields(capa_path))
     except FileNotFoundError:
         warnings.append(
-            f"sintetico.xlsx: {capa_path} não encontrado — aba "
+            f'sintetico.xlsx: {capa_path} não encontrado — aba '
             f"'{CAPA_SHEET_NAME}' não gerada"
         )
         return CapaContext(None)
@@ -247,15 +247,17 @@ def _write_capa_sheet(
         subtitulo = f'=_xlfn.CONCAT("Contrato nº",D{row_by_label["Contrato"]})'
     else:
         subtitulo = f'Contrato nº {numero_contrato}' if numero_contrato else ''
-    sheet.cell(row=_ROW_SUBTITLE, column=2, value=subtitulo).font = (
-        SUBTITLE_FONT
-    )
+    sheet.cell(
+        row=_ROW_SUBTITLE, column=2, value=subtitulo
+    ).font = SUBTITLE_FONT
     hoje_cell = sheet.cell(row=_ROW_SUBTITLE, column=4, value='=TODAY()')
     hoje_cell.font = BODY_FONT
     hoje_cell.number_format = 'dd/mm/yyyy'
 
     sheet.merge_cells(
-        start_row=_ROW_SECTION, start_column=2, end_row=_ROW_SECTION,
+        start_row=_ROW_SECTION,
+        start_column=2,
+        end_row=_ROW_SECTION,
         end_column=4,
     )
     sheet.cell(
@@ -361,9 +363,7 @@ def _write_capa_sheet(
         _flag_pendencia(
             cast(
                 Cell,
-                sheet.cell(
-                    row=row_by_label['Término da vigência'], column=4
-                ),
+                sheet.cell(row=row_by_label['Término da vigência'], column=4),
             ),
             'Início da vigência posterior ao término — revisar datas.',
         )
@@ -396,9 +396,7 @@ def _write_objetos_section(
     """Seção 3 — Item/Categoria/Valor, lida diretamente de `objetos.csv`
     (mantém o texto da Categoria, que `objetos.read_objetos` descarta)."""
     try:
-        with objetos_path.open(
-            encoding=OBJETOS_ENCODING, newline=''
-        ) as handle:
+        with objetos_path.open(encoding=OBJETOS_ENCODING, newline='') as handle:
             rows = list(csv.DictReader(handle, delimiter=OBJETOS_DELIMITER))
     except FileNotFoundError:
         warnings.append(
@@ -531,7 +529,9 @@ def _write_equipe_sheet(
     ).font = SUBTITLE_FONT
 
     sheet.merge_cells(
-        start_row=_ROW_SECTION, start_column=2, end_row=_ROW_SECTION,
+        start_row=_ROW_SECTION,
+        start_column=2,
+        end_row=_ROW_SECTION,
         end_column=4,
     )
     sheet.cell(
@@ -690,7 +690,9 @@ def _write_prazos_sheet(
     ).font = SUBTITLE_FONT
 
     sheet.merge_cells(
-        start_row=_ROW_SECTION, start_column=2, end_row=_ROW_SECTION,
+        start_row=_ROW_SECTION,
+        start_column=2,
+        end_row=_ROW_SECTION,
         end_column=4,
     )
     sheet.cell(
@@ -714,10 +716,14 @@ def _write_prazos_sheet(
         if note_height is not None:
             sheet.row_dimensions[note_row].height = note_height
 
-    header_labels = tuple(header[:3]) if len(header) >= 3 else (
-        'Demanda',
-        'Criticidade',
-        'Prazo máximo para atendimento',
+    header_labels = (
+        tuple(header[:3])
+        if len(header) >= 3
+        else (
+            'Demanda',
+            'Criticidade',
+            'Prazo máximo para atendimento',
+        )
     )
     header_row = _ROW_PRAZOS_HEADER
     for column, label in zip((2, 3, 4), header_labels, strict=True):

@@ -89,8 +89,7 @@ def _pause_on_warning(
         )
     except (EOFError, KeyboardInterrupt):
         console.print(
-            '[bold red]entrada interativa indisponível — abortando.'
-            '[/bold red]'
+            '[bold red]entrada interativa indisponível — abortando.[/bold red]'
         )
         return 'abort'
 
