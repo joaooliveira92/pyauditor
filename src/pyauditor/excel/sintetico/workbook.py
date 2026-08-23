@@ -126,7 +126,6 @@ def write_sintetico_workbook(
         objetos_path=objetos_path,
         equipe_path=equipe_path,
         prazos_path=prazos_path,
-        periodo=periodo,
         warnings=warnings,
     )
     sheets_before_inms = set(workbook.sheetnames)

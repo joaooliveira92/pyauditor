@@ -36,10 +36,12 @@ __all__: Final[tuple[str, ...]] = (
     'LEFT_ALIGN',
     'LEFT_WRAP_ALIGN',
     'PENDING_FILL',
+    'SECTION_FONT',
     'SUBSTITUTO_FILL',
     'SUBTITLE_FONT',
     'THIN_BORDER',
     'TITLE_FONT',
+    'TOP_WRAP_ALIGN',
     'UNIT_BY_SHAPE',
     'CellValue',
     'new_sheet',
@@ -49,6 +51,7 @@ __all__: Final[tuple[str, ...]] = (
 
 TITLE_FONT: Final = Font(name='Arial', size=14, bold=True)
 SUBTITLE_FONT: Final = Font(name='Arial', size=11, bold=True)
+SECTION_FONT: Final = Font(name='Arial', size=12, bold=True)
 LABEL_FONT: Final = Font(name='Arial', size=10, bold=True)
 BODY_FONT: Final = Font(name='Arial', size=10)
 HEADER_FONT: Final = Font(
@@ -78,6 +81,9 @@ LEFT_WRAP_ALIGN: Final = Alignment(
 )
 CENTER_WRAP_ALIGN: Final = Alignment(
     horizontal='center', vertical='center', wrap_text=True
+)
+TOP_WRAP_ALIGN: Final = Alignment(
+    horizontal='left', vertical='top', wrap_text=True
 )
 
 # Sinalização de pendência documental (spec de revisão Capa/Equipe/Prazos) —
@@ -244,12 +250,17 @@ def setup_institutional_print(
     last_row: int,
     last_column: int,
     header_row: int | None = None,
+    first_row: int = 1,
+    first_column: int = 1,
 ) -> None:
     """Aplica a configuração de impressão institucional (revisão Capa/
     Equipe/Prazos): área de impressão sobre o conteúdo, uma página de
     largura, centralizado horizontalmente, margens moderadas e rodapé
     discreto com contrato/aba/página. `header_row`, se informado, repete
-    aquela linha em páginas subsequentes (ex.: cabeçalho de tabela)."""
+    aquela linha em páginas subsequentes (ex.: cabeçalho de tabela).
+    `first_row`/`first_column` permitem áreas que começam depois de A1 (ex.:
+    Capa, cujo conteúdo começa na coluna B — a coluna A é só um recuo
+    visual)."""
     sheet.page_setup.orientation = 'portrait'
     sheet.page_setup.fitToWidth = 1
     sheet.page_setup.fitToHeight = 0
@@ -263,8 +274,11 @@ def setup_institutional_print(
     # Não usar `sheet.cell(row=1, column=last_column).column_letter`: quando
     # a linha 1 tem células mescladas (ex.: título em `A1:F1`), a célula
     # naquela posição pode ser uma `MergedCell`, que não tem esse atributo.
+    first_col_letter = get_column_letter(first_column)
     last_col_letter = get_column_letter(last_column)
-    sheet.print_area = f'A1:{last_col_letter}{last_row}'
+    sheet.print_area = (
+        f'{first_col_letter}{first_row}:{last_col_letter}{last_row}'
+    )
     if header_row is not None:
         sheet.print_title_rows = f'{header_row}:{header_row}'
 

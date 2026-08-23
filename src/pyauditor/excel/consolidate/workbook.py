@@ -397,6 +397,7 @@ def build_glosas(
     *,
     historico: Historico | None = None,
     is_final_month: bool = False,
+    glosa_item_detail: dict[tuple[str, str], tuple[str, ...]] | None = None,
 ) -> tuple[float, float]:
     """GLOSAS — uma linha por (indicador x órgão) com ocorrência de glosa,
     mais o resumo agregado. Decisão do fiscal ('Aceita' = anistia) tira a
@@ -406,7 +407,14 @@ def build_glosas(
     Reusa ``glosas.compute_glosa`` por-órgão (mesma fórmula de ``report.py``) —
     com ``saldo_anterior_pct`` e ``is_final_month`` — e soma contra teto
     por-órgão em vez de teto único sobre o agregado.
+
+    ``glosa_item_detail`` (de ``excel/inms_grouped.py::
+    compute_glosa_item_detail``) alimenta ``Item Contratual`` com os itens
+    (grupo executor/ativo) que não bateram a meta dentro do indicador —
+    vazio quando ausente ou quando o indicador não tem essa granularidade
+    (mesmo comportamento de antes desse parâmetro existir).
     """
+    glosa_item_detail = glosa_item_detail or {}
     ws = _new_sheet(wb, GLOSAS_SHEET, _GLOSAS_COLUMNS, width=26)
     row = 2
 
@@ -433,15 +441,18 @@ def build_glosas(
         pct = ocorrencia.pct_ajuste
         valor_glosa = ocorrencia.valor_glosa
 
+        code_numeric = format_inms_code_numeric(summary.contractual_id)
+        item_names = glosa_item_detail.get((code_numeric, summary.orgao), ())
+
         _write(
             ws,
             row,
             (
                 competencia,
                 summary.orgao,
-                '',
-                '',
-                format_inms_code_numeric(summary.contractual_id),
+                '; '.join(item_names),
+                summary.name,
+                code_numeric,
                 round(summary.result_pct, 2),
                 summary.target_value,
                 faixa_descumprimento(summary),
@@ -610,6 +621,7 @@ def build_consolidated_workbook(
     is_final_month: bool = False,
     periodo: PeriodoAfericao | None = None,
     responsaveis: dict[str, str] | None = None,
+    glosa_item_detail: dict[tuple[str, str], tuple[str, ...]] | None = None,
 ) -> ConsolidationResult:
     """Pure, in-memory build of the 5-sheet consolidated workbook.
 
@@ -618,6 +630,8 @@ def build_consolidated_workbook(
     ``.xlsx`` de ``report.py``. ``valor_base`` e ``itens`` vêm de
     ``objetos.csv``. ``glosa_calculada`` é ``valor_base is not None``.
     ``periodo``/``responsaveis`` alimentam a capa (CLI + equipe.csv, §4/§6).
+    ``glosa_item_detail`` alimenta ``Item Contratual`` da GLOSAS — ver
+    ``build_glosas``.
     """
     warnings: list[str] = []
     wb = Workbook()
@@ -647,6 +661,7 @@ def build_consolidated_workbook(
         warnings,
         historico=historico,
         is_final_month=is_final_month,
+        glosa_item_detail=glosa_item_detail,
     )
     build_calculo(wb, valor_base, total_pontos)
 

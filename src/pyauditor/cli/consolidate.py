@@ -15,11 +15,14 @@ e o valor monetário de `objetos.csv` — a capa não carrega mais valores.
 Competência/períodos/responsáveis idem (spec competencia-cli-equipe §4/§6):
 períodos derivados do argumento da CLI e responsáveis de `equipe.csv`.
 
-A aba `INMS_BASE_AGRUPADO` (`excel/inms_grouped.py`) é a única parte deste
-comando que toca `config_dir`/CSV bruto — recomputa o detalhamento por
-grupo executor/ativo direto das configs, sem nada em disco além do
-consolidado sendo montado. Se essa recomputação falhar, degrada com um
-aviso; nunca impede a publicação do consolidado.
+Duas partes deste comando tocam `config_dir`/CSV bruto — ambas via
+`excel/inms_grouped.py`, recomputando o detalhamento por grupo executor/
+ativo direto das configs, sem nada em disco além do consolidado sendo
+montado: `Item Contratual` da GLOSAS (`compute_glosa_item_detail`, chamado
+antes de `build_consolidated_workbook` — a GLOSAS precisa do resultado) e a
+aba `INMS_BASE_AGRUPADO` (`add_inms_agrupado_sheet`, chamado depois). Se
+qualquer uma falhar, degrada com um aviso; nunca impede a publicação do
+consolidado.
 """
 
 import tempfile
@@ -39,7 +42,10 @@ from pyauditor.excel.consolidate import (
     read_existing_decisions,
 )
 from pyauditor.excel.equipe import EQUIPE_FILENAME, read_responsaveis
-from pyauditor.excel.inms_grouped import add_inms_agrupado_sheet
+from pyauditor.excel.inms_grouped import (
+    add_inms_agrupado_sheet,
+    compute_glosa_item_detail,
+)
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import month_bounds
 from pyauditor.rom.loading import load_summaries, read_valor_base
@@ -173,6 +179,25 @@ def run_consolidate(
             quantidade=len(existing_decisions),
         )
 
+    # `Item Contratual` da GLOSAS (`excel/inms_grouped.py::
+    # compute_glosa_item_detail`) precisa do mesmo detalhamento por grupo
+    # executor/ativo da aba `INMS_BASE_AGRUPADO`, mas a GLOSAS é montada
+    # antes dela existir — recomputa aqui e passa adiante. Mesma política
+    # de degradar sem bloquear: falha aqui só deixa `Item Contratual` vazio
+    # (o comportamento de sempre), nunca impede o consolidado.
+    glosa_item_detail: dict[tuple[str, str], tuple[str, ...]] = {}
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix='pyauditor-glosa-item-detail-'
+        ) as scratch:
+            glosa_item_detail = compute_glosa_item_detail(
+                competencia, config_dir, data_dir, scratch_dir=Path(scratch)
+            )
+    except Exception as exc:  # boundary: nunca vazar traceback nem bloquear
+        warning = f'Item Contratual da GLOSAS não recomputado: {exc}'
+        logger.warning(warning)
+        warnings.append(warning)
+
     try:
         result = build_consolidated_workbook(
             competencia,
@@ -185,6 +210,7 @@ def run_consolidate(
             periodo=periodo,
             responsaveis=responsaveis,
             is_final_month=is_final_month,
+            glosa_item_detail=glosa_item_detail,
         )
     except (
         Exception

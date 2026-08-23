@@ -1,15 +1,18 @@
 """Aba `INMS_BASE_AGRUPADO` do `relatorio_<competência>_consolidado.xlsx` —
 uma visão do `INMS_BASE` da mesma aba com agrupamento nativo de linhas do
-Excel (Dados > Agrupar), substituindo o pooling por Nível (N1/N2/N3) por um
-detalhamento real em dois grupos de INMS:
+Excel (Dados > Agrupar). Todo Código INMS segue o mesmo formato pai/filho:
+um `"Consolidado"` (total geral, nível 0) com `"Consolidado - MinC"`/
+`"Consolidado - MTur"` (nível 1) como filhos — nunca um órgão pai do outro.
+Substitui o pooling por Nível (N1/N2/N3) por um detalhamento real em dois
+grupos de INMS:
 
 - Por Grupo executor, nos INMS com essa granularidade em `categorias.yaml`
   (hoje: 1.1, 1.2, 1.3, 1.7 — descoberto em runtime via `_grupo_detail_by_
   inms`, não hardcoded).
 - Por ativo/sistema, nos INMS "por ativo" listados em
-  `_PRECOMPUTED_BREAKDOWN_CODES` (hoje: 1.4, 1.5, 1.14 — hardcoded: outros
-  INMS `precomputed_table` com a mesma forma, ex. 1.9/1.10/1.13, existem
-  mas não foram pedidos).
+  `_PRECOMPUTED_BREAKDOWN_CODES` (hoje: 1.4, 1.5, 1.9, 1.10, 1.13, 1.14 —
+  todo `precomputed_table` com `numerator_column`/`denominator_column`/
+  `name_column` configurados).
 
 Por que não é fabricação:
 - Grupo executor: cada linha de detalhe roda
@@ -24,25 +27,23 @@ Por que não é fabricação:
   que `PrecomputedTableStrategy.calculate` já faz internamente para o
   `result_pct` agregado por órgão (também conferido manualmente contra o
   ROM publicado) — só que exposta por ativo em vez de só o agregado.
+- Verbatim reorganizado (`_restructure_verbatim`, os INMS sem nenhum dos
+  dois detalhamentos): reusa a linha `"Consolidado"` já publicada no
+  `INMS_BASE` quando existe (`with_orgao_consolidation`); quando não existe
+  (ex. denominador 0 nos dois órgãos neste mês, ou shape nunca consolidado
+  como `precomputed_table`), soma numerador/denominador dos dois órgãos
+  quando ambos existem, ou o Resultado calculado direto quando o indicador
+  é ponto/contagem sem numerador/denominador (ex. INMS 1.8) — nunca inventa
+  uma razão que o indicador não tem.
 
-Em ambos os casos, "Consolidado - {órgão}" é o subtotal dos itens daquele
-órgão; "Consolidado" (total geral, cruzando órgãos) só é gravado quando o
-`shape` do indicador já é consolidável hoje (mesma regra de
-`excel/orgao_consolidation.py`; ver `_CONSOLIDATABLE_SHAPES`) — `ratio`/
-`segmented_ratio`/`count_difference` ganham essa linha, `precomputed_table`
-nunca (a fórmula de pooling entre órgãos não é validada em nenhum outro
-lugar do pipeline para esse shape), para nunca inventar um pooling que o
-resto do pipeline não valida.
+"Consolidado - {órgão}" é sempre o subtotal/valor daquele órgão;
+"Consolidado" é sempre a soma dos dois — aritmética direta sobre números já
+corretos, nunca uma fórmula contratual nova.
 
 Grupos executores fora de `categorias.yaml` ("Grupo sob análise de
 responsabilidade") ficam de fora do detalhamento por grupo: `measure`/
 `report` nunca os soma na apuração oficial, incluí-los aqui infllaria os
 subtotais silenciosamente.
-
-Os INMS sem nenhum dos dois detalhamentos (a maioria — `whole_indicator` de
-categoria única, ou `precomputed_table` sem essa granularidade pedida) são
-copiados **verbatim** do `INMS_BASE` já publicado: nada é recalculado, nada
-é fabricado para eles.
 
 `add_inms_agrupado_sheet` é chamada por `cli/consolidate.py` logo depois de
 `build_consolidated_workbook` montar o workbook em memória — lê o
@@ -71,7 +72,7 @@ from pyauditor.categoria_filter import (
     compute_categoria_values,
 )
 from pyauditor.cli.measure_inputs import resolve_measure_inputs
-from pyauditor.codes import format_inms_code
+from pyauditor.codes import format_inms_code, format_inms_code_numeric
 from pyauditor.config.categorias import CategoriasFile, GrupoExecutorMode
 from pyauditor.config.models import IndicatorConfig, PrecomputedTableCalculation
 from pyauditor.config.niveis import NIVEL_BY_CATEGORIA
@@ -94,6 +95,7 @@ from pyauditor.periodo import month_bounds
 __all__: Final[tuple[str, ...]] = (
     'GroupedSheetResult',
     'add_inms_agrupado_sheet',
+    'compute_glosa_item_detail',
 )
 
 _INMS_BASE_SHEET: Final[str] = 'INMS_BASE'
@@ -109,13 +111,13 @@ _CONSOLIDATABLE_SHAPES: Final[frozenset[str]] = frozenset(
     {'ratio', 'segmented_ratio', 'count_difference'}
 )
 # INMS "por ativo" (`precomputed_table` com `numerator_column`/
-# `denominator_column`/`name_column`) cujo detalhamento por ativo o usuário
-# pediu explicitamente — mesma lista de `PER_ASSET_CONTRACTUAL_IDS` em
-# `excel/orgao_consolidation.py`. Outros INMS `precomputed_table` com a
-# mesma forma (1.9, 1.10, 1.13) existem mas não foram pedidos; ficam de
-# fora até alguém pedir o mesmo tratamento para eles.
+# `denominator_column`/`name_column`) com detalhamento por ativo: 1.4/1.5/
+# 1.14 (`PER_ASSET_CONTRACTUAL_IDS` em `excel/orgao_consolidation.py`) e
+# 1.9/1.10/1.13, que têm exatamente a mesma forma de config (mesmas 3
+# colunas), só não eram indicadores "por ativo" na origem — a mecânica de
+# `_ativo_detail_by_inms` não distingue os dois casos.
 _PRECOMPUTED_BREAKDOWN_CODES: Final[frozenset[str]] = frozenset(
-    {'1.4', '1.5', '1.14'}
+    {'1.4', '1.5', '1.9', '1.10', '1.13', '1.14'}
 )
 
 _COLUMNS: Final[tuple[str, ...]] = (
@@ -308,10 +310,14 @@ def _ativo_detail_by_inms(
     vez de só o agregado — nada de quality-gate/estratégia para recomputar,
     é leitura + soma direta.
 
-    Nunca consolidável entre órgãos (`consolidatable=False` sempre): mesma
-    razão de `PER_ASSET_CONTRACTUAL_IDS` em `excel/orgao_consolidation.py`
-    — a fórmula de pooling entre órgãos não é validada em nenhum outro
-    lugar do pipeline para este shape.
+    `consolidatable=True` sempre: por pedido explícito, "Consolidado" (o
+    pai comum de "Consolidado - MinC"/"Consolidado - MTur") soma os
+    numerador/denominador dos dois órgãos — a mesma soma que já gera cada
+    subtotal por órgão, só estendida ao outro nível. Diferente do resto do
+    pipeline (`excel/orgao_consolidation.py`'s `PER_ASSET_CONTRACTUAL_IDS`),
+    que não expõe esse total entre órgãos em nenhum outro lugar por não ter
+    validado a fórmula contra uma fonte primária — aqui é só aritmética
+    direta sobre números já corretos, não uma fórmula contratual nova.
     """
     rows_by_inms: dict[str, dict[str, list[GrupoRow]]] = {}
     info_by_inms: dict[str, _CodeInfo] = {}
@@ -384,7 +390,7 @@ def _ativo_detail_by_inms(
                 info_by_inms[inms_key] = _CodeInfo(
                     target_value=config.target.value,
                     target_operator=config.target.operator,
-                    consolidatable=False,
+                    consolidatable=True,
                 )
 
     return rows_by_inms, info_by_inms
@@ -403,6 +409,66 @@ def _conformidade(
         resultado, target_operator, target_value
     )
     return 'Conforme' if conforms else 'Não conforme'
+
+
+def compute_glosa_item_detail(
+    competencia: str,
+    config_dir: Path,
+    data_dir: Path,
+    scratch_dir: Path,
+) -> dict[tuple[str, str], tuple[str, ...]]:
+    """Para cada `(Código INMS, Órgão)` com detalhamento por grupo executor
+    ou ativo, devolve os itens que não bateram a meta — a fonte de `Item
+    Contratual` da aba GLOSAS (`excel/consolidate/workbook.py::
+    build_glosas`). Chaveado pela mesma forma numérica que a GLOSAS já usa
+    na coluna `Indicador` (`format_inms_code_numeric`, ex. `"1.02"`).
+
+    Mesma computação de `add_inms_agrupado_sheet`
+    (`_grupo_detail_by_inms`/`_ativo_detail_by_inms`), chamada
+    separadamente: a GLOSAS é montada por `build_consolidated_workbook`
+    antes de `INMS_BASE_AGRUPADO` existir (essa aba só é acrescentada
+    depois, em `cli/consolidate.py`), então não há uma aba já escrita para
+    ler — o resultado é idêntico ao que aquela aba mostra, só chega mais
+    cedo.
+
+    Indicadores sem detalhamento (`whole_indicator` de categoria única)
+    simplesmente não aparecem no dict — a GLOSAS deixa `Item Contratual`
+    vazio para eles, como já fazia.
+    """
+    rows_by_inms, info_by_inms = _grupo_detail_by_inms(
+        competencia, config_dir, data_dir, scratch_dir
+    )
+    ativo_rows_by_inms, ativo_info_by_inms = _ativo_detail_by_inms(
+        competencia, config_dir, data_dir, scratch_dir
+    )
+    rows_by_inms.update(ativo_rows_by_inms)
+    info_by_inms.update(ativo_info_by_inms)
+
+    result: dict[tuple[str, str], tuple[str, ...]] = {}
+    for inms_key, by_orgao in rows_by_inms.items():
+        info = info_by_inms.get(inms_key)
+        if info is None:
+            continue
+        code_key = format_inms_code_numeric(f'INMS {inms_key}')
+        for orgao in _ORGAOS:
+            org_rows = [
+                row for row in by_orgao.get(orgao, [])
+                if row[0] != _AUDIT_REVIEW_LABEL
+            ]
+            failing = tuple(
+                grupo
+                for _categoria_label, _nivel, grupo, num, den in org_rows
+                if _conformidade(
+                    round(safe_pct(num, den), 2),
+                    den,
+                    info.target_value,
+                    info.target_operator,
+                )
+                == 'Não conforme'
+            )
+            if failing:
+                result[code_key, orgao] = failing
+    return result
 
 
 def _consolidado_row(
@@ -425,6 +491,103 @@ def _consolidado_row(
         info.target_value, info.target_operator, numerator, denominator,
         resultado, '%', conforme, round(diff, 2) if diff is not None else None,
     ]
+
+
+def _restructure_verbatim(
+    competencia: str, inms_code: str, rows: list[list[CellValue]]
+) -> list[list[CellValue]] | None:
+    """Reorganiza as linhas verbatim de um Código INMS sem detalhamento por
+    grupo executor/ativo no mesmo formato pai/filho dos demais: um
+    `"Consolidado"` (nível 0) com `"Consolidado - MinC"`/`"Consolidado -
+    MTur"` (nível 1) como filhos — só relabela `Item contratual`, nunca
+    recalcula Numerador/Denominador/Resultado calculado quando o
+    `INMS_BASE` já publica uma linha `"Consolidado"` (reusa verbatim).
+
+    Quando não existe linha `"Consolidado"` publicada (`with_orgao_
+    consolidation` não gera uma, seja porque o shape nunca é consolidado —
+    `precomputed_table` — seja porque os dois órgãos tiveram denominador 0
+    neste mês), soma Numerador/Denominador dos dois órgãos quando ambos
+    são numéricos (mesma aritmética do subtotal por órgão, só estendida);
+    quando nem isso existe (`precomputed_table` sem numerador/denominador,
+    ex. INMS 1.8 — ponto/contagem, não razão), soma o Resultado calculado
+    dos dois órgãos diretamente, sem fabricar numerador/denominador.
+
+    Devolve `None` quando as linhas não têm exatamente uma por MinC e uma
+    por MTur (formato inesperado) — o chamador mantém o verbatim original
+    nesse caso, sem reorganizar."""
+    by_orgao: dict[str, list[CellValue]] = {}
+    existing_grand: list[CellValue] | None = None
+    for row in rows:
+        orgao = row[6]
+        if orgao == 'Consolidado':
+            existing_grand = row
+        elif isinstance(orgao, str) and orgao in _ORGAOS:
+            if orgao in by_orgao:
+                return None
+            by_orgao[orgao] = row
+
+    if 'MinC' not in by_orgao or 'MTur' not in by_orgao:
+        return None
+
+    def _relabel(row: list[CellValue], label: str) -> list[CellValue]:
+        new_row = list(row)
+        new_row[1] = label
+        return new_row
+
+    children = [
+        _relabel(by_orgao[orgao], f'Consolidado - {orgao}') for orgao in _ORGAOS
+    ]
+
+    if existing_grand is not None:
+        grand = _relabel(list(existing_grand), 'Consolidado')
+        return [grand, *children]
+
+    minc_row, mtur_row = by_orgao['MinC'], by_orgao['MTur']
+    target_value, target_operator = minc_row[7], minc_row[8]
+    if not isinstance(target_value, int | float) or not isinstance(
+        target_operator, str
+    ):
+        return None
+
+    num_minc, den_minc = minc_row[9], minc_row[10]
+    num_mtur, den_mtur = mtur_row[9], mtur_row[10]
+    if (
+        isinstance(num_minc, int | float)
+        and isinstance(den_minc, int | float)
+        and isinstance(num_mtur, int | float)
+        and isinstance(den_mtur, int | float)
+    ):
+        info = _CodeInfo(target_value, target_operator, consolidatable=True)
+        grand = _consolidado_row(
+            competencia,
+            'Consolidado',
+            'Consolidado',
+            inms_code,
+            minc_row[5] if isinstance(minc_row[5], str) else None,
+            info,
+            num_minc + num_mtur,
+            den_minc + den_mtur,
+        )
+        return [grand, *children]
+
+    # Sem numerador/denominador (ex. INMS 1.8: ponto/contagem, não razão) —
+    # soma o Resultado calculado direto, sem inventar uma razão que o
+    # indicador não tem.
+    res_minc, res_mtur = minc_row[11], mtur_row[11]
+    if not isinstance(res_minc, int | float) or not isinstance(
+        res_mtur, int | float
+    ):
+        return None
+    resultado = round(res_minc + res_mtur, 2)
+    conforme = _conformidade(resultado, 1.0, target_value, target_operator)
+    diff = compliance_margin(resultado, target_value, target_operator)
+    grand: list[CellValue] = [
+        competencia, 'Consolidado', None, None, inms_code,
+        minc_row[5] if isinstance(minc_row[5], str) else None, 'Consolidado',
+        target_value, target_operator, None, None, resultado, minc_row[12],
+        conforme, round(diff, 2) if diff is not None else None,
+    ]
+    return [grand, *children]
 
 
 def _build_breakdown_rows(
@@ -533,18 +696,19 @@ def _apply_breakdown_outline(
 ) -> int:
     """Agrupamento de um bloco com detalhamento.
 
-    Quando existe total geral (rótulo exatamente `"Consolidado"` — shape
-    consolidável entre órgãos, ver `_CONSOLIDATABLE_SHAPES`), ele é o único
-    nível 0 e cada `"Consolidado - {órgão}"` é nível 1, filho dele — igual
-    a antes.
+    Quando existe total geral (rótulo exatamente `"Consolidado"` —
+    `_CodeInfo.consolidatable=True`, hoje sempre o caso para os INMS com
+    detalhamento), ele é o único nível 0 e cada `"Consolidado - {órgão}"` é
+    nível 1, filho dele — um único pai com dois filhos, `Consolidado -
+    MinC` e `Consolidado - MTur`.
 
-    Quando não existe (shapes como `precomputed_table`, sem pooling entre
-    órgãos validado — `_CodeInfo.consolidatable=False`), os `"Consolidado -
-    {órgão}"` são **irmãos**: todos nível 0, nenhum filho do outro — Excel
-    não deixa recolher um irmão de nível 0 sob o outro sem um pai comum, e
-    inventar um pai aqui sugeriria uma relação entre órgãos que a apuração
-    não valida. Cada um continua com seu próprio detalhe recolhido (nível
-    1 neste caso, em vez de 2).
+    Quando não existe (`consolidatable=False` — nenhum código usa isso
+    hoje, mas a função continua correta se algum dia usar), os
+    `"Consolidado - {órgão}"` viram **irmãos**: todos nível 0, nenhum
+    filho do outro — Excel não deixa recolher um irmão de nível 0 sob o
+    outro sem um pai comum, e inventar um pai aqui sugeriria uma relação
+    entre órgãos que a apuração não valida. Cada um continua com seu
+    próprio detalhe recolhido (nível 1 neste caso, em vez de 2).
 
     Devolve a quantidade de subgrupos `"Consolidado - {órgão}"` criados
     (não conta o total geral, quando existe)."""
@@ -579,23 +743,22 @@ def _apply_breakdown_outline(
 def _apply_outline(
     ws: Worksheet,
     code_blocks: list[tuple[str, list[list[CellValue]]]],
-    breakdown_codes: frozenset[str],
 ) -> int:
-    """Agrupamento nativo em até 3 níveis por Código INMS. Para os INMS sem
-    detalhamento (verbatim) e os com total geral entre órgãos: nível 0 = 1
-    linha (o total geral, ou a linha existente); nível 1 = subtotal por
-    órgão; nível 2 = detalhe. Para os INMS com detalhamento mas sem total
-    geral validado (`precomputed_table`): nível 0 = os subtotais por órgão,
-    lado a lado como irmãos (ver `_apply_breakdown_outline`); nível 1 = o
-    detalhe de cada um. `summaryBelow=False` (setado pelo chamador) mantém
-    a linha-resumo acima do seu detalhe. Devolve a quantidade de subgrupos
-    "Consolidado - {órgão}" criados."""
+    """Agrupamento nativo por Código INMS. Todo bloco cuja primeira linha é
+    um cabeçalho `"Consolidado"`/`"Consolidado - {órgão}"` (detalhado ou
+    verbatim reorganizado por `_restructure_verbatim`) passa por
+    `_apply_breakdown_outline` — mesma hierarquia pai/filho em todos os
+    casos. Os poucos blocos que `_restructure_verbatim` não conseguiu
+    reorganizar (formato inesperado, ex. só uma linha ou nenhuma por
+    órgão) caem no fallback verbatim: nível 0 = 1ª linha; nível 1 = demais
+    valores distintos de Órgão; nível 2 = repetições. `summaryBelow=False`
+    (setado pelo chamador) mantém a linha-resumo acima do seu detalhe.
+    Devolve a quantidade de subgrupos "Consolidado - {órgão}" criados."""
     r = 2
     n_org_subgroups = 0
-    for code_full, block in code_blocks:
+    for _code_full, block in code_blocks:
         n = len(block)
-        inms_key = code_full.replace('INMS ', '')
-        if inms_key in breakdown_codes:
+        if _is_subtotal_label(block[0][1], prefix='Consolidado'):
             n_org_subgroups += _apply_breakdown_outline(ws, r, block)
         else:
             orgs_seen: list[CellValue] = []
@@ -676,7 +839,17 @@ def add_inms_agrupado_sheet(
     code_blocks: list[tuple[str, list[list[CellValue]]]] = []
     for code_full in all_codes:
         inms_key = code_full.replace('INMS ', '')
-        block = breakdown_by_padded.get(inms_key, existing_by_code[code_full])
+        if inms_key in breakdown_by_padded:
+            block = breakdown_by_padded[inms_key]
+        else:
+            restructured = _restructure_verbatim(
+                competencia, code_full, existing_by_code[code_full]
+            )
+            block = (
+                restructured
+                if restructured is not None
+                else existing_by_code[code_full]
+            )
         code_blocks.append((code_full, block))
         final_rows.extend(block)
 
@@ -696,9 +869,7 @@ def add_inms_agrupado_sheet(
         ws.column_dimensions[get_column_letter(c)].width = width
 
     _write_rows(ws, final_rows)
-    n_org_subgroups = _apply_outline(
-        ws, code_blocks, frozenset(breakdown_by_padded)
-    )
+    n_org_subgroups = _apply_outline(ws, code_blocks)
 
     ws.row_dimensions[1].outlineLevel = 0
     ws.row_dimensions[1].hidden = False

@@ -11,12 +11,14 @@ comentário), nunca correção automática de conteúdo contratual.
 from __future__ import annotations
 
 import csv
+import math
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Final, NamedTuple
+from typing import Final, NamedTuple, cast
 
 from openpyxl import Workbook
+from openpyxl.cell.cell import Cell
 from openpyxl.comments import Comment
 from openpyxl.styles import Alignment
 from openpyxl.worksheet.worksheet import Worksheet
@@ -24,7 +26,6 @@ from openpyxl.worksheet.worksheet import Worksheet
 from pyauditor.excel._style import (
     BODY_FONT,
     CENTER_ALIGN,
-    CENTER_WRAP_ALIGN,
     CRITICIDADE_FILL_BY_VALUE,
     HEADER_FILL,
     HEADER_FONT,
@@ -32,10 +33,12 @@ from pyauditor.excel._style import (
     LEFT_ALIGN,
     LEFT_WRAP_ALIGN,
     PENDING_FILL,
+    SECTION_FONT,
     SUBSTITUTO_FILL,
     SUBTITLE_FONT,
     THIN_BORDER,
     TITLE_FONT,
+    TOP_WRAP_ALIGN,
     setup_institutional_print,
 )
 from pyauditor.excel.capa import read_capa_csv_fields
@@ -50,40 +53,63 @@ from pyauditor.excel.sintetico._sheets._shared import (
     CAPA_SHEET_NAME,
     EQUIPE_SHEET_NAME,
 )
-from pyauditor.periodo import PeriodoAfericao, format_period_br
 
 _AUTHOR: Final[str] = 'pyauditor'
 
 _TITLE: Final[str] = (
     'DEMONSTRATIVO DE EXECUÇÃO DOS SERVIÇOS DE INFRAESTRUTURA DE TI'
 )
+_SECTION_TITLE: Final[str] = 'INFORMAÇÕES INICIAIS'
+_SUBTITLE_REF_FORMULA: Final[str] = '=Capa!B2'
 
-# Ordem de exibição da Seção 2 (identificação contratual) — rótulos exatos
-# de `input/capa.csv`; campos ausentes no CSV (capas mais antigas, fixtures
-# de teste) simplesmente não aparecem.
+# Esqueleto de linhas compartilhado pelas três abas: título do documento,
+# subtítulo (na Capa, uma fórmula dinâmica; nas demais, uma referência a
+# `Capa!B2` — nunca uma segunda digitação independente), branco, título da
+# seção. Capa/Equipe têm 1 branco entre a seção e o cabeçalho da tabela;
+# Prazos tem a nota (2 linhas) no lugar desse branco.
+_ROW_TITLE: Final[int] = 1
+_ROW_SUBTITLE: Final[int] = 2
+_ROW_SECTION: Final[int] = 4
+_ROW_HEADER: Final[int] = 6
+_ROW_BODY_START: Final[int] = 7
+
+# Coluna B/C/D da Seção "INFORMAÇÕES INICIAIS" (identificação contratual).
+# "Contrato" é um campo comum do CSV (como os demais) — existe para a
+# fórmula do subtítulo (B2) referenciar uma célula em vez de redigitar o
+# número do contrato. "Vigência Contratual"/"Vigência Restante" são
+# sintéticos: "Vigência" (texto livre tipo "12 meses") sai da exibição,
+# substituída por duas contagens calculadas a partir das datas reais.
 _IDENTIFICACAO_LABELS: Final[tuple[str, ...]] = (
     'Número do contrato',
     'Processo SEI',
     'Empresa contratada',
     'CNPJ da contratada',
+    'Contrato',
     'Objeto',
     'Termo Aditivo 1',
     'Termo Aditivo 2',
     'Termo Aditivo 3',
-    'Vigência',
     'Portaria Equipe',
+    'Vigência Contratual',
+    'Vigência Restante',
     'Início da vigência',
     'Término da vigência',
+)
+_SINTETICOS_VIGENCIA: Final[frozenset[str]] = frozenset(
+    {'Vigência Contratual', 'Vigência Restante'}
 )
 _DATE_LABELS: Final[frozenset[str]] = frozenset(
     {'Início da vigência', 'Término da vigência'}
 )
-_WRAP_LABELS: Final[frozenset[str]] = frozenset({'Objeto', 'Empresa contratada'})
+_WRAP_LABELS: Final[frozenset[str]] = frozenset(
+    {'Objeto', 'Empresa contratada'}
+)
 _TEXT_LABELS: Final[frozenset[str]] = frozenset(
     {
         'Número do contrato',
         'Processo SEI',
         'CNPJ da contratada',
+        'Contrato',
         'Termo Aditivo 1',
         'Termo Aditivo 2',
         'Termo Aditivo 3',
@@ -98,16 +124,39 @@ _CATEGORIA_PENDENCIA_MSG: Final[str] = (
 
 
 class CapaContext(NamedTuple):
-    """Dados da Capa que a Equipe/Prazos reaproveitam por referência, nunca
-    por segunda digitação independente (spec §4.2/§6)."""
+    """Número do contrato, usado só no rodapé de Equipe/Prazos — título e
+    subtítulo dessas abas nunca redigitam o dado, referenciam `Capa!B2` (a
+    fórmula dinâmica) diretamente na própria planilha."""
 
     numero_contrato: str | None
-    portaria: str | None
 
 
-def _flag_pendencia(cell: object, message: str) -> None:
-    cell.fill = PENDING_FILL  # type: ignore[attr-defined]
-    cell.comment = Comment(message, _AUTHOR)  # type: ignore[attr-defined]
+_CHARS_PER_WIDTH_UNIT: Final = 1.15
+
+
+def _wrapped_row_height(
+    text: str, total_width_chars: float, *, line_height: float = 14.0
+) -> float | None:
+    """Altura aproximada de uma linha com `wrap_text` (spec §2.2: "alturas de
+    linha ajustadas após a aplicação de quebra de texto") — openpyxl não
+    recalcula isso sozinho. `total_width_chars` é a soma das larguras de
+    coluna abrangidas pela célula (mescladas ou não). Devolve `None` quando
+    o texto cabe em uma linha — nesse caso a altura padrão da planilha já
+    serve, não há motivo para fixá-la explicitamente. `_CHARS_PER_WIDTH_UNIT`
+    é um fator empírico (caracteres em Arial 10 cabem mais densamente que 1
+    por unidade de largura do Excel), calibrado contra os casos reais desta
+    aba."""
+    if not text or total_width_chars <= 0:
+        return None
+    lines = math.ceil(len(text) / (total_width_chars * _CHARS_PER_WIDTH_UNIT))
+    if lines <= 1:
+        return None
+    return lines * line_height
+
+
+def _flag_pendencia(cell: Cell, message: str) -> None:
+    cell.fill = PENDING_FILL
+    cell.comment = Comment(message, _AUTHOR)
 
 
 def _strip_fields(raw: dict[str, str]) -> dict[str, str]:
@@ -125,16 +174,41 @@ def _only_digits(value: str) -> str:
     return re.sub(r'\D', '', value)
 
 
+def _rendered_identificacao_labels(
+    raw_fields: dict[str, str],
+) -> list[str]:
+    """Filtra `_IDENTIFICACAO_LABELS` aos rótulos que de fato aparecem —
+    campos ausentes no CSV somem; os sintéticos só entram quando o campo do
+    qual dependem está presente (e, no caso das vigências, com datas
+    válidas: sem datas reais não há como montar a fórmula)."""
+    inicio_valido = _parse_data_br(
+        raw_fields.get('Início da vigência', '')
+    ) is not None
+    termino_valido = _parse_data_br(
+        raw_fields.get('Término da vigência', '')
+    ) is not None
+
+    rendered: list[str] = []
+    for label in _IDENTIFICACAO_LABELS:
+        if label in _SINTETICOS_VIGENCIA:
+            if inicio_valido and termino_valido:
+                rendered.append(label)
+        elif label in raw_fields:
+            rendered.append(label)
+    return rendered
+
+
 def _write_capa_sheet(
     workbook: Workbook,
     capa_path: Path,
     objetos_path: Path | None,
-    periodo: PeriodoAfericao | None,
     warnings: list[str],
 ) -> CapaContext:
-    """Aba "Capa": identificação contratual (Seção 2) + itens/valores
-    (Seção 3), formatadas conforme a spec de revisão. Devolve o contexto
-    que a Equipe usa para exibir/conferir a Portaria sem redigitá-la."""
+    """Aba "Capa": título/subtítulo do documento + seção "INFORMAÇÕES
+    INICIAIS" (identificação contratual, com vigência calculada por fórmula
+    a partir das datas reais) + itens/valores. Devolve o número do contrato,
+    que Equipe/Prazos usam só no rodapé — título/subtítulo delas referenciam
+    esta aba diretamente via fórmula, nunca por segunda digitação."""
     try:
         raw_fields = _strip_fields(read_capa_csv_fields(capa_path))
     except FileNotFoundError:
@@ -142,72 +216,107 @@ def _write_capa_sheet(
             f"sintetico.xlsx: {capa_path} não encontrado — aba "
             f"'{CAPA_SHEET_NAME}' não gerada"
         )
-        return CapaContext(None, None)
+        return CapaContext(None)
     except (OSError, ValueError) as exc:
         warnings.append(
             f'sintetico.xlsx: falha ao ler {capa_path}: {exc} — aba '
             f"'{CAPA_SHEET_NAME}' não gerada"
         )
-        return CapaContext(None, None)
+        return CapaContext(None)
 
     numero_contrato = raw_fields.get('Número do contrato') or None
-    portaria = raw_fields.get('Portaria Equipe') or None
 
     sheet = workbook.create_sheet(title=CAPA_SHEET_NAME)
     sheet.sheet_view.showGridLines = False
-    sheet.column_dimensions['A'].width = 30
-    sheet.column_dimensions['B'].width = 46
-    sheet.column_dimensions['C'].width = 20
+    # Coluna A é só recuo visual — o conteúdo começa em B (rótulo, mesclado
+    # B:C) e o valor fica em D.
+    sheet.column_dimensions['A'].width = 5
+    sheet.column_dimensions['B'].width = 14.33
+    sheet.column_dimensions['C'].width = 29.66
+    sheet.column_dimensions['D'].width = 31.0
 
-    row = 1
-    sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=3)
-    sheet.cell(row=row, column=1, value=_TITLE).font = TITLE_FONT
-    row += 1
+    sheet.cell(row=_ROW_TITLE, column=2, value=_TITLE).font = TITLE_FONT
+    sheet.row_dimensions[_ROW_TITLE].height = 18
 
-    subtitulo = f'Contrato nº {numero_contrato}' if numero_contrato else ''
-    sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=3)
-    sheet.cell(row=row, column=1, value=subtitulo).font = SUBTITLE_FONT
-    row += 1
+    rendered_labels = _rendered_identificacao_labels(raw_fields)
+    row_by_label = {
+        label: _ROW_BODY_START + i for i, label in enumerate(rendered_labels)
+    }
 
-    if periodo is not None:
-        sheet.merge_cells(
-            start_row=row, start_column=1, end_row=row, end_column=3
-        )
-        sheet.cell(
-            row=row, column=1, value=format_period_br(periodo)
-        ).font = BODY_FONT
-        row += 1
+    if 'Contrato' in row_by_label:
+        subtitulo = f'=_xlfn.CONCAT("Contrato nº",D{row_by_label["Contrato"]})'
+    else:
+        subtitulo = f'Contrato nº {numero_contrato}' if numero_contrato else ''
+    sheet.cell(row=_ROW_SUBTITLE, column=2, value=subtitulo).font = (
+        SUBTITLE_FONT
+    )
+    hoje_cell = sheet.cell(row=_ROW_SUBTITLE, column=4, value='=TODAY()')
+    hoje_cell.font = BODY_FONT
+    hoje_cell.number_format = 'dd/mm/yyyy'
 
-    row += 1  # linha em branco
+    sheet.merge_cells(
+        start_row=_ROW_SECTION, start_column=2, end_row=_ROW_SECTION,
+        end_column=4,
+    )
+    sheet.cell(
+        row=_ROW_SECTION, column=2, value=_SECTION_TITLE
+    ).font = SECTION_FONT
+    sheet.row_dimensions[_ROW_SECTION].height = 16
+
+    sheet.cell(row=_ROW_HEADER, column=2, value='Campo').font = HEADER_FONT
+    sheet.cell(row=_ROW_HEADER, column=2).fill = HEADER_FILL
+    sheet.cell(row=_ROW_HEADER, column=3).fill = HEADER_FILL
+    sheet.cell(row=_ROW_HEADER, column=4, value='Valor').font = HEADER_FONT
+    sheet.cell(row=_ROW_HEADER, column=4).fill = HEADER_FILL
 
     inicio_dt: datetime | None = None
     termino_dt: datetime | None = None
 
-    sheet.cell(row=row, column=1, value='Campo').font = HEADER_FONT
-    sheet.cell(row=row, column=1).fill = HEADER_FILL
-    sheet.cell(row=row, column=2, value='Valor').font = HEADER_FONT
-    sheet.cell(row=row, column=2).fill = HEADER_FILL
-    row += 1
+    row = _ROW_BODY_START
+    for index, label in enumerate(rendered_labels):
+        value = raw_fields.get(label, '')
+        # Zebra igual à Equipe (lá, a cor marca substitutos; aqui é só
+        # listras alternadas, não há linhas com esse status).
+        row_fill = SUBSTITUTO_FILL if index % 2 == 1 else None
 
-    for label in _IDENTIFICACAO_LABELS:
-        if label not in raw_fields:
-            continue
-        value = raw_fields[label]
-
-        label_cell = sheet.cell(row=row, column=1, value=label)
-        label_cell.font = LABEL_FONT
+        sheet.merge_cells(
+            start_row=row, start_column=2, end_row=row, end_column=3
+        )
+        label_cell = sheet.cell(row=row, column=2, value=label)
+        # Estilo alinhado à Equipe: rótulos do corpo não são negrito — só o
+        # cabeçalho ('Campo'/'Valor') carrega o destaque.
+        label_cell.font = BODY_FONT
         label_cell.alignment = LEFT_ALIGN
         label_cell.border = THIN_BORDER
+        if row_fill is not None:
+            label_cell.fill = row_fill
 
-        value_cell = sheet.cell(row=row, column=2)
+        value_cell = cast(Cell, sheet.cell(row=row, column=4))
         value_cell.font = BODY_FONT
         value_cell.border = THIN_BORDER
+        if row_fill is not None:
+            value_cell.fill = row_fill
 
-        if label in _DATE_LABELS:
+        if label in _SINTETICOS_VIGENCIA:
+            inicio_ref = f'D{row_by_label["Início da vigência"]}'
+            termino_ref = f'D{row_by_label["Término da vigência"]}'
+            if label == 'Vigência Contratual':
+                formula = (
+                    f'=_xlfn.CONCAT(DATEDIF({inicio_ref},{termino_ref},"D"),'
+                    f' " dias")'
+                )
+            else:
+                formula = (
+                    f'=_xlfn.CONCAT(DATEDIF(TODAY(),{termino_ref},"D"),'
+                    f' " dias")'
+                )
+            value_cell.value = formula
+            value_cell.alignment = LEFT_ALIGN
+        elif label in _DATE_LABELS:
             parsed = _parse_data_br(value)
             if parsed is not None:
                 value_cell.value = parsed
-                value_cell.number_format = 'DD/MM/YYYY'
+                value_cell.number_format = 'dd/mm/yyyy'
                 value_cell.alignment = CENTER_ALIGN
                 if label == 'Início da vigência':
                     inicio_dt = parsed
@@ -228,6 +337,9 @@ def _write_capa_sheet(
                 value_cell.number_format = '@'
             if label in _WRAP_LABELS:
                 value_cell.alignment = LEFT_WRAP_ALIGN
+                height = _wrapped_row_height(value, 31.0)
+                if height is not None:
+                    sheet.row_dimensions[row].height = height
             else:
                 value_cell.alignment = LEFT_ALIGN
 
@@ -247,7 +359,12 @@ def _write_capa_sheet(
         and inicio_dt > termino_dt
     ):
         _flag_pendencia(
-            sheet.cell(row=row - 1, column=2),
+            cast(
+                Cell,
+                sheet.cell(
+                    row=row_by_label['Término da vigência'], column=4
+                ),
+            ),
             'Início da vigência posterior ao término — revisar datas.',
         )
 
@@ -264,9 +381,10 @@ def _write_capa_sheet(
         sheet,
         contract_number=numero_contrato,
         last_row=last_row,
-        last_column=3,
+        last_column=4,
+        first_column=2,
     )
-    return CapaContext(numero_contrato, portaria)
+    return CapaContext(numero_contrato)
 
 
 def _write_objetos_section(
@@ -295,52 +413,67 @@ def _write_objetos_section(
         )
         return
 
-    for column, label in enumerate(('Item', 'Categoria', 'Valor'), start=1):
+    # Colunas B/C/D (A é o recuo visual da Seção 2, reaproveitado aqui).
+    for column, label in zip(
+        (2, 3, 4), ('Item', 'Categoria', 'Valor'), strict=True
+    ):
         cell = sheet.cell(row=header_row, column=column, value=label)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
         cell.alignment = CENTER_ALIGN if label == 'Item' else LEFT_ALIGN
 
     row = header_row + 1
-    for entry in rows:
+    for index, entry in enumerate(rows):
         item = (entry.get('Item') or '').strip()
         categoria = (entry.get('Categoria') or '').strip()
         valor_raw = (entry.get('Valor') or '').strip()
+        row_fill = SUBSTITUTO_FILL if index % 2 == 1 else None
 
-        item_cell = sheet.cell(row=row, column=1, value=item)
+        item_cell = sheet.cell(row=row, column=2, value=item)
         item_cell.font = BODY_FONT
         item_cell.alignment = CENTER_ALIGN
         item_cell.border = THIN_BORDER
+        if row_fill is not None:
+            item_cell.fill = row_fill
 
-        categoria_cell = sheet.cell(row=row, column=2, value=categoria)
+        categoria_cell = sheet.cell(row=row, column=3, value=categoria)
         categoria_cell.font = BODY_FONT
         categoria_cell.alignment = LEFT_ALIGN
         categoria_cell.border = THIN_BORDER
+        if row_fill is not None:
+            categoria_cell.fill = row_fill
         if categoria == _CATEGORIA_PENDENCIA:
             _flag_pendencia(categoria_cell, _CATEGORIA_PENDENCIA_MSG)
         elif not categoria:
             _flag_pendencia(categoria_cell, 'Categoria ausente para este item.')
 
-        valor_cell = sheet.cell(row=row, column=3)
+        valor_cell = cast(Cell, sheet.cell(row=row, column=4))
         valor_cell.font = BODY_FONT
         valor_cell.alignment = LEFT_ALIGN
         valor_cell.border = THIN_BORDER
+        if row_fill is not None:
+            valor_cell.fill = row_fill
         try:
             valor_cell.value = float(parse_brl_value(valor_raw))
-            valor_cell.number_format = '"R$" #,##0.00'
-            valor_cell.alignment = Alignment(horizontal='right', vertical='center')
+            valor_cell.number_format = '"R$"\\ #,##0.00'
+            valor_cell.alignment = Alignment(
+                horizontal='right', vertical='center'
+            )
         except (TypeError, ValueError):
             valor_cell.value = valor_raw
             if valor_raw:
-                _flag_pendencia(valor_cell, f'Valor monetário inválido: {valor_raw!r}.')
+                _flag_pendencia(
+                    valor_cell,
+                    f'Valor monetário inválido: {valor_raw!r}.',
+                )
         row += 1
 
     total_row = row
-    sheet.cell(row=total_row, column=2, value='Total mensal').font = LABEL_FONT
-    total_cell = sheet.cell(row=total_row, column=3)
+    sheet.cell(row=total_row, column=3, value='Total mensal').font = LABEL_FONT
+    total_cell = cast(Cell, sheet.cell(row=total_row, column=4))
     if row > header_row + 1:
-        total_cell.value = f'=SUM(C{header_row + 1}:C{row - 1})'
-    total_cell.number_format = '"R$" #,##0.00'
+        total_cell.value = f'=SUM(D{header_row + 1}:D{row - 1})'
+    total_cell.number_format = '"R$"\\ #,##0.00'
     total_cell.font = LABEL_FONT
     total_cell.alignment = Alignment(horizontal='right', vertical='center')
 
@@ -361,12 +494,13 @@ def _normalize_funcao_display(funcao: str) -> tuple[str, bool]:
 def _write_equipe_sheet(
     workbook: Workbook,
     equipe_path: Path,
-    capa_portaria: str | None,
+    contract_number: str | None,
     warnings: list[str],
 ) -> None:
-    """Aba "Equipe": FUNÇÃO/NOME/SIAPE formatados, com a Portaria referenciada
-    da Capa (nunca redigitada) e pendências sinalizadas por célula, nunca
-    corrigidas automaticamente (SIAPE ausente/fora do padrão, duplicidades)."""
+    """Aba "Equipe": título/subtítulo compartilhados com a Capa (subtítulo
+    via fórmula `=Capa!B2`, nunca redigitado) + FUNÇÃO/NOME/SIAPE, com
+    pendências sinalizadas por célula, nunca corrigidas automaticamente
+    (SIAPE ausente/fora do padrão, duplicidades)."""
     try:
         with equipe_path.open(encoding=EQUIPE_ENCODING, newline='') as handle:
             rows = list(csv.DictReader(handle, delimiter=EQUIPE_DELIMITER))
@@ -385,38 +519,40 @@ def _write_equipe_sheet(
 
     sheet = workbook.create_sheet(title=EQUIPE_SHEET_NAME)
     sheet.sheet_view.showGridLines = False
-    sheet.column_dimensions['A'].width = 32
-    sheet.column_dimensions['B'].width = 42
-    sheet.column_dimensions['C'].width = 14
+    sheet.column_dimensions['A'].width = 5
+    sheet.column_dimensions['B'].width = 22.5
+    sheet.column_dimensions['C'].width = 44.5
+    sheet.column_dimensions['D'].width = 13.5
 
-    row = 1
-    sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=3)
+    sheet.cell(row=_ROW_TITLE, column=2, value=_TITLE).font = TITLE_FONT
+    sheet.row_dimensions[_ROW_TITLE].height = 18
     sheet.cell(
-        row=row, column=1, value='EQUIPE DE GESTÃO E FISCALIZAÇÃO DO CONTRATO'
-    ).font = TITLE_FONT
-    row += 1
+        row=_ROW_SUBTITLE, column=2, value=_SUBTITLE_REF_FORMULA
+    ).font = SUBTITLE_FONT
 
-    if capa_portaria:
-        sheet.merge_cells(
-            start_row=row, start_column=1, end_row=row, end_column=3
-        )
-        sheet.cell(
-            row=row, column=1, value=f'Portaria: {capa_portaria}'
-        ).font = SUBTITLE_FONT
-        row += 1
+    sheet.merge_cells(
+        start_row=_ROW_SECTION, start_column=2, end_row=_ROW_SECTION,
+        end_column=4,
+    )
+    sheet.cell(
+        row=_ROW_SECTION,
+        column=2,
+        value='EQUIPE DE GESTÃO E FISCALIZAÇÃO DO CONTRATO',
+    ).font = SECTION_FONT
+    sheet.row_dimensions[_ROW_SECTION].height = 16
 
-    row += 1
-
-    header_row = row
-    for column, label in enumerate(('FUNÇÃO', 'NOME', 'SIAPE'), start=1):
+    header_row = _ROW_HEADER
+    for column, label in zip(
+        (2, 3, 4), ('FUNÇÃO', 'NOME', 'SIAPE'), strict=True
+    ):
         cell = sheet.cell(row=header_row, column=column, value=label)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
         cell.alignment = CENTER_ALIGN if label == 'SIAPE' else LEFT_ALIGN
-    row += 1
 
     seen_funcoes: set[str] = set()
     seen_siapes: set[str] = set()
+    row = _ROW_BODY_START
     for entry in rows:
         funcao_raw = (entry.get('FUNÇÃO') or '').strip()
         nome = (entry.get('NOME') or '').strip()
@@ -426,9 +562,9 @@ def _write_equipe_sheet(
 
         funcao_display, eh_substituto = _normalize_funcao_display(funcao_raw)
 
-        funcao_cell = sheet.cell(row=row, column=1, value=funcao_display)
-        nome_cell = sheet.cell(row=row, column=2, value=nome)
-        siape_cell = sheet.cell(row=row, column=3, value=siape)
+        funcao_cell = sheet.cell(row=row, column=2, value=funcao_display)
+        nome_cell = sheet.cell(row=row, column=3, value=nome)
+        siape_cell = sheet.cell(row=row, column=4, value=siape)
 
         funcao_cell.font = BODY_FONT
         funcao_cell.alignment = LEFT_ALIGN
@@ -440,6 +576,9 @@ def _write_equipe_sheet(
         siape_cell.alignment = CENTER_ALIGN
         siape_cell.border = THIN_BORDER
         siape_cell.number_format = '@'
+        nome_height = _wrapped_row_height(nome, 44.5)
+        if nome_height is not None:
+            sheet.row_dimensions[row].height = nome_height
 
         if eh_substituto:
             funcao_cell.fill = SUBSTITUTO_FILL
@@ -474,21 +613,27 @@ def _write_equipe_sheet(
     last_row = row - 1
     setup_institutional_print(
         sheet,
-        contract_number=None,
+        contract_number=contract_number,
         last_row=last_row,
-        last_column=3,
+        last_column=4,
         header_row=header_row,
+        first_column=2,
     )
 
 
 _PRAZO_HORAS_RE: Final = re.compile(
     r'^\s*(\d+)\s*h\s*\(horas corridas\)\s*$', re.IGNORECASE
 )
-_PRAZOS_NOTE: Final = (
-    'Os prazos abaixo constituem parâmetros contratuais de referência. '
+# Nota partida em duas linhas (uma frase por linha) — layout atual da aba.
+_PRAZOS_NOTE_LINES: Final[tuple[str, str]] = (
+    'Os prazos abaixo constituem parâmetros contratuais de referência. ',
     'Eventuais pausas, suspensões ou regras especiais de contagem devem '
-    'estar amparadas pelo instrumento contratual ou por evidência formal.'
+    'estar amparadas pelo instrumento contratual ou por evidência formal.',
 )
+_ROW_PRAZOS_NOTE_1: Final[int] = 5
+_ROW_PRAZOS_NOTE_2: Final[int] = 6
+_ROW_PRAZOS_HEADER: Final[int] = 8
+_ROW_PRAZOS_BODY_START: Final[int] = 9
 
 
 def _reformat_prazo_text(value: str) -> str:
@@ -533,48 +678,64 @@ def _write_prazos_sheet(
 
     sheet = workbook.create_sheet(title=PRAZOS_SHEET_NAME)
     sheet.sheet_view.showGridLines = False
-    sheet.column_dimensions['A'].width = 22
-    sheet.column_dimensions['B'].width = 16
-    sheet.column_dimensions['C'].width = 44
+    sheet.column_dimensions['A'].width = 5
+    sheet.column_dimensions['B'].width = 14.33
+    sheet.column_dimensions['C'].width = 12.66
+    sheet.column_dimensions['D'].width = 32.83
 
-    row = 1
-    sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=3)
+    sheet.cell(row=_ROW_TITLE, column=2, value=_TITLE).font = TITLE_FONT
+    sheet.row_dimensions[_ROW_TITLE].height = 18
     sheet.cell(
-        row=row, column=1, value='PRAZOS MÁXIMOS PARA ATENDIMENTO'
-    ).font = TITLE_FONT
-    row += 1
+        row=_ROW_SUBTITLE, column=2, value=_SUBTITLE_REF_FORMULA
+    ).font = SUBTITLE_FONT
 
-    sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=3)
-    note_cell = sheet.cell(row=row, column=1, value=_PRAZOS_NOTE)
-    note_cell.font = BODY_FONT
-    note_cell.alignment = LEFT_WRAP_ALIGN
-    sheet.row_dimensions[row].height = 30
-    row += 1
+    sheet.merge_cells(
+        start_row=_ROW_SECTION, start_column=2, end_row=_ROW_SECTION,
+        end_column=4,
+    )
+    sheet.cell(
+        row=_ROW_SECTION, column=2, value='PRAZOS MÁXIMOS PARA ATENDIMENTO'
+    ).font = SECTION_FONT
+    sheet.row_dimensions[_ROW_SECTION].height = 16
 
-    row += 1
+    note_width = 14.33 + 12.66 + 32.83
+    for note_row, sentence in zip(
+        (_ROW_PRAZOS_NOTE_1, _ROW_PRAZOS_NOTE_2),
+        _PRAZOS_NOTE_LINES,
+        strict=True,
+    ):
+        sheet.merge_cells(
+            start_row=note_row, start_column=2, end_row=note_row, end_column=4
+        )
+        note_cell = sheet.cell(row=note_row, column=2, value=sentence)
+        note_cell.font = BODY_FONT
+        note_cell.alignment = TOP_WRAP_ALIGN
+        note_height = _wrapped_row_height(sentence, note_width)
+        if note_height is not None:
+            sheet.row_dimensions[note_row].height = note_height
 
     header_labels = tuple(header[:3]) if len(header) >= 3 else (
         'Demanda',
         'Criticidade',
         'Prazo máximo para atendimento',
     )
-    header_row = row
-    for column, label in enumerate(header_labels, start=1):
+    header_row = _ROW_PRAZOS_HEADER
+    for column, label in zip((2, 3, 4), header_labels, strict=True):
         cell = sheet.cell(row=header_row, column=column, value=label)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
-        cell.alignment = CENTER_ALIGN if column == 2 else LEFT_ALIGN
-    row += 1
+        cell.alignment = CENTER_ALIGN if column == 3 else LEFT_ALIGN
 
     seen_combos: set[tuple[str, str]] = set()
+    row = _ROW_PRAZOS_BODY_START
     for data_row in rows:
         padded = list(data_row) + [''] * (3 - len(data_row))
         demanda = padded[0].strip()
         criticidade = _reformat_criticidade(padded[1])
         prazo = _reformat_prazo_text(padded[2].strip())
 
-        demanda_cell = sheet.cell(row=row, column=1, value=demanda)
-        demanda_cell.font = BODY_FONT
+        demanda_cell = sheet.cell(row=row, column=2, value=demanda)
+        demanda_cell.font = LABEL_FONT
         demanda_cell.alignment = LEFT_ALIGN
         demanda_cell.border = THIN_BORDER
 
@@ -587,7 +748,7 @@ def _write_prazos_sheet(
         else:
             seen_combos.add(combo)
 
-        criticidade_cell = sheet.cell(row=row, column=2, value=criticidade)
+        criticidade_cell = sheet.cell(row=row, column=3, value=criticidade)
         criticidade_cell.font = BODY_FONT
         criticidade_cell.alignment = CENTER_ALIGN
         criticidade_cell.border = THIN_BORDER
@@ -595,10 +756,13 @@ def _write_prazos_sheet(
         if fill is not None:
             criticidade_cell.fill = fill
 
-        prazo_cell = sheet.cell(row=row, column=3, value=prazo)
+        prazo_cell = sheet.cell(row=row, column=4, value=prazo)
         prazo_cell.font = BODY_FONT
-        prazo_cell.alignment = CENTER_WRAP_ALIGN
+        prazo_cell.alignment = LEFT_WRAP_ALIGN
         prazo_cell.border = THIN_BORDER
+        prazo_height = _wrapped_row_height(prazo, 32.83)
+        if prazo_height is not None:
+            sheet.row_dimensions[row].height = prazo_height
         row += 1
 
     last_row = row - 1
@@ -606,8 +770,9 @@ def _write_prazos_sheet(
         sheet,
         contract_number=contract_number,
         last_row=last_row,
-        last_column=3,
+        last_column=4,
         header_row=header_row,
+        first_column=2,
     )
 
 
@@ -618,16 +783,16 @@ def write_institutional_sheets(
     objetos_path: Path | None,
     equipe_path: Path | None,
     prazos_path: Path | None,
-    periodo: PeriodoAfericao | None,
     warnings: list[str],
 ) -> None:
     """Ponto de entrada usado por `sintetico/workbook.py`: gera Capa/Equipe/
-    Prazos formatadas, nessa ordem — Equipe/Prazos reaproveitam contrato/
-    portaria lidos da Capa em vez de uma segunda fonte independente."""
-    contexto = CapaContext(None, None)
+    Prazos formatadas, nessa ordem — título e subtítulo de Equipe/Prazos
+    referenciam a Capa por fórmula (`=Capa!B2`), nunca por segunda
+    digitação independente."""
+    contexto = CapaContext(None)
     if capa_path is not None:
         contexto = _write_capa_sheet(
-            workbook, capa_path, objetos_path, periodo, warnings
+            workbook, capa_path, objetos_path, warnings
         )
     elif objetos_path is not None:
         warnings.append(
@@ -637,7 +802,9 @@ def write_institutional_sheets(
         )
 
     if equipe_path is not None:
-        _write_equipe_sheet(workbook, equipe_path, contexto.portaria, warnings)
+        _write_equipe_sheet(
+            workbook, equipe_path, contexto.numero_contrato, warnings
+        )
 
     if prazos_path is not None:
         _write_prazos_sheet(
