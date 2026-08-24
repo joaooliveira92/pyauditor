@@ -56,12 +56,41 @@ multi-usuário/hospedado.
 
 <!-- one line per closed ticket -->
 
-(nenhum ticket resolvido ainda)
-
 - **Ticket 01 (formulário INMS):** protótipo em `src/ui/prototype-inms.html`
   (4 variantes, `?variant=A|B|C|D`); decisão de layout: **variante B** (duas
   telas, contrato → segmentos), escolhida em HITL — proto capturado na branch
   `prototype/inms-form`; a implementação do formulário real é follow-up.
+- **Ticket 02 (execução por etapa):** dropdown com os 6 subcomandos (default
+  `run`), só flags de comportamento por etapa (não path); retry reinvoca só o
+  subcomando isolado (sem resume — só `run` tem estado persistido); faixa de
+  status por etapa é efêmera/sessão, sem persistência; `/api/pipeline`
+  ganha só um campo `command` no payload, servidor continua um-job-por-
+  invocação, cliente sequencia. Ver `.scratch/wayfinder-ui/issues/02-step-execution-ux.md`.
+- **Ticket 03 (convenção de warnings):** dataclass `Warning{code, message,
+  orgao, competencia, inms_key, categoria}` (sem path literal — consumidor
+  deriva pela convenção de nomes) substitui `str` em `result.warnings`;
+  estrutura agora só `categoria_filter.py` (`unmatched_in_values_warnings`,
+  `outros_warning`), resto fica `code="unstructured"`; `summary_json()`
+  ganha campo `'warnings'` com a lista estruturada, ao lado de `'avisos'`
+  (contagem, inalterado) — sem isso a estruturação seria invisível pra UI,
+  já que `server.py` só vê o pipeline via `--output json` do subprocess. Ver
+  `.scratch/wayfinder-ui/issues/03-warning-structure.md`.
+- **Ticket 04 (setup Tailwind):** `scripts/build-css.sh` baixa o CLI
+  standalone pinado (`v4.3.3`) pra `.tailwindcss-cli/` (gitignored) e compila
+  `src/input.css` → `styles.css` (sem `tailwind.config`, CSS-first); só
+  importa `tailwindcss/utilities` com `@source` restrito a `*.html` (evita o
+  CLI varrer README/app.js por palavras soltas); CSS atual preservado
+  verbatim em `src/input.css`, então o `styles.css` gerado hoje é
+  visualmente idêntico ao anterior — utilities ficam disponíveis pra
+  formulários futuros. Ver `.scratch/wayfinder-ui/issues/04-tailwind-setup.md`.
+- **Ticket 05 (plano de testes para `server.py`):** cobrir toda a superfície
+  atual do servidor já nesta rodada (`resolve_file`, `GET`/`PUT /api/file`,
+  `POST`/`GET`/`DELETE /api/pipeline` como hoje — o campo `command` do
+  ticket 02 entra depois como diff pequeno, não suíte nova); `pytest`
+  (portabilidade de `src/ui` é runtime, não onde os testes rodam);
+  `tests/test_ui_server.py` na raiz, não `src/ui/tests/` próprio, porque
+  `testpaths = ["tests"]` no `pyproject.toml` só pega a raiz por padrão. Ver
+  `.scratch/wayfinder-ui/issues/05-server-test-plan.md`.
 
 ## Not yet specified
 
@@ -72,8 +101,13 @@ multi-usuário/hospedado.
   formulário — agrupar por tipo? por órgão? Pode nascer do ticket 01 (que só
   cobre INMS), mas as demais famílias ficam em aberto até lá.
 - **Deep-linking exato** entre um warning específico e o campo do formulário
-  que o causou — depende da convenção de estruturação (ticket 03); a mecânica
-  de "clicar no warning e abrir o campo" só fica especificável depois dela.
+  que o causou — ticket 03 definiu o dado disponível (`Warning{code, orgao,
+  competencia, inms_key, categoria}`, sem path literal, exposto via
+  `summary_json()['warnings']`), mas a mecânica de "clicar no warning, derivar
+  o config_path pela convenção de nomes, e abrir o campo certo do formulário
+  do ticket 01" ainda não foi desenhada — só fica especificável depois que o
+  formulário INMS real (follow-up do ticket 01) e a taxonomia de `code`
+  cobrirem o suficiente pra saber qual campo cada código aponta.
 - **Histórico de execuções passadas** — hoje se perde ao fechar a aba; se isso
   vale a pena persistir (mesmo que só na sessão do processo) ainda não foi
   discutido.

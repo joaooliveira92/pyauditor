@@ -4,14 +4,15 @@ can't reach.
 """
 
 from pathlib import Path
+from typing import cast
 
 import pytest
-
 from pyauditor.config.models import (
     IndicatorConfig,
     SegmentedRatioAcceptanceExpected,
 )
 from pyauditor.engine.pipeline import load_config, measure
+from pyauditor.engine.strategies._memoria import SegmentedRatioMemoria
 from pyauditor.rom.render import render_rom
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -30,7 +31,9 @@ def test_inms_1_2_matches_acceptance_test() -> None:
     assert isinstance(expected, SegmentedRatioAcceptanceExpected)
 
     result = measure(config, data_dir=INPUT_DIR)
-    categories = result.calculation.memoria['categories']
+    categories = cast(
+        SegmentedRatioMemoria, result.calculation.memoria
+    )['categories']
     assert isinstance(categories, list)
 
     assert result.calculation.result_pct == pytest.approx(
@@ -131,7 +134,9 @@ target:
     assert isinstance(config, IndicatorConfig)
     result = measure(config, data_dir=config_dir)
 
-    raw_categories = result.calculation.memoria['categories']
+    raw_categories = cast(
+        SegmentedRatioMemoria, result.calculation.memoria
+    )['categories']
     assert isinstance(raw_categories, list)
     categories = {c['name']: c for c in raw_categories}
     assert categories['alta']['penalty_points'] == pytest.approx(8000.0)

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from math import isnan
 from pathlib import Path
+from typing import cast
 
 from pyauditor.categoria_filter import (
     GRUPO_EXECUTOR_COLUMN,
@@ -50,7 +51,9 @@ def _compute_for_grupo(
     ).run(rows_for_grupo)
     strategy = SHAPE_REGISTRY[config.calculation.shape]
     result = strategy.calculate(config, gate_report.accepted)
-    numerator, denominator = strategy.pool_numerator_denominator(result.memoria)
+    numerator, denominator = strategy.pool_numerator_denominator(
+        cast(dict[str, object], result.memoria)
+    )
     return numerator or 0.0, denominator or 0.0
 
 

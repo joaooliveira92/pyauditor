@@ -14,15 +14,15 @@ from math import isclose
 
 from pyauditor.config.models import IndicatorConfig, SegmentedRatioCalculation
 from pyauditor.engine.strategies._filters import filter_rows
+from pyauditor.engine.strategies._memoria import (
+    SegmentedCategory,
+    SegmentedRatioMemoria,
+)
 from pyauditor.engine.strategies._numbers import as_float
 from pyauditor.engine.strategies._target import safe_pct, shortfall
 from pyauditor.engine.strategies.base import (
     CalculationResult,
     narrow_calculation,
-)
-from pyauditor.engine.strategies._memoria import (
-    SegmentedCategory,
-    SegmentedRatioMemoria,
 )
 
 

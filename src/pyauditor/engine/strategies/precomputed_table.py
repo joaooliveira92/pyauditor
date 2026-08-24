@@ -20,15 +20,15 @@ headline `result_pct` is reported per indicator.
 from math import isclose, isnan
 
 from pyauditor.config.models import IndicatorConfig, PrecomputedTableCalculation
+from pyauditor.engine.strategies._memoria import (
+    PrecomputedCategory,
+    PrecomputedTableMemoria,
+)
 from pyauditor.engine.strategies._numbers import parse_decimal
 from pyauditor.engine.strategies._target import safe_pct, shortfall
 from pyauditor.engine.strategies.base import (
     CalculationResult,
     narrow_calculation,
-)
-from pyauditor.engine.strategies._memoria import (
-    PrecomputedCategory,
-    PrecomputedTableMemoria,
 )
 
 

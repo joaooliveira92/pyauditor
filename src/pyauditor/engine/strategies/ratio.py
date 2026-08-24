@@ -8,6 +8,7 @@ from math import isnan
 
 from pyauditor.config.models import IndicatorConfig, RatioCalculation
 from pyauditor.engine.strategies._filters import filter_rows
+from pyauditor.engine.strategies._memoria import RatioMemoria
 from pyauditor.engine.strategies._numbers import as_float, parse_decimal
 from pyauditor.engine.strategies._target import (
     meets_target,
@@ -18,7 +19,6 @@ from pyauditor.engine.strategies.base import (
     CalculationResult,
     narrow_calculation,
 )
-from pyauditor.engine.strategies._memoria import RatioMemoria
 
 
 def _sum_column(rows: list[dict[str, str]], column: str) -> float:

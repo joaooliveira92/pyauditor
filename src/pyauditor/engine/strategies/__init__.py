@@ -33,10 +33,10 @@ from pyauditor.engine.strategies.penalty import (
 
 __all__ = (
     'SHAPE_REGISTRY',
-    'PenaltyReadings',
     'CatalogOccurrence',
     'CountDifferenceMemoria',
     'ExternalCatalogSumMemoria',
+    'PenaltyReadings',
     'PrecomputedCategory',
     'PrecomputedTableMemoria',
     'RatioMemoria',

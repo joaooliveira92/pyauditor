@@ -165,9 +165,9 @@ def _pooled_numerator_denominator(
     shape: str, memoria: ShapeMemoria
 ) -> tuple[float | None, float | None]:
     """Delega para a própria strategy do shape (`SHAPE_REGISTRY`, o mesmo
-    registry em que `engine.pipeline.measure` despacha) em vez de un segundo
+    registry em que `engine.pipeline.measure` despacha) em vez de um segundo
     dispatch por shape mantido à parte — um único lugar para atualizar quando
-    um shape é adicionado, não dos."""
+    um shape é adicionado, não dois."""
 
     strategy = SHAPE_REGISTRY.get(shape)
     if strategy is None:

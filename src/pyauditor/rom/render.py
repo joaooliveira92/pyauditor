@@ -9,25 +9,52 @@ template implementa.
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import cast
 
 from pyauditor.codes import format_inms_code
 from pyauditor.config.models import IndicatorConfig
 from pyauditor.engine.pipeline import MeasurementProvenance, MeasurementResult
 from pyauditor.engine.quality_gates import QualityGateReport
 from pyauditor.engine.strategies import penalty_interpretation
+from pyauditor.engine.strategies._memoria import (
+    CountDifferenceMemoria,
+    ExternalCatalogSumMemoria,
+    PrecomputedTableMemoria,
+    RatioMemoria,
+    SegmentedRatioMemoria,
+)
 from pyauditor.engine.strategies.base import CalculationResult
 from pyauditor.periodo import PeriodoAfericao, format_period_br
 
 _CAPA_PLACEHOLDER = '[a preencher]'
 
-
-def _require_list(value: object, *, field: str) -> list[Any]:
-    if not isinstance(value, list):
-        raise TypeError(
-            f'memoria[{field!r}] deveria ser list, veio {type(value).__name__}'
-        )
-    return value
+# Blockquotes explícitos, inteiros em constantes de módulo (não concatenados
+# palavra por palavra) — legibilidade para o lector da fonte e da diff, e um
+# único lugar onde editar o texto.
+_RESSALVA_QUOTE = (
+    '> A leitura linear contínua é a metodologia adotada por este pipeline. '
+    'As\n'
+    '> demais leituras são apresentadas para transparência e não foram '
+    'validadas\n'
+    '> formalmente pela gestão contratual/assessoria jurídica.'
+)
+_QUALITY_GATE_QUOTE = (
+    '> Aprovação pelo quality gate não equivale à população contratual '
+    'completa\n'
+    '> (registros podem ser rejeitados por critérios estruturais que não '
+    'decidem\n'
+    '> se pertencem ao universo do indicador).'
+)
+_PONTUACION_QUOTE = (
+    '> "Pontuação apurada" não implica sanção administrativa — ver '
+    'processo\n'
+    '> sancionador próprio, se cabível.'
+)
+_FOOTER_QUOTE = (
+    '*Competência e Período da aferição são derivados do argumento '
+    '--competência da CLI. Responsáveis refletem o estado da capa no '
+    'momento em que este ROM foi gerado.*'
+)
 
 
 def _md_cell(value: object) -> str:
@@ -39,8 +66,9 @@ def _md_cell(value: object) -> str:
 
 
 def render_ratio_memoria(calculation: CalculationResult) -> str:
-    numerator = calculation.memoria['numerator']
-    denominator = calculation.memoria['denominator']
+    memoria = cast(RatioMemoria, calculation.memoria)
+    numerator = memoria['numerator']
+    denominator = memoria['denominator']
     return (
         f'- Numerador: {numerator}\n- Denominador: {denominator}\n'
         f'- Resultado: {calculation.result_pct:.2f}%'
@@ -48,9 +76,7 @@ def render_ratio_memoria(calculation: CalculationResult) -> str:
 
 
 def render_segmented_ratio_memoria(calculation: CalculationResult) -> str:
-    categories = _require_list(
-        calculation.memoria['categories'], field='categories'
-    )
+    categories = cast(SegmentedRatioMemoria, calculation.memoria)['categories']
     lines = [
         f'| {_md_cell(c["name"])} | {c["numerator"]} | {c["denominator"]} | '
         f'{c["result_pct"]:.2f}% | {c["penalty_points"]:.2f} |'
@@ -66,19 +92,17 @@ def render_segmented_ratio_memoria(calculation: CalculationResult) -> str:
 
 
 def render_count_difference_memoria(calculation: CalculationResult) -> str:
-    qrc = calculation.memoria['QRC']
-    qcsi = calculation.memoria['QCSI']
-    cni = calculation.memoria['CNI']
+    memoria = cast(CountDifferenceMemoria, calculation.memoria)
     return (
-        f'- QRC (recomendados): {qrc}\n- QCSI (implantados): {qcsi}\n- CNI ='
-        f' QRC - QCSI = {cni}'
+        f'- QRC (recomendados): {memoria["QRC"]}\n'
+        f'- QCSI (implantados): {memoria["QCSI"]}\n'
+        f'- CNI = QRC - QCSI = {memoria["CNI"]}'
     )
 
 
 def render_external_catalog_sum_memoria(calculation: CalculationResult) -> str:
-    occurrences = _require_list(
-        calculation.memoria['occurrences'], field='occurrences'
-    )
+    memoria = cast(ExternalCatalogSumMemoria, calculation.memoria)
+    occurrences = memoria['occurrences']
     if not occurrences:
         rows_markdown = '| — | — | nenhuma ocorrência | — |'
     else:
@@ -91,14 +115,13 @@ def render_external_catalog_sum_memoria(calculation: CalculationResult) -> str:
         '| Ocorrência | Item Anexo E | Descrição | Pontos |\n'
         '|---|---|---|---|\n'
         f'{rows_markdown}\n\n'
-        f'- Σ Pontos_NMS = {calculation.memoria["total_points"]}'
+        f'- Σ Pontos_NMS = {memoria["total_points"]}'
     )
 
 
 def render_precomputed_table_memoria(calculation: CalculationResult) -> str:
-    categories = _require_list(
-        calculation.memoria['categories'], field='categories'
-    )
+    memoria = cast(PrecomputedTableMemoria, calculation.memoria)
+    categories = memoria['categories']
     if not categories:
         rows_markdown = '| — | — | nenhuma linha |'
     else:
@@ -214,31 +237,7 @@ def _render_ressalva_interpretativa(
         f'| Qualquer fração inicia novo degrau | {formula_ceil} |'
         f' {readings.ceil:.2f} |\n'
         '\n'
-        '> '
-        'A '
-        'leitura '
-        'linear '
-        'contínua '
-        'é '
-        'a '
-        'metodologia '
-        'adotada '
-        'por '
-        'este '
-        'pipeline. '
-        'As\n'
-        '> '
-        'demais '
-        'leituras '
-        'são '
-        'apresentadas '
-        'para '
-        'transparência '
-        'e '
-        'não '
-        'foram '
-        'validadas\n'
-        '> formalmente pela gestão contratual/assessoria jurídica.'
+        f'{_RESSALVA_QUOTE}'
     )
 
 
@@ -260,29 +259,7 @@ def _render_linhas_aprovadas(
         f'- Linhas lidas:'
         f' {len(gate_report.accepted) + len(gate_report.rejected)}\n'
         f'- Linhas aprovadas: {len(gate_report.accepted)}{fora_do_periodo}\n\n'
-        '> '
-        'Aprovação '
-        'pelo '
-        'quality '
-        'gate '
-        'não '
-        'equivale '
-        'à '
-        'população '
-        'contratual '
-        'completa\n'
-        '> '
-        '(registros '
-        'podem '
-        'ser '
-        'rejeitados '
-        'por '
-        'critérios '
-        'estruturais '
-        'que '
-        'não '
-        'decidem\n'
-        '> se pertencem ao universo do indicador).'
+        f'{_QUALITY_GATE_QUOTE}'
     )
 
 
@@ -327,17 +304,7 @@ def _render_resultado_vs_meta(
     return (
         f'{h} Resultado vs meta\n{resultado_vs_meta}\n'
         f'- Pontuação apurada: {calculation.penalty_points:.2f} pontos\n\n'
-        '> '
-        '"Pontuação '
-        'apurada" '
-        'não '
-        'implica '
-        'sanção '
-        'administrativa '
-        '— '
-        'ver '
-        'processo\n'
-        '> sancionador próprio, se cabível.'
+        f'{_PONTUACION_QUOTE}'
     )
 
 
@@ -401,31 +368,7 @@ def _org_body(
     sections.append(_render_responsaveis(capa_fields, h))
     sections.append(
         '---\n'
-        '*Competência '
-        'e '
-        'Período '
-        'da '
-        'aferição '
-        'são '
-        'derivados '
-        'do '
-        'argumento '
-        '--competência '
-        'da '
-        'CLI. '
-        'Responsáveis '
-        'refletem '
-        'o '
-        'estado '
-        'da '
-        'capa '
-        'no '
-        'momento '
-        'em '
-        'que '
-        'este '
-        'ROM '
-        'foi gerado.*'
+        f'{_FOOTER_QUOTE}'
     )
 
     return sections

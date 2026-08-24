@@ -12,12 +12,12 @@ target), but the penalty itself is `CNI * penalty_per_unit`, not derived from
 
 from pyauditor.config.models import CountDifferenceCalculation, IndicatorConfig
 from pyauditor.engine.strategies._filters import filter_rows
+from pyauditor.engine.strategies._memoria import CountDifferenceMemoria
 from pyauditor.engine.strategies._numbers import as_float
 from pyauditor.engine.strategies.base import (
     CalculationResult,
     narrow_calculation,
 )
-from pyauditor.engine.strategies._memoria import CountDifferenceMemoria
 
 
 class CountDifferenceStrategy:

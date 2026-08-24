@@ -12,7 +12,7 @@ class CalculationResult:
     result_pct: float
     conforms: bool
     penalty_points: float
-    memoria: ShapeMemoria  # tagged per shape — see engine/strategies/_memoria.py
+    memoria: ShapeMemoria  # tagged per shape, see engine/strategies/_memoria.py
 
 
 class CalculationStrategy(Protocol):

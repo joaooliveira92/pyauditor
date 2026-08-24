@@ -4,14 +4,15 @@ hours-weighted headline, and the points mode (INMS 1.8). All synthetic.
 """
 
 from pathlib import Path
+from typing import cast
 
 import pytest
-
 from pyauditor.config.models import (
     IndicatorConfig,
     PrecomputedTableAcceptanceExpected,
 )
 from pyauditor.engine.pipeline import load_config, measure
+from pyauditor.engine.strategies._memoria import PrecomputedTableMemoria
 from pyauditor.rom.render import render_rom
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -36,7 +37,9 @@ def test_inms_1_4_matches_acceptance_test() -> None:
     assert calc.penalty_points == pytest.approx(
         expected.penalty_points, abs=0.01
     )
-    categories = calc.memoria['categories']
+    categories = cast(
+        PrecomputedTableMemoria, calc.memoria
+    )['categories']
     assert isinstance(categories, list)
     assert len(categories) == 5  # per-ativo rows, garbage rows skipped
 
@@ -111,7 +114,9 @@ penalty:
     assert isinstance(config, IndicatorConfig)
     calc = measure(config, data_dir=config_dir).calculation
 
-    categories = calc.memoria['categories']
+    categories = cast(
+        PrecomputedTableMemoria, calc.memoria
+    )['categories']
     assert isinstance(categories, list)
     assert [c['name'] for c in categories] == ['A', 'B']
 

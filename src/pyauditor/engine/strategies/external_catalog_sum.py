@@ -13,13 +13,13 @@ from pyauditor.config.models import (
     ExternalCatalogSumCalculation,
     IndicatorConfig,
 )
-from pyauditor.engine.strategies.base import (
-    CalculationResult,
-    narrow_calculation,
-)
 from pyauditor.engine.strategies._memoria import (
     CatalogOccurrence,
     ExternalCatalogSumMemoria,
+)
+from pyauditor.engine.strategies.base import (
+    CalculationResult,
+    narrow_calculation,
 )
 
 

@@ -6,10 +6,11 @@ import sys
 from datetime import date
 from io import StringIO
 from pathlib import Path
+from typing import cast
 
 import pytest
-
 from pyauditor.engine.pipeline import load_config, measure, measurement_source
+from pyauditor.engine.strategies._memoria import RatioMemoria
 from pyauditor.logging import setup_logging
 from pyauditor.periodo import PeriodoAfericao
 
@@ -125,7 +126,9 @@ def test_empty_csv_skips_missing_column_check_warns_and_measures_0_0(
     logs = buf.getvalue()
     assert 'coluna(s) referenciada(s) no YAML não existe(m)' in logs
     assert 'Atendido' in logs
-    assert result.calculation.memoria == {'numerator': 0.0, 'denominator': 0.0}
+    assert result.calculation.memoria == RatioMemoria(
+        numerator=0.0, denominator=0.0
+    )
     assert result.calculation.conforms is True
     assert result.calculation.penalty_points == pytest.approx(0.0)
     assert result.hard_failure is False
@@ -233,7 +236,8 @@ def test_unparseable_numeric_cells_are_counted(tmp_path: Path) -> None:
     assert bundle.unparseable_numerics == 1
     assert result.unparseable_numerics == 1
     # `abc` descartado -> só o 10 entra no numerador.
-    assert result.calculation.memoria['numerator'] == 10.0
+    memoria = cast(RatioMemoria, result.calculation.memoria)
+    assert memoria['numerator'] == 10.0
 
 
 def test_measurement_source_delimiter_ambiguous_strict_raises(

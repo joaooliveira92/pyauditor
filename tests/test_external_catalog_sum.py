@@ -6,12 +6,13 @@ fixture instead.
 """
 
 from pathlib import Path
+from typing import cast
 
 import pytest
-
 from pyauditor.config.catalog import load_anexo_e_catalog
 from pyauditor.config.models import ExternalCatalogSumAcceptanceExpected
 from pyauditor.engine.pipeline import load_config, measure
+from pyauditor.engine.strategies._memoria import ExternalCatalogSumMemoria
 from pyauditor.rom.render import render_rom
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -41,8 +42,9 @@ def test_inms_1_8_matches_acceptance_test() -> None:
 
     result = measure(config, data_dir=INPUT_DIR)
 
-    assert result.calculation.memoria['total_points'] == expected.total_points
-    assert result.calculation.memoria['occurrences'] == []
+    memoria = cast(ExternalCatalogSumMemoria, result.calculation.memoria)
+    assert memoria['total_points'] == expected.total_points
+    assert memoria['occurrences'] == []
     assert result.calculation.conforms == expected.conforms
     assert result.calculation.penalty_points == pytest.approx(
         expected.penalty_points
@@ -105,11 +107,12 @@ calculation:
     config = load_config(tmp_path / 'config.yaml')
     result = measure(config, data_dir=tmp_path)
 
-    assert result.calculation.memoria['total_points'] == 100 + 20000 + 5000
+    memoria = cast(ExternalCatalogSumMemoria, result.calculation.memoria)
+    assert memoria['total_points'] == 100 + 20000 + 5000
     assert result.calculation.penalty_points == pytest.approx(25100.0)
     assert result.calculation.conforms is False
 
-    occurrences = result.calculation.memoria['occurrences']
+    occurrences = memoria['occurrences']
     assert isinstance(occurrences, list)
     assert [o['occurrence_id'] for o in occurrences] == [
         'OC-001',
@@ -154,6 +157,8 @@ calculation:
     config = load_config(tmp_path / 'config.yaml')
     result = measure(config, data_dir=tmp_path)
 
-    assert result.calculation.memoria == {'occurrences': [], 'total_points': 0}
+    assert result.calculation.memoria == ExternalCatalogSumMemoria(
+        occurrences=[], total_points=0
+    )
     assert result.calculation.conforms is True
     assert result.calculation.penalty_points == pytest.approx(0.0)

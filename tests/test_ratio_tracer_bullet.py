@@ -6,11 +6,12 @@ docs/spec/inms-pipeline.md §8). Skips if that data isn't present locally.
 """
 
 from pathlib import Path
+from typing import cast
 
 import pytest
-
 from pyauditor.config.models import RatioAcceptanceExpected
 from pyauditor.engine.pipeline import load_config, measure
+from pyauditor.engine.strategies._memoria import RatioMemoria
 from pyauditor.rom.render import render_rom
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -31,8 +32,9 @@ def test_inms_1_1_matches_acceptance_test() -> None:
 
     result = measure(config, data_dir=INPUT_DIR)
 
-    assert result.calculation.memoria['numerator'] == expected.numerator
-    assert result.calculation.memoria['denominator'] == expected.denominator
+    memoria = cast(RatioMemoria, result.calculation.memoria)
+    assert memoria['numerator'] == expected.numerator
+    assert memoria['denominator'] == expected.denominator
     assert result.calculation.result_pct == pytest.approx(
         expected.result_pct, abs=0.01
     )
