@@ -32,8 +32,16 @@ def parse_dt(raw: str) -> ParsedDateTime:
     stripped = raw.strip()
     if not stripped:
         return ParsedDateTime(value=None, is_blank=True, is_malformed=False)
-    try:
-        value = datetime.strptime(stripped, DATETIME_FMT)
-    except ValueError:
-        return ParsedDateTime(value=None, is_blank=False, is_malformed=True)
-    return ParsedDateTime(value=value, is_blank=False, is_malformed=False)
+    # ⚡ Bolt: otimização de performance.
+    # Evita chamadas custosas ao datetime.strptime (e exceções ValueError em
+    # caminhos de falha) verificando primeiro comprimento e presença dos
+    # separadores do formato "DD/MM/YYYY HH:MM".
+    if 13 <= len(stripped) <= 16 and '/' in stripped and ':' in stripped:
+        try:
+            value = datetime.strptime(stripped, DATETIME_FMT)
+            return ParsedDateTime(
+                value=value, is_blank=False, is_malformed=False
+            )
+        except ValueError:
+            return ParsedDateTime(value=None, is_blank=False, is_malformed=True)
+    return ParsedDateTime(value=None, is_blank=False, is_malformed=True)

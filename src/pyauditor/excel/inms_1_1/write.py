@@ -25,15 +25,20 @@ from pyauditor.excel._workbook import (
     force_recalc,
     unique_table_name,
 )
-from pyauditor.excel.inms_1_1._cells import _protect_support_columns, _raw_range
+from pyauditor.excel.inms_1_1._cells import (
+    _apply_section_outline,
+    _protect_support_columns,
+    _raw_range,
+)
 from pyauditor.excel.inms_1_1._domain import (
     _build_grupo_rows,
     _normalize_no_prazo,
     has_required_columns,
 )
 from pyauditor.excel.inms_1_1._layout import (
+    _AP,
+    _INCLUIDO_SIM,
     _NO_PRAZO_COLUMN,
-    _R,
     _X,
 )
 from pyauditor.excel.inms_1_1._raw_block import _write_raw_block
@@ -159,15 +164,6 @@ def write_sheet(
         grupo_rows = _build_grupo_rows(
             categorias_file, grupo_executor_entries, real_values
         )
-        _write_raw_block(sheet, rows, grupo_rows, last_row)
-
-        def rng(col: int) -> str:
-            return _raw_range(col, last_row)
-
-        iap = f'ROWS({rng(_R)})'
-        iadp = f'COUNTIF({rng(_X)},"S")'
-        fora = f'COUNTIF({rng(_X)},"N")'
-        meta_value = target_value / 100
 
         table_names = {
             'grupo_executor': unique_table_name(
@@ -177,7 +173,23 @@ def write_sheet(
             'amostra_divergencias': unique_table_name(
                 workbook, 'TabelaAmostraDivergencias'
             ),
+            'amostra_divergencia_fornecedor': unique_table_name(
+                workbook, 'TabelaAmostraDivergenciaFornecedor'
+            ),
         }
+
+        def rng(col: int) -> str:
+            return _raw_range(col, last_row)
+
+        # IAP/IADP/fora contam só incidentes cujo grupo está habilitado no
+        # toggle "Incluído no INMS?" da Seção 4 (coluna `_AP`, ao vivo) — não
+        # mais todas as linhas do CSV bruto, permitindo desabilitar
+        # individualmente grupos executores não previstos sem reprocessar
+        # o pipeline (ver Seção 4).
+        iap = f'COUNTIF({rng(_AP)},"{_INCLUIDO_SIM}")'
+        iadp = f'COUNTIFS({rng(_AP)},"{_INCLUIDO_SIM}",{rng(_X)},"S")'
+        fora = f'COUNTIFS({rng(_AP)},"{_INCLUIDO_SIM}",{rng(_X)},"N")'
+        meta_value = target_value / 100
 
         _write_section_1_identificacao(
             sheet,
@@ -187,6 +199,12 @@ def write_sheet(
             raw_csv_path=raw_csv_path,
             generated_at=generated_at,
         )
+        # Barras de Seção (linha do rótulo "SEÇÃO N · ..."), usadas ao final
+        # para o agrupamento nativo de linhas (`_apply_section_outline`).
+        # 1-3 têm largura fixa (ver docstrings dos respectivos
+        # `_write_section_*`); as demais são sempre iguais ao `next_row`
+        # devolvido pela Seção anterior.
+        section_bars = [3, 11, 16]
         next_row = _write_section_2_resumo(
             sheet,
             iap=iap,
@@ -195,6 +213,20 @@ def write_sheet(
             meta_value=meta_value,
         )
         next_row = _write_section_3_memoria(sheet)
+
+        # Seções 1–3 têm largura fixa (não dependem de `rows`/`grupo_rows`):
+        # `next_row` já é a primeira linha de cabeçalho da Seção 4, então a
+        # primeira linha de grupo (`first_group_row`) é conhecida *antes* de
+        # escrever a Seção 4 — o bloco de apoio referencia essas linhas
+        # diretamente (coluna `_AQ`, lookup por linha do toggle "Incluído no
+        # INMS?" de cada grupo), sem depender de referência estruturada de
+        # tabela.
+        first_group_row = next_row + 2
+        _write_raw_block(
+            sheet, rows, grupo_rows, last_row, first_group_row=first_group_row
+        )
+
+        section_bars.append(next_row)  # Seção 4
         next_row = _write_section_4_detalhamento(
             sheet,
             grupo_rows=grupo_rows,
@@ -202,9 +234,11 @@ def write_sheet(
             start_row=next_row,
             table_name=table_names['grupo_executor'],
         )
+        section_bars.append(next_row)  # Seção 5
         next_row = _write_section_5_subtotais(
             sheet, rng=rng, start_row=next_row
         )
+        section_bars.append(next_row)  # Seção 6
         next_row = _write_section_6_fora_prazo(
             sheet,
             rows=rows,
@@ -212,14 +246,20 @@ def write_sheet(
             start_row=next_row,
             table_name=table_names['fora_do_prazo'],
         )
+        section_bars.append(next_row)  # Seção 7
         next_row = _write_section_7_auditoria(
             sheet,
             rows=rows,
             rng=rng,
             start_row=next_row,
             table_name=table_names['amostra_divergencias'],
+            table_name_fornecedor_itsm=table_names[
+                'amostra_divergencia_fornecedor'
+            ],
         )
+        section_bars.append(next_row)  # Seção 8
         next_row = _write_section_8_tempo(sheet, rng=rng, start_row=next_row)
+        section_bars.append(next_row)  # Seção 9
         _write_section_9_penalidade(
             sheet,
             penalty_base_points=penalty_base_points,
@@ -228,7 +268,32 @@ def write_sheet(
             start_row=next_row,
         )
 
+        # Cada Seção vira um grupo de linhas colapsável (fim = 2 linhas
+        # antes da barra seguinte, pulando a linha em branco separadora; a
+        # última Seção vai até `sheet.max_row`).
+        section_bounds = []
+        for i, bar in enumerate(section_bars):
+            if i + 1 < len(section_bars):
+                content_end = section_bars[i + 1] - 2
+            else:
+                content_end = sheet.max_row
+            section_bounds.append((bar, content_end))
+        _apply_section_outline(sheet, section_bounds)
+
         _protect_support_columns(sheet)
         sheet.freeze_panes = 'A2'
+
+        # Impressão/exportação a PDF para auditoria: área restrita às
+        # colunas visíveis (A:L — R:AO são apoio oculto), ajustada à
+        # largura da página e com o título (linha 1) repetido em cada
+        # página impressa.
+        sheet.print_area = f'A1:L{sheet.max_row}'
+        sheet.print_title_rows = '1:1'
+        sheet.page_setup.orientation = 'landscape'
+        sheet.page_setup.fitToWidth = 1
+        sheet.page_setup.fitToHeight = 0
+        sheet.sheet_properties.pageSetUpPr.fitToPage = (  # ty: ignore[invalid-assignment]
+            True
+        )
 
     force_recalc(workbook)

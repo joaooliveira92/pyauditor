@@ -126,6 +126,13 @@ def _write_section_2_resumo(
             'Situação',
         ),
     )
+    # Cabeçalho recentralizado para casar com o alinhamento centralizado da
+    # linha de KPIs abaixo (linha 13) — faixa de indicadores curta, não
+    # tabela de dados onde numérico ficaria à direita.
+    for col in range(1, 8):
+        sheet.cell(row=12, column=col).alignment = Alignment(
+            horizontal='center', wrap_text=True, vertical='center'
+        )
     sheet['A13'] = f'={meta_value}'
     sheet['B13'] = f'={iap}'
     sheet['C13'] = f'={iadp}'
@@ -212,7 +219,7 @@ def _write_section_3_memoria(sheet: Worksheet) -> int:
         25,
         'Margem em quantidade de incidentes (IADP - mínimo):',
         '=C13-B24',
-        fmt='0;-0',
+        fmt='0;(0)',
     )
     sheet.merge_cells('A26:L26')
 

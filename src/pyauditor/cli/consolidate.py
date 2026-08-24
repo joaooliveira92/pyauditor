@@ -14,9 +14,18 @@ Migração das capas para CSV (ticket 07): os campos comuns vêm de `capa.csv`
 e o valor monetário de `objetos.csv` — a capa não carrega mais valores.
 Competência/períodos/responsáveis idem (spec competencia-cli-equipe §4/§6):
 períodos derivados do argumento da CLI e responsáveis de `equipe.csv`.
+
+Duas partes deste comando tocam `config_dir`/CSV bruto — ambas via
+`excel/inms_grouped.py`, recomputando o detalhamento por grupo executor/
+ativo direto das configs, sem nada em disco além do consolidado sendo
+montado: `Item Contratual` da GLOSAS (`compute_glosa_item_detail`, chamado
+antes de `build_consolidated_workbook` — a GLOSAS precisa do resultado) e a
+aba `INMS_BASE_AGRUPADO` (`add_inms_agrupado_sheet`, chamado depois). Se
+qualquer uma falhar, degrada com um aviso; nunca impede a publicação do
+consolidado.
 """
 
-from dataclasses import dataclass
+import tempfile
 from pathlib import Path
 from typing import cast
 
@@ -24,32 +33,28 @@ from pyauditor.atomic_write import atomic_write
 from pyauditor.cli.results import (
     WRITE_FAILURE_HINT,
     DependencyCheck,
-    Status,
     validate_competencia,
 )
+from pyauditor.commands import contracts
 from pyauditor.excel.capa import read_capa_csv_fields
 from pyauditor.excel.consolidate import (
     build_consolidated_workbook,
     read_existing_decisions,
 )
 from pyauditor.excel.equipe import EQUIPE_FILENAME, read_responsaveis
+from pyauditor.excel.inms_grouped import (
+    add_inms_agrupado_sheet,
+    compute_glosa_item_detail,
+)
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import month_bounds
 from pyauditor.rom.loading import load_summaries, read_valor_base
 
 _ORGAOS: tuple[str, str] = ('MinC', 'MTur')
+_DEFAULT_CONFIG_DIR: Path = Path('configs')
 
-
-@dataclass(frozen=True, slots=True)
-class ConsolidateResult:
-    status: Status
-    competencia: str  # sem orgao — consolidate é agnóstico de órgão
-    output_path: Path
-    decisions_preserved: int
-    warnings: tuple[str, ...]
-    error_message: str | None
-    glosa_calculada: bool = True
-    total_pontos: float = 0.0
+# `ConsolidateResult` reexportado de `commands.contracts` (ticket 11 SRP).
+ConsolidateResult = contracts.ConsolidateResult
 
 
 def check_consolidate_ready(
@@ -100,9 +105,11 @@ def run_consolidate(
     output_path: Path,
     data_dir: Path | None = None,
     *,
+    config_dir: Path | None = None,
     is_final_month: bool = False,
 ) -> ConsolidateResult:
     data_dir = data_dir or report_dir.parent
+    config_dir = config_dir or _DEFAULT_CONFIG_DIR
 
     def _error(message: str) -> ConsolidateResult:
         logger.error(message)
@@ -172,6 +179,25 @@ def run_consolidate(
             quantidade=len(existing_decisions),
         )
 
+    # `Item Contratual` da GLOSAS (`excel/inms_grouped.py::
+    # compute_glosa_item_detail`) precisa do mesmo detalhamento por grupo
+    # executor/ativo da aba `INMS_BASE_AGRUPADO`, mas a GLOSAS é montada
+    # antes dela existir — recomputa aqui e passa adiante. Mesma política
+    # de degradar sem bloquear: falha aqui só deixa `Item Contratual` vazio
+    # (o comportamento de sempre), nunca impede o consolidado.
+    glosa_item_detail: dict[tuple[str, str], tuple[str, ...]] = {}
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix='pyauditor-glosa-item-detail-'
+        ) as scratch:
+            glosa_item_detail = compute_glosa_item_detail(
+                competencia, config_dir, data_dir, scratch_dir=Path(scratch)
+            )
+    except Exception as exc:  # boundary: nunca vazar traceback nem bloquear
+        warning = f'Item Contratual da GLOSAS não recomputado: {exc}'
+        logger.warning(warning)
+        warnings.append(warning)
+
     try:
         result = build_consolidated_workbook(
             competencia,
@@ -184,6 +210,7 @@ def run_consolidate(
             periodo=periodo,
             responsaveis=responsaveis,
             is_final_month=is_final_month,
+            glosa_item_detail=glosa_item_detail,
         )
     except (
         Exception
@@ -191,6 +218,27 @@ def run_consolidate(
         return _error(
             f'falha inesperada ao montar consolidado de {competencia}: {exc}'
         )
+
+    # `INMS_BASE_AGRUPADO` (aba com o detalhamento por grupo executor/ativo
+    # e agrupamento nativo de linhas) é um extra sobre o `INMS_BASE` que
+    # acabou de ser montado — nunca deve impedir a publicação do
+    # consolidado (o artefato financeiro principal) se a recomputação
+    # falhar por falta de configs/CSV brutos.
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix='pyauditor-inms-grouped-'
+        ) as scratch:
+            add_inms_agrupado_sheet(
+                result.workbook,
+                competencia,
+                config_dir,
+                data_dir,
+                scratch_dir=Path(scratch),
+            )
+    except Exception as exc:  # boundary: nunca vazar traceback nem bloquear
+        warning = f'aba INMS_BASE_AGRUPADO não gerada: {exc}'
+        logger.warning(warning)
+        warnings.append(warning)
 
     try:
         atomic_write(output_path, result.workbook.save)

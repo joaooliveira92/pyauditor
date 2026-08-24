@@ -35,13 +35,17 @@ DATAHORA_FORMAT: Final[str] = '%d/%m/%Y %H:%M'
 
 
 def parse_datahora(raw: str) -> datetime | None:
-    raw = raw.strip()
-    if not raw:
-        return None
-    try:
-        return datetime.strptime(raw, DATAHORA_FORMAT)
-    except ValueError:
-        return None
+    stripped = raw.strip()
+    # ⚡ Bolt: otimização de performance.
+    # Evita chamadas custosas ao datetime.strptime (e exceções ValueError em
+    # caminhos de falha) verificando primeiro comprimento e presença dos
+    # separadores do formato "DD/MM/YYYY HH:MM".
+    if 13 <= len(stripped) <= 16 and '/' in stripped and ':' in stripped:
+        try:
+            return datetime.strptime(stripped, DATAHORA_FORMAT)
+        except ValueError:
+            return None
+    return None
 
 
 @dataclass(frozen=True, slots=True)

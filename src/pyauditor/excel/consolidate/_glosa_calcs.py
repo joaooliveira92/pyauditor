@@ -24,8 +24,11 @@ from pyauditor.rom.summary import IndicatorSummary
 
 __all__: Final[tuple[str, ...]] = (
     'GlosaAggregation',
+    'OcorrenciaGlosa',
     'accumulate_pontos_por_orgao',
     'compute_aggregation',
+    'faixa_descumprimento',
+    'ocorrencia_glosa',
 )
 
 _DECISAO_ACEITA: Final[str] = 'aceita'
@@ -131,3 +134,47 @@ def compute_aggregation(
         pct_bruto=pct_bruto,
         aplicado=aplicado,
     )
+
+
+@dataclass(frozen=True)
+class OcorrenciaGlosa:
+    """A glosa sugerida de uma ocorrência (linha indicador x órgão)."""
+
+    pct_ajuste: float
+    valor_glosa: float | None
+
+
+def ocorrencia_glosa(
+    pontos: float, valor_base: float | None
+) -> OcorrenciaGlosa:
+    """Percentual de ajuste e `Valor Glosa` de uma linha da aba `GLOSAS`:
+    `pct = pontos x 0,001`, `valor = valor_base * pct / 100` arredondado a 2
+    casas; sem `valor_base`, mantém percentual e zera o valor (`None`).
+    """
+    pct_ajuste = pontos * POINTS_TO_PERCENT
+    valor_glosa = (
+        round((valor_base or 0.0) * pct_ajuste / 100, 2)
+        if valor_base is not None
+        else None
+    )
+    return OcorrenciaGlosa(pct_ajuste=pct_ajuste, valor_glosa=valor_glosa)
+
+
+def faixa_descumprimento(summary: IndicatorSummary) -> str:
+    """A célula `Faixa de Descumprimento` da aba `GLOSAS`, derivada do
+    sentido do operador de meta: déficit de `target - result` para `>=` e de
+    `result - target` para `<=`. Sem operador/meta, o indicador é medido
+    sob detalhamento por-ativo e a linha é rotulada quando tem pontos.
+    """
+    if summary.target_operator is None or summary.target_value is None:
+        return (
+            'Ocorrência sob detalhamento por-ativo'
+            if summary.penalty_points > 0
+            else ''
+        )
+    dif = (
+        summary.target_value - summary.result_pct
+        if summary.target_operator == '>='
+        else summary.result_pct - summary.target_value
+    )
+    return f'Déficit de {dif:.2f}pp' if dif > 0 else 'Não conforme'

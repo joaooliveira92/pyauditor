@@ -236,6 +236,13 @@ def build_parser() -> argparse.ArgumentParser:
         help='onde vive objetos.csv, a fonte do valor mensal (default: input)',
     )
     consolidate_parser.add_argument(
+        '--config-dir',
+        type=Path,
+        default=_DEFAULT_CONFIG_DIR,
+        help='fonte do detalhamento por grupo executor/ativo da aba '
+        'INMS_BASE_AGRUPADO (default: configs)',
+    )
+    consolidate_parser.add_argument(
         '--final-month',
         action='store_true',
         help='último '
@@ -351,6 +358,28 @@ def build_parser() -> argparse.ArgumentParser:
             'reprocessa tudo, mesmo etapas já concluídas numa tentativa '
             'anterior '
             "(default: retoma de onde parou, pulando o que já está 'done')"
+        ),
+    )
+    run_parser.add_argument(
+        '--clean',
+        action='store_true',
+        help=(
+            'apaga --output-dir (roms) e --report-dir (reports) antes de '
+            'rodar, para garantir uma reprocessagem do zero (combine com '
+            '--force para também ignorar o estado de retomada salvo)'
+        ),
+    )
+    run_parser.add_argument(
+        '--on-warning',
+        type=str,
+        choices=('continue', 'pause'),
+        default='continue',
+        help=(
+            "'continue' (default): fluxo direto, avisos só aparecem no "
+            "resumo final. 'pause': para ao fim de cada etapa com avisos e "
+            'pergunta se deve continuar, corrigir e tentar de novo (ex.: '
+            'ajustar categorias.yaml ou um CSV de entrada e reprocessar a '
+            'mesma etapa), ou abortar'
         ),
     )
 

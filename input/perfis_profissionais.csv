@@ -1,0 +1,15 @@
+Nº ITEM,CATEGORIA,QUANTIDADE TOTAL DE PROFISSIONAIS,CBO,DENOMINAÇÃO DO PERFIL,QUANTIDADE,PRESENCIAL/REMOTO
+1,Central de Serviços e Monitoramento,16,1425-30,Gerente de suporte têcnico de tecnologia da informação,1,Presencial
+1,Central de Serviços e Monitoramento,16,3172-10,Têcnico de suporte ao usuário de tecnologia da informação - Senior,6,Remoto
+1,Central de Serviços e Monitoramento,16,3132-20,Têcnico em manutenção de equipamentos de informática - Senior,7,Presencial
+1,Central de Serviços e Monitoramento,16,2124-20,Analista de suporte computacional - Senior,2,Remoto
+2,Gerenciamento Têcnico dos Projetos e Operações,2,"1425-5, 1425-15",Gerente de infraestrutura de tecnologia da informação,1,Presencial
+2,Gerenciamento Têcnico dos Projetos e Operações,2,"1425-5, 1425-15",Gerente de Projetos de infraestrutura,1,Remoto
+3,Banco de Dados,2,2123-5,Administrador de banco de dados - Senior,2,Pelo menos um profissional no Presencial
+4,"Aplicações, virtualização e nuvem",4,2124-20,Analista de suporte computacional - Senior,2,Pelo menos um profissional no Presencial
+4,"Aplicações, virtualização e nuvem",4,2123-15,Administrador de sistemas operacionais - Sênior,2,Pelo menos um profissional no Presencial
+5,Serviços Corporativos,1,"2124-15, 2124-25",Analista de sistemas de automação - Senior,1,Presencial
+6,Armazenamento e Backup,1,2124-20,Analista de suporte computacional - Senior,1,Presencial
+7,Redes,2,"2124-10, 2123-10",Analista de redes e de comunicação de dados - Senior,2,Pelo menos um presencial
+8,Segurança da Informação,2,2123-20,Administrador em segurança da informação - Sênior,2,Pelo menos um presencial
+9,DevOps,2,"2124-15, 2124-25",Analista de sistemas de automação - Senior,2,Pelo menos um profissional

@@ -51,10 +51,10 @@ def test_read_raw_csv_normalizes_grupo_executor_header_alias(
     csv_path = tmp_path / 'alias.csv'
     csv_path.write_text('N;Grupo executor;v\n1;N1;x\n', encoding='utf-8')
 
-    fieldnames, rows = read_raw_csv(csv_path, delimiter=';', encoding='utf-8')
+    raw = read_raw_csv(csv_path, delimiter=';', encoding='utf-8')
 
-    assert GRUPO_EXECUTOR_COLUMN in fieldnames
-    assert rows == [{GRUPO_EXECUTOR_COLUMN: 'N1', 'N': '1', 'v': 'x'}]
+    assert GRUPO_EXECUTOR_COLUMN in raw.fieldnames
+    assert raw.rows == [{GRUPO_EXECUTOR_COLUMN: 'N1', 'N': '1', 'v': 'x'}]
 
 
 def test_detect_delimiter_switches_when_configured_absent_from_header(
