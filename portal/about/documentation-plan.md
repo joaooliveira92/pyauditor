@@ -1,9 +1,9 @@
 # Plano de documentação — portal pyauditor
 
 > Plano de informação para o portal de documentação do `pyauditor` (contrato
-> 40/2022 — Ministério da Cultura). Escrito a partir da inspeção do código-fonte
-> real, da spec `docs/spec/inms-pipeline.md` e dos configs de produção
-> (`configs/inms-<n>.yaml`).
+> 40/2022 — Ministério da Cultura). Escrito a partir da inspeção do
+> código-fonte real, da spec `docs/spec/inms-pipeline.md` e dos configs de
+> produção (`configs/inms-<n>.yaml`).
 
 ## 1. Auditores e trabalhos a executar
 
@@ -13,8 +13,8 @@ fluxo de apuração e as saídas.
 
 Principais tarefas (jobs-to-be-done):
 
-- Rodar a apuração mensal de ponta a ponta (bootstrap → measure → report →
-  consolidate).
+- Rodar a apuração mensal de ponta a ponta (bootstrap → measure → report
+    → consolidate).
 - Entender o que o pipeline calcula e como os 14 indicadores são classificados.
 - Adicionar um novo indicador/serviço sem mudar o motor.
 - Interpretar os artefatos gerados: ROM Markdown, sumário JSON, planilha final.
@@ -75,25 +75,27 @@ docs/
 
 ## 4. Rastreabilidade fonte → página
 
-Cada página cita a fonte primária (arquivo de código, config ou spec). Nada é
-inventado: fatos não confirmados são marcados como TODO/assunção. Ver o style
-guide em `.agents/skills/zensical-documentation-skill/references/style-guide.md`.
+Cada página cita a fonte primária (arquivo de código, config ou spec). Nada
+é inventado: fatos não confirmados são marcados como TODO/assunção. Ver o
+style guide em
+`.agents/skills/zensical-documentation-skill/references/style-guide.md`.
 
 ## 5. Decisões de terminologia
 
 - Manter os nomes internos do código como termos canônicos: `bootstrap`,
-  `measure`, `report`, `consolidate`, `run`, `shape`, `ROM`, `competência`
-  (português), `quality gates`, `memoria de cálculo`.
+    `measure`, `report`, `consolidate`, `run`, `shape`, `ROM`, `competência`
+    (português), `quality gates`, `memoria de cálculo`.
 - Header dos ROMs usa acentos; o portal escreve em português para o público
-  do contrato, adotando a grafia já usada no repo.
+    do contrato, adotando a grafia já usada no repo.
 
 ## 6. Desconhecidos e TODOs
 
-- Seções em aberto da spec (fog do 1.8/1.10 — schema de entrada, fórmula
-  MinC/MTur para 1.4/1.5/1.14) permanecem sem resposta nas páginas; são citadas
-  como pergunta em aberto nos locais pertinentes (troubleshooting, shapes).
+- Seções em aberto da spec (fog do 1.8/1.10 — schema de entrada,
+    fórmula MinC/MTur para 1.4/1.5/1.14) permanecem sem resposta nas páginas;
+    são citadas como pergunta em aberto nos locais pertinentes
+    (troubleshooting, shapes).
 - O comportamento de `zensical build` não verifica (Zensical não instalado no
-  repo) — as páginas não declaram um build Zensical.
+    repo) — as páginas não declaram um build Zensical.
 
 ## 7. Critérios de aceitação
 

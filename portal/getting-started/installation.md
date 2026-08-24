@@ -1,6 +1,7 @@
 # Instale o pyauditor
 
-O `pyauditor` é um CLI em Python 3.12+ gerenciado por [uv](https://docs.astral.sh/uv/).
+O `pyauditor` é um CLI em Python 3.12+ gerenciado por
+[uv](https://docs.astral.sh/uv/).
 
 ## Pré-requisitos
 
@@ -33,10 +34,11 @@ O `pyauditor` é um CLI em Python 3.12+ gerenciado por [uv](https://docs.astral.
 
 ## Verificação
 
-A presença dos cinco subcomandos na saída confirma a instalação. Se `uv sync`
-falhar, verifique a versão do Python (`python --version`) e a presença do `uv`
-antes de continuar.
+A presença dos cinco subcomandos na saída confirma a instalação. Se
+`uv sync` falhar, verifique a versão do Python (`python --version`) e a
+presença do `uv` antes de continuar.
 
 ## Próximos passos
 
-- [Quickstart](quickstart.md) — rode sua primeira competência de ponta a ponta.
+- [Quickstart](quickstart.md) — rode sua primeira competência de ponta a
+    ponta.

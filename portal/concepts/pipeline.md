@@ -31,19 +31,19 @@ flowchart TD
 ```
 
 As cinco fases (`bootstrap`, `split`, `measure`, `report`, `consolidate`) rodam
-em sequência por órgão (`--orgao MinC|MTur|both`); `consolidate` só roda quando
-os dois relatórios existem (com `--orgao both`, ele é a última fase). Dentro do
-`run`, `split` roda em modo não-materializado (Ticket 04): não escreve
-`_split/*` (CSVs filtrados + configs por Categoria), só o `sintetico.xlsx` —
-`measure` filtra `Grupo_executor` em memória. O `run` encadeia as cinco fases
-numa única invocação.
+em sequência por órgão (`--orgao MinC|MTur|both`); `consolidate` só
+roda quando os dois relatórios existem (com `--orgao both`, ele é a
+última fase). Dentro do `run`, `split` roda em modo não-materializado
+(Ticket 04): não escreve `_split/*` (CSVs filtrados + configs por
+Categoria), só o `sintetico.xlsx` — `measure` filtra `Grupo_executor` em
+memória. O `run` encadeia as cinco fases numa única invocação.
 
 Detalhes por camada:
 
 1. **Config e schema (Pydantic).** O `IndicatorConfig` valida o YAML com
-   modelos imutáveis e estritos. A validação em duas camadas distingue "config
-   quebrada" (erro de schema, fail-rápido) de "dado rejeitado" (filtro de
-   business, no passo 4).
+   modelos imutáveis e estritos. A validação em duas camadas distingue
+   "config quebrada" (erro de schema, fail-rápido) de "dado rejeitado"
+   (filtro de business, no passo 4).
 
 2. **Descoberta de arquivos.** `discover_configs` varre
    `<config-dir>/<orgao>/` por `*.yaml`. Arquivos que não têm a chave
@@ -51,7 +51,8 @@ Detalhes por camada:
 
 3. **Resolução do dataset.** Cada config referencia o CSV por `source.dataset`
    (um alias no manifesto `configs/<orgao>/datasets.yaml`) ou pelo campo legado
-   `source.csv`. O manifesto resolve alias → arquivo + `delimiter` + `encoding`.
+   `source.csv`. O manifesto resolve alias → arquivo +
+   `delimiter` + `encoding`.
 
 4. **Caminho de leitura por competência.** `measure <YYYY-MM>` lê os CSVs de
    `<data-dir>/<orgao>/<YYYY>/<MM>/`, nunca da raiz do `--data-dir` — assim um
@@ -59,8 +60,8 @@ Detalhes por camada:
 
 5. **Quality gates.** O `QualityGateRunner` aplica os `quality_gates.checks`
    declarados no YAML (hoje: `not_null` e `in_set`). Cada linha rejeitada vira
-   um `RejectedRow(id, reason)` que alimenta a seção **Rejeições** do ROM. Se
-   *todas as linhas existentes* forem rejeitadas, a medição é marcada como
+   um `RejectedRow(id, reason)` que alimenta a seção **Rejeições** do ROM.
+   Se *todas as linhas existentes* forem rejeitadas, a medição é marcada como
    `hard_failure` (diferente de um CSV vazio de origem, sem linhas).
 
 6. **Estratégia de cálculo.** O `SHAPE_REGISTRY` é um dict módulo-level
@@ -81,12 +82,13 @@ Detalhes por camada:
 
 - **Validação em duas camadas**: Pydantic (config) e quality gates (dados).
 - **Pipeline monólito por shape, não por indicador**: indicadores que não
-  divergem estruturalmente compartilham a mesma strategy.
+    divergem estruturalmente compartilham a mesma strategy.
 - **Multi-órgão**: `scope.orgao` aceita `MinC` e `MTur`; as pastas são por
-  órgão (`configs/<orgao>/`, `input/<orgao>/`, `roms/<orgao>/`) e cada fase roda
-  para um órgão de cada vez (`--orgao both` roda os dois em sequência). O
-  `consolidate` funde os dois relatórios no workbook consolidado (fórmula
-  ponderada — ver [Planilha Excel final](../reference/excel.md)).
+    órgão (`configs/<orgao>/`, `input/<orgao>/`, `roms/<orgao>/`) e cada
+    fase roda para um órgão de cada vez (`--orgao both` roda os dois em
+    sequência). O `consolidate` funde os dois relatórios no workbook
+    consolidado (fórmula ponderada — ver
+    [Planilha Excel final](../reference/excel.md)).
 
 ## Fontes primárias
 

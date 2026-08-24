@@ -6,7 +6,7 @@ indicador é declarativo: um YAML + um CSV.
 ## Pré-requisitos
 
 - Entenda os [shapes de cálculo](../concepts/shapes.md) e o
-  [schema de config](../reference/config.md).
+    [schema de config](../reference/config.md).
 
 ## Procedimento
 
@@ -21,9 +21,9 @@ indicador é declarativo: um YAML + um CSV.
        encoding: utf-8-sig
    ```
 
-2. Crie `configs/<orgao>/inms-99.yaml` declarando: `indicator`, `scope`, `source`
-   (com `dataset: novo_dataset`), `quality_gates`, `calculation` (shape),
-   e, conforme o shape, `target`/`penalty`.
+2. Crie `configs/<orgao>/inms-99.yaml` declarando: `indicator`, `scope`,
+   `source` (com `dataset: novo_dataset`), `quality_gates`, `calculation`
+   (shape), e, conforme o shape, `target`/`penalty`.
 
 3. (Opcional) Adicione um `acceptance_test.expected` para o smoke test.
 
@@ -35,9 +35,10 @@ indicador é declarativo: um YAML + um CSV.
 
 ## Verificação
 
-- `roms/MinC/2026-06/INMS-99.md` e `roms/MinC/2026-06/INMS-99.json` foram criados.
+- `roms/MinC/2026-06/INMS-99.md` e
+    `roms/MinC/2026-06/INMS-99.json` foram criados.
 - O ROM mostra população, rejeições, memória de cálculo e resultado vs meta
-  coerentes.
+    coerentes.
 - Rode os testes para garantir que novas configs não quebram o pipeline:
 
    ```bash
@@ -46,24 +47,26 @@ indicador é declarativo: um YAML + um CSV.
 
 ## Exemplos por shape
 
-- **`ratio`** — `configs/<orgao>/inms-01.yaml` (razão simples com meta e penalidade).
+- **`ratio`** — `configs/<orgao>/inms-01.yaml`
+    (razão simples com meta e penalidade).
 - **`segmented_ratio`** — `configs/<orgao>/inms-02.yaml`.
 - **`precomputed_table`** — `configs/<orgao>/inms-10.yaml` (tabela de apuração
-  por linha/ativo).
+    por linha/ativo).
 - **`count_difference`** — modelo e fixture em
-  `tests/fixtures/manual_entry_examples/inms-1.10-*`.
-- **`external_catalog_sum`** — `tests/fixtures/manual_entry_examples/inms-1.8-*`.
+    `tests/fixtures/manual_entry_examples/inms-1.10-*`.
+- **`external_catalog_sum`** —
+    `tests/fixtures/manual_entry_examples/inms-1.8-*`.
 
 ## Falhas comuns
 
 - **`source must specify exactly one of 'dataset' or 'csv'`** — um dos campos
-  precisa estar presente (não ambos).
+    precisa estar presente (não ambos).
 - **Shape sem `target`** (exceto `external_catalog_sum`) ou **`target` em
-  `external_catalog_sum`** — erro de validação do config.
+    `external_catalog_sum`** — erro de validação do config.
 - **Campo desconhecido** — os modelos são restritos (`extra="forbid"`); um typo
-  falha na carga.
+    falha na carga.
 
 ## Próximos passos
 
 - Veja [Organização dos dados](../concepts/data-layout.md) e
-  [Problemas conhecidos](../operations/troubleshooting.md).
+    [Problemas conhecidos](../operations/troubleshooting.md).

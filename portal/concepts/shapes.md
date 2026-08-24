@@ -22,45 +22,50 @@ reduzem a esses shapes, provados pelos CSVs reais de produção.
 ## `ratio`
 
 - Agregação por `aggregation`: `count_distinct` (conta linhas filtradas),
-  `sum` (soma colunas de tempo/dias) ou `precomputed` (1 linha por CSV, valor
-  é o próprio percentual).
-- `target.operator` (`>=`/`<=`) suporta metas invertidas (ex.: INMS 1.11 é "≤").
+    `sum` (soma colunas de tempo/dias) ou `precomputed` (1 linha por CSV,
+    valor é o próprio percentual).
+- `target.operator` (`>=`/`<=`) suporta metas invertidas (ex.:
+    INMS 1.11 é "≤").
 - Penalidade linear contínua, sem teto por degrau:
-  `base_points + (shortfall / step_size_pct) × step_points`.
+    `base_points + (shortfall / step_size_pct) × step_points`.
 - Denominador zero → `conforms = true`, sem penalidade (nada a medir ≠ 0%).
 
 ## `segmented_ratio`
 
 - Várias categorias, cada uma com filtro de denominador/numerador e
-  `step_points` próprio, todas contra a mesma meta compartilhada.
-- `result_pct` agregado = soma dos numeradores/soma dos denominadores (cabeçalho).
+    `step_points` próprio, todas contra a mesma meta compartilhada.
+- `result_pct` agregado = soma dos numeradores/soma dos denominadores
+    (cabeçalho).
 - Penalidade final = soma das penalidades por categoria; `conforms` só é
-  verdadeiro quando a soma é zero (todas as categorias cumpriram a meta).
+    verdadeiro quando a soma é zero (todas as categorias cumpriram a meta).
 
 ## `precomputed_table`
 
-- Lê uma tabela de apuração por competência: 1 linha por ativo/serviço, cada
-  uma já traz o resultado e tipicamente a penalidade (`penalty_column`), que é
-  simplesmente somada (a fórmula varia por indicador).
+- Lê uma tabela de apuração por competência: 1 linha por ativo/serviço,
+    cada uma já traz o resultado e tipicamente a penalidade
+    (`penalty_column`), que é simplesmente somada (a fórmula varia por
+    indicador).
 - `result_is_percent: true` — cabeçalho = resultado ponderado por horas
-  (`sum(numerador)/sum(base)*100`) quando `numerator_column`/`denominator_column`
-  existem, senão a média aritmética dos percentuais.
-- `result_is_percent: false` — valor por linha é soma de pontos (ex.: INMS 1.8
-  PDT); o cabeçalho é `0.0`.
+    (`sum(numerador)/sum(base)*100`) quando
+    `numerator_column`/`denominator_column` existem, senão a média
+    aritmética dos percentuais.
+- `result_is_percent: false` — valor por linha é soma de pontos
+    (ex.: INMS 1.8 PDT); o cabeçalho é `0.0`.
 
 ## `count_difference`
 
 - `QRC` = filtro de recomendados, `QCSI` = implantados dentro dos recomendados.
-- `result_pct = QCSI/QRC × 100` (meta do Anexo D é "= 100%"), mas a penalidade
-  é `CNI × penalty_per_unit` (fixa por controle faltante), não derivada da meta.
+- `result_pct = QCSI/QRC × 100` (meta do Anexo D é "= 100%"), mas a
+    penalidade é `CNI × penalty_per_unit` (fixa por controle faltante), não
+    derivada da meta.
 
 ## `external_catalog_sum`
 
 - Cada linha do CSV aponta códigos do catálogo Anexo E (coluna de códigos,
-  separador configurável). Se a ocorrência enquadra vários itens, entra apenas
-  o de **maior pontuação** (dedup por ocorrência).
+    separador configurável). Se a ocorrência enquadra vários itens, entra
+    apenas o de **maior pontuação** (dedup por ocorrência).
 - Sem teto e sem multiplicador de reincidência. Não tem meta de percentual
-  (`target` proibido no schema).
+    (`target` proibido no schema).
 
 ## Tabela de grupos (abas por grupo operacional)
 

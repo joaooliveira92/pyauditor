@@ -3,27 +3,34 @@
 O `pyauditor` apura mensalmente os **14 indicadores INMS** de SLA do contrato
 40/2022 (Ministério da Cultura, Anexo D) a partir de pares declarativos
 `inms-<n>.yaml` + `inms-<n>.csv`. Para cada indicador ele roda gates de
-qualidade, calcula a medição por um de cinco *shapes*, escreve um ROM (memória
-de cálculo) em Markdown e consolida tudo em uma planilha Excel final, com capa
-do contrato e aba de glosas.
+qualidade, calcula a medição por um de cinco *shapes*, escreve um ROM
+(memória de cálculo) em Markdown e consolida tudo em uma planilha Excel final,
+com capa do contrato e aba de glosas.
 
 O pipeline apura **por órgão** (`MinC` e `MTur`), cada um com suas pastas
 (`configs/<orgao>/`, `input/<orgao>/`, `roms/<orgao>/`) e capa
-(`capa_<orgao>.xlsx`); depois de gerar um relatório por órgão, o `consolidate`
-funde os dois em `relatorio_<competencia>_consolidado.xlsx`.
+(`capa_<orgao>.xlsx`); depois de gerar um relatório por órgão, o
+`consolidate` funde os dois em `relatorio_<competencia>_consolidado.xlsx`.
 
 Para a especificação arquitetural completa, veja
-[`docs/spec/inms-pipeline.md` no repositório](https://github.com/joaooliveira92/pyauditor/blob/master/docs/spec/inms-pipeline.md).
+[`docs/spec/inms-pipeline.md` no repositório][spec-inms].
+
+[spec-inms]: https://github.com/joaooliveira92/pyauditor/blob/master/docs/spec/inms-pipeline.md
 
 ## Mapa do portal
 
-- [Começando](getting-started/index.md) — instale, rode sua primeira competência.
-- [Conceitos](concepts/index.md) — como o pipeline funciona: arquitetura, shapes e organização de dados.
-- [Referência](reference/index.md) — CLI, schema de config, formato do ROM/JSON e abas do Excel.
-- [Guias de operação](guides/index.md) — capa, medição, relatório final e novos indicadores.
-- [Operações e troubleshooting](operations/troubleshooting.md) — falhas conhecidas e recuperação.
+- [Começando](getting-started/index.md) — instale, rode sua primeira
+    competência.
+- [Conceitos](concepts/index.md) — como o pipeline funciona: arquitetura,
+    shapes e organização de dados.
+- [Referência](reference/index.md) — CLI, schema de config, formato do
+    ROM/JSON e abas do Excel.
+- [Guias de operação](guides/index.md) — capa, medição, relatório final e
+    novos indicadores.
+- [Operações e troubleshooting](operations/troubleshooting.md) — falhas
+    conhecidas e recuperação.
 - [Glossário](glossary.md) — vocabulário do domínio.
 
-> **Nota de privacidade:** os dados de produção (`input/`) não são versionados —
-> os CSVs reais contêm PII (nome, solicitante, técnico). Veja
+> **Nota de privacidade:** os dados de produção (`input/`) não são
+> versionados — os CSVs reais contêm PII (nome, solicitante, técnico). Veja
 > [conceitos de dados](concepts/data-layout.md).
