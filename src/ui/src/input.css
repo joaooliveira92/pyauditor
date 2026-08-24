@@ -242,6 +242,113 @@ pre {
    display: none !important
 }
 
+.group-title {
+   font-size: 12px;
+   color: #8e9bb0;
+   font-weight: 600;
+   margin: 12px 0 6px
+}
+
+.file-dim {
+   display: block;
+   font-size: 11px;
+   color: #8e9bb0;
+   white-space: nowrap;
+   overflow: hidden;
+   text-overflow: ellipsis
+}
+
+.form-body {
+   padding: 14px 18px
+}
+
+.step {
+   margin-bottom: 14px
+}
+
+.step h2 {
+   font-size: 14px;
+   margin: 0 0 6px
+}
+
+.hint {
+   font-size: 12px;
+   color: #8e9bb0;
+   line-height: 1.5;
+   margin: 0 0 12px
+}
+
+.dim {
+   font-size: 11px;
+   color: #8e9bb0
+}
+
+.card {
+   border: 1px solid var(--line);
+   border-radius: 8px;
+   background: var(--panel);
+   margin: 8px 0
+}
+
+.card > summary {
+   cursor: pointer;
+   font-weight: 600;
+   padding: 8px 10px
+}
+
+.card-head {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   padding: 8px 10px
+}
+
+.card-body {
+   padding: 10px 12px
+}
+
+.card-body label {
+   display: block;
+   font-size: 12px;
+   color: #8e9bb0;
+   margin: 8px 0 4px
+}
+
+.card-body .check {
+   display: flex;
+   gap: 8px;
+   align-items: center;
+   margin: 6px 0
+}
+
+.card-body .check input {
+   width: auto
+}
+
+.list-label {
+   font-size: 12px;
+   color: #8e9bb0;
+   margin: 8px 0 4px
+}
+
+.add {
+   border: 1px dashed var(--line);
+   background: transparent;
+   width: 100%;
+   margin: 4px 0;
+   padding: 6px
+}
+
+.remove {
+   border: 0;
+   background: transparent;
+   color: var(--danger);
+   cursor: pointer;
+   font-size: 16px;
+   line-height: 1;
+   padding: 0 6px
+}
+
 @media(max-width:900px) {
    .layout {
       grid-template-columns: 220px 1fr

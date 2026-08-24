@@ -11,6 +11,7 @@ from decimal import Decimal
 from math import isfinite
 from typing import Final, TypedDict
 
+from pyauditor.categoria_filter import Warning
 from pyauditor.commands.contracts import (
     BootstrapResult,
     ConsolidateResult,
@@ -24,6 +25,7 @@ from pyauditor.orchestration.state import parse_iso_timestamp
 
 __all__: Final[tuple[str, ...]] = (
     'CompletionSummaryJson',
+    'WarningJson',
     'summary_json',
 )
 
@@ -78,6 +80,17 @@ class PublicationSummaryJson(TypedDict):
     motivo: str | None
 
 
+class WarningJson(TypedDict):
+    """Structured representation of one `Warning` (`categoria_filter.py`)."""
+
+    code: str
+    message: str
+    orgao: str | None
+    competencia: str | None
+    inms_key: str | None
+    categoria: str | None
+
+
 class CompletionSummaryJson(TypedDict):
     """Stable machine-readable completion-summary schema."""
 
@@ -88,6 +101,7 @@ class CompletionSummaryJson(TypedDict):
     consolidado: ConsolidatedSummaryJson | None
     publicacao: PublicationSummaryJson
     avisos: int
+    warnings: list[WarningJson]
     erros: int
     duracao_ms: int | None
     caminhos: list[str]
@@ -290,6 +304,32 @@ def _warnings_count(run_result: RunResult) -> int:
     return total
 
 
+def _all_warnings(run_result: RunResult) -> list[WarningJson]:
+    """Flat list (sem agrupamento/dedup) de todo `Warning` de
+    `run_result.results`, na mesma iteração de `_warnings_count`."""
+    collected: list[WarningJson] = []
+
+    for result in run_result.results:
+        warnings = getattr(result, 'warnings', ())
+        if not isinstance(warnings, Sequence) or isinstance(warnings, str):
+            continue
+        for warning in warnings:
+            if not isinstance(warning, Warning):
+                continue
+            collected.append(
+                {
+                    'code': warning.code,
+                    'message': warning.message,
+                    'orgao': warning.orgao,
+                    'competencia': warning.competencia,
+                    'inms_key': warning.inms_key,
+                    'categoria': warning.categoria,
+                }
+            )
+
+    return collected
+
+
 def _errors_count(run_result: RunResult) -> int:
     """Count commands that ended in technical error."""
     return sum(
@@ -369,6 +409,7 @@ def summary_json(
             ),
         },
         'avisos': _warnings_count(run_result),
+        'warnings': _all_warnings(run_result),
         'erros': _errors_count(run_result),
         'duracao_ms': _duration_ms(run_result),
         'caminhos': _artifact_paths(run_result),

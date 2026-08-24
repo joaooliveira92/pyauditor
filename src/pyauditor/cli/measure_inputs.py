@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
 
-from pyauditor.categoria_filter import base_config_stem
+from pyauditor.categoria_filter import Warning, base_config_stem
 from pyauditor.cli.results import DIR_FAILURE_HINT, validate_competencia
 from pyauditor.config.categorias import GrupoExecutorMode, load_categorias
 from pyauditor.config.manifest import DatasetManifest
@@ -51,7 +51,7 @@ class MeasureInputs:
     configs: list[tuple[Path, str, IndicatorConfig]]
     target_dir: Path
     capa_fields: dict[str, object]
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[Warning] = field(default_factory=list)
     per_inms: dict[str, list[tuple[str, GrupoExecutorMode]]] = field(
         default_factory=dict
     )
@@ -61,7 +61,7 @@ class MeasureInputs:
 
 def _load_responsaveis(
     equipe_path: Path | None,
-    warnings: list[str],
+    warnings: list[Warning],
 ) -> dict[str, object]:
     """Responsáveis do ROM vêm exclusivamente de `equipe.csv` (spec §6) —
     ausente/malformado é warning + '[a preencher]', nunca falha técnica."""
@@ -73,7 +73,16 @@ def _load_responsaveis(
     capa_fields.update(campos_equipe)
     for warning in avisos_equipe:
         logger.warning(warning)
-        warnings.append(warning)
+        warnings.append(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=None,
+                competencia=None,
+                inms_key=None,
+                categoria=None,
+            )
+        )
     empty_fields = [f for f in RESPONSAVEL_LABELS if not capa_fields.get(f)]
     if empty_fields:
         warning = ''.join(
@@ -84,7 +93,16 @@ def _load_responsaveis(
             ]
         )
         logger.warning(warning)
-        warnings.append(warning)
+        warnings.append(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=None,
+                competencia=None,
+                inms_key=None,
+                categoria=None,
+            )
+        )
     return capa_fields
 
 
@@ -194,7 +212,7 @@ def resolve_measure_inputs(
         message = f'falha ao criar diretório {target_dir}: {exc}'
         return None, f'{message} — {DIR_FAILURE_HINT}'
 
-    warnings: list[str] = []
+    warnings: list[Warning] = []
     capa_fields = _load_responsaveis(equipe_path, warnings)
     try:
         categorias_file, per_inms = _load_categorias(config_dir, expected_orgao)

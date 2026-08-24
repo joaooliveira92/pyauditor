@@ -23,12 +23,35 @@ from pyauditor.config.categorias import GrupoExecutorMode
 __all__: Final[tuple[str, ...]] = (
     'GRUPO_EXECUTOR_COLUMN',
     'RawCsv',
+    'Warning',
     'base_config_stem',
     'compute_categoria_values',
     'outros_warning',
     'read_raw_csv',
     'unmatched_in_values_warnings',
 )
+
+
+@dataclass(frozen=True)
+class Warning:
+    """Aviso estruturado gerado durante a filtragem por categoria.
+
+    ``message`` preserva o texto pronto para registro (mesmo conteúdo que
+    hoje circula como ``str``); os demais campos dão contexto navegável sem
+    exigir que o chamador reanalise a mensagem. ``code`` identifica o tipo de
+    aviso de forma estável (``"unstructured"`` para o texto livre dos demais
+    pontos do pipeline que ainda não foram migrados).
+    """
+
+    code: str
+    message: str
+    orgao: str | None
+    competencia: str | None
+    inms_key: str | None
+    categoria: str | None
+
+    def __str__(self) -> str:
+        return self.message
 
 
 @dataclass(frozen=True)
@@ -214,7 +237,7 @@ def unmatched_in_values_warnings(
     entries: list[tuple[str, GrupoExecutorMode]],
     real_values: set[str],
     raw_csv_path: Path,
-) -> list[str]:
+) -> list[Warning]:
     """Cria avisos para ``in_values`` ausentes do CSV bruto.
 
     Args:
@@ -226,9 +249,9 @@ def unmatched_in_values_warnings(
         raw_csv_path: Caminho do CSV usado na verificação.
 
     Returns:
-        Mensagens prontas para registro e acumulação pelo chamador.
+        Avisos prontos para registro e acumulação pelo chamador.
     """
-    warnings: list[str] = []
+    warnings: list[Warning] = []
     for categoria_key, entry in entries:
         if entry.in_values is None:
             continue
@@ -244,16 +267,26 @@ def unmatched_in_values_warnings(
             f'{categoria_key}: '
         )
         if not (set(entry.in_values) & real_values):
-            warnings.append(
+            message = (
                 f'{prefix}in_values {unmatched!r} sem correspondência em '
                 f'Grupo_executor do CSV ({raw_csv_path}) — possível '
                 'typo/renomeação, categoria ficará sem linhas'
             )
         else:
-            warnings.append(
+            message = (
                 f'{prefix}in_values {unmatched!r} sem correspondência — '
                 'valores não encontrados no CSV'
             )
+        warnings.append(
+            Warning(
+                code='in_values_unmatched',
+                message=message,
+                orgao=orgao,
+                competencia=competencia,
+                inms_key=inms_key,
+                categoria=categoria_key,
+            )
+        )
     return warnings
 
 
@@ -263,10 +296,17 @@ def outros_warning(
     orgao: str,
     competencia: str,
     outros_count: int,
-) -> str:
+) -> Warning:
     """Cria o aviso para linhas não classificadas em uma categoria."""
-    return (
-        f'INMS {inms_key} ({orgao}/{competencia}), categoria outros: '
-        f'{outros_count} linha(s) não classificada(s) em nenhuma categoria — '
-        'revisar categorias.yaml'
+    return Warning(
+        code='outros_leftover',
+        message=(
+            f'INMS {inms_key} ({orgao}/{competencia}), categoria outros: '
+            f'{outros_count} linha(s) não classificada(s) em nenhuma '
+            'categoria — revisar categorias.yaml'
+        ),
+        orgao=orgao,
+        competencia=competencia,
+        inms_key=inms_key,
+        categoria='outros',
     )

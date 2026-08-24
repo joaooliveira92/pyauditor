@@ -29,6 +29,7 @@ from typing import Final
 
 from pyauditor.categoria_filter import (
     GRUPO_EXECUTOR_COLUMN,
+    Warning,
     base_config_stem,
     compute_categoria_values,
     outros_warning,
@@ -141,7 +142,7 @@ def run_split(
             if isinstance(entry, GrupoExecutorMode):
                 per_inms.setdefault(inms_key, []).append((categoria_key, entry))
 
-    warnings: list[str] = []
+    warnings: list[Warning] = []
     outcomes: list[SplitCategoriaOutcome] = []
     any_error = False
 
@@ -225,7 +226,16 @@ def run_split(
                     inms=inms_key,
                     arquivo=str(raw_csv_path),
                 )
-                warnings.append(aviso_vazio)
+                warnings.append(
+                    Warning(
+                        code='unstructured',
+                        message=aviso_vazio,
+                        orgao=orgao,
+                        competencia=competencia,
+                        inms_key=inms_key,
+                        categoria=None,
+                    )
+                )
             info_descarte = discard_message(
                 dropped_out_of_period, undated_dropped, strict
             )
@@ -371,13 +381,32 @@ def run_split(
                 objetos_path=objetos_path,
                 localidades_path=localidades_path,
             )
-            warnings.extend(sintetico_warnings)
+            warnings.extend(
+                Warning(
+                    code='unstructured',
+                    message=warning,
+                    orgao=orgao,
+                    competencia=competencia,
+                    inms_key=None,
+                    categoria=None,
+                )
+                for warning in sintetico_warnings
+            )
             if sintetico_path.exists():
                 written_sintetico_path = sintetico_path
         except OSError as exc:
             warning = f'falha ao escrever {sintetico_path}: {exc}'
             logger.warning(warning)
-            warnings.append(warning)
+            warnings.append(
+                Warning(
+                    code='unstructured',
+                    message=warning,
+                    orgao=orgao,
+                    competencia=competencia,
+                    inms_key=None,
+                    categoria=None,
+                )
+            )
 
     message = f'{orgao or "órgão"}: {len(outcomes)} categoria(s) processada(s)'
     if written_sintetico_path is not None:

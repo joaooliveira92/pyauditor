@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import cast
 
 from pyauditor.atomic_write import atomic_write
+from pyauditor.categoria_filter import Warning
 from pyauditor.cli.results import (
     WRITE_FAILURE_HINT,
     DependencyCheck,
@@ -75,15 +76,26 @@ def check_consolidate_ready(
     return DependencyCheck(satisfied=not missing, missing=tuple(missing))
 
 
-def _load_common_capa(data_dir: Path, warnings: list[str]) -> dict[str, object]:
+def _load_common_capa(
+    data_dir: Path, warnings: list[Warning]
+) -> dict[str, object]:
     """Campos comuns do contrato de `capa.csv` (ticket 07). Ausente/malformado
     é dado incompleto — o consolidado é montado mesmo assim, com a capa
     truncada (não bloqueia; a criticidade é do ticket 02/03)."""
     path = data_dir / 'capa.csv'
     if not path.exists():
         warnings.append(
-            f'capa.csv não encontrado em {data_dir} — capa do consolidado sem '
-            f'campos comuns'
+            Warning(
+                code='unstructured',
+                message=(
+                    f'capa.csv não encontrado em {data_dir} — capa do '
+                    'consolidado sem campos comuns'
+                ),
+                orgao=None,
+                competencia=None,
+                inms_key=None,
+                categoria=None,
+            )
         )
         return {}
     try:
@@ -92,8 +104,17 @@ def _load_common_capa(data_dir: Path, warnings: list[str]) -> dict[str, object]:
         return cast(dict[str, object], read_capa_csv_fields(path))
     except (OSError, ValueError) as exc:
         warnings.append(
-            f'falha ao ler capa.csv em {data_dir}: {exc} — campos comuns '
-            f'ausentes'
+            Warning(
+                code='unstructured',
+                message=(
+                    f'falha ao ler capa.csv em {data_dir}: {exc} — campos '
+                    'comuns ausentes'
+                ),
+                orgao=None,
+                competencia=None,
+                inms_key=None,
+                categoria=None,
+            )
         )
         return {}
 
@@ -151,18 +172,40 @@ def run_consolidate(
             'nenhum sumário de medição (.json) encontrado para um dos órgãos'
         )
 
-    warnings: list[str] = []
+    warnings: list[Warning] = []
     capa = _load_common_capa(data_dir, warnings)
+    warnings_gerais: list[str] = []
     try:
-        valor_base, itens = read_valor_base(data_dir, warnings)
+        valor_base, itens = read_valor_base(data_dir, warnings_gerais)
     except ValueError as exc:
         return _error(str(exc))  # Q5: malformado é FALHA (exit 1)
+    warnings.extend(
+        Warning(
+            code='unstructured',
+            message=warning,
+            orgao=None,
+            competencia=competencia,
+            inms_key=None,
+            categoria=None,
+        )
+        for warning in warnings_gerais
+    )
 
     # §4/§6 — períodos derivados da CLI; responsáveis de equipe.csv com
     # degrade para warning (dado incompleto nunca bloqueia o consolidado).
     periodo = month_bounds(competencia)
     responsaveis, avisos_equipe = read_responsaveis(data_dir / EQUIPE_FILENAME)
-    warnings.extend(avisos_equipe)
+    warnings.extend(
+        Warning(
+            code='unstructured',
+            message=warning,
+            orgao=None,
+            competencia=competencia,
+            inms_key=None,
+            categoria=None,
+        )
+        for warning in avisos_equipe
+    )
 
     try:
         existing_decisions = read_existing_decisions(output_path)
@@ -196,7 +239,16 @@ def run_consolidate(
     except Exception as exc:  # boundary: nunca vazar traceback nem bloquear
         warning = f'Item Contratual da GLOSAS não recomputado: {exc}'
         logger.warning(warning)
-        warnings.append(warning)
+        warnings.append(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=None,
+                competencia=competencia,
+                inms_key=None,
+                categoria=None,
+            )
+        )
 
     try:
         result = build_consolidated_workbook(
@@ -238,7 +290,16 @@ def run_consolidate(
     except Exception as exc:  # boundary: nunca vazar traceback nem bloquear
         warning = f'aba INMS_BASE_AGRUPADO não gerada: {exc}'
         logger.warning(warning)
-        warnings.append(warning)
+        warnings.append(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=None,
+                competencia=competencia,
+                inms_key=None,
+                categoria=None,
+            )
+        )
 
     try:
         atomic_write(output_path, result.workbook.save)

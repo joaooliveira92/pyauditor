@@ -16,6 +16,7 @@ from pathlib import Path
 
 from pyauditor.categoria_filter import (
     GRUPO_EXECUTOR_COLUMN,
+    Warning,
     compute_categoria_values,
     outros_warning,
     unmatched_in_values_warnings,
@@ -52,7 +53,7 @@ class MeasureLoopResult:
     """Estado final do loop (sem closures/`nonlocal`)."""
 
     outcomes: list[IndicatorOutcome] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[Warning] = field(default_factory=list)
     any_hard_failure: bool = False
     collected: list[_MeasuredIndicator] = field(default_factory=list)
 
@@ -93,7 +94,7 @@ class MeasureLoop:
         self.already_split = already_split
         self.capa_fields = capa_fields
         self.outcomes: list[IndicatorOutcome] = []
-        self.warnings: list[str] = []
+        self.warnings: list[Warning] = []
         self.hard_failure = False
 
     def run_configs(
@@ -189,7 +190,16 @@ class MeasureLoop:
                     ]
                 )
                 logger.warning(warning)
-                self.warnings.append(warning)
+                self.warnings.append(
+                    Warning(
+                        code='unstructured',
+                        message=warning,
+                        orgao=config.scope.orgao,
+                        competencia=competencia,
+                        inms_key=inms_key,
+                        categoria=cat_key,
+                    )
+                )
                 self.outcomes.append(
                     IndicatorOutcome(
                         contractual_id=contractual_id,
@@ -362,7 +372,16 @@ class MeasureLoop:
             + ' — revisar o dataset do fornecedor'
         )
         logger.warning(warning)
-        self.warnings.append(warning)
+        self.warnings.append(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=self.orgao,
+                competencia=self.competencia,
+                inms_key=None,
+                categoria=None,
+            )
+        )
 
     def _measure_single(
         self,
@@ -400,7 +419,16 @@ class MeasureLoop:
                 ]
             )
             logger.warning(warning)
-            self.warnings.append(warning)
+            self.warnings.append(
+                Warning(
+                    code='unstructured',
+                    message=warning,
+                    orgao=scope_orgao,
+                    competencia=self.competencia,
+                    inms_key=None,
+                    categoria=None,
+                )
+            )
             self.outcomes.append(
                 IndicatorOutcome(
                     contractual_id=contractual_id,

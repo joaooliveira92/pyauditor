@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from typing import Final, Literal, cast
 
+from pyauditor.categoria_filter import Warning
+
 __all__: Final[tuple[str, ...]] = (
     'WarningDecision',
     'continue_on_warning',
@@ -32,7 +34,7 @@ _WARNING_DECISIONS: Final[frozenset[str]] = frozenset(
 def continue_on_warning(
     _command: str,
     _orgao: str | None,
-    _warnings: tuple[str, ...],
+    _warnings: tuple[Warning, ...],
 ) -> WarningDecision:
     """Default policy: avisos não interrompem a execução (comportamento
     atual, direto)."""

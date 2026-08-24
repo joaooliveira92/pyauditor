@@ -22,6 +22,11 @@ concreta em vez de discutir em abstrato.
 
 ## Answer
 
-_(prototipo construido — decisión pendiente de HITL)_
+_(protótipo construido — decisão de layout: variante B, duas telas contrato →
+segmentos — escolhida em HITL; proto capturado na branch `prototype/inms-form`.
+Follow-up: formulário real implementado em `src/ui` — backend em `src/ui/inms.py`
++ endpoints `/api/indicators` e `/api/indicator`, frontend em `index.html`/`app.js`
+(árbol da sidebar agrupada por indicador INMS; o painel central renderiza contrato
+compartido + segmentos por órgão como formulário; salvar escreve de volta os YAMLs).)_
 
 

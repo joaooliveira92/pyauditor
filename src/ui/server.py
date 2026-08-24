@@ -8,7 +8,6 @@ import re
 import shlex
 import subprocess
 import threading
-import time
 import uuid
 import webbrowser
 from dataclasses import dataclass, field
@@ -18,11 +17,21 @@ from pathlib import Path
 from typing import Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
+try:
+    from . import inms
+except ImportError:  # python3 server.py — run as a script, not a package
+    import inms  # ty: ignore[unresolved-import]
+
 LOG = logging.getLogger("wayfinder")
 ALLOWED_SUFFIXES = frozenset({".yaml", ".yml", ".css"})
 MAX_FILE_BYTES = 2 * 1024 * 1024
 COMPETENCE_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 AGENCIES = frozenset({"MinC", "MTur", "both"})
+COMMANDS = frozenset({"bootstrap", "measure", "report", "consolidate", "split", "run"})
+NEEDS_COMPETENCE = frozenset({"measure", "report", "consolidate", "split", "run"})
+NEEDS_ORGAO = frozenset({"bootstrap", "measure", "report", "split", "run"})
+STRICT_COMMANDS = frozenset({"measure", "split"})
+FINAL_MONTH_COMMANDS = frozenset({"report", "consolidate"})
 
 @dataclass(slots=True)
 class Job:
@@ -55,14 +64,27 @@ class App:
                 result.append(path.relative_to(self.workspace).as_posix())
         return sorted(result, key=str.casefold)
 
+    def build_command(self, payload: dict[str, Any]) -> list[str]:
+        command = str(payload.get("command", "run"))
+        if command not in COMMANDS: raise ValueError("Invalid command")
+        argv = shlex.split(self.pipeline_template) + [command]
+        if command in NEEDS_COMPETENCE:
+            competence = str(payload.get("competence", ""))
+            if not COMPETENCE_RE.fullmatch(competence): raise ValueError("Invalid competence; expected YYYY-MM")
+            argv.append(competence)
+        if command in NEEDS_ORGAO:
+            agency = str(payload.get("agency", ""))
+            if agency not in AGENCIES: raise ValueError("Invalid agency")
+            argv += ["--orgao", agency]
+        if command in STRICT_COMMANDS and payload.get("strict"): argv.append("--strict")
+        if command in FINAL_MONTH_COMMANDS and payload.get("final_month"): argv.append("--final-month")
+        if command == "run":
+            if payload.get("force"): argv.append("--force")
+            if payload.get("clean"): argv.append("--clean")
+        return argv
+
     def start_job(self, payload: dict[str, Any]) -> tuple[str, list[str]]:
-        competence = str(payload.get("competence", ""))
-        agency = str(payload.get("agency", ""))
-        if not COMPETENCE_RE.fullmatch(competence): raise ValueError("Invalid competence; expected YYYY-MM")
-        if agency not in AGENCIES: raise ValueError("Invalid agency")
-        command = shlex.split(self.pipeline_template.format(competence=competence, agency=agency))
-        if payload.get("force"): command.append("--force")
-        if payload.get("clean"): command.append("--clean")
+        command = self.build_command(payload)
         process = subprocess.Popen(command, cwd=self.workspace, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, start_new_session=True)
         job_id = uuid.uuid4().hex
         job = Job(process=process, command=command)
@@ -99,6 +121,27 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             parsed = urlparse(self.path)
             if parsed.path == "/api/files": return self._json({"workspace": str(self.app.workspace), "files": self.app.files()})
+            if parsed.path == "/api/indicators":
+                indicators = [
+                    {
+                        "key": d.key,
+                        "name": d.name,
+                        "shared_path": d.shared_rel,
+                        "orgaos": list(d.orgaos),
+                        "segments": [
+                            {"orgao": s.orgao, "category": s.category}
+                            for s in d.segments
+                        ],
+                    }
+                    for d in inms.discover(self.app.workspace)
+                ]
+                return self._json({"indicators": indicators})
+            if parsed.path == "/api/indicator":
+                params = parse_qs(parsed.query)
+                key = params.get("key", [""])[0]
+                orgao = params.get("orgao", [""])[0]
+                doc = inms.read_indicator(self.app.workspace, key, orgao)
+                return self._json(doc)
             if parsed.path == "/api/file":
                 path = self.app.resolve_file(parse_qs(parsed.query).get("path", [""])[0])
                 raw = path.read_bytes()
@@ -114,7 +157,12 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_PUT(self) -> None:
         try:
-            if urlparse(self.path).path != "/api/file": return self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+            path = urlparse(self.path).path
+            if path == "/api/indicator":
+                payload = self._payload()
+                inms.save_indicator(self.app.workspace, payload)
+                return self._json({"saved": True})
+            if path != "/api/file": return self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             payload = self._payload(); path = self.app.resolve_file(str(payload.get("path", ""))); content = payload.get("content")
             if not isinstance(content, str): raise ValueError("content must be a string")
             encoded = content.encode("utf-8")
@@ -150,7 +198,7 @@ def main() -> int:
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    template = os.getenv("WAYFINDER_PIPELINE_CMD", "uv run pyauditor run {competence} --orgao {agency}")
+    template = os.getenv("WAYFINDER_PIPELINE_CMD", "uv run pyauditor")
     Handler.app = App(args.workspace, template); Handler.web_root = Path(__file__).resolve().parent
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     url = f"http://{args.host}:{args.port}/"

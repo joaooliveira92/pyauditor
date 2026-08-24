@@ -27,10 +27,14 @@ For a repository elsewhere:
 python3 server.py --workspace "/absolute/path/to/pyauditor"
 ```
 
-To override the pipeline command while preserving the required placeholders:
+The Pipeline panel can run any of the 6 `pyauditor` subcommands (`bootstrap`, `measure`, `report`, `consolidate`, `split`, `run`) one at a time, so a failing step can be retried alone.
+
+INMS indicator configs are not edited as raw YAML: the sidebar groups `_shared/inms-NN.yaml` + `{orgao}/inms-NN.CATEGORIA.yaml` files under each indicator, and the center pane renders them as a two-part form (shared contract, then per-agency segments). Editing a field writes the parsed YAML back to the same files on save. Non-INMS YAML and CSS files remain raw-text edits.
+
+To override the invocation prefix (e.g. to point at a different interpreter or a globally installed `pyauditor`), set `WAYFINDER_PIPELINE_CMD` to just the prefix — the selected subcommand, competence, and flags are appended automatically:
 
 ```bash
-export WAYFINDER_PIPELINE_CMD='uv run pyauditor run {competence} --orgao {agency}'
+export WAYFINDER_PIPELINE_CMD='uv run pyauditor'
 python3 server.py --workspace "/absolute/path/to/pyauditor"
 ```
 

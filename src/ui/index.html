@@ -20,30 +20,48 @@
   </header>
   <main class="layout">
     <aside class="sidebar" aria-label="Workspace files">
-      <div class="sidebar-title">YAML and CSS files</div>
-      <input id="filter" type="search" placeholder="Filter files..." autocomplete="off">
+      <div class="sidebar-title">Configuration</div>
+      <input id="filter" type="search" placeholder="Filter..." autocomplete="off">
+      <div class="group-title">Indicators (INMS)</div>
+      <nav id="indicator-nav" class="file-list"></nav>
+      <div class="group-title">Other files</div>
       <nav id="files" class="file-list"></nav>
     </aside>
     <section class="editor-pane">
-      <div id="empty" class="empty">Choose a YAML or CSS file from the sidebar.</div>
+      <div id="empty" class="empty">Choose an indicator or a YAML/CSS file.</div>
       <div id="editor-wrap" class="editor-wrap hidden">
         <div class="file-header"><code id="current-file"></code><span id="status" class="muted"></span></div>
         <textarea id="editor" spellcheck="false" aria-label="File editor"></textarea>
       </div>
+      <div id="form-wrap" class="editor-wrap hidden">
+        <div class="file-header"><code id="form-file"></code><span id="form-dirty" class="badge hidden">Unsaved</span></div>
+        <div id="form" class="form-body"></div>
+      </div>
     </section>
     <aside class="pipeline">
       <h2>Pipeline</h2>
-      <label>Competence<input id="competence" type="month" required></label>
-      <label>Agency<select id="agency">
+      <label>Step<select id="step">
+          <option value="run">run (full pipeline)</option>
+          <option value="bootstrap">bootstrap</option>
+          <option value="measure">measure</option>
+          <option value="split">split</option>
+          <option value="report">report</option>
+          <option value="consolidate">consolidate</option>
+        </select></label>
+      <label id="competence-field">Competence<input id="competence" type="month" required></label>
+      <label id="agency-field">Agency<select id="agency">
           <option>both</option>
           <option>MinC</option>
           <option>MTur</option>
         </select></label>
-      <label class="check"><input id="force" type="checkbox"> Force</label>
-      <label class="check"><input id="clean" type="checkbox"> Clean outputs first</label>
-      <button id="run" class="primary" type="button">Run pipeline</button>
+      <label id="strict-field" class="check hidden"><input id="strict" type="checkbox"> Strict</label>
+      <label id="final-month-field" class="check hidden"><input id="final-month" type="checkbox"> Final month</label>
+      <label id="force-field" class="check"><input id="force" type="checkbox"> Force</label>
+      <label id="clean-field" class="check"><input id="clean" type="checkbox"> Clean outputs first</label>
+      <button id="run" class="primary" type="button">Run step</button>
       <button id="stop" class="danger hidden" type="button">Stop</button>
       <pre id="output" aria-live="polite">Ready.</pre>
+      <div id="steps" class="muted" style="margin-top:10px"></div>
     </aside>
   </main>
   <div id="toast" role="status" aria-live="polite"></div>

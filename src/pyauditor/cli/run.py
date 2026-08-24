@@ -27,6 +27,7 @@ from typing import Final, Literal
 from rich.console import Console
 from rich.prompt import Prompt
 
+from pyauditor.categoria_filter import Warning
 from pyauditor.orchestration._warning_decision import (
     WarningDecision,
     continue_on_warning,
@@ -61,7 +62,7 @@ _ON_WARNING_PROMPT_CHOICES: Final[dict[str, WarningDecision]] = {
 def _pause_on_warning(
     command: str,
     orgao: str | None,
-    warnings: tuple[str, ...],
+    warnings: tuple[Warning, ...],
 ) -> WarningDecision:
     """Ask the operator how to proceed after a step finished with warnings.
 

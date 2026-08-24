@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from pyauditor.categoria_filter import Warning
 from pyauditor.logging import log_event, logger
 from pyauditor.orchestration._decision import (
     FailureDecision,
@@ -254,7 +255,7 @@ def execute_run(
         FailureDecision,
     ] = _abort_on_failure,
     on_warning: Callable[
-        [str, str | None, tuple[str, ...]],
+        [str, str | None, tuple[Warning, ...]],
         WarningDecision,
     ] = continue_on_warning,
 ) -> RunResult:

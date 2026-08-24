@@ -59,7 +59,10 @@ multi-usuário/hospedado.
 - **Ticket 01 (formulário INMS):** protótipo em `src/ui/prototype-inms.html`
   (4 variantes, `?variant=A|B|C|D`); decisão de layout: **variante B** (duas
   telas, contrato → segmentos), escolhida em HITL — proto capturado na branch
-  `prototype/inms-form`; a implementação do formulário real é follow-up.
+  `prototype/inms-form`. Follow-up (formulário real) implementado: backend em
+  `src/ui/inms.py` + endpoints `/api/indicators` e `/api/indicator`, frontend em
+  `index.html`/`app.js` — sidebar agrupa por indicador, painel central renderiza
+  contrato + segmentos por órgão como formulário, save escreve de volta os YAMLs.
 - **Ticket 02 (execução por etapa):** dropdown com os 6 subcomandos (default
   `run`), só flags de comportamento por etapa (não path); retry reinvoca só o
   subcomando isolado (sem resume — só `run` tem estado persistido); faixa de
