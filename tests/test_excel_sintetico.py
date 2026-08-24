@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from openpyxl import load_workbook
 
 from pyauditor.config.categorias import load_categorias
@@ -652,10 +653,56 @@ categorias:
       "1.4": {mode: whole_indicator}
 """
 
+_INMS_05_PRECOMPUTED_CONFIG = """\
+indicator:
+  id: INMS-05
+  contractual_id: "INMS 1.5"
+  name: Disponibilidade de sistema não-crítico
 
-def test_precomputed_table_sheet_has_one_row_per_item_with_meta_from_target(
+scope:
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-05.csv
+  delimiter: ";"
+  encoding: utf-8
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: precomputed_table
+  result_column: inms_1_5_percentual
+  name_column: sistema_servico_nome
+  penalty_column: penalidade_pontos
+
+target:
+  operator: ">="
+  value: 99.0
+"""
+
+_INMS_05_PRECOMPUTED_RAW_CSV = (
+    'sistema_servico_nome;inms_1_5_percentual;penalidade_pontos\n'
+    'Barramento de Integracao;99,451;1000\n'
+    'Servico de Correio;99,7744;0\n'
+)
+
+_CATEGORIAS_YAML_1_5_ONLY = """\
+categorias:
+  MONITORAMENTO_NOC_SOC:
+    label: "Monitoramento de Ambiente (NOC/SOC)"
+    inms:
+      "1.5": {mode: whole_indicator}
+"""
+
+
+def test_inms_1_4_enriched_sheet_reports_4_decimal_result_and_penalty_memory(
     tmp_path: Path,
 ) -> None:
+    """INMS 1.4 ahora usa el renderer enriquecido: identificación, tabla con
+    resultado a 4 decimales (99,451 % — no 99,5 % que chocaba con la meta),
+    y memoria de penalidad por fila."""
     config_dir = tmp_path / 'configs'
     data_dir = tmp_path / 'input' / '2026' / '06'
     config_dir.mkdir(parents=True)
@@ -679,6 +726,64 @@ def test_precomputed_table_sheet_has_one_row_per_item_with_meta_from_target(
     assert warnings == []
     wb = load_workbook(output_path)
     sheet = wb['INMS 1.4']
+
+    # Sección 1: identificación (fila 1 = título de la sección de
+    # identificación).
+    assert 'Disponibilidad de sistema' in sheet['A1'].value
+
+    # Sección 2: cabecera de tabla y filas por sistema/servicio.
+    headers = [cell.value for cell in sheet[12]]
+    assert headers[0] == 'Categoria'
+    assert headers[1] == 'Sistema / Servicio'
+    assert headers[7] == 'Meta atingida?'
+
+    # Barramento (99,451 -> fracción 0,99451; NO 99,5%):
+    barramento = [c.value for c in sheet[13]]
+    assert barramento[1] == 'Barramento de Integracao'
+    # resultado a 4 decimales, no 0,995
+    assert barramento[2] == pytest.approx(0.99451)
+    assert barramento[3] == pytest.approx(0.995)
+    assert barramento[5] == '=IF(E13<=0,0,ROUNDUP(E13*100/0.1,0))'
+    assert barramento[6] == 1000
+    assert barramento[7] == 'Não'
+
+    correo = [c.value for c in sheet[14]]
+    assert correo[1] == 'Servico de Correio'
+    assert correo[7] == 'Sim'
+
+    # Sección 3: memoria de penalidad por fila.
+    assert sheet['A18'].value.startswith('Barramento de Integracao')
+    assert sheet['C19'].value == 'Resultado:'
+
+
+def test_precomputed_table_sheet_plain_kept_for_other_precomputed_inms(
+    tmp_path: Path,
+) -> None:
+    """El renderer precomputed plano sigue vigente para INMS que no sean 1.4
+    (verificar con 1.5): una fila por ítem, sin secciones de auditoría."""
+    config_dir = tmp_path / 'configs'
+    data_dir = tmp_path / 'input' / '2026' / '06'
+    config_dir.mkdir(parents=True)
+    data_dir.mkdir(parents=True)
+    (config_dir / 'inms-05.yaml').write_text(
+        _INMS_05_PRECOMPUTED_CONFIG, encoding='utf-8'
+    )
+    (config_dir / 'categorias.yaml').write_text(
+        _CATEGORIAS_YAML_1_5_ONLY, encoding='utf-8'
+    )
+    (data_dir / 'inms-05.csv').write_text(
+        _INMS_05_PRECOMPUTED_RAW_CSV, encoding='utf-8'
+    )
+    categorias_file = load_categorias(config_dir / 'categorias.yaml')
+    output_path = tmp_path / 'sintetico.xlsx'
+
+    warnings = write_sintetico_workbook(
+        categorias_file, config_dir, data_dir, output_path
+    )
+
+    assert warnings == []
+    wb = load_workbook(output_path)
+    sheet = wb['INMS 1.5']
     assert tuple(cell.value for cell in sheet[1]) == (
         'Categoria',
         'Nível',
@@ -694,7 +799,7 @@ def test_precomputed_table_sheet_has_one_row_per_item_with_meta_from_target(
             'N3',
             'Barramento de Integracao',
             '99,5%',
-            'Não',
+            'Sim',
             '1000',
         ],
         [

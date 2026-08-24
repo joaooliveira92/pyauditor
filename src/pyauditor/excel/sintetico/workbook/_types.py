@@ -12,4 +12,5 @@ por `_grouping.group_entries_by_inms`."""
 _INMS_1_1: Final[str] = '1.1'
 _INMS_1_2: Final[str] = '1.2'
 _INMS_1_3: Final[str] = '1.3'
+_INMS_1_4: Final[str] = '1.4'
 _INMS_1_14: Final[str] = '1.14'

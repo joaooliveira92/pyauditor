@@ -44,13 +44,23 @@ from pyauditor.excel.sintetico._sheets.nao_ativado import (
 from pyauditor.excel.sintetico._sheets.precomputed import (
     _write_precomputed_table_sheet,
 )
+from pyauditor.excel.sintetico._sheets.precomputed_audit import (
+    _write_precomputed_audit_sheet,
+)
 from pyauditor.excel.sintetico._sheets.ratio_aggregate import (
     _write_ratio_aggregate_sheet,
 )
 from pyauditor.periodo import PeriodoAfericao
 
 from ._config import load_base_config
-from ._types import _INMS_1_1, _INMS_1_2, _INMS_1_3, _INMS_1_14, InmsEntries
+from ._types import (
+    _INMS_1_1,
+    _INMS_1_2,
+    _INMS_1_3,
+    _INMS_1_4,
+    _INMS_1_14,
+    InmsEntries,
+)
 
 
 def _segmented_ratio_category_params(
@@ -326,16 +336,41 @@ def render_inms_sheet(
     elif isinstance(base_config.calculation, PrecomputedTableCalculation):
         if base_config.target is None:
             raise ValueError('precomputed exige `target` no sintetico')
-        _write_precomputed_table_sheet(
-            workbook,
-            sheet_name,
-            categorias_file,
-            whole_indicator_entries,
-            base_config.calculation,
-            base_config.target.operator,
-            base_config.target.value,
-            rows,
-        )
+        if (
+            inms_key == _INMS_1_4
+            and base_config.calculation.name_column is not None
+            and base_config.scope.contract
+        ):
+            # Aba enriquecida de disponibilidad por-ativo (identificación,
+            # resultado a 4 decimales, memoria de penalidad) — misma lógica
+            # de degradación que 1.1/1.2/1.3: si el CSV bruto no trae
+            # `name_column` o el contrato está vacío, cae al renderer
+            # precomputed plano.
+            _write_precomputed_audit_sheet(
+                workbook,
+                sheet_name,
+                categorias_file,
+                whole_indicator_entries,
+                base_config.calculation,
+                base_config.target.operator,
+                base_config.target.value,
+                rows,
+                contract=base_config.scope.contract,
+                periodo=periodo,
+                raw_csv_path=raw_csv_path,
+                generated_at=generated_at,
+            )
+        else:
+            _write_precomputed_table_sheet(
+                workbook,
+                sheet_name,
+                categorias_file,
+                whole_indicator_entries,
+                base_config.calculation,
+                base_config.target.operator,
+                base_config.target.value,
+                rows,
+            )
     elif (
         isinstance(base_config.calculation, RatioCalculation)
         and base_config.calculation.aggregation == 'sum'
