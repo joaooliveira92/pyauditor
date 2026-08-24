@@ -93,7 +93,8 @@ para as abas `CADASTROS` e `EVIDENCIAS`.
 ### Pré-condições
 
 - a capa existe (`--capa-path`) — erro se não;
-- `<roms-dir>/<orgao>/<competencia>/` existe com `.json` (erro se vazio/ausente).
+- `<roms-dir>/<orgao>/<competencia>/` existe com `.json` (erro se
+    vazio/ausente).
 
 O `report` também grava `glosa_historico.json` junto aos ROMs do órgão
 (`<roms-dir>/<orgao>/glosa_historico.json`) para o rollover e a reincidencia.

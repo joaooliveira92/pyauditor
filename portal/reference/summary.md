@@ -52,4 +52,4 @@ Exemplo:
 ## Fontes primárias
 
 - `src/pyauditor/rom/summary.py` — `IndicatorSummary`, `summarize`,
-  `_pooled_numerator_denominator`.
+    `_pooled_numerator_denominator`.

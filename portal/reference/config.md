@@ -89,7 +89,7 @@ acceptance_test: # opcional — esperado para o smoke test
 
 #### `ratio`
 
-```
+```yaml
 shape: ratio
 aggregation: count_distinct | sum | precomputed
 numerator_filter:     # Filter | null (obrigatório p/ count_distinct)
@@ -128,9 +128,9 @@ precomputed_result_column: "..." # p/ precomputed (espera exatamente 1 linha)
 ### `target` / `penalty`
 
 - `target`: `operator` (`>=`\|`<=`) e `value` (0–100). Obrigatório para todo
-  shape exceto `external_catalog_sum`.
+    shape exceto `external_catalog_sum`.
 - `penalty`: `base_points` (default 0), `step_points` (>= 0),
-  `step_size_pct` (> 0). Obrigatório para `ratio` com meta.
+    `step_size_pct` (> 0). Obrigatório para `ratio` com meta.
 
 ### `acceptance_test`
 
@@ -143,9 +143,12 @@ Os configs de produção vivem por órgão em `configs/<orgao>/` (ex.:
 `configs/MinC/`), cada um com seu manifesto `datasets.yaml`.
 
 - `ratio` — `configs/<orgao>/inms-01.yaml`.
-- `segmented_ratio` — `configs/<orgao>/inms-02.yaml` (3 categorias por prioridade).
-- `precomputed_table` — `configs/<orgao>/inms-08.yaml`, `configs/<orgao>/inms-10.yaml`.
-- Fixtures para `count_difference` e `external_catalog_sum`: `tests/fixtures/manual_entry_examples/`.
+- `segmented_ratio` — `configs/<orgao>/inms-02.yaml` (3 categorias por
+    prioridade).
+- `precomputed_table` — `configs/<orgao>/inms-08.yaml`,
+    `configs/<orgao>/inms-10.yaml`.
+- Fixtures para `count_difference` e `external_catalog_sum`:
+    `tests/fixtures/manual_entry_examples/`.
 
 O manifesto por órgão (`<config-dir>/<orgao>/datasets.yaml`) é o default de
 `--manifest` em `measure`; se não existe, o `measure` usa `source.csv` e avisa.

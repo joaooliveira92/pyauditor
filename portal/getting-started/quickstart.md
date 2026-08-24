@@ -1,8 +1,8 @@
 # Quickstart — apure uma competência
 
 Objetivo: rodar a cadeia completa `bootstrap` → `measure` → `report` →
-`consolidate` para a competência `2026-06` (órgão `MinC`) e obter as planilhas
-finais.
+`consolidate` para a competência `2026-06` (órgão `MinC`) e obter as
+planilhas finais.
 
 ## Pré-requisitos
 
@@ -40,7 +40,8 @@ finais.
    uv run pyauditor report 2026-06 --orgao MinC --capa-path capa_MinC.xlsx --roms-dir roms --output-dir reports
    ```
 
-   Saída esperada: `reports/relatorio_2026-06_MinC.xlsx` com as abas do órgão.
+   Saída esperada: `reports/relatorio_2026-06_MinC.xlsx` com as abas do
+   órgão.
 
 5. (Opcional) Gere o consolidado financeiro dos dois órgãos. Se os dois
    relatórios (`MinC` e `MTur`) já existem, rode o `consolidate`:
@@ -61,11 +62,12 @@ finais.
 ## Verificação
 
 - `roms/MinC/2026-06/` contém um `.md` e um `.json` por indicador apurado.
-- `reports/relatorio_2026-06_MinC.xlsx` abre no Excel com abas `CAPA_E_CONTROLE`,
-  `CADASTROS`, `INMS_BASE`, abas por grupo, `GLOSAS` e `EVIDENCIAS`.
+- `reports/relatorio_2026-06_MinC.xlsx` abre no Excel com abas
+    `CAPA_E_CONTROLE`, `CADASTROS`, `INMS_BASE`, abas por grupo, `GLOSAS` e
+    `EVIDENCIAS`.
 - `reports/relatorio_2026-06_consolidado.xlsx` abre com as abas
-  `CAPA_E_CONTROLE`, `SERVICOS_POR_ORGAO`, `INMS_BASE`, `GLOSAS` e
-  `CALCULO_PAGAMENTO`.
+    `CAPA_E_CONTROLE`, `SERVICOS_POR_ORGAO`, `INMS_BASE`, `GLOSAS` e
+    `CALCULO_PAGAMENTO`.
 
 ## Falhas comuns
 
@@ -80,7 +82,8 @@ Rode `bootstrap` antes de `report`, ou passe o caminho correto por órgão com
 
 ### `nenhum sumário de medição (.json) encontrado`
 
-`measure` não rodou para essa competência/órgão (ou os `.json` foram apagados).
+`measure` não rodou para essa competência/órgão (ou os `.json` foram
+apagados).
 Rode o passo 3 antes do passo 4.
 
 ### `consolidate` sem os dois relatórios

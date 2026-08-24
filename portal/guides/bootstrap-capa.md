@@ -27,14 +27,15 @@ Use este procedimento para criar (uma vez) e depois preencher a capa usada pelo
 
 - O arquivo existe em `capa_<orgao>.xlsx`.
 - A aba `CAPA_E_CONTROLE` lista os campos do contrato com a célula
-  «Situação geral da aferição» preenchida.
+    «Situação geral da aferição» preenchida.
 
 ## Observações
 
 - Rodar `bootstrap` de novo **não** recria a capa existente — é intencional
-  para evitar que o fiscal perca dados preenchidos.
+    para evitar que o fiscal perca dados preenchidos.
 - O `report` reaproveita a capa do órgão (embedded na primeira aba do
-  relatório), sem duplicar conteúdo, ver [Planilha Excel](../reference/excel.md).
+    relatório), sem duplicar conteúdo, ver
+    [Planilha Excel](../reference/excel.md).
 
 ## Próximos passos
 

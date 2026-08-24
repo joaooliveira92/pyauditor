@@ -32,30 +32,32 @@ pyauditor/
 ## Entradas
 
 - **Configs** (`configs/<orgao>/`): um `inms-<n>.yaml` por indicador (schema →
-  quality gates → cálculo → meta/penalidade → teste de aceitação). Para
-  indicadores por ativo, use `inms-<n>-<asset-slug>.yaml` (ex.: `inms-1.14-wifi.yaml`).
+    quality gates → cálculo → meta/penalidade → teste de
+    aceitação). Para indicadores por ativo, use `inms-<n>-<asset-slug>.yaml`
+    (ex.: `inms-1.14-wifi.yaml`).
 - **Manifesto** (`configs/<orgao>/datasets.yaml`): mapeia alias legíveis
-  (ex.: `incidentes`) ao arquivo CSV + `delimiter` + `encoding`. Os configs
-  referenciam pelo alias via `source.dataset`.
-- **CSVs de produção**: em `input/<orgao>/<ano>/<mês>/` — **nunca na raiz de
-  `input/`**. Cada `inms-<n>.csv` deve estar na competência que está sendo
-  apurada.
+    (ex.: `incidentes`) ao arquivo CSV + `delimiter` + `encoding`. Os configs
+    referenciam pelo alias via `source.dataset`.
+- **CSVs de produção**: em `input/<orgao>/<ano>/<mês>/` — **nunca
+    na raiz de `input/`**. Cada `inms-<n>.csv` deve estar na competência
+    que está sendo apurada.
 
 ## Saídas
 
 - `roms/<orgao>/<competência>/<id>.md` — memória de cálculo legível.
 - `roms/<orgao>/<competência>/<id>.json` — o `report` lê apenas estes.
 - `roms/<orgao>/glosa_historico.json` — estado de rollover/reincidencia.
-- `reports/relatorio_<competencia>_<orgao>.xlsx` — relatório final por órgão.
-- `reports/relatorio_<competencia>_consolidado.xlsx` — consolidado MinC+MTur
-  (ver [Planilha Excel final](../reference/excel.md)).
+- `reports/relatorio_<competencia>_<orgao>.xlsx` — relatório final
+    por órgão.
+- `reports/relatorio_<competencia>_consolidado.xlsx` — consolidado
+    MinC+MTur (ver [Planilha Excel final](../reference/excel.md)).
 
 ## Dados de produção vs fixtures
 
 - Dados de produção ficam **fora do versionamento** (`input/` no `.gitignore`)
-  porque os CSVs trazem nome/solicitante/criador/técnico (PII real).
-- `tests/fixtures/` é sempre sintético/anonimizado, nunca cópia crua de um CSV
-  de produção. Não copie dados reais para fixtures.
+    porque os CSVs trazem nome/solicitante/criador/técnico (PII real).
+- `tests/fixtures/` é sempre sintético/anonimizado, nunca cópia crua de
+    um CSV de produção. Não copie dados reais para fixtures.
 
 ## Fontes primárias
 

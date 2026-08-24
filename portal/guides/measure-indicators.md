@@ -32,18 +32,19 @@ da competência chegarem.
 - `roms/MinC/2026-06/` contém um par `<id>.md` + `<id>.json` por indicador.
 - O log mostra `INMS x.y: <path>.md` por indicador aceito.
 - Exit code `0` se não houve `hard_failure`; `1` se algum indicador falhou
-  (o processamento continua para os demais).
+    (o processamento continua para os demais).
 
 ## Falhas comuns
 
 - **`competência inválida`** — use `YYYY-MM`.
 - **`nenhum config encontrado`** — o `--config-dir` não tem `inms-*.yaml`
-  (o discovery ignora nomes; qualquer `*.yaml` com `indicator` vale).
+    (o discovery ignora nomes; qualquer `*.yaml` com `indicator` vale).
 - **`source.dataset=... requires a manifest`** — falta `configs/datasets.yaml`
-  (ou `--manifest` apontando para ele).
+    (ou `--manifest` apontando para ele).
 - **`hard_failure` de um indicador** — todas as linhas existentes foram
-  rejeitadas pelos quality gates; consulte o ROM gerado para os motivos. Um CSV
-  vazio **não** gera falha dura (competência legítima sem lançamento).
+    rejeitadas pelos quality gates; consulte o ROM gerado
+    para os motivos. Um CSV vazio **não** gera falha dura
+    (competência legítima sem lançamento).
 
 ## Próximos passos
 

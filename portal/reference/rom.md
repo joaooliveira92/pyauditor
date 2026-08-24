@@ -10,25 +10,26 @@ interpretativa** só aparece para shapes com penalidade em degraus (hoje:
 
 1. **Cabeçalho** — `# ROM — <contractual_id> [— <asset>] (<name>)`.
 2. **Identificação** — contrato, órgão, competência e período (da capa, ou
-   `[a preencher]`), data de processamento, versão do pipeline, versão da
-   configuração (hash SHA-256 do YAML) e arquivo de origem (hash SHA-256,
-   delimitador, codificação).
+    `[a preencher]`), data de processamento, versão do pipeline, versão da
+    configuração (hash SHA-256 do YAML) e arquivo de origem (hash SHA-256,
+    delimitador, codificação).
 3. **Linhas aprovadas pelo quality gate** — linhas lidas e aprovadas, com
-   ressalva de que isso não equivale à população contratual completa.
-4. **Rejeições** — tabela `ID | Motivo` (do `QualityGateReport`); `—` se nenhuma.
+    ressalva de que isso não equivale à população contratual completa.
+4. **Rejeições** — tabela `ID | Motivo` (do `QualityGateReport`);
+    `—` se nenhuma.
 5. **Memória de cálculo** — seção por shape (abaixo).
 6. **Ressalva interpretativa** *(condicional)* — só quando `config.penalty`
-   existe (hoje só `ratio`) e há pontuação apurada > 0: tabela com as 3
-   leituras possíveis do incremento por degrau (linear contínua — adotada;
-   degraus completos; teto), para transparência.
+    existe (hoje só `ratio`) e há pontuação apurada > 0: tabela com as 3
+    leituras possíveis do incremento por degrau (linear contínua — adotada;
+    degraus completos; teto), para transparência.
 7. **Resultado vs meta** — meta (`operator value%`), conformidade, e
-   "Pontuação apurada" em pontos (não "Penalidade" — o termo não implica
-   sanção administrativa).
+    "Pontuação apurada" em pontos (não "Penalidade" — o termo não implica
+    sanção administrativa).
 8. **Responsáveis** — Fiscal técnico/requisitante/administrativo e Gestor do
-   contrato, lidos da capa (`capa_MinC.xlsx`/`capa_MTur.xlsx`), ou
-   `[a preencher]`.
+    contrato, lidos da capa (`capa_MinC.xlsx`/`capa_MTur.xlsx`), ou
+    `[a preencher]`.
 9. **Nota de rodapé** — avisa que os campos vindos da capa refletem seu
-   estado no momento em que o ROM foi gerado, não um valor definitivo.
+    estado no momento em que o ROM foi gerado, não um valor definitivo.
 
 Exemplo (shape `ratio`, INMS 1.1 — 171/175 no prazo, capa preenchida):
 
