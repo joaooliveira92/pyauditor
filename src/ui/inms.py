@@ -1,15 +1,15 @@
-"""Estructuração de la config de indicador INMS (YAML) como dato de formulário
-para Wayfinder — sustituye la edición de YAML crudo por una forma (ticket 01
-de wayfinder-ui).
+"""Estruturação da config do indicador INMS (YAML) como dado de formulário
+para Wayfinder — substitui a edição de YAML cru por um formulário (ticket 01
+do wayfinder-ui).
 
-La config de un indicador segmentado vive en dos archivos:
-`_shared/inms-NN.yaml` (contrato, sin `scope`) +
-`{orgao}/inms-NN.CATEGORIA.yaml` (parametrização por órgão/categoría). Este
-módulo descubre ambos, los devuelve como dicts del YAML plano y los registra
-de vuelta validando con el modelo
-pydantic (`IndicatorConfig`). Escribimos el dict tal como vino (nunca
-`model_dump`) para no inyectar `scope` ni añadir campos que el archivo no
-tenía — la serialización es `yaml.safe_dump`, como já hace `split_derive`.
+A config de um indicador segmentado vive em dois arquivos:
+`_shared/inms-NN.yaml` (contrato, sem `scope`) +
+`{orgao}/inms-NN.CATEGORIA.yaml` (parametrização por órgão/categoria). Este
+módulo descobre os dois, devolve-os como dicts do YAML plano e os registra
+de volta validando com o modelo
+pydantic (`IndicatorConfig`). Escrevemos o dict tal como veio (nunca
+`model_dump`) para não injetar `scope` nem adicionar campos que o arquivo
+não tinha — a serialização é `yaml.safe_dump`, como já faz `split_derive`.
 """
 
 from __future__ import annotations
@@ -32,9 +32,9 @@ __all__ = (
     'save_indicator',
 )
 
-# Solo la convención de producción: `inms-NN.yaml` (contrato, num de 2 dígitos)
-# e `inms-NN.CATEGORIA.yaml` (segmento, categoría en mayúsculas). Los fixtures
-# de tests usan el id contractual (`inms-1.1.yaml`) y no deben entrar.
+# Só a convenção de produção: `inms-NN.yaml` (contrato, num de 2 dígitos)
+# e `inms-NN.CATEGORIA.yaml` (segmento, categoria em maiúsculas). Os fixtures
+# de testes usam o id contratual (`inms-1.1.yaml`) e não devem entrar.
 _FILE_RE: Final = re.compile(
     r'^inms-(?P<num>\d{2})(\.(?P<cat>[A-Z0-9_]+))?\.yaml$'
 )
@@ -79,25 +79,25 @@ def _indicator_name(raw: dict[str, Any]) -> str:
 def _load_raw(path: Path) -> dict[str, Any]:
     raw = yaml.safe_load(path.read_text(encoding='utf-8'))
     if not isinstance(raw, dict):
-        raise ValueError(f'{path}: config YAML debe ser un dict')
+        raise ValueError(f'{path}: config YAML deve ser um dict')
     return raw
 
 
 def _resolve(workspace: Path, relative: str) -> Path:
     if not relative or Path(relative).suffix.lower() != '.yaml':
-        raise ValueError('Solo archivos .yaml son editables como indicador')
+        raise ValueError('Só arquivos .yaml são editáveis como indicador')
     candidate = (workspace / relative).resolve()
     if not candidate.is_relative_to(workspace.resolve()):
-        raise ValueError('El camino escapa del workspace configurado')
+        raise ValueError('O caminho escapa do workspace configurado')
     return candidate
 
 
 def discover(workspace: Path) -> list[IndicatorDoc]:
-    """Agrupa los indicadores INMS del workspace por key.
+    """Agrupa os indicadores INMS do workspace por key.
 
-    Un archivo `inms-NN.yaml` es el contrato compartido; un
-    `inms-NN.CATEGORIA.yaml` es un segmento parametrizado por órgão (el
-    nombre del directorio padre es el órgão).
+    Um arquivo `inms-NN.yaml` é o contrato compartilhado; um
+    `inms-NN.CATEGORIA.yaml` é um segmento parametrizado por órgão (o nome
+    do diretório pai é o órgão).
     """
     groups: dict[str, dict[str, Any]] = {}
     for path in workspace.rglob('*.yaml'):
@@ -170,10 +170,10 @@ def _segment_paths(workspace: Path, num: str, orgao: str) -> list[Path]:
 def read_indicator(
     workspace: Path, key: str, orgao: str
 ) -> dict[str, Any]:
-    """Devuelve el doc de formulario de un indicador: contrato + segmentos.
+    """Devolve o doc de formulário de um indicador: contrato + segmentos.
 
-    ``shared`` es el dict del archivo compartido (sin `scope`); ``segments``
-    son los dicts de las configs por categoría del órgão pedido.
+    ``shared`` é o dict do arquivo compartilhado (sem `scope`); ``segments``
+    são os dicts das configs por categoria do órgão pedido.
     """
     num = _num_from_key(key)
     shared_path = _shared_path(workspace, num)
@@ -223,11 +223,11 @@ def _validate_and_write(
 
 
 def save_indicator(workspace: Path, payload: dict[str, Any]) -> None:
-    """Valida y escribe el contrato compartido y sus segmentos.
+    """Valida e escreve o contrato compartilhado e seus segmentos.
 
-    ``payload`` tiene la forma del doc devuelto por `read_indicator`. Escribimos
-    el dict tal cual (tras validarlo) para no añadir `scope` al archivo
-    compartido ni reformatear campos que el usuario no tocó.
+    ``payload`` tem a forma do doc devolvido por `read_indicator`. Escrevemos
+    o dict tal como está (após validar) para não adicionar `scope` ao arquivo
+    compartilhado nem reformatar campos que o usuário não tocou.
     """
     shared = payload.get('shared')
     if shared is not None:
