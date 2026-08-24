@@ -1,8 +1,6 @@
-"""Validação de fronteira e resolução de grupos da aba INMS 1.1 — movidas
-para `excel/_inms_audit_common/_domain.py` (compartilhadas com outras abas
-enriquecidas, ex. INMS 1.2) e reexportadas aqui com os nomes que o resto do
-pacote/os testes já usam.
-"""
+"""Validação de fronteira e resolução de grupos da aba INMS 1.2 — delega ao
+núcleo compartilhado (`excel/_inms_audit_common/_domain.py`), acrescentando
+só a exigência da coluna `SLA` (usada para segmentar por prioridade)."""
 
 from __future__ import annotations
 
@@ -14,12 +12,13 @@ from pyauditor.excel._inms_audit_common._domain import (
 from pyauditor.excel._inms_audit_common._domain import (
     has_required_columns as _has_required_columns,
 )
+from pyauditor.excel.inms_1_2._layout import SLA_COLUMN
 
 __all__ = ('_build_grupo_rows', '_normalize_no_prazo', 'has_required_columns')
 
 
 def has_required_columns(fieldnames: list[str]) -> bool:
-    return _has_required_columns(fieldnames)
+    return _has_required_columns(fieldnames, extra_columns=(SLA_COLUMN,))
 
 
 def _build_grupo_rows(

@@ -1,5 +1,8 @@
-"""Seções 1–3 da aba INMS 1.1 (identificação, resumo, memória) — extraídas de
-`excel/inms_1_1_audit.py` (ticket 04 SRP).
+"""Seções 1–3 da aba INMS 1.1 (identificação, resumo, memória). A Seção 1 é
+genérica e mora em `excel/_inms_audit_common/_section_1.py` (chamada aqui
+com o título fixo desta aba); as Seções 2–3 (resumo/memória de um único
+ratio) continuam locais — o INMS 1.2 (`segmented_ratio`, 3 categorias) tem
+sua própria versão em `excel/inms_1_2/_sections_2_3.py`.
 """
 
 from __future__ import annotations
@@ -10,25 +13,22 @@ from pathlib import Path
 from openpyxl.styles import Alignment, Font
 from openpyxl.worksheet.worksheet import Worksheet
 
-from pyauditor.excel._safety import safe_excel_text
-from pyauditor.excel.inms_1_1._cells import (
-    _add_situacao_conditional_formatting,
-    _CellValue,
-    _header_row,
-    _label_value,
-    _section_bar,
+from pyauditor.excel._inms_audit_common._cells import (
+    add_situacao_conditional_formatting,
+    header_row,
+    label_value,
+    section_bar,
 )
-from pyauditor.excel.inms_1_1._layout import (
-    _DATE_FMT,
-    _DATETIME_FMT,
-    _PCT2,
-    _PCT4,
-    GRAY_FILL,
+from pyauditor.excel._inms_audit_common._layout import (
     LABEL_FONT,
     NOTE_FONT,
     ORANGE_FILL,
+    PCT2,
+    PCT4,
     TEAL_FILL,
-    TITLE_FONT,
+)
+from pyauditor.excel._inms_audit_common._section_1 import (
+    write_section_1_identificacao,
 )
 from pyauditor.periodo import PeriodoAfericao
 
@@ -42,63 +42,14 @@ def _write_section_1_identificacao(
     raw_csv_path: Path,
     generated_at: datetime,
 ) -> None:
-    sheet.merge_cells('A1:L1')
-    t = sheet.cell(
-        row=1, column=1, value='INMS 1.1 – Incidentes atendidos dentro do prazo'
-    )
-    t.font = TITLE_FONT
-
-    _section_bar(sheet, 3, 'SEÇÃO 1 · IDENTIFICAÇÃO')
-    data_corte: _CellValue
-    if periodo is not None:
-        competencia = (
-            f'{periodo.inicio:%d/%m/%Y} '
-            f'a '
-            f'{periodo.fim:%d/%m/%Y} '
-            f'({periodo.inicio:%Y-%m})'
-        )
-        data_corte = periodo.fim
-        data_corte_fmt = _DATE_FMT
-    else:
-        competencia = 'Não informado'
-        data_corte = 'Não informado'
-        data_corte_fmt = None
-    _label_value(sheet, 4, 'Competência:', competencia, fill=GRAY_FILL)
-    _label_value(
-        sheet, 5, 'Contrato:', safe_excel_text(contract), fill=GRAY_FILL
-    )
-    _label_value(
+    write_section_1_identificacao(
         sheet,
-        6,
-        'Fonte dos dados:',
-        # Só o nome do arquivo, não o caminho completo — evita expor
-        # estrutura de diretório/usuário do ambiente que gerou a planilha
-        # (ticket 19 / B-02).
-        safe_excel_text(f'{raw_csv_path.name} ({len(rows)} registros brutos)'),
-        fill=GRAY_FILL,
-    )
-    _label_value(
-        sheet,
-        7,
-        'Data de geração:',
-        generated_at,
-        fmt=_DATETIME_FMT,
-        fill=GRAY_FILL,
-    )
-    _label_value(
-        sheet,
-        8,
-        'Data de corte:',
-        data_corte,
-        fmt=data_corte_fmt,
-        fill=GRAY_FILL,
-    )
-    _label_value(
-        sheet,
-        9,
-        'Responsável pela elaboração:',
-        'Não informado',
-        fill=GRAY_FILL,
+        title='INMS 1.1 – Incidentes atendidos dentro do prazo',
+        rows=rows,
+        contract=contract,
+        periodo=periodo,
+        raw_csv_path=raw_csv_path,
+        generated_at=generated_at,
     )
 
 
@@ -112,8 +63,8 @@ def _write_section_2_resumo(
 ) -> int:
     """Seção de linhas fixas (11-14) — devolve `next_free_row` (16, fixo)
     para a Seção 3."""
-    _section_bar(sheet, 11, 'SEÇÃO 2 · RESUMO EXECUTIVO')
-    _header_row(
+    section_bar(sheet, 11, 'SEÇÃO 2 · RESUMO EXECUTIVO')
+    header_row(
         sheet,
         12,
         (
@@ -149,16 +100,16 @@ def _write_section_2_resumo(
         'atingida"))'
     )
 
-    sheet['A13'].number_format = _PCT2
-    sheet['E13'].number_format = _PCT2
-    sheet['F13'].number_format = _PCT2
+    sheet['A13'].number_format = PCT2
+    sheet['E13'].number_format = PCT2
+    sheet['F13'].number_format = PCT2
     for c in ('A13', 'B13', 'C13', 'D13', 'E13', 'F13', 'G13'):
         sheet[c].font = Font(name='Arial', size=12, bold=True)
         sheet[c].fill = TEAL_FILL
         sheet[c].alignment = Alignment(horizontal='center')
     sheet.row_dimensions[13].height = 24
 
-    _add_situacao_conditional_formatting(sheet, 'G13')
+    add_situacao_conditional_formatting(sheet, 'G13')
 
     sheet.merge_cells('A14:L14')
     pen_note = sheet.cell(
@@ -185,11 +136,11 @@ def _write_section_2_resumo(
 def _write_section_3_memoria(sheet: Worksheet) -> int:
     """Seção de linhas fixas (16-26) — devolve `next_free_row` (28, fixo)
     para a Seção 4."""
-    _section_bar(sheet, 16, 'SEÇÃO 3 · MEMÓRIA DO CÁLCULO CONSOLIDADO')
-    _label_value(
+    section_bar(sheet, 16, 'SEÇÃO 3 · MEMÓRIA DO CÁLCULO CONSOLIDADO')
+    label_value(
         sheet, 17, 'IAP (incidentes abertos no período):', '=B13', fmt='0'
     )
-    _label_value(
+    label_value(
         sheet, 18, 'IADP (incidentes dentro do prazo):', '=C13', fmt='0'
     )
     sheet.merge_cells('A19:C19')
@@ -198,23 +149,23 @@ def _write_section_3_memoria(sheet: Worksheet) -> int:
     sheet.merge_cells('A20:C20')
     sheet['A20'] = '=CONCATENATE("INMS 1.1 = ",B18," ÷ ",B17)'
     sheet['A20'].font = NOTE_FONT
-    _label_value(sheet, 21, 'INMS 1.1 (resultado, 4 casas):', '=E13', fmt=_PCT4)
-    _label_value(sheet, 22, 'Meta contratual:', '=A13', fmt=_PCT4)
-    _label_value(
+    label_value(sheet, 21, 'INMS 1.1 (resultado, 4 casas):', '=E13', fmt=PCT4)
+    label_value(sheet, 22, 'Meta contratual:', '=A13', fmt=PCT4)
+    label_value(
         sheet,
         23,
         'Desvio em pontos percentuais (Resultado - Meta):',
         '=IF(B13=0,"",E13-A13)',
-        fmt=_PCT4,
+        fmt=PCT4,
     )
-    _label_value(
+    label_value(
         sheet,
         24,
         'Quantidade mínima dentro do prazo p/ atingir a meta:',
         '=ROUNDUP(B13*A13,0)',
         fmt='0',
     )
-    _label_value(
+    label_value(
         sheet,
         25,
         'Margem em quantidade de incidentes (IADP - mínimo):',

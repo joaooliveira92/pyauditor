@@ -20,11 +20,16 @@ from pyauditor.config.categorias import (
 )
 from pyauditor.config.manifest import DatasetManifest
 from pyauditor.config.models import (
+    ColumnContains,
+    ColumnEquals,
     PrecomputedTableCalculation,
     RatioCalculation,
+    SegmentedRatioCalculation,
 )
 from pyauditor.engine.pipeline import measurement_source
 from pyauditor.excel import inms_1_1_audit
+from pyauditor.excel.inms_1_2 import write as inms_1_2_write
+from pyauditor.excel.inms_1_2._layout import CategoryParams
 from pyauditor.excel.sintetico._sheets.grupo_executor import (
     _write_grupo_executor_sheet,
     _write_whole_indicator_sheet,
@@ -44,7 +49,33 @@ from pyauditor.excel.sintetico._sheets.ratio_aggregate import (
 from pyauditor.periodo import PeriodoAfericao
 
 from ._config import load_base_config
-from ._types import _INMS_1_1, _INMS_1_14, InmsEntries
+from ._types import _INMS_1_1, _INMS_1_2, _INMS_1_14, InmsEntries
+
+
+def _segmented_ratio_category_params(
+    calculation: SegmentedRatioCalculation,
+) -> list[CategoryParams] | None:
+    """`None` quando alguma categoria não segue o vocabulário assumido pela
+    aba enriquecida do INMS 1.2 (denominador por `ColumnContains`,
+    numerador `No prazo == S`) — degrada para o renderer genérico em vez de
+    hardcodar uma suposição que só é verdadeira para a config real de hoje."""
+    params: list[CategoryParams] = []
+    for category in calculation.categories:
+        if not isinstance(category.denominator_filter, ColumnContains):
+            return None
+        if (
+            not isinstance(category.numerator_filter, ColumnEquals)
+            or category.numerator_filter.equals != 'S'
+        ):
+            return None
+        params.append(
+            CategoryParams(
+                label=category.name,
+                sla_contains=category.denominator_filter.contains,
+                step_points=category.step_points,
+            )
+        )
+    return params
 
 
 def render_inms_sheet(
@@ -174,6 +205,56 @@ def render_inms_sheet(
                 # enriquecida não deve derrubar o restante do workbook —
                 # degrada para o renderer genérico, como as demais
                 # falhas por-INMS deste loop.
+                warnings.append(
+                    f'sintetico.xlsx: INMS {inms_key}: falha ao gerar aba '
+                    f'enriquecida ({exc}) — usando renderer genérico'
+                )
+                _write_grupo_executor_sheet(
+                    workbook,
+                    sheet_name,
+                    categorias_file,
+                    grupo_executor_entries,
+                    whole_indicator_entries,
+                    fieldnames,
+                    rows,
+                    accepted_ids,
+                )
+        elif (
+            inms_key == _INMS_1_2
+            and base_config.target is not None
+            and isinstance(base_config.calculation, SegmentedRatioCalculation)
+            and inms_1_2_write.has_required_columns(fieldnames)
+            and (
+                category_params := _segmented_ratio_category_params(
+                    base_config.calculation
+                )
+            )
+            is not None
+        ):
+            # Aba enriquecida (resumo/memória/penalidade por categoria de
+            # prioridade) — mesmas condições de degradação do INMS 1.1: só
+            # quando o CSV bruto tem as colunas de detalhe e a config bate
+            # com o vocabulário assumido pelo renderer (ver
+            # `_segmented_ratio_category_params`).
+            try:
+                inms_1_2_write.write_sheet(
+                    workbook,
+                    sheet_name,
+                    categorias_file=categorias_file,
+                    grupo_executor_entries=grupo_executor_entries,
+                    whole_indicator_entries=whole_indicator_entries,
+                    fieldnames=fieldnames,
+                    rows=rows,
+                    target_operator=base_config.target.operator,
+                    target_value=base_config.target.value,
+                    categories=category_params,
+                    step_size_pct=base_config.calculation.step_size_pct,
+                    contract=base_config.scope.contract,
+                    periodo=periodo,
+                    raw_csv_path=raw_csv_path,
+                    generated_at=generated_at,
+                )
+            except ValueError as exc:
                 warnings.append(
                     f'sintetico.xlsx: INMS {inms_key}: falha ao gerar aba '
                     f'enriquecida ({exc}) — usando renderer genérico'

@@ -10,4 +10,5 @@ que `categorias_file.categorias[*].inms[inms_key]` assume depois de invertida
 por `_grouping.group_entries_by_inms`."""
 
 _INMS_1_1: Final[str] = '1.1'
+_INMS_1_2: Final[str] = '1.2'
 _INMS_1_14: Final[str] = '1.14'
