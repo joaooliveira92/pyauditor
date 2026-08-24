@@ -188,7 +188,7 @@ def test_missing_equipe_warns_but_does_not_fail(tmp_path: Path) -> None:
     )
 
     assert code.status == 'done'
-    assert any('equipe não encontrada' in w for w in code.warnings)
+    assert any('equipe não encontrada' in str(w) for w in code.warnings)
 
 
 def test_equipe_missing_fields_warn_once_per_run(tmp_path: Path) -> None:
@@ -203,7 +203,7 @@ def test_equipe_missing_fields_warn_once_per_run(tmp_path: Path) -> None:
         '2026-06', config_dir, data_dir, out_dir, equipe_path=equipe_path
     )
 
-    resumo = [w for w in code.warnings if 'sem preencher' in w]
+    resumo = [str(w) for w in code.warnings if 'sem preencher' in str(w)]
     assert len(resumo) == 1  # o resumo agregado é uma vez por execução
     assert 'Fiscal requisitante' in resumo[0]
     assert 'Fiscal técnico' not in resumo[0]  # esse foi preenchido
@@ -240,4 +240,4 @@ def test_equipe_fields_reach_render_rom_and_malformed_degrades(
         encoding='utf-8'
     )
     assert '[a preencher]' in rom_text
-    assert any('falha ao ler' in w for w in code.warnings)
+    assert any('falha ao ler' in str(w) for w in code.warnings)

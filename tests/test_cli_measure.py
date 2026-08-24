@@ -199,7 +199,7 @@ def test_measure_missing_dataset_is_not_activated_not_a_failure(
     assert any(
         'INMS TEST (MinC/2026-06): não ativado — dataset ausente '
         '(serviço não requisitado no período)' in warning
-        for warning in exit_code.warnings
+        for warning in map(str, exit_code.warnings)
     )
 
 
@@ -741,7 +741,7 @@ categorias:
     assert result.status == 'done'
     assert any(
         "['N0'] sem correspondência — valores não encontrados no CSV" in w
-        for w in result.warnings
+        for w in map(str, result.warnings)
     )
 
 
@@ -829,7 +829,7 @@ def test_run_measure_categoria_outros_warns_when_standalone(
     assert any(
         'categoria outros: 1 linha(s) não classificada(s) em nenhuma categoria'
         in w
-        for w in result.warnings
+        for w in map(str, result.warnings)
     )
 
 

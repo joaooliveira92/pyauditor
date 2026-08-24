@@ -161,7 +161,7 @@ def test_run_split_outros_always_written_and_warns_when_nonempty(
     assert any(
         'INMS 1.1 (MinC/2026-06), categoria outros: 1 linha(s) não '
         'classificada(s) em '
-        'nenhuma categoria — revisar categorias.yaml' in w
+        'nenhuma categoria — revisar categorias.yaml' in str(w)
         for w in result.warnings
     )
 
@@ -403,7 +403,7 @@ def test_run_split_janela_vazia_warns_e_segue(tmp_path: Path) -> None:
     )
 
     assert result.status == 'done'  # janela vazia não é falha técnica
-    assert any('nenhuma linha no período' in w for w in result.warnings)
+    assert any('nenhuma linha no período' in str(w) for w in result.warnings)
 
 
 def test_run_split_sem_period_column_e_erro_com_periodo(tmp_path: Path) -> None:
