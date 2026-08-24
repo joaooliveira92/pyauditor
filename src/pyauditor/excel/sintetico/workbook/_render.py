@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from typing import Final
 
 from openpyxl import Workbook
 
@@ -22,6 +23,7 @@ from pyauditor.config.manifest import DatasetManifest
 from pyauditor.config.models import (
     ColumnContains,
     ColumnEquals,
+    IndicatorConfig,
     PrecomputedTableCalculation,
     RatioCalculation,
     SegmentedRatioCalculation,
@@ -35,9 +37,6 @@ from pyauditor.excel.sintetico._sheets.grupo_executor import (
     _write_grupo_executor_sheet,
     _write_whole_indicator_sheet,
 )
-from pyauditor.excel.sintetico._sheets.multi_ativo import (
-    _write_multi_ativo_sheet,
-)
 from pyauditor.excel.sintetico._sheets.nao_ativado import (
     _write_nao_ativado_sheet,
 )
@@ -50,6 +49,9 @@ from pyauditor.excel.sintetico._sheets.precomputed_audit import (
 from pyauditor.excel.sintetico._sheets.ratio_aggregate import (
     _write_ratio_aggregate_sheet,
 )
+from pyauditor.excel.sintetico._sheets.ratio_audit import (
+    _write_ratio_audit_sheet,
+)
 from pyauditor.periodo import PeriodoAfericao
 
 from ._config import load_base_config
@@ -57,9 +59,14 @@ from ._types import (
     _INMS_1_1,
     _INMS_1_2,
     _INMS_1_3,
-    _INMS_1_4,
-    _INMS_1_14,
+    _INMS_1_7,
+    _INMS_1_11,
+    _INMS_1_12,
     InmsEntries,
+)
+
+_RATIO_AUDIT_INMS_KEYS: Final[frozenset[str]] = frozenset(
+    {_INMS_1_7, _INMS_1_11, _INMS_1_12}
 )
 
 
@@ -87,6 +94,28 @@ def _segmented_ratio_category_params(
             )
         )
     return params
+
+
+def _ratio_count_distinct_eligible(
+    inms_key: str, base_config: IndicatorConfig
+) -> bool:
+    """INMS 1.7/1.11/1.12 (`ratio`/`count_distinct` sem coluna "No
+    prazo"/`DataHoraFim` — satisfação, telefonia) usam o renderer
+    enriquecido (`ratio_audit.py`), que conta o critério real
+    (`numerator_filter`/`denominator_filter`, o mesmo predicado de
+    `RatioStrategy._aggregate`) em vez do genérico que assume essas colunas
+    e só produzia traços. Gate por `inms_key` explícito, não só pelo shape
+    — `ratio`/`count_distinct` é o mesmo shape do INMS 1.1 (que tem sua
+    própria aba bespoke) e de fixtures de teste do renderer genérico."""
+    calc = base_config.calculation
+    return (
+        inms_key in _RATIO_AUDIT_INMS_KEYS
+        and isinstance(calc, RatioCalculation)
+        and calc.aggregation == 'count_distinct'
+        and base_config.target is not None
+        and base_config.penalty is not None
+        and bool(base_config.scope.contract)
+    )
 
 
 def render_inms_sheet(
@@ -147,28 +176,6 @@ def render_inms_sheet(
     whole_indicator_entries = [
         (ck, e) for ck, e in entries if isinstance(e, WholeIndicatorMode)
     ]
-
-    if inms_key == _INMS_1_14:
-        calculation = base_config.calculation
-        if not isinstance(calculation, PrecomputedTableCalculation) or (
-            calculation.name_column is None
-        ):
-            warnings.append(
-                f'sintetico.xlsx: INMS {inms_key}: config base não é '
-                "'precomputed_table' com 'name_column' — aba não gerada"
-            )
-            return warnings
-        _write_multi_ativo_sheet(
-            workbook,
-            sheet_name,
-            categorias_file,
-            whole_indicator_entries,
-            calculation.name_column,
-            fieldnames,
-            rows,
-            accepted_ids,
-        )
-        return warnings
 
     grupo_executor_entries = [
         (ck, e) for ck, e in entries if isinstance(e, GrupoExecutorMode)
@@ -322,6 +329,35 @@ def render_inms_sheet(
                     rows,
                     accepted_ids,
                 )
+        elif _ratio_count_distinct_eligible(inms_key, base_config):
+            # Aba enriquecida (identificação, resumo executivo, detalhe
+            # por grupo executor com o critério real do
+            # `numerator_filter`, memória de penalidade) — em vez do
+            # genérico, que assume "No prazo"/`DataHoraFim` (colunas que
+            # fontes como satisfação/telefonia não têm e por isso só
+            # produziam traços).
+            assert base_config.target is not None
+            assert base_config.penalty is not None
+            assert isinstance(base_config.calculation, RatioCalculation)
+            _write_ratio_audit_sheet(
+                workbook,
+                sheet_name,
+                categorias_file,
+                grupo_executor_entries,
+                whole_indicator_entries,
+                base_config.calculation,
+                base_config.target.operator,
+                base_config.target.value,
+                base_config.penalty.base_points,
+                base_config.penalty.step_points,
+                base_config.penalty.step_size_pct,
+                base_config.indicator.name,
+                rows,
+                contract=base_config.scope.contract,
+                periodo=periodo,
+                raw_csv_path=raw_csv_path,
+                generated_at=generated_at,
+            )
         else:
             _write_grupo_executor_sheet(
                 workbook,
@@ -337,15 +373,19 @@ def render_inms_sheet(
         if base_config.target is None:
             raise ValueError('precomputed exige `target` no sintetico')
         if (
-            inms_key == _INMS_1_4
+            base_config.calculation.result_is_percent
             and base_config.calculation.name_column is not None
             and base_config.scope.contract
         ):
-            # Aba enriquecida de disponibilidad por-ativo (identificación,
-            # resultado a 4 decimales, memoria de penalidad) — misma lógica
-            # de degradación que 1.1/1.2/1.3: si el CSV bruto no trae
-            # `name_column` o el contrato está vacío, cae al renderer
-            # precomputed plano.
+            # Aba enriquecida por-ativo (identificação, resumo executivo,
+            # resultado a 4 casas decimais, memória de penalidade) — todo
+            # `precomputed_table` percentual com `name_column` (1.4, 1.5,
+            # 1.9, 1.13, 1.14 hoje) usa este renderer; indicadores em pontos
+            # (`result_is_percent: false`, ex. 1.8) ficam no renderer
+            # precomputed plano, que não assume escala percentual. Mesma
+            # lógica de degradação que 1.1/1.2/1.3: se o CSV bruto não
+            # trouxer `name_column` ou o contrato estiver vazio, cai no
+            # renderer precomputed plano.
             _write_precomputed_audit_sheet(
                 workbook,
                 sheet_name,
@@ -379,6 +419,8 @@ def render_inms_sheet(
     ):
         if base_config.target is None:
             raise ValueError('ratio_aggregate exige `target` no sintetico')
+        if base_config.penalty is None:
+            raise ValueError('ratio_aggregate exige `penalty` no sintetico')
         _write_ratio_aggregate_sheet(
             workbook,
             sheet_name,
@@ -387,7 +429,38 @@ def render_inms_sheet(
             base_config.calculation,
             base_config.target.operator,
             base_config.target.value,
+            base_config.penalty.base_points,
+            base_config.penalty.step_points,
+            base_config.penalty.step_size_pct,
+            base_config.indicator.name,
             rows,
+            contract=base_config.scope.contract,
+            periodo=periodo,
+            raw_csv_path=raw_csv_path,
+            generated_at=generated_at,
+        )
+    elif _ratio_count_distinct_eligible(inms_key, base_config):
+        assert base_config.target is not None
+        assert base_config.penalty is not None
+        assert isinstance(base_config.calculation, RatioCalculation)
+        _write_ratio_audit_sheet(
+            workbook,
+            sheet_name,
+            categorias_file,
+            [],
+            whole_indicator_entries,
+            base_config.calculation,
+            base_config.target.operator,
+            base_config.target.value,
+            base_config.penalty.base_points,
+            base_config.penalty.step_points,
+            base_config.penalty.step_size_pct,
+            base_config.indicator.name,
+            rows,
+            contract=base_config.scope.contract,
+            periodo=periodo,
+            raw_csv_path=raw_csv_path,
+            generated_at=generated_at,
         )
     else:
         _write_whole_indicator_sheet(

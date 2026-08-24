@@ -1,17 +1,27 @@
-"""Renderer enriquecido de abas precomputed por-ativo (INMS 1.4) del
-`sintetico` — reconstruido con el patrón de auditoría de las abas INMS
-1.1/1.2/1.3 (ticket 04 SRP).
+"""Renderer básico das abas pré-computadas por-ativo (INMS 1.4/1.5, NOC/SOC
+crítico e não-crítico; e 1.14, disponibilidade de infraestrutura — mesmo
+shape `precomputed_table` com `name_column`) do `sintetico` — reconstruído
+com o padrão de auditoria das abas INMS 1.1/1.2/1.3 (ticket 04 SRP).
 
-A diferencia del renderer precomputed plano (`precomputed.py`), esta variante
-emite secciones de auditoría que la referencia INMS 1.1 sí tiene:
+INMS 1.14 pertence a duas categorias (`MONITORAMENTO_NOC_SOC` e
+`OPERACAO_N3`) — a mesma tabela de serviços aparece uma vez por categoria
+(produto cartesiano), como as demais abas de fila de atendimento fazem para
+`Grupo_executor`.
 
-- **Sección 1** · Identificación (competencia, contrato, fuente, fechas).
-- **Sección 2** · Tabla por sistema/servicio con el **resultado a 4 decimales**
-  (no 1, que redondeaba 99,451 % → "99,5 %" y lo hacía chocar con la meta),
-  meta, desvío en p.p., faixas de 0,1 % y penalidad.
-- **Sección 3** · Memoria de cálculo de la penalidad por fila.
-- Nota de dominio: NOC/SOC es Nivel único N3 — este indicador no tiene N1 ni
-  N2, así que no se replica la Sección 5 (subtotales por nivel) del INMS 1.1.
+A diferença do renderer pré-computado plano (`precomputed.py`), esta
+variante emite seções de auditoria que a referência INMS 1.1 tem:
+
+- **Seção 1** · Identificação (competência, contrato, fonte, datas).
+- **Seção 2** · Resumo executivo: ativos avaliados, quantos atingiram a
+  meta, penalidade total e situação geral do indicador — o equivalente ao
+  "PONTUAÇÃO TOTAL" da tabela `MONITORAMENTO_NOC_SOC` (docs/spreadsheet.md).
+- **Seção 3** · Tabela por sistema/serviço com o **resultado a 4 casas**
+  (não 1, que arredondava 99,451 % → "99,5 %" e o fazia colidir com a meta),
+  meta, desvio em p.p., faixas de 0,1 % e penalidade.
+- **Seção 4** · Memória de cálculo da penalidade por linha.
+- Nota de domínio: NOC/SOC é nível único N3 — este indicador não admite N1
+  nem N2; por isso não se replica a Seção 5 (subtotais por nível) do
+  INMS 1.1.
 """
 
 from __future__ import annotations
@@ -22,7 +32,7 @@ from pathlib import Path
 from typing import Final
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment
+from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter as cl
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -36,6 +46,7 @@ from pyauditor.excel._inms_audit_common._layout import (
     NOTE_FONT,
     ORANGE_FILL,
     PCT4,
+    TEAL_FILL,
 )
 from pyauditor.excel._inms_audit_common._section_1 import (
     write_section_1_identificacao,
@@ -48,21 +59,23 @@ __all__ = ('_write_precomputed_audit_sheet',)
 
 _SECTION_2_COLUMNS: Final[tuple[str, ...]] = (
     'Categoria',
-    'Sistema / Servicio',
+    'Sistema / Serviço',
     'Resultado',
     'Meta',
-    'Desvío vs Meta',
+    'Desvio vs Meta',
     'Faixas 0,1%',
-    'Penalidad',
+    'Penalidade',
     'Meta atingida?',
 )
 # Índices 1-based dentro de `_SECTION_2_COLUMNS` cuyo contenido es numérico.
 _NUMERIC_COLS: Final[frozenset[int]] = frozenset({3, 4, 5, 6, 7})
 
-# Anexo D (docs/spreadsheet.md): NOC/SOC penaliza cada 0,1 p.p. — el paso no
-# vive en la config precomputed (solo la penalidad final por ativo en
-# `penalty_column`), así que se declara aquí para la memoria de la Sección 3.
+# Anexo D (docs/spreadsheet.md): NOC/SOC penaliza a cada 0,1 p.p. — o passo
+# não vive na config precomputed (só a penalidade final por ativo em
+# `penalty_column`), então se declara aqui para a memória da Seção 3.
 _STEP_PCT: Final[float] = 0.1
+
+_RESUMO_START_ROW: Final[int] = 11
 
 _COLUMN_WIDTHS: Final[dict[int, int]] = {
     1: 28,
@@ -76,6 +89,70 @@ _COLUMN_WIDTHS: Final[dict[int, int]] = {
 }
 
 
+def _count_table_rows(
+    entries: list[tuple[str, WholeIndicatorMode]],
+    calculation: PrecomputedTableCalculation,
+    rows: list[dict[str, str]],
+) -> int:
+    """Conta quantas linhas `_write_table` vai efetivamente escrever — mesmo
+    filtro (valor presente e numérico), usado para dimensionar a Seção 2
+    (resumo executivo) antes de a tabela existir na planilha."""
+    count = 0
+    for _categoria_key, _entry in entries:
+        for data_row in rows:
+            raw_value = data_row.get(calculation.result_column, '')
+            if not raw_value.strip():
+                continue
+            if isnan(parse_decimal(raw_value)):
+                continue
+            count += 1
+    return count
+
+
+def _write_resumo_executivo(
+    sheet: Worksheet, start_row: int, table_start: int, table_end: int
+) -> int:
+    """Seção 2 — resumo executivo: equivalente ao "PONTUAÇÃO TOTAL" da
+    tabela `MONITORAMENTO_NOC_SOC` (docs/spreadsheet.md) — ativos avaliados,
+    quantos atingiram a meta, penalidade total e situação geral do
+    indicador. Formulas referenciam a Seção 3 (tabela por sistema/serviço)
+    diretamente, para se manterem corretas se alguém editar uma linha ali."""
+    section_bar(sheet, start_row, 'SEÇÃO 2 · RESUMO EXECUTIVO')
+    header_row(
+        sheet,
+        start_row + 1,
+        (
+            'Ativos avaliados',
+            'Atingiram a meta',
+            'Não atingiram a meta',
+            'Penalidade total',
+            'Situação geral',
+        ),
+        numeric_cols=frozenset({1, 2, 3, 4}),
+    )
+    kpi_row = start_row + 2
+    h_range = f'H{table_start}:H{table_end}'
+    sheet.cell(row=kpi_row, column=1, value=f'=COUNTA({h_range})')
+    sheet.cell(row=kpi_row, column=2, value=f'=COUNTIF({h_range},"Sim")')
+    sheet.cell(row=kpi_row, column=3, value=f'=COUNTIF({h_range},"Não")')
+    penal_cell = sheet.cell(
+        row=kpi_row, column=4, value=f'=SUM(G{table_start}:G{table_end})'
+    )
+    penal_cell.number_format = '0'
+    sheet.cell(
+        row=kpi_row,
+        column=5,
+        value=f'=IF(C{kpi_row}=0,"Alcançado","Não alcançado")',
+    )
+    for col in range(1, 6):
+        cell = sheet.cell(row=kpi_row, column=col)
+        cell.font = Font(name='Arial', size=12, bold=True)
+        cell.fill = TEAL_FILL
+        cell.alignment = Alignment(horizontal='center')
+    sheet.row_dimensions[kpi_row].height = 24
+    return kpi_row + 2
+
+
 def _write_table(
     sheet: Worksheet,
     start_row: int,
@@ -86,12 +163,12 @@ def _write_table(
     target_value: float,
     rows: list[dict[str, str]],
 ) -> int:
-    """Escribe la tabla por sistema/servicio. Devuelve la primera fila libre.
+    """Escreve a tabela por sistema/serviço. Devolve a primeira linha livre.
 
-    Cada fila guarda `resultado` y `meta` como fracción real (formato PCT4) y
-    las derivadas (desvío, faixas) como fórmulas que referencian la misma
-    fila, para auditoría viva en la planilla."""
-    section_bar(sheet, start_row, 'SEÇÃO 2 · DETALLE POR SISTEMA/SERVICIO')
+    Cada linha guarda `resultado` e `meta` como fração real (formato PCT4) e
+    as derivadas (desvio, faixas) como fórmulas que referenciam a própria
+    linha, para auditoria viva na planilha."""
+    section_bar(sheet, start_row, 'SEÇÃO 3 · DETALHE POR SISTEMA/SERVIÇO')
     header_row(
         sheet, start_row + 1, _SECTION_2_COLUMNS, numeric_cols=_NUMERIC_COLS
     )
@@ -156,13 +233,16 @@ def _write_memoria_penalidad(
     target_operator: str,
     target_value: float,
     rows: list[dict[str, str]],
-    data_start: int,
+    first_data_row: int,
 ) -> None:
-    """Sección 3 — memoria de penalidad por fila (referencia las fórmulas de
-    la Sección 2)."""
-    section_bar(sheet, start_row, 'SEÇÃO 3 · MEMORIA DE LA PENALIDAD')
+    """Seção 4 — memória de penalidade por linha (referencia as fórmulas da
+    Seção 3). `first_data_row` é a primeira linha de dados da Seção 3 (não a
+    primeira linha livre depois dela) — usada tanto no rótulo "(linha N)"
+    quanto nas fórmulas `=E{row_idx}`/`=F{row_idx}` que apontam de volta
+    para a linha correspondente da tabela."""
+    section_bar(sheet, start_row, 'SEÇÃO 4 · MEMÓRIA DA PENALIDADE')
     row = start_row + 1
-    row_idx = data_start
+    row_idx = first_data_row
     for _categoria, _entry in entries:
         for data_row in rows:
             raw_value = data_row.get(calculation.result_column, '')
@@ -188,9 +268,9 @@ def _write_memoria_penalidad(
                 if calculation.name_column
                 else ''
             )
-            label = safe_excel_text(name) if name else f'Activo {row_idx}'
+            label = safe_excel_text(name) if name else f'Ativo {row_idx}'
             head = sheet.cell(
-                row=row, column=1, value=f'{label} (fila {row_idx})'
+                row=row, column=1, value=f'{label} (linha {row_idx})'
             )
             head.font = LABEL_FONT
 
@@ -204,7 +284,7 @@ def _write_memoria_penalidad(
             cell.number_format = PCT4
 
             sheet.cell(
-                row=row + 2, column=1, value='Desvío (p.p.):'
+                row=row + 2, column=1, value='Desvio (p.p.):'
             ).font = BODY_FONT
             cell = sheet.cell(row=row + 2, column=2, value=f'=E{row_idx}*100')
             cell.number_format = '0.0000'
@@ -215,7 +295,7 @@ def _write_memoria_penalidad(
             cell.number_format = '0'
 
             sheet.cell(
-                row=row + 3, column=1, value='Penalidad:'
+                row=row + 3, column=1, value='Penalidade:'
             ).font = BODY_FONT
             cell = sheet.cell(row=row + 3, column=2, value=penalidade)
             cell.number_format = '0'
@@ -233,16 +313,16 @@ def _write_memoria_penalidad(
 def _write_note_nivel(
     sheet: Worksheet, row: int, entries: list[tuple[str, WholeIndicatorMode]]
 ) -> None:
-    niveles = sorted({_NIVEL_BY_CATEGORIA.get(ck, '—') for ck, _e in entries})
-    hoja = '; '.join(niveles)
+    niveis = sorted({_NIVEL_BY_CATEGORIA.get(ck, '—') for ck, _e in entries})
+    niveis_str = '; '.join(niveis)
     sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
     cell = sheet.cell(
         row=row,
         column=1,
         value=(
-            'Categoría NOC/SOC → nivel único '
-            f'{hoja}. Este indicador no admite N1 ni N2; por eso no hay '
-            'subtotales por nivel en esta aba.'
+            f'Categoria(s) desta aba → nível único {niveis_str}. Este '
+            'indicador não admite N1 nem N2; por isso não há subtotais '
+            'por nível nesta aba.'
         ),
     )
     cell.font = NOTE_FONT
@@ -269,10 +349,13 @@ def _write_precomputed_audit_sheet(
     for col, width in _COLUMN_WIDTHS.items():
         sheet.column_dimensions[cl(col)].width = width
 
-    label = categorias.categorias[entries[0][0]].label
+    labels = dict.fromkeys(
+        categorias.categorias[ck].label for ck, _e in entries
+    )
+    label = ' / '.join(labels)
     write_section_1_identificacao(
         sheet,
-        title=f'{safe_excel_text(label)} – Disponibilidad de sistema/servicio',
+        title=f'{safe_excel_text(label)} – Disponibilidade de sistema/serviço',
         rows=rows,
         contract=contract,
         periodo=periodo,
@@ -280,9 +363,26 @@ def _write_precomputed_audit_sheet(
         generated_at=generated_at,
     )
 
-    data_start = _write_table(
+    row_count = _count_table_rows(entries, calculation, rows)
+    # Layout fixo: Seção 2 (resumo) ocupa 4 linhas (bar, cabeçalho, KPI,
+    # espaço) a partir de `_RESUMO_START_ROW`; a tabela da Seção 3 começa
+    # logo em seguida (bar + cabeçalho, 2 linhas) antes da primeira linha de
+    # dados — usado para que o resumo já saiba o range a somar antes de a
+    # tabela existir na planilha.
+    table_section_start = _RESUMO_START_ROW + 4
+    table_data_start = table_section_start + 2
+    table_data_end = table_data_start + max(row_count, 1) - 1
+    _write_resumo_executivo(
         sheet,
-        start_row=11,
+        start_row=_RESUMO_START_ROW,
+        table_start=table_data_start,
+        table_end=table_data_end,
+    )
+
+    table_first_data_row = table_section_start + 2
+    next_free_row = _write_table(
+        sheet,
+        start_row=table_section_start,
         categorias=categorias,
         entries=entries,
         calculation=calculation,
@@ -292,13 +392,13 @@ def _write_precomputed_audit_sheet(
     )
     _write_memoria_penalidad(
         sheet,
-        start_row=data_start + 2,
+        start_row=next_free_row + 2,
         categorias=categorias,
         entries=entries,
         calculation=calculation,
         target_operator=target_operator,
         target_value=target_value,
         rows=rows,
-        data_start=data_start,
+        first_data_row=table_first_data_row,
     )
     _write_note_nivel(sheet, sheet.max_row + 2, entries)

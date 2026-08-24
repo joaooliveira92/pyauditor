@@ -1,9 +1,8 @@
 """Constantes/estilo compartilhados pelos renderers do `sintetico.xlsx` —
 extraídas de `excel/sintetico/workbook.py` (ticket 04 SRP).
 
-Colunas típicas + labels + ordem de categorias do INMS 1.14; os renderers
-por-shape (`_sheets/*.py`) importam daqui e o dispatcher (`workbook.py`)
-fornece os inputs por-INMS.
+Colunas típicas + labels; os renderers por-shape (`_sheets/*.py`) importam
+daqui e o dispatcher (`workbook.py`) fornece os inputs por-INMS.
 
 Os nomes públicos (sem underscore) são a API dos renderers; os aliases `_*`
 mantêm a coincidência com os nomes originais do módulo monolítico.
@@ -22,22 +21,16 @@ from pyauditor.engine.strategies import meets_target
 from pyauditor.excel._style import PENDING_FILL
 
 __all__: Final[tuple[str, ...]] = (
-    'ATIVO_COLUMNS',
-    'ATIVO_SUBTOTAL_COLUMNS',
     'CAPA_SHEET_NAME',
     'COLUMNS',
     'EQUIPE_SHEET_NAME',
-    'INMS_1_14_CATEGORIA_ORDER',
     'LOCALIDADES_SHEET_NAME',
     'NAO_ATIVADO_TEXT',
     'OUTROS_LABEL',
     'SANCOES_SHEET_NAME',
     'SUBTOTAL_COLUMNS',
     'WHOLE_INDICATOR_LABEL',
-    '_ATIVO_COLUMNS',
-    '_ATIVO_SUBTOTAL_COLUMNS',
     '_COLUMNS',
-    '_INMS_1_14_CATEGORIA_ORDER',
     '_NAO_ATIVADO_TEXT',
     '_NIVEL_BY_CATEGORIA',
     '_NIVEL_ORDER',
@@ -78,31 +71,6 @@ SUBTOTAL_COLUMNS: Final[tuple[str, ...]] = (
     'Fora do prazo',
     '% bruto',
     'Tempo médio criação→resolução',
-)
-
-ATIVO_COLUMNS: Final[tuple[str, ...]] = (
-    'Categoria',
-    'Nível',
-    'Ativo',
-    'Linhas',
-    'Dentro do prazo',
-    'Fora do prazo',
-    '% bruto',
-    'Tempo médio criação→resolução',
-)
-ATIVO_SUBTOTAL_COLUMNS: Final[tuple[str, ...]] = (
-    'Categoria',
-    'Linhas',
-    'Dentro do prazo',
-    'Fora do prazo',
-    '% bruto',
-    'Tempo médio criação→resolução',
-)
-# Ordem fixa da spec §14.5: bloco NOC/SOC antes do bloco Operação N3,
-# independente da ordem de declaração em categorias.yaml.
-INMS_1_14_CATEGORIA_ORDER: Final[tuple[str, ...]] = (
-    'MONITORAMENTO_NOC_SOC',
-    'OPERACAO_N3',
 )
 
 
@@ -158,9 +126,6 @@ def wrapped_row_height(
 # Aliases de compatibilidade com os nomes internos do módulo monolítico.
 _COLUMNS = COLUMNS
 _SUBTOTAL_COLUMNS = SUBTOTAL_COLUMNS
-_ATIVO_COLUMNS = ATIVO_COLUMNS
-_ATIVO_SUBTOTAL_COLUMNS = ATIVO_SUBTOTAL_COLUMNS
-_INMS_1_14_CATEGORIA_ORDER = INMS_1_14_CATEGORIA_ORDER
 _OUTROS_LABEL = OUTROS_LABEL
 _WHOLE_INDICATOR_LABEL = WHOLE_INDICATOR_LABEL
 _NAO_ATIVADO_TEXT = NAO_ATIVADO_TEXT

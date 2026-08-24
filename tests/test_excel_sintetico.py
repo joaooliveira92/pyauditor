@@ -427,9 +427,15 @@ def test_whole_indicator_sheet_is_single_row_no_subtotals(
     )
 
 
-def test_inms_1_14_sheet_uses_ativo_column_with_12_rows_in_categoria_blocks(
+def test_inms_1_14_sheet_uses_enriched_precomputed_audit_renderer(
     tmp_path: Path,
 ) -> None:
+    """INMS 1.14 tem o mesmo shape `precomputed_table`/`name_column` que
+    1.4/1.5 (dataset `disponibilidade_infra`, um serviço por linha) — usa o
+    mesmo renderer enriquecido, uma vez por categoria à qual pertence
+    (produto cartesiano: 2 categorias x 6 serviços = 12 linhas), em vez do
+    renderer de fila de atendimento (que não tem `No prazo` neste CSV e só
+    produzia traços)."""
     config_dir, data_dir = _write_fixture(
         tmp_path, include_inms_04_csv=True, include_inms_14=True
     )
@@ -445,26 +451,28 @@ def test_inms_1_14_sheet_uses_ativo_column_with_12_rows_in_categoria_blocks(
     assert 'INMS 1.14' in wb.sheetnames
     sheet = wb['INMS 1.14']
 
-    assert tuple(cell.value for cell in sheet[1]) == (
-        'Categoria',
-        'Nível',
-        'Ativo',
-        'Linhas',
-        'Dentro do prazo',
-        'Fora do prazo',
-        '% bruto',
-        'Tempo médio criação→resolução',
-    )
+    assert 'Disponibilidade de sistema' in sheet['A1'].value
 
-    data_rows = list(sheet.iter_rows(min_row=2, max_row=13))
+    headers = [cell.value for cell in sheet[16]]
+    assert headers[:8] == [
+        'Categoria',
+        'Sistema / Serviço',
+        'Resultado',
+        'Meta',
+        'Desvio vs Meta',
+        'Faixas 0,1%',
+        'Penalidade',
+        'Meta atingida?',
+    ]
+
+    data_rows = list(sheet.iter_rows(min_row=17, max_row=28))
     assert len(data_rows) == 12
 
-    # Bloco NOC/SOC (linhas 2-7) antes do bloco Operação N3 (linhas 8-13).
-    noc_soc_rows = [row[2].value for row in data_rows[:6]]
-    operacao_n3_rows = [row[2].value for row in data_rows[6:]]
+    operacao_n3_rows = [row[1].value for row in data_rows[:6]]
+    noc_soc_rows = [row[1].value for row in data_rows[6:]]
     assert (
-        noc_soc_rows
-        == operacao_n3_rows
+        operacao_n3_rows
+        == noc_soc_rows
         == [
             'File Server',
             'Telefonia',
@@ -475,74 +483,19 @@ def test_inms_1_14_sheet_uses_ativo_column_with_12_rows_in_categoria_blocks(
         ]
     )
 
-    first_row = data_rows[0]
-    assert [cell.value for cell in first_row] == [
-        'Monitoramento de Ambiente (NOC/SOC)',
-        'N3',
-        'File Server',
-        1,
-        '—',
-        '—',
-        '—',
-        '—',
-    ]
-    eighth_row = data_rows[6]
-    assert [cell.value for cell in eighth_row] == [
-        'Operação e Sustentação da Infraestrutura de TI',
-        'N3',
-        'File Server',
-        1,
-        '—',
-        '—',
-        '—',
-        '—',
-    ]
+    # File Server (99,3 %) não atinge a meta (99,5 %) — penalidade do CSV.
+    file_server = [c.value for c in data_rows[0]]
+    assert file_server[0] == 'Operação e Sustentação da Infraestrutura de TI'
+    assert file_server[2] == pytest.approx(0.993)
+    assert file_server[6] == 250
+    assert file_server[7] == 'Não'
 
+    # WI-FI (99,7 %) atinge a meta.
+    wifi = [c.value for c in data_rows[4]]
+    assert wifi[2] == pytest.approx(0.997)
+    assert wifi[7] == 'Sim'
 
-def test_inms_1_14_sheet_has_subtotals_by_categoria_not_nivel(
-    tmp_path: Path,
-) -> None:
-    config_dir, data_dir = _write_fixture(
-        tmp_path, include_inms_04_csv=True, include_inms_14=True
-    )
-    categorias_file = load_categorias(config_dir / 'categorias.yaml')
-    output_path = tmp_path / 'sintetico.xlsx'
-
-    write_sintetico_workbook(categorias_file, config_dir, data_dir, output_path)
-
-    wb = load_workbook(output_path)
-    sheet = wb['INMS 1.14']
-    header_row = next(
-        row[0].row
-        for row in sheet.iter_rows(min_row=1)
-        if row[0].value == 'Subtotais por Categoria'
-    )
-    assert header_row is not None
-    assert tuple(cell.value for cell in sheet[header_row + 1][:6]) == (
-        'Categoria',
-        'Linhas',
-        'Dentro do prazo',
-        'Fora do prazo',
-        '% bruto',
-        'Tempo médio criação→resolução',
-    )
-    subtotal_rows = [
-        [c.value for c in row[:6]]
-        for row in sheet.iter_rows(
-            min_row=header_row + 2, max_row=header_row + 3
-        )
-    ]
-    assert subtotal_rows == [
-        ['Monitoramento de Ambiente (NOC/SOC)', 6, '—', '—', '—', '—'],
-        [
-            'Operação e Sustentação da Infraestrutura de TI',
-            6,
-            '—',
-            '—',
-            '—',
-            '—',
-        ],
-    ]
+    assert sheet['A32'].value.startswith('File Server')
 
 
 def test_nao_ativado_when_raw_csv_missing(tmp_path: Path) -> None:
@@ -700,9 +653,9 @@ categorias:
 def test_inms_1_4_enriched_sheet_reports_4_decimal_result_and_penalty_memory(
     tmp_path: Path,
 ) -> None:
-    """INMS 1.4 ahora usa el renderer enriquecido: identificación, tabla con
-    resultado a 4 decimales (99,451 % — no 99,5 % que chocaba con la meta),
-    y memoria de penalidad por fila."""
+    """INMS 1.4 agora usa o renderer enriquecido: identificação, resumo
+    executivo, tabela com resultado a 4 casas decimais (99,451 % — não
+    99,5 % que batia com a meta), e memória de penalidade por linha."""
     config_dir = tmp_path / 'configs'
     data_dir = tmp_path / 'input' / '2026' / '06'
     config_dir.mkdir(parents=True)
@@ -727,40 +680,50 @@ def test_inms_1_4_enriched_sheet_reports_4_decimal_result_and_penalty_memory(
     wb = load_workbook(output_path)
     sheet = wb['INMS 1.4']
 
-    # Sección 1: identificación (fila 1 = título de la sección de
-    # identificación).
-    assert 'Disponibilidad de sistema' in sheet['A1'].value
+    # Seção 1: identificação (linha 1 = título da seção de identificação).
+    assert 'Disponibilidade de sistema' in sheet['A1'].value
 
-    # Sección 2: cabecera de tabla y filas por sistema/servicio.
-    headers = [cell.value for cell in sheet[12]]
+    # Seção 2: resumo executivo — KPIs calculados via fórmula sobre a
+    # Seção 3 (ativos avaliados nas linhas 17-18: Barramento + Correio).
+    kpi = [c.value for c in sheet[13]]
+    assert kpi[0] == '=COUNTA(H17:H18)'
+    assert kpi[1] == '=COUNTIF(H17:H18,"Sim")'
+    assert kpi[2] == '=COUNTIF(H17:H18,"Não")'
+    assert kpi[3] == '=SUM(G17:G18)'
+    assert kpi[4] == '=IF(C13=0,"Alcançado","Não alcançado")'
+
+    # Seção 3: cabeçalho da tabela e linhas por sistema/serviço.
+    headers = [cell.value for cell in sheet[16]]
     assert headers[0] == 'Categoria'
-    assert headers[1] == 'Sistema / Servicio'
+    assert headers[1] == 'Sistema / Serviço'
     assert headers[7] == 'Meta atingida?'
 
-    # Barramento (99,451 -> fracción 0,99451; NO 99,5%):
-    barramento = [c.value for c in sheet[13]]
+    # Barramento (99,451 -> fração 0,99451; NÃO 99,5%):
+    barramento = [c.value for c in sheet[17]]
     assert barramento[1] == 'Barramento de Integracao'
-    # resultado a 4 decimales, no 0,995
+    # resultado a 4 casas decimais, não 0,995
     assert barramento[2] == pytest.approx(0.99451)
     assert barramento[3] == pytest.approx(0.995)
-    assert barramento[5] == '=IF(E13<=0,0,ROUNDUP(E13*100/0.1,0))'
+    assert barramento[5] == '=IF(E17<=0,0,ROUNDUP(E17*100/0.1,0))'
     assert barramento[6] == 1000
     assert barramento[7] == 'Não'
 
-    correo = [c.value for c in sheet[14]]
-    assert correo[1] == 'Servico de Correio'
-    assert correo[7] == 'Sim'
+    correio = [c.value for c in sheet[18]]
+    assert correio[1] == 'Servico de Correio'
+    assert correio[7] == 'Sim'
 
-    # Sección 3: memoria de penalidad por fila.
-    assert sheet['A18'].value.startswith('Barramento de Integracao')
-    assert sheet['C19'].value == 'Resultado:'
+    # Seção 4: memória de penalidade por linha.
+    assert sheet['A22'].value.startswith('Barramento de Integracao')
+    assert sheet['C23'].value == 'Resultado:'
 
 
-def test_precomputed_table_sheet_plain_kept_for_other_precomputed_inms(
+def test_inms_1_5_enriched_sheet_reports_4_decimal_result_and_penalty_memory(
     tmp_path: Path,
 ) -> None:
-    """El renderer precomputed plano sigue vigente para INMS que no sean 1.4
-    (verificar con 1.5): una fila por ítem, sin secciones de auditoría."""
+    """INMS 1.5 (NOC/SOC não-crítico) tem o mesmo shape `precomputed_table`
+    com `name_column` que o INMS 1.4 — usa o mesmo renderer enriquecido,
+    referência INMS 1.1 (identificação, resumo executivo, resultado a 4
+    casas decimais, memória de penalidade por linha)."""
     config_dir = tmp_path / 'configs'
     data_dir = tmp_path / 'input' / '2026' / '06'
     config_dir.mkdir(parents=True)
@@ -784,6 +747,211 @@ def test_precomputed_table_sheet_plain_kept_for_other_precomputed_inms(
     assert warnings == []
     wb = load_workbook(output_path)
     sheet = wb['INMS 1.5']
+
+    # Seção 1: identificação (linha 1 = título da seção de identificação).
+    assert 'Disponibilidade de sistema' in sheet['A1'].value
+
+    # Seção 2: resumo executivo — KPIs calculados via fórmula sobre a
+    # Seção 3 (ativos avaliados nas linhas 17-18: Barramento + Correio).
+    kpi = [c.value for c in sheet[13]]
+    assert kpi[0] == '=COUNTA(H17:H18)'
+    assert kpi[1] == '=COUNTIF(H17:H18,"Sim")'
+    assert kpi[2] == '=COUNTIF(H17:H18,"Não")'
+    assert kpi[3] == '=SUM(G17:G18)'
+    assert kpi[4] == '=IF(C13=0,"Alcançado","Não alcançado")'
+
+    # Seção 3: cabeçalho da tabela e linhas por sistema/serviço.
+    headers = [cell.value for cell in sheet[16]]
+    assert headers[0] == 'Categoria'
+    assert headers[1] == 'Sistema / Serviço'
+    assert headers[7] == 'Meta atingida?'
+
+    # Barramento (99,451 -> fração 0,99451; meta 99,0% aqui é atingida):
+    barramento = [c.value for c in sheet[17]]
+    assert barramento[1] == 'Barramento de Integracao'
+    assert barramento[2] == pytest.approx(0.99451)
+    assert barramento[3] == pytest.approx(0.99)
+    assert barramento[6] == 1000
+    assert barramento[7] == 'Sim'
+
+    correio = [c.value for c in sheet[18]]
+    assert correio[1] == 'Servico de Correio'
+    assert correio[7] == 'Sim'
+
+    # Seção 4: memória de penalidade por linha.
+    assert sheet['A22'].value.startswith('Barramento de Integracao')
+    assert sheet['C23'].value == 'Resultado:'
+
+
+_INMS_09_PRECOMPUTED_CONFIG = """\
+indicator:
+  id: INMS-09
+  contractual_id: "INMS 1.9"
+  name: Tempo médio de implementação de uma mudança
+
+scope:
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-09.csv
+  delimiter: ";"
+  encoding: utf-8
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: precomputed_table
+  result_column: inms_1_9_percentual
+  name_column: ambiente_nome
+  penalty_column: penalidade_pontos
+
+target:
+  operator: ">="
+  value: 90.0
+"""
+
+_INMS_09_PRECOMPUTED_RAW_CSV = (
+    'ambiente_nome;inms_1_9_percentual;penalidade_pontos\n'
+    'Barramento de Integracao;99,5;1000\n'
+    'Servico de Correio;99,8;0\n'
+)
+
+_CATEGORIAS_YAML_1_9_ONLY = """\
+categorias:
+  MONITORAMENTO_NOC_SOC:
+    label: "Monitoramento de Ambiente (NOC/SOC)"
+    inms:
+      "1.9": {mode: whole_indicator}
+"""
+
+_INMS_08_POINTS_CONFIG = """\
+indicator:
+  id: INMS-08
+  contractual_id: "INMS 1.8"
+  name: Ocorrências de Desconformidade Técnica
+
+scope:
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-08.csv
+  delimiter: ";"
+  encoding: utf-8
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: precomputed_table
+  result_column: inms_1_8_total_pdt
+  result_is_percent: false
+  name_column: servico_nome
+  penalty_column: pontos_acima_meta
+
+target:
+  operator: "<="
+  value: 0.0
+"""
+
+_INMS_08_POINTS_RAW_CSV = (
+    'servico_nome;inms_1_8_total_pdt;pontos_acima_meta\n'
+    'Barramento de Integracao;3;300\n'
+    'Servico de Correio;0;0\n'
+)
+
+_CATEGORIAS_YAML_1_8_ONLY = """\
+categorias:
+  MONITORAMENTO_NOC_SOC:
+    label: "Monitoramento de Ambiente (NOC/SOC)"
+    inms:
+      "1.8": {mode: whole_indicator}
+"""
+
+
+def test_inms_1_9_and_1_13_use_enriched_precomputed_audit_renderer(
+    tmp_path: Path,
+) -> None:
+    """INMS 1.9 e 1.13 têm o mesmo shape `precomputed_table` percentual com
+    `name_column` que 1.4/1.5/1.14 — usam o mesmo renderer enriquecido
+    (identificação, resumo executivo, resultado a 4 casas decimais, memória
+    de penalidade), não o renderer plano de `Item`/`Resultado`."""
+    config_dir = tmp_path / 'configs'
+    data_dir = tmp_path / 'input' / '2026' / '06'
+    config_dir.mkdir(parents=True)
+    data_dir.mkdir(parents=True)
+    (config_dir / 'inms-09.yaml').write_text(
+        _INMS_09_PRECOMPUTED_CONFIG, encoding='utf-8'
+    )
+    (config_dir / 'categorias.yaml').write_text(
+        _CATEGORIAS_YAML_1_9_ONLY, encoding='utf-8'
+    )
+    (data_dir / 'inms-09.csv').write_text(
+        _INMS_09_PRECOMPUTED_RAW_CSV, encoding='utf-8'
+    )
+    categorias_file = load_categorias(config_dir / 'categorias.yaml')
+    output_path = tmp_path / 'sintetico.xlsx'
+
+    warnings = write_sintetico_workbook(
+        categorias_file, config_dir, data_dir, output_path
+    )
+
+    assert warnings == []
+    wb = load_workbook(output_path)
+    sheet = wb['INMS 1.9']
+
+    assert 'Disponibilidade de sistema' in sheet['A1'].value
+    headers = [cell.value for cell in sheet[16]]
+    assert headers[:8] == [
+        'Categoria',
+        'Sistema / Serviço',
+        'Resultado',
+        'Meta',
+        'Desvio vs Meta',
+        'Faixas 0,1%',
+        'Penalidade',
+        'Meta atingida?',
+    ]
+    barramento = [c.value for c in sheet[17]]
+    assert barramento[1] == 'Barramento de Integracao'
+    assert barramento[2] == pytest.approx(0.995)
+    assert barramento[7] == 'Sim'
+
+
+def test_precomputed_table_sheet_plain_kept_for_other_precomputed_inms(
+    tmp_path: Path,
+) -> None:
+    """O renderer precomputed plano segue vigente para INMS pontuais
+    (`result_is_percent: false`, mesmo shape/formato do INMS 1.8 real) —
+    o renderer enriquecido assume escala percentual (fração/PCT4) e
+    quebraria a leitura de um resultado em pontos. Percentuais com
+    `name_column`/`scope.contract` (1.9 incluso) agora usam o renderer
+    enriquecido — ver `test_inms_1_9_and_1_13_use_enriched_precomputed_audit_renderer`."""
+    config_dir = tmp_path / 'configs'
+    data_dir = tmp_path / 'input' / '2026' / '06'
+    config_dir.mkdir(parents=True)
+    data_dir.mkdir(parents=True)
+    (config_dir / 'inms-08.yaml').write_text(
+        _INMS_08_POINTS_CONFIG, encoding='utf-8'
+    )
+    (config_dir / 'categorias.yaml').write_text(
+        _CATEGORIAS_YAML_1_8_ONLY, encoding='utf-8'
+    )
+    (data_dir / 'inms-08.csv').write_text(
+        _INMS_08_POINTS_RAW_CSV, encoding='utf-8'
+    )
+    categorias_file = load_categorias(config_dir / 'categorias.yaml')
+    output_path = tmp_path / 'sintetico.xlsx'
+
+    warnings = write_sintetico_workbook(
+        categorias_file, config_dir, data_dir, output_path
+    )
+
+    assert warnings == []
+    wb = load_workbook(output_path)
+    sheet = wb['INMS 1.8']
     assert tuple(cell.value for cell in sheet[1]) == (
         'Categoria',
         'Nível',
@@ -798,19 +966,242 @@ def test_precomputed_table_sheet_plain_kept_for_other_precomputed_inms(
             'Monitoramento de Ambiente (NOC/SOC)',
             'N3',
             'Barramento de Integracao',
-            '99,5%',
-            'Sim',
-            '1000',
+            '3',
+            '—',
+            '300',
         ],
         [
             'Monitoramento de Ambiente (NOC/SOC)',
             'N3',
             'Servico de Correio',
-            '99,8%',
-            'Sim',
+            '0',
+            '—',
             '0',
         ],
     ]
+
+
+_INMS_07_RATIO_CONFIG = """\
+indicator:
+  id: INMS-07
+  contractual_id: "INMS 1.7"
+  name: Satisfação dos usuários
+
+scope:
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-07.csv
+  delimiter: ";"
+  encoding: utf-8
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: count_distinct
+  numerator_filter:
+    column: "Avaliação"
+    in_values:
+      - "Satisfeito"
+      - "Muito Satisfeito"
+
+target:
+  operator: ">="
+  value: 80.0
+
+penalty:
+  step_points: 250
+  step_size_pct: 1.0
+"""
+
+_INMS_07_RATIO_RAW_CSV = (
+    'Nº Ticket;Avaliação;Grupo_executor\n'
+    '1;Satisfeito;N1\n'
+    '2;Insatisfeito;N1\n'
+    '3;Muito Satisfeito;N2\n'
+    '4;Satisfeito;N2\n'
+)
+
+_CATEGORIAS_YAML_1_7_ONLY = """\
+categorias:
+  ATENDIMENTO_N1:
+    label: "Atendimento Remoto aos Usuários"
+    inms:
+      "1.7": {mode: grupo_executor, in_values: ["N1"]}
+  ATENDIMENTO_N2:
+    label: "Atendimento Presencial aos Usuários"
+    inms:
+      "1.7": {mode: grupo_executor, in_values: ["N2"]}
+"""
+
+
+def test_inms_1_7_ratio_audit_sheet_reports_real_satisfaction_criteria(
+    tmp_path: Path,
+) -> None:
+    """INMS 1.7 é `ratio`/`count_distinct` sem "No prazo"/`DataHoraFim`
+    (pesquisa de satisfação) — o renderer genérico assumia essas colunas e
+    só produzia traços (mesmo bug já corrigido no INMS 1.14). O renderer
+    enriquecido conta o critério real (`numerator_filter` sobre
+    "Avaliação") por grupo executor, com resumo executivo e memória de
+    penalidade no nível do indicador."""
+    config_dir = tmp_path / 'configs'
+    data_dir = tmp_path / 'input' / '2026' / '06'
+    config_dir.mkdir(parents=True)
+    data_dir.mkdir(parents=True)
+    (config_dir / 'inms-07.yaml').write_text(
+        _INMS_07_RATIO_CONFIG, encoding='utf-8'
+    )
+    (config_dir / 'categorias.yaml').write_text(
+        _CATEGORIAS_YAML_1_7_ONLY, encoding='utf-8'
+    )
+    (data_dir / 'inms-07.csv').write_text(
+        _INMS_07_RATIO_RAW_CSV, encoding='utf-8'
+    )
+    categorias_file = load_categorias(config_dir / 'categorias.yaml')
+    output_path = tmp_path / 'sintetico.xlsx'
+
+    warnings = write_sintetico_workbook(
+        categorias_file, config_dir, data_dir, output_path
+    )
+
+    assert warnings == []
+    wb = load_workbook(output_path)
+    sheet = wb['INMS 1.7']
+
+    assert 'Satisfação dos usuários' in sheet['A1'].value
+
+    kpi = [c.value for c in sheet[13]]
+    assert kpi[0] == 4
+    assert kpi[1] == 3
+    assert kpi[2] == pytest.approx(0.75)
+    assert kpi[3] == pytest.approx(0.8)
+    assert kpi[4] == 'Não alcançado'
+
+    headers = [c.value for c in sheet[16]]
+    assert headers[:8] == [
+        'Categoria',
+        'Nível',
+        'Grupo executor',
+        'Linhas avaliadas',
+        'Atenderam critério',
+        'Não atenderam',
+        '% resultado',
+        'Meta atingida?',
+    ]
+
+    rows_by_grupo = {
+        row[2].value: row for row in sheet.iter_rows(min_row=17, max_row=18)
+    }
+    n1 = [c.value for c in rows_by_grupo['N1']]
+    assert n1[3:6] == [2, 1, 1]
+    assert n1[6] == pytest.approx(0.5)
+    assert n1[7] == 'Não'
+    n2 = [c.value for c in rows_by_grupo['N2']]
+    assert n2[3:6] == [2, 2, 0]
+    assert n2[6] == pytest.approx(1.0)
+    assert n2[7] == 'Sim'
+
+    assert (
+        sheet['A20'].value
+        == 'SEÇÃO 4 · MEMÓRIA DA PENALIDADE (CÁLCULO INDICADOR)'
+    )
+    assert sheet['B21'].value == pytest.approx(0.8)
+    assert sheet['B22'].value == pytest.approx(0.75)
+
+
+_INMS_12_RATIO_CONFIG = """\
+indicator:
+  id: INMS-12
+  contractual_id: "INMS 1.12"
+  name: Índice de chamadas telefônicas atendidas em até 20 segundos
+
+scope:
+  contract: "40/2022 - Ministério da Cultura"
+  orgao: MinC
+
+source:
+  csv: inms-12.csv
+  delimiter: ";"
+  encoding: utf-8
+
+quality_gates:
+  checks: []
+
+calculation:
+  shape: ratio
+  aggregation: count_distinct
+  numerator_filter:
+    column: "ESPERA"
+    max_seconds: 20
+
+target:
+  operator: ">="
+  value: 95.0
+
+penalty:
+  step_points: 25
+  step_size_pct: 0.1
+"""
+
+_INMS_12_RATIO_RAW_CSV = (
+    'Chamada;ESPERA\n'
+    '1;0:00:15\n'
+    '2;0:00:45\n'
+    '3;0:00:05\n'
+)
+
+_CATEGORIAS_YAML_1_12_ONLY = """\
+categorias:
+  ATENDIMENTO_N1:
+    label: "Atendimento Remoto aos Usuários"
+    inms:
+      "1.12": {mode: whole_indicator}
+"""
+
+
+def test_inms_1_12_ratio_audit_sheet_handles_whole_indicator_and_duration_filter(
+    tmp_path: Path,
+) -> None:
+    """INMS 1.11/1.12 são `whole_indicator` (sem `Grupo_executor`) com
+    `numerator_filter` do tipo `DurationAtMost` (coluna `ESPERA`) — mesmo
+    renderer enriquecido do INMS 1.7, com uma única linha "(indicador
+    inteiro)" na Seção 3."""
+    config_dir = tmp_path / 'configs'
+    data_dir = tmp_path / 'input' / '2026' / '06'
+    config_dir.mkdir(parents=True)
+    data_dir.mkdir(parents=True)
+    (config_dir / 'inms-12.yaml').write_text(
+        _INMS_12_RATIO_CONFIG, encoding='utf-8'
+    )
+    (config_dir / 'categorias.yaml').write_text(
+        _CATEGORIAS_YAML_1_12_ONLY, encoding='utf-8'
+    )
+    (data_dir / 'inms-12.csv').write_text(
+        _INMS_12_RATIO_RAW_CSV, encoding='utf-8'
+    )
+    categorias_file = load_categorias(config_dir / 'categorias.yaml')
+    output_path = tmp_path / 'sintetico.xlsx'
+
+    warnings = write_sintetico_workbook(
+        categorias_file, config_dir, data_dir, output_path
+    )
+
+    assert warnings == []
+    wb = load_workbook(output_path)
+    sheet = wb['INMS 1.12']
+
+    kpi = [c.value for c in sheet[13]]
+    assert kpi[0] == 3
+    assert kpi[1] == 2
+    assert kpi[2] == pytest.approx(2 / 3)
+    assert kpi[4] == 'Não alcançado'
+
+    detail = [c.value for c in sheet[17]]
+    assert detail[2] == '(indicador inteiro)'
+    assert detail[3:6] == [3, 2, 1]
 
 
 _INMS_06_CONFIG = """\
@@ -889,7 +1280,20 @@ def test_ratio_sum_subtract_sheet_aggregates_one_row_per_group_excluding_totais(
     assert warnings == []
     wb = load_workbook(output_path)
     sheet = wb['INMS 1.6']
-    assert tuple(cell.value for cell in sheet[1]) == (
+
+    assert 'Eficácia no tratamento de chamados' in sheet['A1'].value
+
+    # Resumo executivo: TOTAIS excluída (denominator_filter), indicador
+    # inteiro = (25-1)/25 = 96%, abaixo da meta de 97%.
+    kpi = [c.value for c in sheet[13]]
+    assert kpi[0] == 25
+    assert kpi[1] == 24
+    assert kpi[2] == pytest.approx(0.96)
+    assert kpi[3] == pytest.approx(0.97)
+    assert kpi[4] == 'Não alcançado'
+
+    headers = [cell.value for cell in sheet[16]]
+    assert headers[:7] == [
         'Categoria',
         'Nível',
         'Acordo de Nível de Serviço',
@@ -897,29 +1301,26 @@ def test_ratio_sum_subtract_sheet_aggregates_one_row_per_group_excluding_totais(
         'Total de Chamados Reabertos',
         '% resultado',
         'Meta atingida?',
-    )
-    data_rows = [[c.value for c in row] for row in sheet.iter_rows(min_row=2)]
-    # TOTAIS excluída (denominator_filter); SLA A soma as 2 linhas (20/1).
-    assert data_rows == [
-        [
-            'Operação e Sustentação da Infraestrutura de TI',
-            'N3',
-            'SLA A',
-            20,
-            1,
-            '95,0%',
-            'Não',
-        ],
-        [
-            'Operação e Sustentação da Infraestrutura de TI',
-            'N3',
-            'SLA B',
-            5,
-            0,
-            '100,0%',
-            'Sim',
-        ],
     ]
+    # SLA A soma as 2 linhas (20/1); SLA B fica com sua própria linha.
+    data_rows = [[c.value for c in row] for row in sheet.iter_rows(min_row=17, max_row=18)]
+    sla_a = data_rows[0]
+    assert sla_a[2] == 'SLA A'
+    assert sla_a[3:5] == [20, 1]
+    assert sla_a[5] == pytest.approx(0.95)
+    assert sla_a[6] == 'Não'
+    sla_b = data_rows[1]
+    assert sla_b[2] == 'SLA B'
+    assert sla_b[3:5] == [5, 0]
+    assert sla_b[5] == pytest.approx(1.0)
+    assert sla_b[6] == 'Sim'
+
+    # Memória de penalidade: diff = 97-96 = 1 p.p.; 1/0.5 * 200 = 400.
+    assert (
+        sheet['A20'].value
+        == 'SEÇÃO 4 · MEMÓRIA DA PENALIDADE (CÁLCULO INDICADOR)'
+    )
+    assert sheet['B25'].value == pytest.approx(400.0)
 
 
 _PRAZOS_RAW_CSV = (
