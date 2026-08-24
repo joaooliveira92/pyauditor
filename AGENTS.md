@@ -65,6 +65,18 @@ Full glossary with file links: `docs/internals/glossary.md`
 - Our users drive agents all day and notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations; they peg the GPU on high-refresh displays.
 - If a rule here fights the task in front of you, say so loudly and get a human sign-off before breaking it.
 
+## Quality gates
+
+Before a PR or push, run the local gate so CI rarely surprises you. `scripts/quickcheck.py` mirrors the `quality.yml` gates (ruff + ty + pytest) but only over the `.py` files this branch actually changed, so it stays fast.
+
+- Run `uv run --locked scripts/quickcheck.py` after your last edit: catches ruff formatting/lint on changed files in seconds.
+- Add `--ty` when you changed typing: `uv run --locked scripts/quickcheck.py --ty`.
+- Run `uv run --locked scripts/quickcheck.py --full` before a PR/merge: this is the exact CI pass (ruff + ty over `src`/`tests`, then pytest with the coverage gate), so a green local run predicts a green CI.
+- Treat a `--full` pass as a hard requirement before asking for or merging a PR. A fast default pass is the floor for any change touching Python.
+- `quickcheck.py` is opt-in by design (no git hooks, no format-on-save interference) — it only runs when invoked. Invoke it.
+
+The CI `quality.yml` stays the source of truth; quickcheck exists so you catch blockers locally, first.
+
 ## Additional tips
 
 - Don't verify with browsers or computer use unless the user explicitly agrees or requests it.
