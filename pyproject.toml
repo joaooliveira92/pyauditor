@@ -91,7 +91,7 @@ select = [
     "N",
     "W",
     "G",
-    "S101",
+    "assert",
 ]
 # Cláusulas do pyguide.md: §3.16 naming (N), §3.6 whitespace (W),
 # §3.10.1 logging (G), §2.4 sem assert em produção (S101).
@@ -113,12 +113,12 @@ allowed-confusables = ["–"]
 # RUF069 (preview, ligada pelo `preview = true`): asserts de teste comparam
 # valores decimais exatos e determinísticos (ex. `== 100.0`) — check de
 # invariante, não ponto-flutuante propenso a arredondamento.
-"tests/**/*.py" = ["S101", "ANN", "RUF069"]
+"tests/**/*.py" = ["assert", "ANN", "float-equality-comparison"]
 # Fixture CSV deliberadamente mojibake (UTF-8 lido como Latin-1) para testar
 # tratamento de encoding malformado — os caracteres "ambíguos" (µ de "Ãµ")
 # são o próprio dado sob teste, não podem virar `# noqa` por linha porque
 # estão dentro de uma string multi-linha (o comentário quebraria o CSV).
-"tests/test_cli_report.py" = ["RUF001"]
+"tests/test_cli_report.py" = ["ambiguous-unicode-character-string"]
 
 [tool.ruff.format]
 # pyguide.md §3.10: escolha única de aspas, prefere `'`.

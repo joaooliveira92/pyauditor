@@ -81,7 +81,7 @@ Calculation = Annotated[
     | SegmentedRatioCalculation
     | CountDifferenceCalculation
     | ExternalCatalogSumCalculation,
-    Field(discriminator="shape"),
+    Field(discriminator='shape'),
 ]
 ```
 

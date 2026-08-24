@@ -422,7 +422,9 @@ def _write_dados_contratuais_block(
     for index, (label, value) in enumerate(fields.items()):
         row_fill = SUBSTITUTO_FILL if index % 2 == 1 else None
 
-        field_cell = sheet.cell(row=row, column=_DADOS_CONTRATUAIS_LABEL_COL)
+        field_cell = cast(
+            Cell, sheet.cell(row=row, column=_DADOS_CONTRATUAIS_LABEL_COL)
+        )
         field_cell.value = label
         field_cell.font = BODY_FONT
         field_cell.alignment = LEFT_ALIGN
@@ -430,7 +432,9 @@ def _write_dados_contratuais_block(
         if row_fill is not None:
             field_cell.fill = row_fill
 
-        value_cell = sheet.cell(row=row, column=_DADOS_CONTRATUAIS_VALUE_COL)
+        value_cell = cast(
+            Cell, sheet.cell(row=row, column=_DADOS_CONTRATUAIS_VALUE_COL)
+        )
         value_cell.value = value
         value_cell.font = BODY_FONT
         value_cell.alignment = LEFT_WRAP_ALIGN
