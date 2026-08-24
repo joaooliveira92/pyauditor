@@ -339,6 +339,18 @@ pre {
    padding: 6px
 }
 
+.card-body textarea {
+   flex: none;
+   width: 100%;
+   border: 1px solid var(--line);
+   border-radius: 7px;
+   padding: 9px;
+   background: #0e1520;
+   color: inherit;
+   font: inherit;
+   resize: vertical
+}
+
 .remove {
    border: 0;
    background: transparent;

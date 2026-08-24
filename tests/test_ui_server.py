@@ -58,16 +58,41 @@ target:
 """
 
 
+_CATEGORIAS = """\
+categorias:
+  ATENDIMENTO_N1:
+    label: "Atendimento Remoto"
+    inms:
+      "1.1": {mode: grupo_executor, in_values: ["A"]}
+"""
+
+
 def make_workspace(tmp_path: Path) -> Path:
     shared = tmp_path / 'configs' / '_shared'
     shared.mkdir(parents=True)
     (shared / 'inms-01.yaml').write_text(_SHARED, encoding='utf-8')
+    (shared / 'datasets.yaml').write_text(
+        'datasets:\n  telefonemas:\n    file: inms-11.csv\n',
+        encoding='utf-8',
+    )
     for orgao in ('MinC', 'MTur'):
         org_dir = tmp_path / 'configs' / orgao
         org_dir.mkdir(parents=True)
         (org_dir / 'inms-01.ATENDIMENTO_N1.yaml').write_text(
             _SEGMENT.format(orgao=orgao), encoding='utf-8'
         )
+        (org_dir / 'categorias.yaml').write_text(
+            _CATEGORIAS, encoding='utf-8'
+        )
+    (tmp_path / 'configs' / 'dados_contratuais.yaml').write_text(
+        'Fator-K máximo: "2,35"\n', encoding='utf-8'
+    )
+    (tmp_path / 'configs' / 'ajuste_inms.yaml').write_text(
+        'formula: "A"\ndescricao: "B"\n', encoding='utf-8'
+    )
+    (tmp_path / 'configs' / 'desconto_regulatório.yaml').write_text(
+        'formula: "C"\ndescricao: "D"\n', encoding='utf-8'
+    )
     return tmp_path
 
 
@@ -119,6 +144,68 @@ def test_indicator_put_saves_and_validates(base_url: str) -> None:
 
     reloaded = _get(f'{base_url}/api/indicator?key=INMS-01&orgao=MinC')
     assert reloaded['shared']['config']['target']['value'] == 99.0
+
+
+def test_categoria_get_returns_orgao_doc(base_url: str) -> None:
+    doc = _get(f'{base_url}/api/categoria?orgao=MinC')
+    assert doc['orgao'] == 'MinC'
+    assert doc['config']['categorias']['ATENDIMENTO_N1']['label'] == (
+        'Atendimento Remoto'
+    )
+
+
+def test_categoria_put_saves_and_validates(base_url: str) -> None:
+    doc = _get(f'{base_url}/api/categoria?orgao=MinC')
+    doc['config']['categorias']['ATENDIMENTO_N1']['inms']['1.1'][
+        'in_values'
+    ] = ['B']
+    request = Request(
+        f'{base_url}/api/categoria',
+        data=json.dumps(doc).encode(),
+        headers={'Content-Type': 'application/json'},
+        method='PUT',
+    )
+    with urlopen(request, timeout=5) as response:
+        assert json.loads(response.read()) == {'saved': True}
+
+    reloaded = _get(f'{base_url}/api/categoria?orgao=MinC')
+    assert reloaded['config']['categorias']['ATENDIMENTO_N1']['inms'][
+        '1.1'
+    ]['in_values'] == ['B']
+
+
+def test_datasets_get_and_put_round_trip(base_url: str) -> None:
+    doc = _get(f'{base_url}/api/datasets')
+    assert doc['datasets']['telefonemas']['file'] == 'inms-11.csv'
+    doc['datasets']['telefonemas']['delimiter'] = ','
+    request = Request(
+        f'{base_url}/api/datasets',
+        data=json.dumps(doc).encode(),
+        headers={'Content-Type': 'application/json'},
+        method='PUT',
+    )
+    with urlopen(request, timeout=5) as response:
+        assert json.loads(response.read()) == {'saved': True}
+
+    reloaded = _get(f'{base_url}/api/datasets')
+    assert reloaded['datasets']['telefonemas']['delimiter'] == ','
+
+
+def test_contrato_get_and_put_round_trip(base_url: str) -> None:
+    doc = _get(f'{base_url}/api/contrato')
+    assert doc['ajuste_inms']['config']['formula'] == 'A'
+    doc['ajuste_inms']['config']['formula'] = 'A2'
+    request = Request(
+        f'{base_url}/api/contrato',
+        data=json.dumps(doc).encode(),
+        headers={'Content-Type': 'application/json'},
+        method='PUT',
+    )
+    with urlopen(request, timeout=5) as response:
+        assert json.loads(response.read()) == {'saved': True}
+
+    reloaded = _get(f'{base_url}/api/contrato')
+    assert reloaded['ajuste_inms']['config']['formula'] == 'A2'
 
 
 def test_indicator_put_rejects_invalid_config(base_url: str) -> None:

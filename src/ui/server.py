@@ -18,8 +18,11 @@ from typing import Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
 try:
-    from . import inms
+    from . import categorias_form, contrato_form, datasets_form, inms
 except ImportError:  # python3 server.py — run as a script, not a package
+    import categorias_form  # ty: ignore[unresolved-import]
+    import contrato_form  # ty: ignore[unresolved-import]
+    import datasets_form  # ty: ignore[unresolved-import]
     import inms  # ty: ignore[unresolved-import]
 
 LOG = logging.getLogger("wayfinder")
@@ -142,6 +145,13 @@ class Handler(SimpleHTTPRequestHandler):
                 orgao = params.get("orgao", [""])[0]
                 doc = inms.read_indicator(self.app.workspace, key, orgao)
                 return self._json(doc)
+            if parsed.path == "/api/categoria":
+                orgao = parse_qs(parsed.query).get("orgao", [""])[0]
+                return self._json(categorias_form.read_categoria(self.app.workspace, orgao))
+            if parsed.path == "/api/datasets":
+                return self._json(datasets_form.read_datasets(self.app.workspace))
+            if parsed.path == "/api/contrato":
+                return self._json(contrato_form.read_contrato(self.app.workspace))
             if parsed.path == "/api/file":
                 path = self.app.resolve_file(parse_qs(parsed.query).get("path", [""])[0])
                 raw = path.read_bytes()
@@ -161,6 +171,15 @@ class Handler(SimpleHTTPRequestHandler):
             if path == "/api/indicator":
                 payload = self._payload()
                 inms.save_indicator(self.app.workspace, payload)
+                return self._json({"saved": True})
+            if path == "/api/categoria":
+                categorias_form.save_categoria(self.app.workspace, self._payload())
+                return self._json({"saved": True})
+            if path == "/api/datasets":
+                datasets_form.save_datasets(self.app.workspace, self._payload())
+                return self._json({"saved": True})
+            if path == "/api/contrato":
+                contrato_form.save_contrato(self.app.workspace, self._payload())
                 return self._json({"saved": True})
             if path != "/api/file": return self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             payload = self._payload(); path = self.app.resolve_file(str(payload.get("path", ""))); content = payload.get("content")

@@ -131,13 +131,6 @@ def test_shared_invariants_between_orgaos() -> None:
     )
 
 
-def test_datasets_yaml_is_identical() -> None:
-    minc_ds = (MINC_DIR / 'datasets.yaml').read_text(encoding='utf-8')
-    mtur_ds = (MTUR_DIR / 'datasets.yaml').read_text(encoding='utf-8')
-    msg = 'datasets.yaml deve ser idêntico entre órgãos (cópia byte-a-byte)'
-    assert minc_ds == mtur_ds, msg
-
-
 def test_no_tracked_derived_configs() -> None:
     """Garante que derivados `inms-*.*.yaml` não estão trackeados
     (gitignored)."""
