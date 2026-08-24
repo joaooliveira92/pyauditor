@@ -266,7 +266,10 @@ def test_sheet_names_cover_every_inms_with_categoria_entry(
     assert warnings == []
     wb = load_workbook(output_path)
     assert set(wb.sheetnames) == {
-        'INMS 1.1', 'INMS 1.9', 'INMS 1.4', 'Sansões',
+        'INMS 1.1',
+        'INMS 1.9',
+        'INMS 1.4',
+        'Sansões',
     }
 
 
