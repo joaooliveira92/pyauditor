@@ -26,6 +26,7 @@ from pyauditor.orchestration.state import parse_iso_timestamp
 __all__: Final[tuple[str, ...]] = (
     'CompletionSummaryJson',
     'WarningJson',
+    'WarningTargetJson',
     'summary_json',
 )
 
@@ -80,6 +81,15 @@ class PublicationSummaryJson(TypedDict):
     motivo: str | None
 
 
+class WarningTargetJson(TypedDict):
+    """Structured representation of one `WarningTarget`
+    (`categoria_filter.py`)."""
+
+    family: str
+    orgao: str
+    path: list[str]
+
+
 class WarningJson(TypedDict):
     """Structured representation of one `Warning` (`categoria_filter.py`)."""
 
@@ -89,6 +99,7 @@ class WarningJson(TypedDict):
     competencia: str | None
     inms_key: str | None
     categoria: str | None
+    target: WarningTargetJson | None
 
 
 class CompletionSummaryJson(TypedDict):
@@ -316,6 +327,15 @@ def _all_warnings(run_result: RunResult) -> list[WarningJson]:
         for warning in warnings:
             if not isinstance(warning, Warning):
                 continue
+            target: WarningTargetJson | None = (
+                {
+                    'family': warning.target.family,
+                    'orgao': warning.target.orgao,
+                    'path': list(warning.target.path),
+                }
+                if warning.target is not None
+                else None
+            )
             collected.append(
                 {
                     'code': warning.code,
@@ -324,6 +344,7 @@ def _all_warnings(run_result: RunResult) -> list[WarningJson]:
                     'competencia': warning.competencia,
                     'inms_key': warning.inms_key,
                     'categoria': warning.categoria,
+                    'target': target,
                 }
             )
 

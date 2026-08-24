@@ -24,12 +24,28 @@ __all__: Final[tuple[str, ...]] = (
     'GRUPO_EXECUTOR_COLUMN',
     'RawCsv',
     'Warning',
+    'WarningTarget',
     'base_config_stem',
     'compute_categoria_values',
     'outros_warning',
     'read_raw_csv',
     'unmatched_in_values_warnings',
 )
+
+
+@dataclass(frozen=True)
+class WarningTarget:
+    """Campo exato de configuração que causou um `Warning`.
+
+    ``path`` segue a mesma convenção de array-de-chaves já usada pelo form
+    engine genérico do `app.js` (ex.: ``("config", "categorias",
+    "ATENDIMENTO_N1", "inms", "1.1", "in_values")``), pra que a UI só
+    precise navegar até ele sem reconhecer o `code` do warning.
+    """
+
+    family: str
+    orgao: str
+    path: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -40,7 +56,9 @@ class Warning:
     hoje circula como ``str``); os demais campos dão contexto navegável sem
     exigir que o chamador reanalise a mensagem. ``code`` identifica o tipo de
     aviso de forma estável (``"unstructured"`` para o texto livre dos demais
-    pontos do pipeline que ainda não foram migrados).
+    pontos do pipeline que ainda não foram migrados). ``target`` aponta pro
+    campo exato de configuração que causou o aviso, quando existir um — nem
+    todo `code` tem um alvo editável (ex.: a categoria residual "outros").
     """
 
     code: str
@@ -49,6 +67,7 @@ class Warning:
     competencia: str | None
     inms_key: str | None
     categoria: str | None
+    target: WarningTarget | None = None
 
     def __str__(self) -> str:
         return self.message
@@ -285,6 +304,18 @@ def unmatched_in_values_warnings(
                 competencia=competencia,
                 inms_key=inms_key,
                 categoria=categoria_key,
+                target=WarningTarget(
+                    family='categorias',
+                    orgao=orgao,
+                    path=(
+                        'config',
+                        'categorias',
+                        categoria_key,
+                        'inms',
+                        inms_key,
+                        'in_values',
+                    ),
+                ),
             )
         )
     return warnings

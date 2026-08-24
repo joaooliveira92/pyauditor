@@ -44,6 +44,23 @@ class Job:
     status: str = "running"
     returncode: int | None = None
 
+    def warnings(self) -> list[Any]:
+        """Warnings from the run's JSON summary, or [] if there isn't one.
+
+        The summary is the last non-empty line of output; anything else
+        (a non-``run`` command, a crash before the summary printed, stray
+        trailing output) just means no warnings to show.
+        """
+        for line in reversed(self.output):
+            stripped = line.strip()
+            if not stripped: continue
+            try: summary = json.loads(stripped)
+            except json.JSONDecodeError: return []
+            if not isinstance(summary, dict): return []
+            warnings = summary.get("warnings", [])
+            return warnings if isinstance(warnings, list) else []
+        return []
+
 class App:
     def __init__(self, workspace: Path, pipeline_template: str) -> None:
         self.workspace = workspace.resolve(strict=True)
@@ -82,6 +99,7 @@ class App:
         if command in STRICT_COMMANDS and payload.get("strict"): argv.append("--strict")
         if command in FINAL_MONTH_COMMANDS and payload.get("final_month"): argv.append("--final-month")
         if command == "run":
+            argv += ["--output", "json"]
             if payload.get("force"): argv.append("--force")
             if payload.get("clean"): argv.append("--clean")
         return argv
@@ -161,7 +179,7 @@ class Handler(SimpleHTTPRequestHandler):
                 job_id = parsed.path.rsplit("/", 1)[-1]
                 with self.app.lock: job = self.app.jobs.get(job_id)
                 if job is None: return self._json({"error": "Job not found"}, HTTPStatus.NOT_FOUND)
-                return self._json({"status": job.status, "returncode": job.returncode, "output": "".join(job.output)[-200_000:]})
+                return self._json({"status": job.status, "returncode": job.returncode, "output": "".join(job.output)[-200_000:], "warnings": job.warnings()})
             return super().do_GET()
         except (ValueError, OSError, UnicodeError, json.JSONDecodeError) as exc: self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 

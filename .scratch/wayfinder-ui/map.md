@@ -97,23 +97,19 @@ multi-usuário/hospedado.
 
 ## Not yet specified
 
-- **Formulários para as demais famílias de config** (`categorias.yaml`,
-  `datasets.yaml`, tabelas institucionais) — que campos, que UX, uma vez que o
-  formulário INMS sirva de modelo. Revisitar depois do ticket 01.
-- **Modelo de navegação da sidebar** quando existir mais de uma família de
-  formulário — agrupar por tipo? por órgão? Pode nascer do ticket 01 (que só
-  cobre INMS), mas as demais famílias ficam em aberto até lá.
-- **Deep-linking exato** entre um warning específico e o campo do formulário
-  que o causou — ticket 03 definiu o dado disponível (`Warning{code, orgao,
-  competencia, inms_key, categoria}`, sem path literal, exposto via
-  `summary_json()['warnings']`), mas a mecânica de "clicar no warning, derivar
-  o config_path pela convenção de nomes, e abrir o campo certo do formulário
-  do ticket 01" ainda não foi desenhada — só fica especificável depois que o
-  formulário INMS real (follow-up do ticket 01) e a taxonomia de `code`
-  cobrirem o suficiente pra saber qual campo cada código aponta.
 - **Histórico de execuções passadas** — hoje se perde ao fechar a aba; se isso
   vale a pena persistir (mesmo que só na sessão do processo) ainda não foi
   discutido.
+
+**Graduado pra outros maps:**
+
+- **Formulários para as demais famílias de config** + **modelo de
+  navegação da sidebar** — resolvidos pelo map `config-forms` (formulários
+  de `categorias.yaml`, `datasets.yaml`, bundle "Contrato"; sidebar
+  agrupada por família).
+- **Deep-linking exato** entre um warning e o campo do formulário que o
+  causou — graduou pro map `warning-deep-link`
+  (`.scratch/warning-deep-link/map.md`).
 
 ## Out of scope
 

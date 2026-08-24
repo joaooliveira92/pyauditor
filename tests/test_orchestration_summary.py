@@ -192,6 +192,67 @@ def test_summary_json_matches_exit_code(tmp_path: Path) -> None:
     assert 'caminhos' in payload
 
 
+def test_all_warnings_serializes_target() -> None:
+    from dataclasses import dataclass, field
+
+    from pyauditor.categoria_filter import Warning, WarningTarget
+    from pyauditor.orchestration.summary_json import _all_warnings
+
+    @dataclass
+    class _FakeResult:
+        warnings: tuple[Warning, ...] = field(default_factory=tuple)
+
+    @dataclass
+    class _FakeRunResult:
+        results: tuple[_FakeResult, ...]
+
+    with_target = Warning(
+        code='in_values_unmatched',
+        message='...',
+        orgao='MinC',
+        competencia='2026-06',
+        inms_key='1.1',
+        categoria='ATENDIMENTO_N1',
+        target=WarningTarget(
+            family='categorias',
+            orgao='MinC',
+            path=(
+                'config',
+                'categorias',
+                'ATENDIMENTO_N1',
+                'inms',
+                '1.1',
+                'in_values',
+            ),
+        ),
+    )
+    without_target = Warning(
+        code='outros_leftover',
+        message='...',
+        orgao='MTur',
+        competencia='2026-07',
+        inms_key='1.1',
+        categoria='outros',
+    )
+
+    result = _FakeResult(warnings=(with_target, without_target))
+    payload = _all_warnings(_FakeRunResult(results=(result,)))
+
+    assert payload[0]['target'] == {
+        'family': 'categorias',
+        'orgao': 'MinC',
+        'path': [
+            'config',
+            'categorias',
+            'ATENDIMENTO_N1',
+            'inms',
+            '1.1',
+            'in_values',
+        ],
+    }
+    assert payload[1]['target'] is None
+
+
 def test_exit_code_for_run_precedence() -> None:
     from pyauditor.cli.consolidate import ConsolidateResult
     from pyauditor.cli.report import ReportResult

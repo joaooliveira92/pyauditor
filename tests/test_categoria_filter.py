@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pyauditor.categoria_filter import (
     Warning,
+    WarningTarget,
     outros_warning,
     unmatched_in_values_warnings,
 )
@@ -52,6 +53,18 @@ def test_unmatched_in_values_warnings_fully_unmatched() -> None:
     assert warning.categoria == 'ATENDIMENTO_N1'
     assert 'possível typo/renomeação, categoria ficará sem linhas' in str(
         warning
+    )
+    assert warning.target == WarningTarget(
+        family='categorias',
+        orgao='MinC',
+        path=(
+            'config',
+            'categorias',
+            'ATENDIMENTO_N1',
+            'inms',
+            '1.1',
+            'in_values',
+        ),
     )
 
 
@@ -123,6 +136,7 @@ def test_outros_warning() -> None:
     assert warning.competencia == '2026-07'
     assert warning.inms_key == '1.1'
     assert warning.categoria == 'outros'
+    assert warning.target is None
     assert str(warning) == (
         'INMS 1.1 (MTur/2026-07), categoria outros: 3 linha(s) não '
         'classificada(s) em nenhuma categoria — revisar categorias.yaml'

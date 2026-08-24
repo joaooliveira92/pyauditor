@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import sys
 import threading
+import time
 from collections.abc import Iterator
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -220,3 +222,88 @@ def test_indicator_put_rejects_invalid_config(base_url: str) -> None:
     with pytest.raises(HTTPError) as excinfo:
         urlopen(request, timeout=5)
     assert excinfo.value.code == 400
+
+
+def _run_pipeline_server(
+    tmp_path: Path, pipeline_template: str
+) -> Iterator[str]:
+    Handler.app = App(make_workspace(tmp_path), pipeline_template)
+    Handler.web_root = Path(__file__).resolve().parent.parent / 'src' / 'ui'
+    server_obj = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    port = server_obj.server_address[1]
+    thread = threading.Thread(
+        target=server_obj.serve_forever, daemon=True
+    )
+    thread.start()
+    yield f'http://127.0.0.1:{port}'
+    server_obj.shutdown()
+    thread.join()
+
+
+def _post_and_wait(base_url: str, payload: dict) -> dict:
+    request = Request(
+        f'{base_url}/api/pipeline',
+        data=json.dumps(payload).encode(),
+        headers={'Content-Type': 'application/json'},
+        method='POST',
+    )
+    with urlopen(request, timeout=5) as response:
+        job_id = json.loads(response.read())['job_id']
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        status = _get(f'{base_url}/api/pipeline/{job_id}')
+        if status['status'] != 'running':
+            return status
+        time.sleep(0.05)
+    raise TimeoutError('pipeline job did not finish in time')
+
+
+def test_pipeline_run_exposes_warnings_from_json_summary(
+    tmp_path: Path,
+) -> None:
+    fake_pipeline = tmp_path / 'fake_pipeline.py'
+    fake_pipeline.write_text(
+        'import json, sys\n'
+        'print("some progress log line", file=sys.stderr)\n'
+        'print(json.dumps({"warnings": [{"code": "in_values_unmatched"}]}))\n',
+        encoding='utf-8',
+    )
+    template = f'{sys.executable} {fake_pipeline}'
+    gen = _run_pipeline_server(tmp_path, template)
+    base_url = next(gen)
+    try:
+        status = _post_and_wait(
+            base_url,
+            {
+                'command': 'run',
+                'competence': '2026-01',
+                'agency': 'MinC',
+            },
+        )
+        assert status['status'] == 'succeeded'
+        assert status['warnings'] == [{'code': 'in_values_unmatched'}]
+    finally:
+        next(gen, None)
+
+
+def test_pipeline_non_run_command_has_no_warnings(
+    tmp_path: Path,
+) -> None:
+    fake_pipeline = tmp_path / 'fake_pipeline.py'
+    fake_pipeline.write_text(
+        'print("bootstrap done, no json summary here")\n',
+        encoding='utf-8',
+    )
+    template = f'{sys.executable} {fake_pipeline}'
+    gen = _run_pipeline_server(tmp_path, template)
+    base_url = next(gen)
+    try:
+        status = _post_and_wait(
+            base_url,
+            {'command': 'bootstrap', 'agency': 'MinC'},
+        )
+        assert status['status'] == 'succeeded'
+        assert status['warnings'] == []
+    finally:
+        next(gen, None)
