@@ -12,7 +12,6 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 
 from pyauditor.categoria_filter import (
@@ -34,14 +33,12 @@ from pyauditor.config.categorias import GrupoExecutorMode
 from pyauditor.config.manifest import DatasetManifest
 from pyauditor.config.models import IndicatorConfig
 from pyauditor.engine.pipeline import (
-    MeasurementProvenance,
     MeasurementResult,
+    calculate_on_rows,
     measure,
     measurement_source,
 )
 from pyauditor.engine.quality_gates import QualityGateRunner
-from pyauditor.engine.strategies import SHAPE_REGISTRY
-from pyauditor.engine.version import pipeline_version
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import PeriodoAfericao
 from pyauditor.rom.render import render_rom
@@ -216,10 +213,6 @@ class MeasureLoop:
         raw_csv_path = bundle.csv_path
         fieldnames = bundle.fieldnames
         rows = bundle.rows
-        delimiter = bundle.delimiter
-        encoding = bundle.encoding
-        dropped_out_of_period = bundle.dropped_out_of_period
-        undated_dropped = bundle.undated_dropped
         self._warn_anomalias(
             ragged_rows=bundle.ragged_rows,
             unparseable_numerics=bundle.unparseable_numerics,
@@ -285,36 +278,18 @@ class MeasureLoop:
                     id_column=derived_config.source.id_column,
                 )
                 gate_report = gate_runner.run(filtered_rows)
-                strategy = SHAPE_REGISTRY[derived_config.calculation.shape]
-                calculation = strategy.calculate(
-                    derived_config, gate_report.accepted
-                )
-                csv_hash = hashlib.sha256(raw_csv_path.read_bytes()).hexdigest()
                 derived_hash = hashlib.sha256(
                     json.dumps(
                         derived_config.model_dump(mode='json'),
                         sort_keys=True,
                     ).encode()
                 ).hexdigest()
-                provenance = MeasurementProvenance(
+                result = calculate_on_rows(
+                    derived_config,
+                    bundle,
+                    gate_report=gate_report,
                     config_path=config_path,
                     config_hash=derived_hash,
-                    csv_path=raw_csv_path,
-                    csv_hash=csv_hash,
-                    delimiter=delimiter,
-                    encoding=encoding,
-                    processed_at=datetime.now(),
-                    pipeline_version=pipeline_version(),
-                )
-                result = MeasurementResult(
-                    config=derived_config,
-                    quality_gate_report=gate_report,
-                    calculation=calculation,
-                    provenance=provenance,
-                    dropped_out_of_period=dropped_out_of_period,
-                    undated_dropped=undated_dropped,
-                    ragged_rows=bundle.ragged_rows,
-                    unparseable_numerics=bundle.unparseable_numerics,
                 )
             except Exception as exc:
                 message = ''.join(

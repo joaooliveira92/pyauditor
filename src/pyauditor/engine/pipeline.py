@@ -42,6 +42,7 @@ __all__ = (
     'MeasurementProvenance',
     'MeasurementResult',
     'SourceBundle',
+    'calculate_on_rows',
     'discover_config_files',
     'discover_configs',
     'inject_orgao',
@@ -400,7 +401,7 @@ def measure(
     descarte para o mesmo dataset bruto na mesma passada de `run` passa
     `False` para não emitir de novo.
 
-    Thin orchestrator (ticket 02) over `measurement_source()`: calcula e monta
+    Thin orchestrator (ticket 02) over `measurement_source()` + `calculate_on_rows()`:
     a proveniência; a resolução/leitura/filtro/gates vivem só no backbone."""
     bundle = measurement_source(
         config,
@@ -412,11 +413,38 @@ def measure(
         emit_period_filter_logs=emit_period_filter_logs,
     )
 
-    strategy = SHAPE_REGISTRY[config.calculation.shape]
-    calculation = strategy.calculate(config, bundle.gate_report.accepted)
-
     if config_hash is None and config_path is not None:
         config_hash = hashlib.sha256(config_path.read_bytes()).hexdigest()
+    return calculate_on_rows(
+        config,
+        bundle,
+        gate_report=bundle.gate_report,
+        config_path=config_path,
+        config_hash=config_hash,
+    )
+
+
+def calculate_on_rows(
+    config: IndicatorConfig,
+    bundle: SourceBundle,
+    *,
+    gate_report: QualityGateReport,
+    config_path: Path | None = None,
+    config_hash: str | None = None,
+) -> MeasurementResult:
+    """Segundo núcleo do backbone (ticket 02): re-monta a `MeasurementResult`
+    a partir de un `gate_report` xa corrido sobre un subconxunto de filas de
+    *bundle*. `measure` reusa `bundle.gate_report` (o gate do backbone, sobre
+    o total); o loop por categorías pasa o `gate_report` do seu subconxunto
+    filtrado. Aquí vive o que os dous caminos duplicaban: selección de
+    `SHAPE_REGISTRY`, `calculate`, `csv_hash`, `MeasurementProvenance` e o
+    propio `MeasurementResult`.
+
+    *config_path*/*config_hash* viaxan tal como o chamador os resolveu — para
+    un config derivado/sintético o chamador calcula o hash do modelo JSON; no
+    camiño de produción `measure` resolve o hash do ficheiro."""
+    strategy = SHAPE_REGISTRY[config.calculation.shape]
+    calculation = strategy.calculate(config, gate_report.accepted)
     provenance = MeasurementProvenance(
         config_path=config_path,
         config_hash=config_hash,
@@ -427,10 +455,9 @@ def measure(
         processed_at=datetime.now(),
         pipeline_version=pipeline_version(),
     )
-
     return MeasurementResult(
         config=config,
-        quality_gate_report=bundle.gate_report,
+        quality_gate_report=gate_report,
         calculation=calculation,
         provenance=provenance,
         dropped_out_of_period=bundle.dropped_out_of_period,

@@ -17,6 +17,10 @@ from pyauditor.engine.strategies.base import (
     CalculationResult,
     narrow_calculation,
 )
+from pyauditor.engine.strategies._memoria import (
+    CatalogOccurrence,
+    ExternalCatalogSumMemoria,
+)
 
 
 class ExternalCatalogSumStrategy:
@@ -26,7 +30,7 @@ class ExternalCatalogSumStrategy:
         calculation = narrow_calculation(config, ExternalCatalogSumCalculation)
         catalog = load_anexo_e_catalog()
 
-        occurrences: list[dict[str, object]] = []
+        occurrences: list[CatalogOccurrence] = []
         total_points = 0
 
         for row in rows:
@@ -42,14 +46,12 @@ class ExternalCatalogSumStrategy:
 
             best = max(matched, key=lambda item: item.pontos)
             occurrences.append(
-                {
-                    'occurrence_id': row.get(
-                        calculation.occurrence_id_column, ''
-                    ),
-                    'catalog_id': best.id,
-                    'descricao': best.descricao,
-                    'pontos': best.pontos,
-                }
+                CatalogOccurrence(
+                    occurrence_id=row.get(calculation.occurrence_id_column, ''),
+                    catalog_id=best.id,
+                    descricao=best.descricao,
+                    pontos=best.pontos,
+                )
             )
             total_points += best.pontos
 
@@ -57,7 +59,9 @@ class ExternalCatalogSumStrategy:
             result_pct=0.0,  # no percentage meta for this shape
             conforms=total_points == 0,
             penalty_points=float(total_points),
-            memoria={'occurrences': occurrences, 'total_points': total_points},
+            memoria=ExternalCatalogSumMemoria(
+                occurrences=occurrences, total_points=total_points
+            ),
         )
 
     def pool_numerator_denominator(

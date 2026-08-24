@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from pyauditor.config.models import Calculation, IndicatorConfig
+from pyauditor.engine.strategies._memoria import ShapeMemoria
 
 
 @dataclass(frozen=True)
@@ -11,7 +12,7 @@ class CalculationResult:
     result_pct: float
     conforms: bool
     penalty_points: float
-    memoria: dict[str, object]  # shape-specific values the ROM renderer needs
+    memoria: ShapeMemoria  # tagged per shape — see engine/strategies/_memoria.py
 
 
 class CalculationStrategy(Protocol):

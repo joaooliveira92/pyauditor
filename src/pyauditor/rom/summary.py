@@ -4,9 +4,10 @@ shape — o homólogo estruturado do Markdown do ROM, consumido por `report`
 """
 
 from dataclasses import asdict, dataclass, fields
+from typing import cast
 
 from pyauditor.engine.pipeline import MeasurementResult
-from pyauditor.engine.strategies import SHAPE_REGISTRY
+from pyauditor.engine.strategies import SHAPE_REGISTRY, ShapeMemoria
 
 _STR_FIELDS: tuple[str, ...] = (
     'indicator_id',
@@ -161,13 +162,14 @@ def summarize(result: MeasurementResult) -> IndicatorSummary:
 
 
 def _pooled_numerator_denominator(
-    shape: str, memoria: dict[str, object]
+    shape: str, memoria: ShapeMemoria
 ) -> tuple[float | None, float | None]:
     """Delega para a própria strategy do shape (`SHAPE_REGISTRY`, o mesmo
-    registry em que `engine.pipeline.measure` despacha) em vez de um segundo
+    registry em que `engine.pipeline.measure` despacha) em vez de un segundo
     dispatch por shape mantido à parte — um único lugar para atualizar quando
-    um shape é adicionado, não dois."""
+    um shape é adicionado, não dos."""
+
     strategy = SHAPE_REGISTRY.get(shape)
     if strategy is None:
         return None, None
-    return strategy.pool_numerator_denominator(memoria)
+    return strategy.pool_numerator_denominator(cast(dict[str, object], memoria))

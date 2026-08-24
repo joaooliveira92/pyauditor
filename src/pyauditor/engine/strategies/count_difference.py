@@ -17,6 +17,7 @@ from pyauditor.engine.strategies.base import (
     CalculationResult,
     narrow_calculation,
 )
+from pyauditor.engine.strategies._memoria import CountDifferenceMemoria
 
 
 class CountDifferenceStrategy:
@@ -42,7 +43,9 @@ class CountDifferenceStrategy:
             result_pct=result_pct,
             conforms=conforms,
             penalty_points=penalty_points,
-            memoria={'QRC': qrc, 'QCSI': qcsi, 'CNI': cni},
+            memoria=CountDifferenceMemoria(
+                QRC=qrc, QCSI=qcsi, CNI=cni
+            ),
         )
 
     def pool_numerator_denominator(

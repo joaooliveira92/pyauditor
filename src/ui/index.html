@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Wayfinder</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div><strong>Wayfinder</strong><span id="workspace" class="muted"></span></div>
+    <div class="actions">
+      <span id="dirty" class="badge hidden">Unsaved</span>
+      <button id="reload" type="button">Reload files</button>
+      <button id="save" type="button" class="primary" disabled>Save</button>
+    </div>
+  </header>
+  <main class="layout">
+    <aside class="sidebar" aria-label="Workspace files">
+      <div class="sidebar-title">YAML and CSS files</div>
+      <input id="filter" type="search" placeholder="Filter files..." autocomplete="off">
+      <nav id="files" class="file-list"></nav>
+    </aside>
+    <section class="editor-pane">
+      <div id="empty" class="empty">Choose a YAML or CSS file from the sidebar.</div>
+      <div id="editor-wrap" class="editor-wrap hidden">
+        <div class="file-header"><code id="current-file"></code><span id="status" class="muted"></span></div>
+        <textarea id="editor" spellcheck="false" aria-label="File editor"></textarea>
+      </div>
+    </section>
+    <aside class="pipeline">
+      <h2>Pipeline</h2>
+      <label>Competence<input id="competence" type="month" required></label>
+      <label>Agency<select id="agency"><option>both</option><option>MinC</option><option>MTur</option></select></label>
+      <label class="check"><input id="force" type="checkbox"> Force</label>
+      <label class="check"><input id="clean" type="checkbox"> Clean outputs first</label>
+      <button id="run" class="primary" type="button">Run pipeline</button>
+      <button id="stop" class="danger hidden" type="button">Stop</button>
+      <pre id="output" aria-live="polite">Ready.</pre>
+    </aside>
+  </main>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js" defer></script>
+</body>
+</html>

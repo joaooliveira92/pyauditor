@@ -8,6 +8,17 @@ underscore-prefixed submodules directly (ticket 03); import these instead of
 """
 
 from pyauditor.engine.strategies._filters import filter_rows
+from pyauditor.engine.strategies._memoria import (
+    CatalogOccurrence,
+    CountDifferenceMemoria,
+    ExternalCatalogSumMemoria,
+    PrecomputedCategory,
+    PrecomputedTableMemoria,
+    RatioMemoria,
+    SegmentedCategory,
+    SegmentedRatioMemoria,
+    ShapeMemoria,
+)
 from pyauditor.engine.strategies._numbers import as_float, parse_decimal
 from pyauditor.engine.strategies._registry import SHAPE_REGISTRY
 from pyauditor.engine.strategies._target import (
@@ -23,6 +34,15 @@ from pyauditor.engine.strategies.penalty import (
 __all__ = (
     'SHAPE_REGISTRY',
     'PenaltyReadings',
+    'CatalogOccurrence',
+    'CountDifferenceMemoria',
+    'ExternalCatalogSumMemoria',
+    'PrecomputedCategory',
+    'PrecomputedTableMemoria',
+    'RatioMemoria',
+    'SegmentedCategory',
+    'SegmentedRatioMemoria',
+    'ShapeMemoria',
     'as_float',
     'filter_rows',
     'meets_target',

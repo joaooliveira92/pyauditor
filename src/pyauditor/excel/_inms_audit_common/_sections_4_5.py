@@ -192,6 +192,19 @@ def write_section_4_detalhamento(
         # de justificativa/documento/observação (colunas J/K/L) sem cortar
         # visualmente o conteúdo até o usuário redimensionar manualmente.
         sheet.row_dimensions[r].height = 30
+    if not grupo_rows:
+        # Nenhum grupo executor no período (CSV bruto vazio ou nenhum valor
+        # de `Grupo_executor` casou com `categorias.yaml`) — sem linhas não
+        # há intervalo válido para tabela/formatação condicional (ex.
+        # `I2:I1`, que o openpyxl rejeita); registra só a nota, como a
+        # Seção 6 faz para "nenhum incidente/projeto fora do prazo".
+        empty_note_row = first_group_row
+        sheet.merge_cells(f'A{empty_note_row}:L{empty_note_row}')
+        sheet[f'A{empty_note_row}'] = (
+            'Nenhum grupo executor com ocorrências no período.'
+        )
+        sheet[f'A{empty_note_row}'].font = NOTE_FONT
+        return empty_note_row + 2
     if has_toggle_target:
         sheet.add_data_validation(toggle_validation)
     last_group_row = first_group_row + len(grupo_rows) - 1

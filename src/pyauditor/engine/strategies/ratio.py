@@ -18,6 +18,7 @@ from pyauditor.engine.strategies.base import (
     CalculationResult,
     narrow_calculation,
 )
+from pyauditor.engine.strategies._memoria import RatioMemoria
 
 
 def _sum_column(rows: list[dict[str, str]], column: str) -> float:
@@ -71,7 +72,9 @@ class RatioStrategy:
             result_pct=result_pct,
             conforms=conforms,
             penalty_points=penalty_points,
-            memoria={'numerator': numerator, 'denominator': denominator},
+            memoria=RatioMemoria(
+                numerator=numerator, denominator=denominator
+            ),
         )
 
     def pool_numerator_denominator(
