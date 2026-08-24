@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+
 from pyauditor.config.models import (
     CountDifferenceAcceptanceExpected,
     ExternalCatalogSumAcceptanceExpected,
@@ -70,9 +71,7 @@ def test_acceptance_test_matches_real_data(config: IndicatorConfig) -> None:
 
     if isinstance(expected, RatioAcceptanceExpected):
         memoria = cast(RatioMemoria, calc.memoria)
-        assert memoria.get('numerator') == pytest.approx(
-            expected.numerator
-        ), (
+        assert memoria.get('numerator') == pytest.approx(expected.numerator), (
             f'{label}: numerator — expected {expected.numerator}, '
             f'got {memoria.get("numerator")}'
         )
@@ -120,16 +119,14 @@ def test_acceptance_test_matches_real_data(config: IndicatorConfig) -> None:
     elif isinstance(expected, CountDifferenceAcceptanceExpected):
         memoria = cast(CountDifferenceMemoria, calc.memoria)
         assert memoria.get('QRC') == expected.qrc, (
-            f'{label}: QRC — expected {expected.qrc}, got'
-            f'{memoria.get("QRC")}'
+            f'{label}: QRC — expected {expected.qrc}, got{memoria.get("QRC")}'
         )
         assert memoria.get('QCSI') == expected.qcsi, (
             f'{label}: QCSI — expected {expected.qcsi}, got'
             f'{memoria.get("QCSI")}'
         )
         assert memoria.get('CNI') == expected.cni, (
-            f'{label}: CNI — expected {expected.cni}, got'
-            f'{memoria.get("CNI")}'
+            f'{label}: CNI — expected {expected.cni}, got{memoria.get("CNI")}'
         )
 
     elif isinstance(expected, ExternalCatalogSumAcceptanceExpected):

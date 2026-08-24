@@ -113,9 +113,7 @@ def write_section_3_memoria(sheet: Worksheet) -> int:
     label_value(
         sheet, 17, 'PAP (projetos abertos no período):', '=B13', fmt='0'
     )
-    label_value(
-        sheet, 18, 'PDP (projetos dentro do prazo):', '=C13', fmt='0'
-    )
+    label_value(sheet, 18, 'PDP (projetos dentro do prazo):', '=C13', fmt='0')
     sheet.merge_cells('A19:C19')
     sheet['A19'] = 'INMS 1.3 = PDP ÷ PAP'
     sheet['A19'].font = NOTE_FONT
@@ -158,9 +156,7 @@ def write_section_3_memoria(sheet: Worksheet) -> int:
     # Narrativa condicional ao sinal da margem (B25 = PDP - mínimo): "abaixo"
     # só quando a margem é negativa — antes disso o texto sempre dizia
     # "abaixo do mínimo" mesmo com meta superada (ABS(B25) escondia o sinal).
-    abaixo = _narrativa(
-        '",ABS(B25)," projeto(s) abaixo do mínimo necessário."'
-    )
+    abaixo = _narrativa('",ABS(B25)," projeto(s) abaixo do mínimo necessário."')
     exato = _narrativa('exatamente no mínimo necessário."')
     acima = _narrativa('",B25," projeto(s) acima do mínimo necessário."')
     sheet['A26'] = (

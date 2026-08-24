@@ -103,9 +103,7 @@ def _write_fixture(tmp_path: Path) -> tuple[Path, Path]:
     config_dir.mkdir(parents=True)
     data_dir.mkdir(parents=True)
 
-    (config_dir / 'inms-02.yaml').write_text(
-        _INMS_02_CONFIG, encoding='utf-8'
-    )
+    (config_dir / 'inms-02.yaml').write_text(_INMS_02_CONFIG, encoding='utf-8')
     (config_dir / 'categorias.yaml').write_text(
         _CATEGORIAS_YAML, encoding='utf-8'
     )
@@ -133,8 +131,7 @@ def test_enriched_sheet_is_used_when_raw_csv_has_detail_columns(
     sheet = wb['INMS 1.2']
 
     assert (
-        sheet['A1'].value
-        == 'INMS 1.2 – Requisições atendidas dentro do prazo'
+        sheet['A1'].value == 'INMS 1.2 – Requisições atendidas dentro do prazo'
     )
 
     section_bars = {
@@ -288,8 +285,7 @@ def test_section_9_penalty_has_no_base_points_and_sums_three_categories(
         cell.value: cell.row
         for row in sheet.iter_rows(min_col=1, max_col=1)
         for cell in row
-        if isinstance(cell.value, str)
-        and cell.value.startswith('Penalidade —')
+        if isinstance(cell.value, str) and cell.value.startswith('Penalidade —')
     }
     assert len(penalty_rows) == 3
     alta_label = next(k for k in penalty_rows if 'Alta' in k)

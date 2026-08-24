@@ -45,9 +45,7 @@ def test_save_contrato_round_trips(tmp_path: Path) -> None:
     save_contrato(workspace, doc)
 
     reloaded = read_contrato(workspace)
-    assert reloaded['dados_contratuais']['config']['Fator-K máximo'] == (
-        '3,00'
-    )
+    assert reloaded['dados_contratuais']['config']['Fator-K máximo'] == ('3,00')
     assert reloaded['ajuste_inms']['config']['formula'] == 'A2'
     assert reloaded['desconto_regulatorio']['config']['formula'] == 'C'
 

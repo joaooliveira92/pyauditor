@@ -366,10 +366,7 @@ def _org_body(
 
     sections.append(_render_resultado_vs_meta(config, calculation, h))
     sections.append(_render_responsaveis(capa_fields, h))
-    sections.append(
-        '---\n'
-        f'{_FOOTER_QUOTE}'
-    )
+    sections.append(f'---\n{_FOOTER_QUOTE}')
 
     return sections
 

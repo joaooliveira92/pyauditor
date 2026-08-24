@@ -93,9 +93,7 @@ def _write_fixture(tmp_path: Path) -> tuple[Path, Path]:
     config_dir.mkdir(parents=True)
     data_dir.mkdir(parents=True)
 
-    (config_dir / 'inms-03.yaml').write_text(
-        _INMS_03_CONFIG, encoding='utf-8'
-    )
+    (config_dir / 'inms-03.yaml').write_text(_INMS_03_CONFIG, encoding='utf-8')
     (config_dir / 'categorias.yaml').write_text(
         _CATEGORIAS_YAML, encoding='utf-8'
     )
@@ -122,9 +120,7 @@ def test_enriched_sheet_is_used_when_raw_csv_has_detail_columns(
     wb = load_workbook(output_path)
     sheet = wb['INMS 1.3']
 
-    assert (
-        sheet['A1'].value == 'INMS 1.3 – Projetos atendidos dentro do prazo'
-    )
+    assert sheet['A1'].value == 'INMS 1.3 – Projetos atendidos dentro do prazo'
 
     section_bars = {
         cell.value
@@ -161,12 +157,8 @@ def test_section_2_kpi_row_counts_two_of_three_within_deadline(
     sheet = wb['INMS 1.3']
 
     assert sheet['B13'].value == '=COUNTIF($AP$2:$AP$4,"Sim")'
-    assert sheet['C13'].value == (
-        '=COUNTIFS($AP$2:$AP$4,"Sim",$X$2:$X$4,"S")'
-    )
-    assert sheet['D13'].value == (
-        '=COUNTIFS($AP$2:$AP$4,"Sim",$X$2:$X$4,"N")'
-    )
+    assert sheet['C13'].value == ('=COUNTIFS($AP$2:$AP$4,"Sim",$X$2:$X$4,"S")')
+    assert sheet['D13'].value == ('=COUNTIFS($AP$2:$AP$4,"Sim",$X$2:$X$4,"N")')
     assert sheet['E13'].value == '=IF(B13=0,"Sem ocorrências",C13/B13)'
 
 

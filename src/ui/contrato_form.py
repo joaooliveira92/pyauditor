@@ -49,7 +49,7 @@ def _load_kv(path: Path) -> dict[str, str]:
     return {str(key): str(value) for key, value in raw.items()}
 
 
-def _validate_kv(config: Any, section: str) -> dict[str, str]:
+def _validate_kv(config: object, section: str) -> dict[str, str]:
     if not isinstance(config, dict):
         raise ValueError(f'{section}: esperado um mapeamento campo -> valor')
     result: dict[str, str] = {}

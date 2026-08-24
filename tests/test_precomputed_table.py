@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+
 from pyauditor.config.models import (
     IndicatorConfig,
     PrecomputedTableAcceptanceExpected,
@@ -37,9 +38,7 @@ def test_inms_1_4_matches_acceptance_test() -> None:
     assert calc.penalty_points == pytest.approx(
         expected.penalty_points, abs=0.01
     )
-    categories = cast(
-        PrecomputedTableMemoria, calc.memoria
-    )['categories']
+    categories = cast(PrecomputedTableMemoria, calc.memoria)['categories']
     assert isinstance(categories, list)
     assert len(categories) == 5  # per-ativo rows, garbage rows skipped
 
@@ -114,9 +113,7 @@ penalty:
     assert isinstance(config, IndicatorConfig)
     calc = measure(config, data_dir=config_dir).calculation
 
-    categories = cast(
-        PrecomputedTableMemoria, calc.memoria
-    )['categories']
+    categories = cast(PrecomputedTableMemoria, calc.memoria)['categories']
     assert isinstance(categories, list)
     assert [c['name'] for c in categories] == ['A', 'B']
 

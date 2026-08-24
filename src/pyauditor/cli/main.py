@@ -55,13 +55,13 @@ from pyauditor.cli.run import OnWarningMode, run_run
 from pyauditor.cli.split import run_split
 from pyauditor.commands.contracts import exit_code_for_results
 from pyauditor.config.resolution import per_orgao_paths
-from pyauditor.orchestration.summary import OutputFormat
 from pyauditor.excel.dados_contratuais import DADOS_CONTRATUAIS_FILENAME
 from pyauditor.excel.equipe import EQUIPE_FILENAME
 from pyauditor.excel.localidades import LOCALIDADES_FILENAME
 from pyauditor.excel.perfis_profissionais import PERFIS_PROFISSIONAIS_FILENAME
 from pyauditor.excel.prazos import PRAZOS_FILENAME
 from pyauditor.logging import setup_logging
+from pyauditor.orchestration.summary import OutputFormat
 from pyauditor.periodo import PeriodoAfericao, month_bounds
 
 __all__: Final[tuple[str, ...]] = (

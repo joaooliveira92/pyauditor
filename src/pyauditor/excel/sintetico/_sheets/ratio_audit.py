@@ -352,9 +352,7 @@ def _write_ratio_audit_sheet(
     )
 
     denominator_rows = filter_rows(rows, calculation.denominator_filter)
-    numerator_rows = filter_rows(
-        denominator_rows, calculation.numerator_filter
-    )
+    numerator_rows = filter_rows(denominator_rows, calculation.numerator_filter)
     denominator = len(denominator_rows)
     numerator = len(numerator_rows)
     result_pct = safe_pct(numerator, denominator)

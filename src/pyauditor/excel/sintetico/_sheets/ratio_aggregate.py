@@ -342,9 +342,7 @@ def _write_ratio_aggregate_sheet(
                 sheet.cell(row=row_idx, column=6, value='—').font = BODY_FONT
                 sheet.cell(row=row_idx, column=7, value='—').font = BODY_FONT
             else:
-                cell = sheet.cell(
-                    row=row_idx, column=6, value=grupo_pct / 100
-                )
+                cell = sheet.cell(row=row_idx, column=6, value=grupo_pct / 100)
                 cell.number_format = PCT4
                 cell.font = BODY_FONT
                 sheet.cell(

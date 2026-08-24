@@ -83,9 +83,7 @@ def make_workspace(tmp_path: Path) -> Path:
         (org_dir / 'inms-01.ATENDIMENTO_N1.yaml').write_text(
             _SEGMENT.format(orgao=orgao), encoding='utf-8'
         )
-        (org_dir / 'categorias.yaml').write_text(
-            _CATEGORIAS, encoding='utf-8'
-        )
+        (org_dir / 'categorias.yaml').write_text(_CATEGORIAS, encoding='utf-8')
     (tmp_path / 'configs' / 'dados_contratuais.yaml').write_text(
         'Fator-K máximo: "2,35"\n', encoding='utf-8'
     )
@@ -104,9 +102,7 @@ def base_url(tmp_path: Path) -> Iterator[str]:
     Handler.web_root = Path(__file__).resolve().parent.parent / 'src' / 'ui'
     server_obj = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     port = server_obj.server_address[1]
-    thread = threading.Thread(
-        target=server_obj.serve_forever, daemon=True
-    )
+    thread = threading.Thread(target=server_obj.serve_forever, daemon=True)
     thread.start()
     yield f'http://127.0.0.1:{port}'
     server_obj.shutdown()
@@ -171,9 +167,9 @@ def test_categoria_put_saves_and_validates(base_url: str) -> None:
         assert json.loads(response.read()) == {'saved': True}
 
     reloaded = _get(f'{base_url}/api/categoria?orgao=MinC')
-    assert reloaded['config']['categorias']['ATENDIMENTO_N1']['inms'][
-        '1.1'
-    ]['in_values'] == ['B']
+    assert reloaded['config']['categorias']['ATENDIMENTO_N1']['inms']['1.1'][
+        'in_values'
+    ] == ['B']
 
 
 def test_datasets_get_and_put_round_trip(base_url: str) -> None:
@@ -231,9 +227,7 @@ def _run_pipeline_server(
     Handler.web_root = Path(__file__).resolve().parent.parent / 'src' / 'ui'
     server_obj = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     port = server_obj.server_address[1]
-    thread = threading.Thread(
-        target=server_obj.serve_forever, daemon=True
-    )
+    thread = threading.Thread(target=server_obj.serve_forever, daemon=True)
     thread.start()
     yield f'http://127.0.0.1:{port}'
     server_obj.shutdown()
@@ -291,17 +285,20 @@ def test_pipeline_list_returns_recent_jobs_newest_first(
     tmp_path: Path,
 ) -> None:
     fake_pipeline = tmp_path / 'fake_pipeline.py'
-    fake_pipeline.write_text(
-        'print("bootstrap done")\n', encoding='utf-8'
-    )
+    fake_pipeline.write_text('print("bootstrap done")\n', encoding='utf-8')
     template = f'{sys.executable} {fake_pipeline}'
     gen = _run_pipeline_server(tmp_path, template)
     base_url = next(gen)
     try:
-        first = _post_and_wait(base_url, {'command': 'bootstrap', 'agency': 'MinC'})
-        second = _post_and_wait(base_url, {'command': 'bootstrap', 'agency': 'MTur'})
+        first = _post_and_wait(
+            base_url, {'command': 'bootstrap', 'agency': 'MinC'}
+        )
+        second = _post_and_wait(
+            base_url, {'command': 'bootstrap', 'agency': 'MTur'}
+        )
         listing = _get(f'{base_url}/api/pipeline')
-        assert [j['status'] for j in listing['jobs']] == ['succeeded', 'succeeded']
+        statuses = [j['status'] for j in listing['jobs']]
+        assert statuses == ['succeeded', 'succeeded']
         assert listing['jobs'][0]['command'].endswith('MTur')
         assert listing['jobs'][1]['command'].endswith('MinC')
         for job in listing['jobs']:

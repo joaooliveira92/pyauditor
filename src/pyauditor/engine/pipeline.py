@@ -401,7 +401,8 @@ def measure(
     descarte para o mesmo dataset bruto na mesma passada de `run` passa
     `False` para não emitir de novo.
 
-    Thin orchestrator (ticket 02) over `measurement_source()` + `calculate_on_rows()`:
+    Thin orchestrator (ticket 02) over `measurement_source()` +
+    `calculate_on_rows()`:
     a proveniência; a resolução/leitura/filtro/gates vivem só no backbone."""
     bundle = measurement_source(
         config,

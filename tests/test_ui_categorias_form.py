@@ -53,9 +53,9 @@ def test_save_categoria_round_trips(tmp_path: Path) -> None:
     save_categoria(workspace, doc)
 
     reloaded = read_categoria(workspace, 'MinC')
-    assert reloaded['config']['categorias']['ATENDIMENTO_N1']['inms'][
-        '1.1'
-    ]['in_values'] == ['B']
+    assert reloaded['config']['categorias']['ATENDIMENTO_N1']['inms']['1.1'][
+        'in_values'
+    ] == ['B']
 
 
 def test_save_categoria_rejects_invalid_config(tmp_path: Path) -> None:

@@ -136,9 +136,7 @@ def discover(workspace: Path) -> list[IndicatorDoc]:
                 name=group['name'],
                 shared_rel=group['shared_rel'],
                 orgaos=tuple(
-                    sorted(
-                        {s['orgao'] for s in segments}, key=str.casefold
-                    )
+                    sorted({s['orgao'] for s in segments}, key=str.casefold)
                 ),
                 segments=tuple(
                     SegmentDoc(s['orgao'], s['category'], s['rel_path'])
@@ -167,9 +165,7 @@ def _segment_paths(workspace: Path, num: str, orgao: str) -> list[Path]:
     return sorted(result)
 
 
-def read_indicator(
-    workspace: Path, key: str, orgao: str
-) -> dict[str, Any]:
+def read_indicator(workspace: Path, key: str, orgao: str) -> dict[str, Any]:
     """Devolve o doc de formulário de um indicador: contrato + segmentos.
 
     ``shared`` é o dict do arquivo compartilhado (sem `scope`); ``segments``
@@ -231,10 +227,6 @@ def save_indicator(workspace: Path, payload: dict[str, Any]) -> None:
     """
     shared = payload.get('shared')
     if shared is not None:
-        _validate_and_write(
-            workspace, shared['path'], shared['config']
-        )
+        _validate_and_write(workspace, shared['path'], shared['config'])
     for segment in payload.get('segments', []):
-        _validate_and_write(
-            workspace, segment['path'], segment['config']
-        )
+        _validate_and_write(workspace, segment['path'], segment['config'])

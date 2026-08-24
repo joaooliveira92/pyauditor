@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+
 from pyauditor.engine.pipeline import load_config, measure, measurement_source
 from pyauditor.engine.strategies._memoria import RatioMemoria
 from pyauditor.logging import setup_logging

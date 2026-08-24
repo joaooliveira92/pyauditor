@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+
 from pyauditor.config.catalog import load_anexo_e_catalog
 from pyauditor.config.models import ExternalCatalogSumAcceptanceExpected
 from pyauditor.engine.pipeline import load_config, measure

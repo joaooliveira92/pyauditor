@@ -336,9 +336,12 @@ def render_inms_sheet(
             # genérico, que assume "No prazo"/`DataHoraFim` (colunas que
             # fontes como satisfação/telefonia não têm e por isso só
             # produziam traços).
-            assert base_config.target is not None
-            assert base_config.penalty is not None
-            assert isinstance(base_config.calculation, RatioCalculation)
+            if not isinstance(base_config.calculation, RatioCalculation):
+                raise ValueError('ratio exige `RatioCalculation`')
+            if base_config.target is None:
+                raise ValueError('ratio exige `target` no sintetico')
+            if base_config.penalty is None:
+                raise ValueError('ratio exige `penalty` no sintetico')
             _write_ratio_audit_sheet(
                 workbook,
                 sheet_name,
@@ -440,9 +443,12 @@ def render_inms_sheet(
             generated_at=generated_at,
         )
     elif _ratio_count_distinct_eligible(inms_key, base_config):
-        assert base_config.target is not None
-        assert base_config.penalty is not None
-        assert isinstance(base_config.calculation, RatioCalculation)
+        if not isinstance(base_config.calculation, RatioCalculation):
+            raise ValueError('ratio exige `RatioCalculation`')
+        if base_config.target is None:
+            raise ValueError('ratio exige `target` no sintetico')
+        if base_config.penalty is None:
+            raise ValueError('ratio exige `penalty` no sintetico')
         _write_ratio_audit_sheet(
             workbook,
             sheet_name,

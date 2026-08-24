@@ -43,9 +43,7 @@ class CountDifferenceStrategy:
             result_pct=result_pct,
             conforms=conforms,
             penalty_points=penalty_points,
-            memoria=CountDifferenceMemoria(
-                QRC=qrc, QCSI=qcsi, CNI=cni
-            ),
+            memoria=CountDifferenceMemoria(QRC=qrc, QCSI=qcsi, CNI=cni),
         )
 
     def pool_numerator_denominator(

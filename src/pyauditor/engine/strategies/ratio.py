@@ -72,9 +72,7 @@ class RatioStrategy:
             result_pct=result_pct,
             conforms=conforms,
             penalty_points=penalty_points,
-            memoria=RatioMemoria(
-                numerator=numerator, denominator=denominator
-            ),
+            memoria=RatioMemoria(numerator=numerator, denominator=denominator),
         )
 
     def pool_numerator_denominator(

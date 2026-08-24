@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+
 from pyauditor.config.models import CountDifferenceAcceptanceExpected
 from pyauditor.engine.pipeline import load_config, measure
 from pyauditor.engine.strategies._memoria import CountDifferenceMemoria

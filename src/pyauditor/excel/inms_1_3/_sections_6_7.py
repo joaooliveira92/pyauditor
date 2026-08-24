@@ -60,9 +60,7 @@ def write_section_6_fora_prazo(
     """Devolve `next_free_row` — a linha livre após a nota "nenhum projeto"
     ou após a tabela, usada pela Seção 7 como sua própria linha inicial."""
     s6_bar = start_row
-    section_bar(
-        sheet, s6_bar, 'SEÇÃO 6 · PROJETOS FORA DO PRAZO', last_col=11
-    )
+    section_bar(sheet, s6_bar, 'SEÇÃO 6 · PROJETOS FORA DO PRAZO', last_col=11)
     header_row(
         sheet,
         s6_bar + 1,

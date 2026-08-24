@@ -233,9 +233,7 @@ def write_sheet(
             table_name=table_names['grupo_executor'],
         )
         section_bars.append(next_row)  # Seção 5
-        next_row = write_section_5_subtotais(
-            sheet, rng=rng, start_row=next_row
-        )
+        next_row = write_section_5_subtotais(sheet, rng=rng, start_row=next_row)
         section_bars.append(next_row)  # Seção 6
         next_row = write_section_6_fora_prazo(
             sheet,

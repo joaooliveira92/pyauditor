@@ -928,7 +928,8 @@ def test_precomputed_table_sheet_plain_kept_for_other_precomputed_inms(
     o renderer enriquecido assume escala percentual (fração/PCT4) e
     quebraria a leitura de um resultado em pontos. Percentuais com
     `name_column`/`scope.contract` (1.9 incluso) agora usam o renderer
-    enriquecido — ver `test_inms_1_9_and_1_13_use_enriched_precomputed_audit_renderer`."""
+    enriquecido — ver o teste
+    `test_inms_1_9_and_1_13_use_enriched_precomputed_audit_renderer`."""
     config_dir = tmp_path / 'configs'
     data_dir = tmp_path / 'input' / '2026' / '06'
     config_dir.mkdir(parents=True)
@@ -1146,12 +1147,7 @@ penalty:
   step_size_pct: 0.1
 """
 
-_INMS_12_RATIO_RAW_CSV = (
-    'Chamada;ESPERA\n'
-    '1;0:00:15\n'
-    '2;0:00:45\n'
-    '3;0:00:05\n'
-)
+_INMS_12_RATIO_RAW_CSV = 'Chamada;ESPERA\n1;0:00:15\n2;0:00:45\n3;0:00:05\n'
 
 _CATEGORIAS_YAML_1_12_ONLY = """\
 categorias:
@@ -1162,7 +1158,7 @@ categorias:
 """
 
 
-def test_inms_1_12_ratio_audit_sheet_handles_whole_indicator_and_duration_filter(
+def test_inms_1_12_ratio_audit_sheet_handles_whole_indicator_duration_filter(
     tmp_path: Path,
 ) -> None:
     """INMS 1.11/1.12 são `whole_indicator` (sem `Grupo_executor`) com
@@ -1303,7 +1299,10 @@ def test_ratio_sum_subtract_sheet_aggregates_one_row_per_group_excluding_totais(
         'Meta atingida?',
     ]
     # SLA A soma as 2 linhas (20/1); SLA B fica com sua própria linha.
-    data_rows = [[c.value for c in row] for row in sheet.iter_rows(min_row=17, max_row=18)]
+    data_rows = [
+        [c.value for c in row]
+        for row in sheet.iter_rows(min_row=17, max_row=18)
+    ]
     sla_a = data_rows[0]
     assert sla_a[2] == 'SLA A'
     assert sla_a[3:5] == [20, 1]
