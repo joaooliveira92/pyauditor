@@ -2,32 +2,40 @@
 
 ## Latest run
 
-- Date: 2026-08-22
-- Objective: Fechar o wayfinder `migracao-ty` por completo, e depois zerar os dois riscos conhecidos restantes (bandit, `ruff format`)
-- Outcome: Concluído — todos os gates (`ruff check`, `ruff format`, `ty check`, `bandit`, `pytest`, `pip-audit`) verdes
+- Date: 2026-08-24
+- Objective: Cobrir os branches de maior risco em `orchestration/summary.py` (79% branch) — `fmt_pt_br` (invariantes de formatação pt-BR via Hypothesis + branches de erro), descrição de artefato per-tipo de resultado (`_artifact_line`), e `render_summary` em `json`/formato inválido.
+- Outcome: Concluído. `summary.py` 78% → 91% branch. Suíte 642 → 652 passed, `fail_under=85` mantido (86.76% → 87%).
+- Files: `tests/test_orchestration_summary.py` (única mudança, test-only).
 
 ## Baseline
 
-- Tests: 559 passed, 34 skipped
-- Branch coverage: 89.29% (gate `fail_under=85`)
+- Tests: 642 passed, 34 skipped
+- Branch coverage: 86.76% (gate `fail_under=85`)
 - Failures: 0
 - Skipped: 34 (triados — ver histórico abaixo)
 
 ## Completed objectives
 
-- Zerados os 3 findings pré-existentes do `bandit` (B404/B603/B607, `subprocess` em `engine/version.py`) com `# nosec` justificado por linha — comando fixo (`git rev-parse --short HEAD`), sem `shell=True`, sem entrada externa, timeout de 5s; `git` resolvido via PATH de propósito. `uv run bandit -r src` → 0 findings.
-- Reformatados `ratio.py` e `workbook.py` (única mudança: colapsar `raise ValueError(...)` de 3 linhas para 1, sob o limite de 80 col — cosmético, `ruff format` puro). `uv run ruff format --check src tests` → 168 arquivos conformes, 0 pendentes.
-- `migracao-ty/04` (fatia `ty`, fecha o ticket): os 150 diagnósticos do `ty check` foram a zero. 11 dos 32 `# type: ignore` legados eram mortos sob o `ty` — comentário removido. 3 sites de dívida real em `src` corrigidos sem supressão: `engine/discovery.py` (`cast` para o `Literal`), `cli/consolidate.py` (`cast(dict[str, object], ...)` — `dict` é invariante, `dict[str,str]` não é subtipo), `excel/capa.py` (migrado para `ty: ignore` com a justificativa já existente no código — stub de `Cell.value` mais estreito que o runtime do openpyxl). 18 sites em `tests/` migrados para `# ty: ignore[<rule>]` — todos testes deliberados de erro de runtime (`**kwargs` mal-tipados, atribuição em pydantic frozen, subscript em `Mapping` read-only); os 8 sites de `write_sheet(**kwargs)` em `test_inms_1_1_audit.py` cobrem sozinhos 12–14 diagnósticos de overload cada com um único comentário. 11 diagnósticos novos de ruído de stub `types-openpyxl` (`cell.row: int | None`) resolvidos com `assert <row> is not None` logo após o `next(...)` que deriva a linha — nunca é `None` em runtime (o teste já filtrou por um marcador antes de ler `.row`) — em vez de suprimir. `uv run ty check` → All checks passed em `src`+`tests`. Únicos diffs de produção são os 2 `cast()` (no-op em runtime, sem mudança de comportamento).
-- `migracao-ty/03`: formalizada a resolução do ticket — a config já estava em `pyproject.toml` (perfil `ty` sem overrides de regra, escopo `include=[src,tests]`/`exclude=[.scratch]`, `respect-type-ignore-comments=false`, `ANN`/`PYI`+`preview` no ruff, `basedpyright` já removido) desde um commit `wip` anterior, nunca formalizada por escrito.
-- `migracao-ty/04` (fatia `ruff check`): zerados os 18 erros pré-existentes por refactor mecânico, sem mudança de comportamento — `RUF067` (`SHAPE_REGISTRY`/`main()`/`run_interactive()` saíram de `__init__.py` para módulos próprios com re-export), `N818` (`InteractionCancelled`→`InteractionCancelledError`, `RunStateCorrupted`→`RunStateCorruptedError`, rename mecânico em 33 sites), `E501` (rewrap), `RUF001`/`002`/`003` (2 casos cosméticos em prosa corrigidos; 4 casos em fixtures de teste deliberadamente "ambíguas" — mojibake CSV, apóstrofo curvo de round-trip cp1252 — preservados verbatim e suprimidos via `ruff: ignore`/per-file-ignore documentado, nunca alterados), `RUF059`/`RUF105`/`SIM113` (autofix). `uv run ruff check src tests` → All checks passed.
-- Triagem dos 34 skips: todos são `skipif` sobre a ausência local de dados reais de produção (`input/2026/06/…`), usados pelos testes de aceitação/smoke que validam o engine contra CSVs reais de competência (`tests/test_full_acceptance_smoke.py` e os 6 testes por shape irmãos, ver spec.md §5). Nenhum órfão, nenhum a reativar/converter/remover.
-- `suite-testes/03`: reparo das ~90 costuras de string acidentais introduzidas pelo refactor em andamento. Suíte foi de 16 failed/543 passed para 559 passed/34 skipped.
-- `suite-testes/02`: gate anti-regressão `ISC001`+`ISC003` no `[tool.ruff.lint]`. 0 hits, sem `per-file-ignores`.
+- `suite-testes/04` (summary): propriedades Hypothesis para `fmt_pt_br` (round-trip float/Decimal contra `f'{v:.{d}f}'` não-localizado, agrupamento de milhar por 3, preservação de sinal) + unit de branches de erro que o `fmt_pt_br` declara mas ninguém exercia — `TypeError` (`str`, `None`, `bool`, `decimals=True`, `decimals='2'`), `ValueError` (`inf`, `-inf`, `nan`, `Decimal('Infinity')`, `Decimal('NaN')`, `decimals<0`). Cobertos também os branches `_artifact_line` por tipo de resultado (`Bootstrap`/`Split`+`sintetico`/`Measure` com `hard_failure`/`Report`/`Consolidate`, e fallback `pulado`/`resultado indisponível`/`-`), mais `render_summary(output='json')` emite documento JSON único e `output` inválido levanta `ValueError`. 18 novos testes, todos verdes.
+### Histórico (runs anteriores)
+
+- Zerados os 3 findings pré-existentes do `bandit` (B404/B603/B607, `subprocess` em `engine/version.py`) com `# nosec` justificado por linha — comando fixo, sem `shell=True`, sem entrada externa, timeout de 5s. `uv run bandit -r src` → 0 findings.
+- Reformatados `ratio.py` e `workbook.py` (colapsar `raise ValueError(...)` de 3 → 1 linha, sob 80 col; `ruff format` puro). 168 arquivos conformes.
+- `migracao-ty/04` (fatia `ty`): 150 diagnósticos → 0. 3 sites de dívida real em `src` corrigidos sem supressão; 18 sites em `tests/` migrados para `# ty: ignore[<rule>]`. `ty check` → All checks passed.
+- `migracao-ty/03`: formalizada resolução do ticket (config ty já no pyproject).
+- `migracao-ty/04` (fatia `ruff check`): zerados 18 erros pré-existentes por refactor mecânico preservando comportamento. `ruff check src tests` → All checks passed.
+- Triagem dos 34 skips: todos `skipif` sobre ausência local de dados reais de produção (`input/2026/06/…`); nenhum órfão.
+- `suite-testes/03`: reparo das ~90 costuras de string acidentais; suíte 16 failed → 559 passed/34 skipped.
+- `suite-testes/02`: gate anti-regressão `ISC001`+`ISC003` no ruff. 0 hits.
 
 ## Known risks
 
-- Cobertura branch 89% está acima do gate (85%) mas não foi auditada por risco. Módulos com branch coverage mais baixo: `interactive/provider.py` (56%, fronteira Questionary), `log_json_sink.py` (70%), `orchestration/summary.py` (79%), `periodo.py` (79%), `orchestration/summary_json.py` (80%).
+- Branches remanescentes de `summary.py` não cobertos exigem um `RunResult` completo com estados específicos (ex. `_result_panel` com `exit_code` 0/3 puro, `consolidated is None`, `duration_ms is None`, `glosa_states == {'não calculada'}`) — viáveis via `execute_run` com fixtures já existentes, mas de menor risco que o que foi fechado.
+- `ty check` volta a falhar no working tree com 2 diagnósticos **pré-existentes** (não introduzidos por este run): `src/pyauditor/logging.py:442` (overload `Logger.add`, loguru) e `tests/test_orchestration_summary.py:334` (`_FakeRunResult` não é `RunResult` em `_all_warnings`; este recebeu `# ty: ignore[invalid-argument-type]` no mesmo padrão do restante da suíte). O `state.json` anterior (08-22) está defasado — não refletia os lint/ty ruins já presentes antes desta run.
+- `ruff check src tests` no working tree encontra 120 erros pré-existentes (arquivos do trabalho sintético/ratio em andamento: `src/pyauditor/cli/main.py`, `engine/pipeline.py`, `ui/server.py`, vários `tests/test_*_ratio*`), todos fora do escopo desta mudança test-only. O próprio arquivo tocado (`test_orchestration_summary.py`) passa em `ruff check` + `ruff format`.
+- `bandit -r src` reporta 3 High pré-existentes (src não foi tocado nesta run) — estado defasado vs. o registro de 08-22 (que dizia 0).
+- `periodo.py` (79% branch) e `interactive/provider.py` (56%, fronteira Questionary) seguem como dívida de cobertura de fronteira.
 
 ## Recommended next objective
 
-Cobrir os branches de maior risco em `orchestration/summary.py` (79% branch, lógica central de composição do relatório de conformidade) e `orchestration/state.py` (82%) com testes de unidade/integração focados. Todos os gates (`ruff check`, `ruff format`, `ty check`, `bandit`, `pytest`, `pip-audit`) estão verdes; resta o ticket 05 do `migracao-ty` (docs vivas de basedpyright → ty), não urgente.
+Cobrir os branches de `_result_panel` restantes em `orchestration/summary.py` (publicação via `exit_code` 0/3, `total_pontos` nas variantes int/str/Decimal, `duration_ms is None`, consolidado ausente) com fixtures de `execute_run` já disponíveis, e/ou tratar os 2 diagnósticos pré-existentes de `ty` e os 120 de `ruff` no working tree (necessário para re-verdejar os gates completos, `fail_under` já satisfeito).

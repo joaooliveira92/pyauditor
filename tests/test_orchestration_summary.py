@@ -1,7 +1,10 @@
 from dataclasses import replace
+from decimal import Decimal
 from io import StringIO
 from pathlib import Path
 
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from rich.console import Console
 
 from pyauditor.orchestration.run import RunRequest, execute_run
@@ -10,6 +13,15 @@ from pyauditor.orchestration.summary import (
     fmt_pt_br,
     render_summary,
 )
+
+
+def _unlocalize(fmt: str) -> str:
+    """Undo pt-BR separators, returning a standard ``<int>.<frac>`` string."""
+    if ',' in fmt:
+        integer_part, _, fractional_part = fmt.partition(',')
+        return f'{integer_part.replace(".", "")}.{fractional_part}'
+    return fmt.replace('.', '')
+
 
 _CONFIG_YAML = """\
 indicator:
@@ -79,12 +91,95 @@ def _run(tmp_path: Path) -> RunRequest:
 
 
 def test_fmt_pt_br_formato_humano() -> None:
-    # Ticket 06, Q5/Q6: formato humano pt-BR (milhar com ponto, decimal com
-    # vírgula) — só no painel; logs/JSON mantém ponto decimal (máquina).
+    # Ticket 06, Q5/Q7: formato humano pt-BR (milhar com ponto, decimal com
+    # vírgula) — só exato; logs/JSON mantém ponto decimal (máquina).
     assert fmt_pt_br(46909.85) == '46.909,85'
     assert fmt_pt_br(1.24) == '1,24'
     assert fmt_pt_br(0.0) == '0,00'
     assert fmt_pt_br(1234567.891) == '1.234.567,89'
+
+
+@given(
+    st.floats(
+        min_value=0.001, max_value=1e12, allow_nan=False, allow_infinity=False
+    )
+)
+@settings(max_examples=150, deadline=10000)
+def test_fmt_pt_br_float_round_trips(v: float) -> None:
+    for decimals in (0, 1, 2, 3, 6):
+        assert _unlocalize(fmt_pt_br(v, decimals=decimals)) == (
+            f'{v:.{decimals}f}'
+        )
+
+
+@given(st.integers(min_value=0, max_value=9_999_999_999))
+@settings(max_examples=100, deadline=10000)
+def test_fmt_pt_br_groups_thousands_by_three(n: int) -> None:
+    localized = fmt_pt_br(float(n), decimals=0)
+    integer_part = localized.partition(',')[0]
+    if n < 1000:
+        assert integer_part == str(n)
+        return
+    groups = integer_part.split('.')
+    assert all(len(group) == 3 for group in groups[1:])
+
+
+@given(
+    st.floats(
+        min_value=-1e12, max_value=-0.001, allow_nan=False, allow_infinity=False
+    )
+)
+@settings(max_examples=150, deadline=10000)
+def test_fmt_pt_br_negative_sign_is_preserved(v: float) -> None:
+    for decimals in (0, 2):
+        assert fmt_pt_br(v, decimals=decimals).startswith('-')
+
+
+@given(
+    st.integers(min_value=-1_000_000_000_000, max_value=1_000_000_000_000),
+    st.integers(min_value=1, max_value=1000),
+)
+@settings(max_examples=150, deadline=10000)
+def test_fmt_pt_br_decimal_round_trips(
+    numerator: int, denominator: int
+) -> None:
+    v = Decimal(numerator) / Decimal(denominator)
+    for decimals in (0, 2, 4):
+        assert _unlocalize(fmt_pt_br(v, decimals=decimals)) == format(
+            v, f'.{decimals}f'
+        )
+
+
+def test_fmt_pt_br_rejects_non_numeric_values() -> None:
+    import pytest
+
+    with pytest.raises(TypeError):
+        fmt_pt_br('12.5')  # ty: ignore[invalid-argument-type]
+    with pytest.raises(TypeError):
+        fmt_pt_br(None)  # ty: ignore[invalid-argument-type]
+    with pytest.raises(TypeError):
+        fmt_pt_br(True)
+    with pytest.raises(TypeError):
+        fmt_pt_br(1, decimals=True)
+    with pytest.raises(TypeError):
+        fmt_pt_br(1, decimals='2')  # ty: ignore[invalid-argument-type]
+
+
+def test_fmt_pt_br_rejects_non_finite_and_negative_decimals() -> None:
+    import math
+
+    import pytest
+
+    for value in (float('inf'), float('-inf'), float('nan')):
+        with pytest.raises(ValueError):
+            fmt_pt_br(value)
+    with pytest.raises(ValueError):
+        fmt_pt_br(Decimal('Infinity'))
+    with pytest.raises(ValueError):
+        fmt_pt_br(Decimal('NaN'))
+    with pytest.raises(ValueError):
+        fmt_pt_br(1, decimals=-1)
+    assert math.isfinite(float(fmt_pt_br(0.0).replace(',', '.')))
 
 
 def test_render_summary_prints_and_exit_code_is_4_for_unfilled_capa(
@@ -236,7 +331,7 @@ def test_all_warnings_serializes_target() -> None:
     )
 
     result = _FakeResult(warnings=(with_target, without_target))
-    payload = _all_warnings(_FakeRunResult(results=(result,)))
+    payload = _all_warnings(_FakeRunResult(results=(result,)))  # ty: ignore[invalid-argument-type]
 
     assert payload[0]['target'] == {
         'family': 'categorias',
@@ -336,3 +431,162 @@ def test_exit_code_for_run_precedence() -> None:
         )
         == 1
     )
+
+
+def test_artifact_line_describes_each_result_type() -> None:
+    from pathlib import Path
+
+    from pyauditor.cli.measure_contracts import IndicatorOutcome
+    from pyauditor.commands.contracts import (
+        BootstrapResult,
+        ConsolidateResult,
+        MeasureResult,
+        ReportResult,
+        SplitResult,
+    )
+    from pyauditor.orchestration.state import CommandStateEntry
+    from pyauditor.orchestration.summary import _artifact_line
+
+    done = CommandStateEntry(command='x', orgao='MinC', status='done')
+
+    assert (
+        _artifact_line(
+            done,
+            BootstrapResult(
+                status='done',
+                orgao='MinC',
+                capa_path=Path('in/capa.csv'),
+                created=True,
+                warnings=(),
+                error_message=None,
+            ),
+        )
+        == 'in/capa.csv'
+    )
+
+    assert (
+        _artifact_line(
+            done,
+            SplitResult(
+                status='done',
+                competencia='2026-06',
+                orgao='MinC',
+                categorias=(),
+                warnings=(),
+                error_message=None,
+                sintetico_path=Path('out/sintetico.xlsx'),
+            ),
+        )
+        == '0 categoria(s) processada(s) | out/sintetico.xlsx'
+    )
+
+    assert (
+        _artifact_line(
+            done,
+            MeasureResult(
+                status='done',
+                competencia='2026-06',
+                orgao='MinC',
+                indicators=(
+                    IndicatorOutcome(
+                        contractual_id='A1',
+                        rom_path=Path('r.rom'),
+                        summary_path=Path('s.rom'),
+                        hard_failure=True,
+                        error=None,
+                    ),
+                    IndicatorOutcome(
+                        contractual_id='B2',
+                        rom_path=Path('r.rom'),
+                        summary_path=Path('s.rom'),
+                        hard_failure=False,
+                        error=None,
+                    ),
+                ),
+                warnings=(),
+                error_message=None,
+            ),
+        )
+        == '2 indicador(es) apurado(s) | falhas: A1'
+    )
+
+    assert (
+        _artifact_line(
+            done,
+            ReportResult(
+                status='done',
+                competencia='2026-06',
+                orgao='MinC',
+                output_path=Path('r.xlsx'),
+                indicator_count=3,
+                warnings=(),
+                error_message=None,
+            ),
+        )
+        == 'r.xlsx (3 indicadores)'
+    )
+
+    assert (
+        _artifact_line(
+            done,
+            ConsolidateResult(
+                status='done',
+                competencia='2026-06',
+                output_path=Path('c.xlsx'),
+                decisions_preserved=5,
+                warnings=(),
+                error_message=None,
+            ),
+        )
+        == 'c.xlsx (5 decisão(ões) preservada(s))'
+    )
+
+
+def test_artifact_line_falls_back_for_missing_results() -> None:
+    from pyauditor.orchestration.state import CommandStateEntry
+    from pyauditor.orchestration.summary import _artifact_line
+
+    skipped = CommandStateEntry(
+        command='report', orgao='MinC', status='skipped'
+    )
+    done = CommandStateEntry(command='report', orgao='MinC', status='done')
+    pending = CommandStateEntry(
+        command='measure', orgao='MinC', status='pending'
+    )
+
+    assert _artifact_line(skipped, None) == 'pulado'
+    assert _artifact_line(done, None) == 'resultado indisponível ou ambíguo'
+    assert _artifact_line(pending, None) == '-'
+
+
+def test_render_summary_json_emits_plain_document(tmp_path: Path) -> None:
+    import json
+
+    run_result = execute_run(_run(tmp_path))
+
+    buffer = StringIO()
+    render_summary(
+        run_result,
+        output='json',
+        console=Console(file=buffer, force_terminal=False),
+    )
+
+    payload = json.loads(buffer.getvalue())
+    assert payload['codigo_saida'] == 4
+    assert 'competencia' in payload
+    assert 'orgaos' in payload
+
+
+def test_render_summary_rejects_unsupported_output_format(
+    tmp_path: Path,
+) -> None:
+    import pytest
+
+    run_result = execute_run(_run(tmp_path))
+
+    with pytest.raises(ValueError, match='Unsupported summary output format'):
+        render_summary(
+            run_result,
+            output='xml',  # ty: ignore[invalid-argument-type]
+            console=Console(file=StringIO(), force_terminal=False),
+        )
