@@ -44,7 +44,7 @@ import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, TextIO, cast
+from typing import Any, Final, TextIO, cast
 
 from loguru import logger
 
@@ -428,7 +428,10 @@ def _add_handler(
     disabled so the handlers do not unexpectedly expose local variables or
     excessive exception context.
     """
-    kwargs: dict[str, object] = {
+    # Boundary: loguru's add() accepts several keyword sets (stream vs path).
+    # Isolate the untyped passthrough to this one forwarding call; callers stay
+    # typed, so only `object`/`Any` values reach the sink.
+    kwargs: dict[str, Any] = {
         'level': level,
         'filter': filter_fn,
         'backtrace': False,
@@ -439,7 +442,9 @@ def _add_handler(
     if fmt is not None:
         kwargs['format'] = fmt
     kwargs.update(extra)
-    return logger.add(sink, **kwargs)
+    # O splat de um dict dinâmico não resolve contra os overloads de
+    # `logger.add`; o stub só conhece sets de kwargs estáticos.
+    return logger.add(sink, **kwargs)  # ty: ignore[no-matching-overload]
 
 
 def _validate_verbosity(verbosity: int) -> int:
