@@ -23,9 +23,7 @@ ENDERECO_HEADER: Final[str] = 'ENDEREÇO'
 CATEGORIAS_PRESENCIAL_HEADER: Final[str] = (
     'CATEGORIAS DE SERVIÇO (EXECUÇÃO PRESENCIAL)'
 )
-CATEGORIAS_REMOTA_HEADER: Final[str] = (
-    'CATEGORIAS DE SERVIÇO (EXECUÇÃO REMOTA)'
-)
+CATEGORIAS_REMOTA_HEADER: Final[str] = 'CATEGORIAS DE SERVIÇO (EXECUÇÃO REMOTA)'
 QUANTIDADE_USUARIOS_HEADER: Final[str] = 'QUANTIDADE DE USUÁRIOS'
 
 _LOCALIDADES_HEADERS: Final[frozenset[str]] = frozenset(
@@ -57,16 +55,14 @@ def read_localidades(path: Path) -> list[dict[str, str]]:
             raise ValueError(
                 f'{path}: cabeçalho esperado '
                 f"'{LOCALIDADE_HEADER},{ENDERECO_HEADER},"
-                f"{CATEGORIAS_PRESENCIAL_HEADER},"
+                f'{CATEGORIAS_PRESENCIAL_HEADER},'
                 f"{CATEGORIAS_REMOTA_HEADER},{QUANTIDADE_USUARIOS_HEADER}'"
             )
         rows = list(reader)
 
     localidades: list[dict[str, str]] = []
     for row in rows:
-        if not any(
-            (row.get(h) or '').strip() for h in _LOCALIDADES_HEADERS
-        ):
+        if not any((row.get(h) or '').strip() for h in _LOCALIDADES_HEADERS):
             continue  # linha em branco residual — ignora
         localidades.append(
             {h: (row.get(h) or '').strip() for h in _LOCALIDADES_HEADERS}

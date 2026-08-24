@@ -31,9 +31,7 @@ _TITLE: Final[str] = (
     'DEMONSTRATIVO DE EXECUÇÃO DOS SERVIÇOS DE INFRAESTRUTURA DE TI'
 )
 _SUBTITLE_REF_FORMULA: Final[str] = '=Capa!B2'
-_SECTION_TITLE: Final[str] = (
-    'ANEXO E — ITENS DE DESCONFORMIDADE TÉCNICA'
-)
+_SECTION_TITLE: Final[str] = 'ANEXO E — ITENS DE DESCONFORMIDADE TÉCNICA'
 
 _ROW_TITLE: Final[int] = 1
 _ROW_SUBTITLE: Final[int] = 2
@@ -51,7 +49,11 @@ _COLUMN_WIDTHS: Final[tuple[tuple[str, float], ...]] = (
 )
 
 _HEADERS: Final[tuple[str, ...]] = (
-    'ID', 'Categoria', 'Descrição', 'Referência', 'Pontos',
+    'ID',
+    'Categoria',
+    'Descrição',
+    'Referência',
+    'Pontos',
 )
 
 
@@ -84,7 +86,9 @@ def _write_sancoes_sheet(
     ).font = SUBTITLE_FONT
 
     sheet.merge_cells(
-        start_row=_ROW_SECTION, start_column=2, end_row=_ROW_SECTION,
+        start_row=_ROW_SECTION,
+        start_column=2,
+        end_row=_ROW_SECTION,
         end_column=6,
     )
     sheet.cell(
@@ -108,9 +112,7 @@ def _write_sancoes_sheet(
             cell = sheet.cell(row=row, column=column, value=value)
             cell.font = BODY_FONT
             cell.border = THIN_BORDER
-            cell.alignment = (
-                CENTER_ALIGN if column == 2 else LEFT_WRAP_ALIGN
-            )
+            cell.alignment = CENTER_ALIGN if column == 2 else LEFT_WRAP_ALIGN
             if row_fill is not None:
                 cell.fill = row_fill
 

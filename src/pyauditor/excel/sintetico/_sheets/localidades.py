@@ -101,7 +101,9 @@ def _write_localidades_sheet(
     ).font = SUBTITLE_FONT
 
     sheet.merge_cells(
-        start_row=_ROW_SECTION, start_column=2, end_row=_ROW_SECTION,
+        start_row=_ROW_SECTION,
+        start_column=2,
+        end_row=_ROW_SECTION,
         end_column=6,
     )
     sheet.cell(
