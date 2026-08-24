@@ -41,7 +41,7 @@ must call :func:`setup_logging` after parsing command-line options.
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable, Mapping, MutableMapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, TextIO, cast
@@ -299,9 +299,6 @@ def setup_logging(
     detail_filter = _build_detail_filter(
         maximum_detail=maximum_detail,
     )
-    stream_filter = _build_stream_filter(
-        maximum_detail=maximum_detail,
-    )
     json_sink = FlatJsonSink(cast(TextIO, sink)) if json_format else None
 
     logger.remove()
@@ -311,51 +308,35 @@ def setup_logging(
 
     try:
         if json_sink is not None:
-            stream_handler_id = logger.add(
+            stream_handler_id = _add_handler(
                 json_sink,
                 level=effective_level,
-                filter=detail_filter,
-                backtrace=False,
-                diagnose=False,
-                enqueue=False,
-                catch=False,
+                filter_fn=detail_filter,
             )
         else:
-            stream_handler_id = logger.add(
+            stream_handler_id = _add_handler(
                 sink,
                 level=effective_level,
-                filter=stream_filter,
-                format=format_,
-                backtrace=False,
-                diagnose=False,
-                enqueue=False,
-                catch=False,
+                filter_fn=detail_filter,
+                fmt=_build_stream_formatter(stream_format=format_),
             )
 
         if log_path is not None:
             if isinstance(log_path, (str, Path)):
-                file_handler_id = logger.add(
+                file_handler_id = _add_handler(
                     log_path,
                     level=effective_level,
-                    filter=detail_filter,
-                    format=_FILE_LOG_FORMAT,
-                    backtrace=False,
-                    diagnose=False,
-                    enqueue=False,
-                    catch=False,
+                    filter_fn=detail_filter,
+                    fmt=_FILE_LOG_FORMAT,
                     encoding='utf-8',
                     retention=_LOG_RETENTION,
                 )
             else:
-                file_handler_id = logger.add(
+                file_handler_id = _add_handler(
                     log_path,
                     level=effective_level,
-                    filter=detail_filter,
-                    format=_FILE_LOG_FORMAT,
-                    backtrace=False,
-                    diagnose=False,
-                    enqueue=False,
-                    catch=False,
+                    filter_fn=detail_filter,
+                    fmt=_FILE_LOG_FORMAT,
                 )
     except Exception:
         if file_handler_id is not None:
@@ -396,43 +377,69 @@ def _build_detail_filter(
     return filter_record
 
 
-def _build_stream_filter(
+def _build_stream_formatter(
     *,
-    maximum_detail: int,
-) -> Callable[[Mapping[str, object]], bool]:
-    """Build the human-readable stream filter.
+    stream_format: str,
+) -> Callable[[Mapping[str, object]], str]:
+    """Build a Loguru format template for the human-readable stream.
 
-    Wraps :func:`_build_detail_filter` and marks every record whose level and
-    message exactly match one already seen earlier in the run — not only
-    immediate neighbors, since repeated warnings (for example, the same
-    validation notice logged once per organization or per pipeline phase)
-    are typically separated by unrelated lines. Nothing is suppressed — this
-    only annotates the message that Loguru renders for the stream handler,
-    never the readable log file or the JSON sink, which both keep the
-    untouched record.
+    Marks every record whose level and message exactly match one already seen
+    earlier in the run — not only immediate neighbors, since repeated
+    warnings (for example, the same validation notice logged once per
+    organization or per pipeline phase) are typically separated by unrelated
+    lines. Nothing is suppressed; the template simply appends ``(repetição
+    N)`` to the rendered message.
+
+    The annotation lives in the template returned for this handler, so it
+    affects only the stream's own output — never the shared record that the
+    readable log file and the JSON sink consume.
     """
-    detail_filter = _build_detail_filter(maximum_detail=maximum_detail)
     seen_counts: dict[tuple[str, str], int] = {}
 
-    def filter_record(record: Mapping[str, object]) -> bool:
-        if not detail_filter(record):
-            return False
-
+    def format_template(record: Mapping[str, object]) -> str:
         level = record['level']
         level_name = getattr(level, 'name', str(level))
         message = str(record['message'])
-        key = (level_name, message)
+        occurrence = seen_counts.get((level_name, message), 0) + 1
+        seen_counts[level_name, message] = occurrence
 
-        occurrence = seen_counts.get(key, 0) + 1
-        seen_counts[key] = occurrence
+        if occurrence == 1:
+            return stream_format
 
-        if occurrence > 1:
-            mutable_record = cast(MutableMapping[str, object], record)
-            mutable_record['message'] = f'{message} (repetição {occurrence})'
+        return stream_format.replace(
+            '{message}',  # ruff: ignore [missing-f-string-syntax]
+            f'{{message}} (repetição {occurrence})',
+        )
 
-        return True
+    return format_template
 
-    return filter_record
+
+def _add_handler(
+    sink: object,
+    *,
+    level: str,
+    filter_fn: Callable[[Mapping[str, object]], bool],
+    fmt: str | Callable[[Mapping[str, object]], str] | None = None,
+    **extra: object,
+) -> int:
+    """Add a Loguru handler with the shared hardened options applied.
+
+    ``backtrace``, ``diagnose``, ``enqueue``, and ``catch`` are always
+    disabled so the handlers do not unexpectedly expose local variables or
+    excessive exception context.
+    """
+    kwargs: dict[str, object] = {
+        'level': level,
+        'filter': filter_fn,
+        'backtrace': False,
+        'diagnose': False,
+        'enqueue': False,
+        'catch': False,
+    }
+    if fmt is not None:
+        kwargs['format'] = fmt
+    kwargs.update(extra)
+    return logger.add(sink, **kwargs)
 
 
 def _validate_verbosity(verbosity: int) -> int:
