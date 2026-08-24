@@ -30,19 +30,20 @@ hierarchy; no new behavior.
 
 <!-- one line per closed ticket: enough to judge relevance, then zoom the link -->
 
-- *(none yet)*
+- [01 — Dispatch boundary: `_dispatch_guard` + `RunFlags`](issues/01-dispatch-guard-runflags.md)
+  — `_dispatch_guard` collapses the verbatim competencia-validate block across
+  the five dispatchers; `RunFlags` is **run-only**, carrying the six flags `run`
+  re-casts, `output`/`on_warning` as Literals (finding 3). No `CommandHandler`.
 
 ## Not yet specified
 
 - **Combined-ROM path**: `write_combined_roms` / `measure_combined.py` may need
   the same `calculate_on_rows` treatment once ticket 02 lands — the per-category
   and per-órgão merge both re-consume the backbone. Revisit after 02.
-- **RunFlags scope**: whether the typed flags dataclass also adopts
-  `report`/`consolidate` (they read fewer flags) or stays `run`-only.
-- **CommandHandler revisited**: whether the per-command class idea (Q2b) is
-  worth revisiting once `_dispatch_guard` lands, or is dead for this effort.
 
 ## Out of scope
 
-- *(none yet — destination fixes scope; work beyond CLI coherence is a fresh
-  effort, e.g. engine/pipeline behavior changes are not this map's route)*
+- **CommandHandler revisited** — the per-command class idea (Q2b) is dead for
+  this effort; ticket 01 settled `_dispatch_guard` + `RunFlags` as the shape.
+  (The destination fixes scope; work beyond CLI coherence, e.g. engine/pipeline
+  behavior changes, is a fresh effort.)

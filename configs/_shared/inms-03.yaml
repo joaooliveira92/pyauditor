@@ -6,12 +6,20 @@ source:
   dataset: projetos
   period_column: "DataHoraSolicitacao"
 quality_gates:
-  checks: []
+  checks:
+  - type: not_null
+    column: DataHoraFim
+  - type: in_set
+    column: No prazo
+    values:
+    - S
+    - N
 calculation:
   shape: ratio
-  aggregation: sum
-  sum_numerator_column: DiasProjeto
-  sum_denominator_extra_column: DiasAtraso
+  aggregation: count_distinct
+  numerator_filter:
+    column: No prazo
+    equals: S
 target:
   operator: '>='
   value: 100.0

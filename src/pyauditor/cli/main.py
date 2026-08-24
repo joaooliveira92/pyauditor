@@ -13,6 +13,7 @@ import argparse
 import shutil
 import sys
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, NoReturn, TypeGuard, assert_never, cast
 
@@ -49,10 +50,12 @@ from pyauditor.cli.requests import (
     logging_kwargs,
     require,
 )
-from pyauditor.cli.run import run_run
+from pyauditor.cli.results import validate_competencia
+from pyauditor.cli.run import OnWarningMode, run_run
 from pyauditor.cli.split import run_split
 from pyauditor.commands.contracts import exit_code_for_results
 from pyauditor.config.resolution import per_orgao_paths
+from pyauditor.orchestration.summary import OutputFormat
 from pyauditor.excel.dados_contratuais import DADOS_CONTRATUAIS_FILENAME
 from pyauditor.excel.equipe import EQUIPE_FILENAME
 from pyauditor.excel.localidades import LOCALIDADES_FILENAME
@@ -107,13 +110,33 @@ def _each_single_orgao(orgao: str) -> tuple[str, ...]:
     return _SINGLE_ORGAOS if orgao == 'both' else (orgao,)
 
 
-def _dispatch_measure(args: argparse.Namespace) -> int:
-    from pyauditor.cli.results import validate_competencia
-
-    request = extract_measure_request(args)
-    if (msg := validate_competencia(request.competencia)) is not None:
+def _dispatch_guard(competencia: str) -> int | None:
+    """Exit code 2 (printing a message) if *competencia* is not `YYYY-MM`,
+    else None. Every dispatcher that turns competencia into a filesystem path
+    must pass it through before building any path from it."""
+    if (msg := validate_competencia(competencia)) is not None:
         print(msg, file=sys.stderr)
         return 2
+    return None
+
+
+@dataclass(frozen=True, slots=True)
+class RunFlags:
+    """Typed flags for the `run` dispatch, assembled once from the Namespace
+    so it reads plain fields instead of re-casting the argparse object."""
+
+    output: OutputFormat = 'text'
+    force: bool = False
+    strict: bool = False
+    final_month: bool = False
+    clean: bool = False
+    on_warning: OnWarningMode = 'continue'
+
+
+def _dispatch_measure(args: argparse.Namespace) -> int:
+    request = extract_measure_request(args)
+    if (code := _dispatch_guard(request.competencia)) is not None:
+        return code
     # §2 — a janela da competência é derivada uma vez do argumento validado e
     # repassada a todos os órgãos; equipe.csv vive na raiz de --data-dir (§6),
     # não no diretório por órgão dos datasets.
@@ -162,12 +185,9 @@ def _dispatch_measure(args: argparse.Namespace) -> int:
 
 
 def _dispatch_split(args: argparse.Namespace) -> int:
-    from pyauditor.cli.results import validate_competencia
-
     request = extract_split_request(args)
-    if (msg := validate_competencia(request.competencia)) is not None:
-        print(msg, file=sys.stderr)
-        return 2
+    if (code := _dispatch_guard(request.competencia)) is not None:
+        return code
     # Log fica junto dos artefatos _split (issue 11), não em
     # data_dir/<orgao>/<competencia>
     # e sem pasta órfã "both"
@@ -238,12 +258,9 @@ def _dispatch_bootstrap(args: argparse.Namespace) -> int:
 
 
 def _dispatch_report(args: argparse.Namespace) -> int:
-    from pyauditor.cli.results import validate_competencia
-
     report_request = extract_report_request(args)
-    if (msg := validate_competencia(report_request.competencia)) is not None:
-        print(msg, file=sys.stderr)
-        return 2
+    if (code := _dispatch_guard(report_request.competencia)) is not None:
+        return code
     setup_logging(
         log_path=_run_log_path(
             report_request.output_path.parent,
@@ -282,14 +299,9 @@ def _dispatch_report(args: argparse.Namespace) -> int:
 
 
 def _dispatch_consolidate(args: argparse.Namespace) -> int:
-    from pyauditor.cli.results import validate_competencia
-
     consolidate_request = extract_consolidate_request(args)
-    if (
-        msg := validate_competencia(consolidate_request.competencia)
-    ) is not None:
-        print(msg, file=sys.stderr)
-        return 2
+    if (code := _dispatch_guard(consolidate_request.competencia)) is not None:
+        return code
     setup_logging(
         log_path=_run_log_path(
             consolidate_request.output_path.parent,
@@ -313,24 +325,27 @@ def _dispatch_consolidate(args: argparse.Namespace) -> int:
 
 
 def _dispatch_run(args: argparse.Namespace) -> int:
-    from pyauditor.cli.results import validate_competencia
-
     competencia = require(args, 'competencia', str)
-    if (msg := validate_competencia(competencia)) is not None:
-        print(msg, file=sys.stderr)
-        return 2
+    if (code := _dispatch_guard(competencia)) is not None:
+        return code
     orgao = require(args, 'orgao', str)
     output_dir = require(args, 'output_dir', Path)
     report_dir = require(args, 'report_dir', Path)
-    if bool(cast(object, getattr(args, 'clean', False))):
+    flags = RunFlags(
+        output=cast(OutputFormat, require(args, 'output', str)),
+        on_warning=cast(OnWarningMode, require(args, 'on_warning', str)),
+        force=bool(cast(object, getattr(args, 'force', False))),
+        strict=bool(cast(object, getattr(args, 'strict', False))),
+        final_month=bool(cast(object, getattr(args, 'final_month', False))),
+        clean=bool(cast(object, getattr(args, 'clean', False))),
+    )
+    if flags.clean:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(report_dir, ignore_errors=True)
     setup_logging(
         log_path=_run_log_path(report_dir, _CMD_RUN, competencia),
         **logging_kwargs(args),
     )
-    output_raw = require(args, 'output', str)
-    on_warning_raw = require(args, 'on_warning', str)
     return run_run(
         competencia=competencia,
         orgao=orgao,
@@ -341,11 +356,11 @@ def _dispatch_run(args: argparse.Namespace) -> int:
         capa_path=extract_capa_path(
             args, data_dir=require(args, 'data_dir', Path)
         ),
-        final_month=bool(cast(object, getattr(args, 'final_month', False))),
-        output='json' if output_raw == 'json' else 'text',
-        force=bool(cast(object, getattr(args, 'force', False))),
-        strict=bool(cast(object, getattr(args, 'strict', False))),
-        on_warning='pause' if on_warning_raw == 'pause' else 'continue',
+        final_month=flags.final_month,
+        output=flags.output,
+        force=flags.force,
+        strict=flags.strict,
+        on_warning=flags.on_warning,
     )
 
 
