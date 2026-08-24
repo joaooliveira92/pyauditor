@@ -147,10 +147,13 @@ def test_enriched_sheet_is_used_when_raw_csv_has_detail_columns(
     }
 
     # Seção 2 — resumo executivo: fórmulas dependem só da base de apoio.
+    # IAP/IADP/fora filtram pela coluna de apoio `_AP` (toggle "Incluído no
+    # INMS?" da Seção 4), não mais por contagem bruta de linhas — permite
+    # desabilitar individualmente grupos executores não previstos.
     assert sheet['A13'].value == '=0.98'
-    assert sheet['B13'].value == '=ROWS($R$2:$R$5)'
-    assert sheet['C13'].value == '=COUNTIF($X$2:$X$5,"S")'
-    assert sheet['D13'].value == '=COUNTIF($X$2:$X$5,"N")'
+    assert sheet['B13'].value == '=COUNTIF($AP$2:$AP$5,"Sim")'
+    assert sheet['C13'].value == '=COUNTIFS($AP$2:$AP$5,"Sim",$X$2:$X$5,"S")'
+    assert sheet['D13'].value == '=COUNTIFS($AP$2:$AP$5,"Sim",$X$2:$X$5,"N")'
     assert sheet['E13'].value == '=IF(B13=0,"Sem ocorrências",C13/B13)'
 
     # Seção 4 — uma linha por grupo executor real do CSV.
@@ -578,7 +581,7 @@ def test_iap_denominator_uses_rows_not_counta(tmp_path: Path) -> None:
 
     wb = load_workbook(output_path)
     sheet = wb['INMS 1.1']
-    assert sheet['B13'].value == '=ROWS($R$2:$R$4)'
+    assert sheet['B13'].value == '=COUNTIF($AP$2:$AP$4,"Sim")'
     assert sheet['B6'].value == 'inms-01.csv (3 registros brutos)'
 
 
@@ -989,8 +992,9 @@ def test_source_note_does_not_expose_full_path(tmp_path: Path) -> None:
 def test_support_columns_are_hidden_and_sheet_is_protected(
     tmp_path: Path,
 ) -> None:
-    """B-03: colunas de apoio (R:AM) ocultas e planilha protegida — só os
-    campos de justificativa/evidência de preenchimento manual continuam
+    """B-03: colunas de apoio (R:AM) recolhidas num grupo de colunas
+    (collapsable, não `hidden` fixo) e planilha protegida — só os campos
+    de justificativa/evidência de preenchimento manual continuam
     editáveis."""
     config_dir, data_dir = _write_fixture(tmp_path)
     categorias_file = load_categorias(config_dir / 'categorias.yaml')
@@ -1004,11 +1008,15 @@ def test_support_columns_are_hidden_and_sheet_is_protected(
     wb = load_workbook(output_path)
     sheet = wb['INMS 1.1']
     assert sheet.column_dimensions['R'].hidden is True
+    assert sheet.column_dimensions['R'].outlineLevel == 1
     assert sheet.column_dimensions['AM'].hidden is True
+    assert sheet.column_dimensions['AM'].outlineLevel == 1
     # C-02 x B-03: a coluna de qualidade dos dados (AJ) fica visível de
-    # propósito — não é fonte de fórmula, é o indicador visual de linhas
-    # com data ausente/inválida que o ticket C-02 exige na planilha.
+    # propósito e fora do grupo — não é fonte de fórmula, é o indicador
+    # visual de linhas com data ausente/inválida que o ticket C-02 exige
+    # na planilha.
     assert sheet.column_dimensions['AJ'].hidden is not True
+    assert sheet.column_dimensions['AJ'].outlineLevel == 0
     assert sheet.protection.sheet is True
     # Coluna 10 (Justificativa de exclusão) da Seção 4 continua editável.
     grupo_executor_bar_row = next(

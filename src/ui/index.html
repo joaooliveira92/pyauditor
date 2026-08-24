@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Wayfinder</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="bg-bg text-ink">
+  <header class="flex h-14 items-center justify-between border-b border-line bg-[#0e1520] px-[18px]">
+    <div><strong>Wayfinder</strong><span id="workspace" class="ml-2.5 text-xs text-[#8e9bb0]"></span></div>
+    <div class="flex items-center gap-2">
+      <span id="dirty" class="hidden rounded-full bg-[#624b12] px-2 py-1 text-xs text-[#ffe59a]">Unsaved</span>
+      <button id="reload" type="button"
+        class="cursor-pointer rounded-md border border-line bg-[#182234] px-3 py-2 disabled:cursor-not-allowed disabled:opacity-45">Reload
+        files</button>
+      <button id="save" type="button" disabled
+        class="cursor-pointer rounded-md border border-[#3976ef] bg-blue-600 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-45">Save</button>
+    </div>
+  </header>
+  <main class="grid h-[calc(100vh-56px)] grid-cols-[270px_minmax(360px,1fr)_360px] max-[900px]:grid-cols-[220px_1fr]">
+    <aside class="overflow-auto border-r border-line bg-panel p-3.5" aria-label="Workspace files">
+      <div class="mb-2.5 font-bold">Configuration</div>
+      <input id="filter" type="search" placeholder="Filter..." autocomplete="off"
+        class="w-full rounded-md border border-line bg-[#0e1520] p-2.5 text-inherit">
+      <div class="mt-4 mb-1.5 text-xs font-semibold tracking-wide text-[#8e9bb0]">Indicators (INMS)</div>
+      <nav id="indicator-nav" class="mt-1"></nav>
+      <div class="mt-4 mb-1.5 border-t border-line pt-3 text-xs font-semibold tracking-wide text-[#8e9bb0]">
+        Categorias</div>
+      <nav id="categoria-nav" class="mt-1"></nav>
+      <div class="mt-4 mb-1.5 border-t border-line pt-3 text-xs font-semibold tracking-wide text-[#8e9bb0]">Datasets
+      </div>
+      <nav id="dataset-nav" class="mt-1"></nav>
+      <div class="mt-4 mb-1.5 border-t border-line pt-3 text-xs font-semibold tracking-wide text-[#8e9bb0]">Contrato
+      </div>
+      <nav id="contrato-nav" class="mt-1"></nav>
+      <div class="mt-4 mb-1.5 border-t border-line pt-3 text-xs font-semibold tracking-wide text-[#8e9bb0]">Other
+        configs</div>
+      <nav id="files" class="mt-1"></nav>
+    </aside>
+    <section class="min-w-0 bg-bg">
+      <div id="empty" class="grid h-full place-items-center text-[#76849a]">Choose an indicator or a YAML/CSS file.
+      </div>
+      <div id="editor-wrap" class="hidden h-full flex-col">
+        <div class="flex h-[42px] items-center border-b border-line px-3">
+          <code id="current-file"></code><span id="status" class="ml-2.5 text-xs text-[#8e9bb0]"></span>
+        </div>
+        <textarea id="editor" spellcheck="false" aria-label="File editor"
+          class="w-full flex-1 resize-none border-0 bg-bg p-4 font-mono text-sm leading-relaxed text-[#dce6f3] outline-0"
+          style="tab-size:2"></textarea>
+      </div>
+      <div id="form-wrap" class="hidden h-full flex-col">
+        <div class="flex h-[42px] items-center border-b border-line px-3">
+          <code id="form-file"></code><span id="form-dirty"
+            class="hidden ml-2.5 rounded-full bg-[#624b12] px-2 py-1 text-xs text-[#ffe59a]">Unsaved</span>
+        </div>
+        <div id="form" class="overflow-auto px-[18px] py-3.5"></div>
+      </div>
+    </section>
+    <aside class="overflow-auto border-l border-line bg-panel p-3.5">
+      <h2 class="mt-0 text-lg font-bold">Pipeline</h2>
+      <label class="mt-3.5 mb-1.5 block text-[13px]">Step<select id="step"
+          class="mt-1 w-full rounded-md border border-line bg-[#0e1520] p-2.5 text-inherit">
+          <option value="run">run (full pipeline)</option>
+          <option value="bootstrap">bootstrap</option>
+          <option value="measure">measure</option>
+          <option value="split">split</option>
+          <option value="report">report</option>
+          <option value="consolidate">consolidate</option>
+        </select></label>
+      <label id="competence-field" class="mt-3.5 mb-1.5 text-[13px]">Competence<input id="competence" type="month"
+          required class="mt-1 w-full rounded-md border border-line bg-[#0e1520] p-2.5 text-inherit"></label>
+      <label id="agency-field" class="mt-3.5 mb-1.5 text-[13px]">Agency<select id="agency"
+          class="mt-1 w-full rounded-md border border-line bg-[#0e1520] p-2.5 text-inherit">
+          <option>both</option>
+          <option>MinC</option>
+          <option>MTur</option>
+        </select></label>
+      <label id="strict-field" class="hidden mt-3.5 mb-1.5 text-[13px]"><span
+          class="flex items-center gap-2"><input id="strict" type="checkbox" class="w-auto"> Strict</span></label>
+      <label id="final-month-field" class="hidden mt-3.5 mb-1.5 text-[13px]"><span
+          class="flex items-center gap-2"><input id="final-month" type="checkbox" class="w-auto"> Final
+          month</span></label>
+      <label id="force-field" class="mt-3.5 mb-1.5 text-[13px]"><span class="flex items-center gap-2"><input
+            id="force" type="checkbox" class="w-auto"> Force</span></label>
+      <label id="clean-field" class="mt-3.5 mb-1.5 text-[13px]"><span class="flex items-center gap-2"><input
+            id="clean" type="checkbox" class="w-auto"> Clean outputs first</span></label>
+      <button id="run" type="button"
+        class="mt-2.5 w-full cursor-pointer rounded-md border border-[#3976ef] bg-blue-600 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-45">Run
+        step</button>
+      <button id="stop" type="button"
+        class="hidden mt-2.5 w-full cursor-pointer rounded-md border border-[#b02d43] bg-[#7f1d2d] px-3 py-2">Stop</button>
+      <pre id="output"
+        class="mt-3.5 h-[calc(100vh-345px)] min-h-[160px] overflow-auto whitespace-pre-wrap rounded-md border border-line bg-[#06090e] p-2.5 font-mono text-xs text-[#b9c5d6]"
+        aria-live="polite">Ready.</pre>
+      <div id="steps" class="mt-2.5 text-[#8e9bb0]"></div>
+      <details id="history" class="mt-3.5 border-t border-line pt-2.5">
+        <summary class="cursor-pointer text-[13px] font-semibold">History (<span id="history-count">0</span>)
+        </summary>
+        <div id="history-list" class="text-[#8e9bb0]"></div>
+      </details>
+    </aside>
+  </main>
+  <div id="toast" role="status" aria-live="polite"
+    class="pointer-events-none fixed right-[18px] bottom-[18px] rounded-md border border-line bg-[#1d2a3e] px-3.5 py-2.5 opacity-0 translate-y-2 transition-all duration-200">
+  </div>
+  <div id="warnings-panel"
+    class="hidden fixed right-[18px] bottom-[18px] z-40 max-h-[50vh] w-[340px] overflow-auto rounded-[10px] border border-line bg-[#151f2f] shadow-[0_12px_30px_#000a]"
+    aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+
+</html>

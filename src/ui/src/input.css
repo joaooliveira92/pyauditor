@@ -1,0 +1,54 @@
+/* Compiled to ../styles.css by scripts/build-css.sh (Tailwind standalone
+   CLI). index.html and js/*.js author markup directly in Tailwind
+   utilities; this file only holds design tokens and the handful of things
+   utilities can't express (keyframes, focus-visible ring). */
+@import "tailwindcss/utilities" source(none);
+@source "../*.html";
+@source "../js/*.js";
+
+@theme {
+  --color-bg: #0b1018;
+  --color-ink: #e7edf5;
+  --color-panel: #121a26;
+  --color-line: #263246;
+  --color-accent: #70a7ff;
+  --color-danger: #ff6b77;
+  --color-warn: #ffcf5c;
+}
+
+@layer base {
+  :root {
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@keyframes warn-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(255 207 92 / .6);
+  }
+
+  100% {
+    box-shadow: 0 0 0 8px rgb(255 207 92 / 0);
+  }
+}
+
+.warning-highlight {
+  animation: warn-pulse 1s ease-out 2;
+}

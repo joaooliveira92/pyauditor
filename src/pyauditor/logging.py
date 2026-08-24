@@ -44,7 +44,7 @@ import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, TextIO, cast
+from typing import Any, Final, TextIO, cast
 
 from loguru import logger
 
@@ -72,7 +72,10 @@ _DEFAULT_LOG_LEVEL: Final[str] = 'INFO'
 _DEFAULT_DETAIL_LEVEL: Final[int] = 0
 _MAX_DETAIL_LEVEL: Final[int] = 2
 
-_STREAM_LOG_FORMAT: Final[str] = '{time:HH:mm:ss} | {level: <8} | {message}'
+_STREAM_LOG_FORMAT: Final[str] = (
+    '<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | '
+    '<level>{message}</level>'
+)
 _FILE_LOG_FORMAT: Final[str] = (
     '{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{line} | {message}'
 )
@@ -305,51 +308,35 @@ def setup_logging(
 
     try:
         if json_sink is not None:
-            stream_handler_id = logger.add(
+            stream_handler_id = _add_handler(
                 json_sink,
                 level=effective_level,
-                filter=detail_filter,
-                backtrace=False,
-                diagnose=False,
-                enqueue=False,
-                catch=False,
+                filter_fn=detail_filter,
             )
         else:
-            stream_handler_id = logger.add(
+            stream_handler_id = _add_handler(
                 sink,
                 level=effective_level,
-                filter=detail_filter,
-                format=format_,
-                backtrace=False,
-                diagnose=False,
-                enqueue=False,
-                catch=False,
+                filter_fn=detail_filter,
+                fmt=_build_stream_formatter(stream_format=format_),
             )
 
         if log_path is not None:
             if isinstance(log_path, (str, Path)):
-                file_handler_id = logger.add(
+                file_handler_id = _add_handler(
                     log_path,
                     level=effective_level,
-                    filter=detail_filter,
-                    format=_FILE_LOG_FORMAT,
-                    backtrace=False,
-                    diagnose=False,
-                    enqueue=False,
-                    catch=False,
+                    filter_fn=detail_filter,
+                    fmt=_FILE_LOG_FORMAT,
                     encoding='utf-8',
                     retention=_LOG_RETENTION,
                 )
             else:
-                file_handler_id = logger.add(
+                file_handler_id = _add_handler(
                     log_path,
                     level=effective_level,
-                    filter=detail_filter,
-                    format=_FILE_LOG_FORMAT,
-                    backtrace=False,
-                    diagnose=False,
-                    enqueue=False,
-                    catch=False,
+                    filter_fn=detail_filter,
+                    fmt=_FILE_LOG_FORMAT,
                 )
     except Exception:
         if file_handler_id is not None:
@@ -388,6 +375,76 @@ def _build_detail_filter(
         return detail <= maximum_detail
 
     return filter_record
+
+
+def _build_stream_formatter(
+    *,
+    stream_format: str,
+) -> Callable[[Mapping[str, object]], str]:
+    """Build a Loguru format template for the human-readable stream.
+
+    Marks every record whose level and message exactly match one already seen
+    earlier in the run — not only immediate neighbors, since repeated
+    warnings (for example, the same validation notice logged once per
+    organization or per pipeline phase) are typically separated by unrelated
+    lines. Nothing is suppressed; the template simply appends ``(repetição
+    N)`` to the rendered message.
+
+    The annotation lives in the template returned for this handler, so it
+    affects only the stream's own output — never the shared record that the
+    readable log file and the JSON sink consume.
+    """
+    seen_counts: dict[tuple[str, str], int] = {}
+
+    def format_template(record: Mapping[str, object]) -> str:
+        level = record['level']
+        level_name = getattr(level, 'name', str(level))
+        message = str(record['message'])
+        occurrence = seen_counts.get((level_name, message), 0) + 1
+        seen_counts[level_name, message] = occurrence
+
+        if occurrence == 1:
+            return stream_format
+
+        return stream_format.replace(
+            '{message}',  # ruff: ignore [missing-f-string-syntax]
+            f'{{message}} (repetição {occurrence})',
+        )
+
+    return format_template
+
+
+def _add_handler(
+    sink: object,
+    *,
+    level: str,
+    filter_fn: Callable[[Mapping[str, object]], bool],
+    fmt: str | Callable[[Mapping[str, object]], str] | None = None,
+    **extra: object,
+) -> int:
+    """Add a Loguru handler with the shared hardened options applied.
+
+    ``backtrace``, ``diagnose``, ``enqueue``, and ``catch`` are always
+    disabled so the handlers do not unexpectedly expose local variables or
+    excessive exception context.
+    """
+    # Boundary: loguru's add() accepts several keyword sets (stream vs path).
+    # Isolate the untyped passthrough to this one forwarding call; callers stay
+    # typed, so only `object`/`Any` values reach the sink.
+    kwargs: dict[str, Any] = {
+        'level': level,
+        'filter': filter_fn,
+        'backtrace': False,
+        'diagnose': False,
+        'enqueue': False,
+        'catch': False,
+    }
+    if fmt is not None:
+        kwargs['format'] = fmt
+    kwargs.update(extra)
+    # O splat de um dict dinâmico não resolve contra os overloads de
+    # `logger.add`; o stub só conhece sets de kwargs estáticos.
+    return logger.add(sink, **kwargs)  # ty: ignore[no-matching-overload]
 
 
 def _validate_verbosity(verbosity: int) -> int:

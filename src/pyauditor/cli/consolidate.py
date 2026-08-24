@@ -14,12 +14,23 @@ Migração das capas para CSV (ticket 07): os campos comuns vêm de `capa.csv`
 e o valor monetário de `objetos.csv` — a capa não carrega mais valores.
 Competência/períodos/responsáveis idem (spec competencia-cli-equipe §4/§6):
 períodos derivados do argumento da CLI e responsáveis de `equipe.csv`.
+
+Duas partes deste comando tocam `config_dir`/CSV bruto — ambas via
+`excel/inms_grouped.py`, recomputando o detalhamento por grupo executor/
+ativo direto das configs, sem nada em disco além do consolidado sendo
+montado: `Item Contratual` da GLOSAS (`compute_glosa_item_detail`, chamado
+antes de `build_consolidated_workbook` — a GLOSAS precisa do resultado) e a
+aba `INMS_BASE_AGRUPADO` (`add_inms_agrupado_sheet`, chamado depois). Se
+qualquer uma falhar, degrada com um aviso; nunca impede a publicação do
+consolidado.
 """
 
+import tempfile
 from pathlib import Path
 from typing import cast
 
 from pyauditor.atomic_write import atomic_write
+from pyauditor.categoria_filter import Warning
 from pyauditor.cli.results import (
     WRITE_FAILURE_HINT,
     DependencyCheck,
@@ -32,11 +43,16 @@ from pyauditor.excel.consolidate import (
     read_existing_decisions,
 )
 from pyauditor.excel.equipe import EQUIPE_FILENAME, read_responsaveis
+from pyauditor.excel.inms_grouped import (
+    add_inms_agrupado_sheet,
+    compute_glosa_item_detail,
+)
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import month_bounds
 from pyauditor.rom.loading import load_summaries, read_valor_base
 
 _ORGAOS: tuple[str, str] = ('MinC', 'MTur')
+_DEFAULT_CONFIG_DIR: Path = Path('configs')
 
 # `ConsolidateResult` reexportado de `commands.contracts` (ticket 11 SRP).
 ConsolidateResult = contracts.ConsolidateResult
@@ -60,15 +76,26 @@ def check_consolidate_ready(
     return DependencyCheck(satisfied=not missing, missing=tuple(missing))
 
 
-def _load_common_capa(data_dir: Path, warnings: list[str]) -> dict[str, object]:
+def _load_common_capa(
+    data_dir: Path, warnings: list[Warning]
+) -> dict[str, object]:
     """Campos comuns do contrato de `capa.csv` (ticket 07). Ausente/malformado
     é dado incompleto — o consolidado é montado mesmo assim, com a capa
     truncada (não bloqueia; a criticidade é do ticket 02/03)."""
     path = data_dir / 'capa.csv'
     if not path.exists():
         warnings.append(
-            f'capa.csv não encontrado em {data_dir} — capa do consolidado sem '
-            f'campos comuns'
+            Warning(
+                code='unstructured',
+                message=(
+                    f'capa.csv não encontrado em {data_dir} — capa do '
+                    'consolidado sem campos comuns'
+                ),
+                orgao=None,
+                competencia=None,
+                inms_key=None,
+                categoria=None,
+            )
         )
         return {}
     try:
@@ -77,8 +104,17 @@ def _load_common_capa(data_dir: Path, warnings: list[str]) -> dict[str, object]:
         return cast(dict[str, object], read_capa_csv_fields(path))
     except (OSError, ValueError) as exc:
         warnings.append(
-            f'falha ao ler capa.csv em {data_dir}: {exc} — campos comuns '
-            f'ausentes'
+            Warning(
+                code='unstructured',
+                message=(
+                    f'falha ao ler capa.csv em {data_dir}: {exc} — campos '
+                    'comuns ausentes'
+                ),
+                orgao=None,
+                competencia=None,
+                inms_key=None,
+                categoria=None,
+            )
         )
         return {}
 
@@ -90,9 +126,11 @@ def run_consolidate(
     output_path: Path,
     data_dir: Path | None = None,
     *,
+    config_dir: Path | None = None,
     is_final_month: bool = False,
 ) -> ConsolidateResult:
     data_dir = data_dir or report_dir.parent
+    config_dir = config_dir or _DEFAULT_CONFIG_DIR
 
     def _error(message: str) -> ConsolidateResult:
         logger.error(message)
@@ -134,18 +172,40 @@ def run_consolidate(
             'nenhum sumário de medição (.json) encontrado para um dos órgãos'
         )
 
-    warnings: list[str] = []
+    warnings: list[Warning] = []
     capa = _load_common_capa(data_dir, warnings)
+    warnings_gerais: list[str] = []
     try:
-        valor_base, itens = read_valor_base(data_dir, warnings)
+        valor_base, itens = read_valor_base(data_dir, warnings_gerais)
     except ValueError as exc:
         return _error(str(exc))  # Q5: malformado é FALHA (exit 1)
+    warnings.extend(
+        Warning(
+            code='unstructured',
+            message=warning,
+            orgao=None,
+            competencia=competencia,
+            inms_key=None,
+            categoria=None,
+        )
+        for warning in warnings_gerais
+    )
 
     # §4/§6 — períodos derivados da CLI; responsáveis de equipe.csv com
     # degrade para warning (dado incompleto nunca bloqueia o consolidado).
     periodo = month_bounds(competencia)
     responsaveis, avisos_equipe = read_responsaveis(data_dir / EQUIPE_FILENAME)
-    warnings.extend(avisos_equipe)
+    warnings.extend(
+        Warning(
+            code='unstructured',
+            message=warning,
+            orgao=None,
+            competencia=competencia,
+            inms_key=None,
+            categoria=None,
+        )
+        for warning in avisos_equipe
+    )
 
     try:
         existing_decisions = read_existing_decisions(output_path)
@@ -162,6 +222,34 @@ def run_consolidate(
             quantidade=len(existing_decisions),
         )
 
+    # `Item Contratual` da GLOSAS (`excel/inms_grouped.py::
+    # compute_glosa_item_detail`) precisa do mesmo detalhamento por grupo
+    # executor/ativo da aba `INMS_BASE_AGRUPADO`, mas a GLOSAS é montada
+    # antes dela existir — recomputa aqui e passa adiante. Mesma política
+    # de degradar sem bloquear: falha aqui só deixa `Item Contratual` vazio
+    # (o comportamento de sempre), nunca impede o consolidado.
+    glosa_item_detail: dict[tuple[str, str], tuple[str, ...]] = {}
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix='pyauditor-glosa-item-detail-'
+        ) as scratch:
+            glosa_item_detail = compute_glosa_item_detail(
+                competencia, config_dir, data_dir, scratch_dir=Path(scratch)
+            )
+    except Exception as exc:  # boundary: nunca vazar traceback nem bloquear
+        warning = f'Item Contratual da GLOSAS não recomputado: {exc}'
+        logger.warning(warning)
+        warnings.append(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=None,
+                competencia=competencia,
+                inms_key=None,
+                categoria=None,
+            )
+        )
+
     try:
         result = build_consolidated_workbook(
             competencia,
@@ -174,12 +262,43 @@ def run_consolidate(
             periodo=periodo,
             responsaveis=responsaveis,
             is_final_month=is_final_month,
+            glosa_item_detail=glosa_item_detail,
         )
     except (
         Exception
     ) as exc:  # boundary: never leak a raw traceback past the CLI
         return _error(
             f'falha inesperada ao montar consolidado de {competencia}: {exc}'
+        )
+
+    # `INMS_BASE_AGRUPADO` (aba com o detalhamento por grupo executor/ativo
+    # e agrupamento nativo de linhas) é um extra sobre o `INMS_BASE` que
+    # acabou de ser montado — nunca deve impedir a publicação do
+    # consolidado (o artefato financeiro principal) se a recomputação
+    # falhar por falta de configs/CSV brutos.
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix='pyauditor-inms-grouped-'
+        ) as scratch:
+            add_inms_agrupado_sheet(
+                result.workbook,
+                competencia,
+                config_dir,
+                data_dir,
+                scratch_dir=Path(scratch),
+            )
+    except Exception as exc:  # boundary: nunca vazar traceback nem bloquear
+        warning = f'aba INMS_BASE_AGRUPADO não gerada: {exc}'
+        logger.warning(warning)
+        warnings.append(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=None,
+                competencia=competencia,
+                inms_key=None,
+                categoria=None,
+            )
         )
 
     try:

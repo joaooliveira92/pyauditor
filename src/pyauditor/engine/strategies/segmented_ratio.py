@@ -14,6 +14,10 @@ from math import isclose
 
 from pyauditor.config.models import IndicatorConfig, SegmentedRatioCalculation
 from pyauditor.engine.strategies._filters import filter_rows
+from pyauditor.engine.strategies._memoria import (
+    SegmentedCategory,
+    SegmentedRatioMemoria,
+)
 from pyauditor.engine.strategies._numbers import as_float
 from pyauditor.engine.strategies._target import safe_pct, shortfall
 from pyauditor.engine.strategies.base import (
@@ -30,7 +34,7 @@ class SegmentedRatioStrategy:
         if config.target is None:
             raise ValueError('segmented_ratio exige `target`')
 
-        categories: list[dict[str, object]] = []
+        categories: list[SegmentedCategory] = []
         total_numerator = 0
         total_denominator = 0
         total_penalty = 0.0
@@ -56,13 +60,13 @@ class SegmentedRatioStrategy:
             ) * category.step_points
 
             categories.append(
-                {
-                    'name': category.name,
-                    'numerator': numerator,
-                    'denominator': denominator,
-                    'result_pct': result_pct,
-                    'penalty_points': penalty,
-                }
+                SegmentedCategory(
+                    name=category.name,
+                    numerator=numerator,
+                    denominator=denominator,
+                    result_pct=result_pct,
+                    penalty_points=penalty,
+                )
             )
             total_numerator += numerator
             total_denominator += denominator
@@ -74,7 +78,7 @@ class SegmentedRatioStrategy:
             result_pct=pooled_result_pct,
             conforms=isclose(total_penalty, 0.0),
             penalty_points=total_penalty,
-            memoria={'categories': categories},
+            memoria=SegmentedRatioMemoria(categories=categories),
         )
 
     def pool_numerator_denominator(

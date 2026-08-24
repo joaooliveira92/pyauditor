@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Protocol
 
+from pyauditor.categoria_filter import Warning
 from pyauditor.cli.measure_contracts import IndicatorOutcome
 from pyauditor.cli.results import Status, exit_code_name, is_production_command
 
@@ -40,7 +41,7 @@ class BootstrapResult:
     orgao: str
     capa_path: Path  # CSV do órgão (o destino por-órgão)
     created: bool  # True se algum arquivo (comum ou do órgão) foi criado
-    warnings: tuple[str, ...]
+    warnings: tuple[Warning, ...]
     error_message: str | None
 
 
@@ -50,7 +51,7 @@ class MeasureResult:
     competencia: str
     orgao: str
     indicators: tuple[IndicatorOutcome, ...]
-    warnings: tuple[str, ...]
+    warnings: tuple[Warning, ...]
     error_message: str | None
 
 
@@ -69,7 +70,7 @@ class SplitResult:
     competencia: str
     orgao: str
     categorias: tuple[SplitCategoriaOutcome, ...]
-    warnings: tuple[str, ...]
+    warnings: tuple[Warning, ...]
     error_message: str | None
     sintetico_path: Path | None = None
 
@@ -81,7 +82,7 @@ class ReportResult:
     orgao: str
     output_path: Path
     indicator_count: int
-    warnings: tuple[str, ...]
+    warnings: tuple[Warning, ...]
     error_message: str | None
     publicable: bool = True
     glosa_calculada: bool = True
@@ -93,7 +94,7 @@ class ConsolidateResult:
     competencia: str
     output_path: Path
     decisions_preserved: int
-    warnings: tuple[str, ...]
+    warnings: tuple[Warning, ...]
     error_message: str | None
     glosa_calculada: bool = True
     total_pontos: float = 0.0

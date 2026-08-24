@@ -21,6 +21,7 @@ from functools import lru_cache
 _INMS_CODE_RE: re.Pattern[str] = re.compile(
     r'^(INMS\s+\d+)\.(\d+)$', re.IGNORECASE
 )
+_INMS_CODE_BARE_RE: re.Pattern[str] = re.compile(r'^(\d+)\.(\d+)$')
 
 
 # ⚡ Bolt: otimização de performance.
@@ -43,7 +44,38 @@ def format_inms_code(code: str) -> str:
     return f'{whole}.{minor.zfill(2)}'
 
 
-@lru_cache(maxsize=128)
+def format_inms_code_numeric(code: str) -> str:
+    """Return the bare, zero-padded ``n.m`` form without the ``INMS``
+    prefix (``"INMS 1.9"`` -> ``"1.09"``) — the compact form GLOSAS's
+    ``Indicador`` column displays, where the header already says
+    "indicador" and one row per occurrence makes the prefix noise.
+    Codes that don't match the ``INMS <n>.<m>`` shape pass through
+    unchanged, same fallback as `format_inms_code`.
+    """
+    match = _INMS_CODE_RE.match(code)
+    if match is None:
+        return code
+    whole, minor = match.groups()
+    major = whole.split()[-1]
+    return f'{major}.{minor.zfill(2)}'
+
+
+def parse_inms_code(code: str) -> str:
+    """Canonicalize a *displayed* contractual code back to the internal
+    ``INMS <n>.<m>`` key, accepting either `format_inms_code`'s full form
+    (``"INMS 1.02"``) or `format_inms_code_numeric`'s bare form
+    (``"1.02"``). Lets `read_existing_decisions` build the same join key
+    regardless of which of the two a prior run wrote to the GLOSAS
+    ``Indicador`` column, so re-runs keep matching fiscal decisions already
+    on disk.
+    """
+    bare = _INMS_CODE_BARE_RE.match(code.strip())
+    if bare is not None:
+        major, minor = bare.groups()
+        return format_inms_code(f'INMS {major}.{minor}')
+    return format_inms_code(code)
+
+
 def contractual_sort_key(code: str) -> tuple[int, str, int, str]:
     """Sort key that orders ``INMS <n>.<m>`` codes numerically by ``m``
     (``INMS 1.2`` before ``INMS 1.10``) instead of lexicographically.

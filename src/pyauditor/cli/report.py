@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 from typing import Final
 
+from pyauditor.categoria_filter import Warning
 from pyauditor.cli.results import (
     WRITE_FAILURE_HINT,
     DependencyCheck,
@@ -102,25 +103,45 @@ def check_report_ready(
 
 def _load_capa_fields(
     capa_path: Path, orgao: str, data_dir: Path
-) -> tuple[dict[str, object], list[str]]:
+) -> tuple[dict[str, object], list[Warning]]:
     """Carrega e funde as capas CSV (comum + órgão) num único dict de campos.
     Capa ausente/comum vira rascunho (warnings), nunca falha técnica —
     processar não exige capa (ticket 02)."""
-    warnings: list[str] = []
+    warnings: list[Warning] = []
     campos: dict[str, object] = {}
 
     orgao_capa = data_dir / f'capa_{orgao}.csv'
     for label, path in (('comum', capa_path), ('de ' + orgao, orgao_capa)):
         if not path.exists():
             warnings.append(
-                f'capa {label} não encontrada em {path} — campos a preencher'
+                Warning(
+                    code='unstructured',
+                    message=(
+                        f'capa {label} não encontrada em {path} — campos a '
+                        'preencher'
+                    ),
+                    orgao=orgao,
+                    competencia=None,
+                    inms_key=None,
+                    categoria=None,
+                )
             )
             continue
         try:
             campos.update(read_capa_csv_fields(path))
         except (OSError, ValueError) as exc:
             warnings.append(
-                f'falha ao ler capa {label} ({path}): {exc} — campos apreencher'
+                Warning(
+                    code='unstructured',
+                    message=(
+                        f'falha ao ler capa {label} ({path}): {exc} — '
+                        'campos apreencher'
+                    ),
+                    orgao=orgao,
+                    competencia=None,
+                    inms_key=None,
+                    categoria=None,
+                )
             )
     return campos, warnings
 
@@ -180,7 +201,7 @@ def run_report(
             f'nenhum sumário de medição (.json) encontrado em {competencia_dir}'
         )
 
-    warnings: list[str] = []
+    warnings: list[Warning] = []
     capa_fields, capa_caveat = _load_capa_fields(capa_path, orgao, data_dir)
     warnings.extend(capa_caveat)
 
@@ -194,13 +215,33 @@ def run_report(
     capa_fields['Período inicial da aferição'] = format_date_br(periodo.inicio)
     capa_fields['Período final da aferição'] = format_date_br(periodo.fim)
     campos_equipe, avisos_equipe = read_responsaveis(data_dir / EQUIPE_FILENAME)
-    warnings.extend(avisos_equipe)
+    warnings.extend(
+        Warning(
+            code='unstructured',
+            message=warning,
+            orgao=orgao,
+            competencia=competencia,
+            inms_key=None,
+            categoria=None,
+        )
+        for warning in avisos_equipe
+    )
     capa_fields.update(campos_equipe)
     warnings_gerais: list[str] = []
 
     try:
         valor_base, _itens = read_valor_base(data_dir, warnings_gerais)
-        warnings.extend(warnings_gerais)
+        warnings.extend(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=orgao,
+                competencia=competencia,
+                inms_key=None,
+                categoria=None,
+            )
+            for warning in warnings_gerais
+        )
     except ValueError as exc:
         return _error(str(exc))  # Q5: malformado é FALHA (exit 1)
     except OSError as exc:
@@ -226,7 +267,16 @@ def run_report(
             f'omitido: {exc}'
         )
         logger.warning(warning)
-        warnings.append(warning)
+        warnings.append(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=orgao,
+                competencia=competencia,
+                inms_key=None,
+                categoria=None,
+            )
+        )
         configs = []
 
     historico_path = roms_dir / HISTORICO_FILENAME
@@ -237,7 +287,16 @@ def run_report(
             f'falhaaolerhistóricodeglosaem{historico_path},rolloverserá0:{exc}'
         )
         logger.warning(warning)
-        warnings.append(warning)
+        warnings.append(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=orgao,
+                competencia=competencia,
+                inms_key=None,
+                categoria=None,
+            )
+        )
         historico = {}
 
     try:
@@ -288,7 +347,16 @@ def run_report(
             f'{WRITE_FAILURE_HINT}'
         )
         logger.warning(warning)
-        warnings.append(warning)
+        warnings.append(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=orgao,
+                competencia=competencia,
+                inms_key=None,
+                categoria=None,
+            )
+        )
 
     situacao = str(capa_fields.get('Situação geral da aferição', '')).strip()
     publicable = (

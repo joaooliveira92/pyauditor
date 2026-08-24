@@ -8,11 +8,13 @@ proven by a synthetic fixture in this file instead.
 """
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from pyauditor.config.models import RatioAcceptanceExpected
 from pyauditor.engine.pipeline import load_config, measure
+from pyauditor.engine.strategies._memoria import RatioMemoria
 
 REPO_ROOT = Path(__file__).parent.parent
 CONFIG_DIR = REPO_ROOT / 'tests' / 'fixtures' / 'configs'
@@ -48,12 +50,9 @@ def test_indicator_matches_acceptance_test(
 
     result = measure(config, data_dir=INPUT_DIR)
 
-    assert result.calculation.memoria['numerator'] == pytest.approx(
-        expected.numerator
-    )
-    assert result.calculation.memoria['denominator'] == pytest.approx(
-        expected.denominator
-    )
+    memoria = cast(RatioMemoria, result.calculation.memoria)
+    assert memoria['numerator'] == pytest.approx(expected.numerator)
+    assert memoria['denominator'] == pytest.approx(expected.denominator)
     assert result.calculation.result_pct == pytest.approx(
         expected.result_pct, abs=0.01
     )
@@ -109,10 +108,10 @@ penalty:
     config = load_config(tmp_path / 'config.yaml')
     result = measure(config, data_dir=tmp_path)
 
-    assert result.calculation.memoria == {
-        'numerator': 270.0,
-        'denominator': 300.0,
-    }
+    assert result.calculation.memoria == RatioMemoria(
+        numerator=270.0,
+        denominator=300.0,
+    )
     assert result.calculation.result_pct == pytest.approx(90.0)
     assert result.calculation.conforms is False
     # shortfall 10 p.p. / 1% step * 200 = 2000
@@ -164,10 +163,10 @@ penalty:
     config = load_config(tmp_path / 'config.yaml')
     result = measure(config, data_dir=tmp_path)
 
-    assert result.calculation.memoria == {
-        'numerator': 90.5,
-        'denominator': 101.0,
-    }
+    assert result.calculation.memoria == RatioMemoria(
+        numerator=90.5,
+        denominator=101.0,
+    )
 
 
 def test_sum_aggregation_subtracts_and_excludes_a_totals_row(
@@ -226,10 +225,10 @@ penalty:
     config = load_config(tmp_path / 'config.yaml')
     result = measure(config, data_dir=tmp_path)
 
-    assert result.calculation.memoria == {
-        'numerator': 86.0,
-        'denominator': 87.0,
-    }
+    assert result.calculation.memoria == RatioMemoria(
+        numerator=86.0,
+        denominator=87.0,
+    )
     assert result.calculation.conforms is True
     assert result.calculation.penalty_points == pytest.approx(0.0)
 

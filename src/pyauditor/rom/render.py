@@ -1,45 +1,74 @@
-"""Generic ROM Markdown template + per-shape memória de cálculo renderers.
+"""Template genérico de ROM Markdown + renderers de memória de cálculo por
+shape.
 
-Fixed sections (identificação, linhas aprovadas, rejeições, resultado vs
-meta, responsáveis) are the same for every shape; only the memória de
-cálculo — and the "ressalva interpretativa" (only shown for indicators with a
-step-based `penalty`) — varies. See .scratch/melhoria_rom/map.md for the spec
-this template implements.
+As seções fixas (identificação, linhas aprovadas, rejeições, resultado vs
+meta, responsáveis) são iguais para todo shape; só a memória de cálculo — e a
+"ressalva interpretativa" (exibida apenas para indicadores com `penalty` em
+degraus) — variam. Ver .scratch/melhoria_rom/map.md para a spec que este
+template implementa.
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import cast
 
 from pyauditor.codes import format_inms_code
 from pyauditor.config.models import IndicatorConfig
 from pyauditor.engine.pipeline import MeasurementProvenance, MeasurementResult
 from pyauditor.engine.quality_gates import QualityGateReport
 from pyauditor.engine.strategies import penalty_interpretation
+from pyauditor.engine.strategies._memoria import (
+    CountDifferenceMemoria,
+    ExternalCatalogSumMemoria,
+    PrecomputedTableMemoria,
+    RatioMemoria,
+    SegmentedRatioMemoria,
+)
 from pyauditor.engine.strategies.base import CalculationResult
 from pyauditor.periodo import PeriodoAfericao, format_period_br
 
 _CAPA_PLACEHOLDER = '[a preencher]'
 
-
-def _require_list(value: object, *, field: str) -> list[Any]:
-    if not isinstance(value, list):
-        raise TypeError(
-            f'memoria[{field!r}] deveria ser list, veio {type(value).__name__}'
-        )
-    return value
+# Blockquotes explícitos, inteiros em constantes de módulo (não concatenados
+# palavra por palavra) — legibilidade para o lector da fonte e da diff, e um
+# único lugar onde editar o texto.
+_RESSALVA_QUOTE = (
+    '> A leitura linear contínua é a metodologia adotada por este pipeline. '
+    'As\n'
+    '> demais leituras são apresentadas para transparência e não foram '
+    'validadas\n'
+    '> formalmente pela gestão contratual/assessoria jurídica.'
+)
+_QUALITY_GATE_QUOTE = (
+    '> Aprovação pelo quality gate não equivale à população contratual '
+    'completa\n'
+    '> (registros podem ser rejeitados por critérios estruturais que não '
+    'decidem\n'
+    '> se pertencem ao universo do indicador).'
+)
+_PONTUACION_QUOTE = (
+    '> "Pontuação apurada" não implica sanção administrativa — ver '
+    'processo\n'
+    '> sancionador próprio, se cabível.'
+)
+_FOOTER_QUOTE = (
+    '*Competência e Período da aferição são derivados do argumento '
+    '--competência da CLI. Responsáveis refletem o estado da capa no '
+    'momento em que este ROM foi gerado.*'
+)
 
 
 def _md_cell(value: object) -> str:
-    """Escape a value before it lands in a Markdown table cell — a stray
-    `|` or embedded newline from CSV-derived data would otherwise silently
-    shift the table's column alignment in what's meant to be a formal,
-    auditable record."""
+    """Escape um valor antes de entrar numa célula de tabela Markdown — um
+    `|` solto ou uma quebra de linha embutida vinda de dado de CSV deslocaria
+    silenciosamente o alinhamento das colunas num registro que deveria ser
+    formal e auditável."""
     return str(value).replace('|', '\\|').replace('\n', ' ')
 
 
 def render_ratio_memoria(calculation: CalculationResult) -> str:
-    numerator = calculation.memoria['numerator']
-    denominator = calculation.memoria['denominator']
+    memoria = cast(RatioMemoria, calculation.memoria)
+    numerator = memoria['numerator']
+    denominator = memoria['denominator']
     return (
         f'- Numerador: {numerator}\n- Denominador: {denominator}\n'
         f'- Resultado: {calculation.result_pct:.2f}%'
@@ -47,9 +76,7 @@ def render_ratio_memoria(calculation: CalculationResult) -> str:
 
 
 def render_segmented_ratio_memoria(calculation: CalculationResult) -> str:
-    categories = _require_list(
-        calculation.memoria['categories'], field='categories'
-    )
+    categories = cast(SegmentedRatioMemoria, calculation.memoria)['categories']
     lines = [
         f'| {_md_cell(c["name"])} | {c["numerator"]} | {c["denominator"]} | '
         f'{c["result_pct"]:.2f}% | {c["penalty_points"]:.2f} |'
@@ -65,19 +92,17 @@ def render_segmented_ratio_memoria(calculation: CalculationResult) -> str:
 
 
 def render_count_difference_memoria(calculation: CalculationResult) -> str:
-    qrc = calculation.memoria['QRC']
-    qcsi = calculation.memoria['QCSI']
-    cni = calculation.memoria['CNI']
+    memoria = cast(CountDifferenceMemoria, calculation.memoria)
     return (
-        f'- QRC (recomendados): {qrc}\n- QCSI (implantados): {qcsi}\n- CNI ='
-        f' QRC - QCSI = {cni}'
+        f'- QRC (recomendados): {memoria["QRC"]}\n'
+        f'- QCSI (implantados): {memoria["QCSI"]}\n'
+        f'- CNI = QRC - QCSI = {memoria["CNI"]}'
     )
 
 
 def render_external_catalog_sum_memoria(calculation: CalculationResult) -> str:
-    occurrences = _require_list(
-        calculation.memoria['occurrences'], field='occurrences'
-    )
+    memoria = cast(ExternalCatalogSumMemoria, calculation.memoria)
+    occurrences = memoria['occurrences']
     if not occurrences:
         rows_markdown = '| — | — | nenhuma ocorrência | — |'
     else:
@@ -90,14 +115,13 @@ def render_external_catalog_sum_memoria(calculation: CalculationResult) -> str:
         '| Ocorrência | Item Anexo E | Descrição | Pontos |\n'
         '|---|---|---|---|\n'
         f'{rows_markdown}\n\n'
-        f'- Σ Pontos_NMS = {calculation.memoria["total_points"]}'
+        f'- Σ Pontos_NMS = {memoria["total_points"]}'
     )
 
 
 def render_precomputed_table_memoria(calculation: CalculationResult) -> str:
-    categories = _require_list(
-        calculation.memoria['categories'], field='categories'
-    )
+    memoria = cast(PrecomputedTableMemoria, calculation.memoria)
+    categories = memoria['categories']
     if not categories:
         rows_markdown = '| — | — | nenhuma linha |'
     else:
@@ -189,9 +213,9 @@ def _render_responsaveis(capa_fields: dict[str, object], h: str = '##') -> str:
 def _render_ressalva_interpretativa(
     config: IndicatorConfig, calculation: CalculationResult
 ) -> str | None:
-    """Only shapes with a step-based `penalty` (today: `ratio`) have a
-    linear-vs-degraus ambiguity to disclose, and only when there's an actual
-    shortfall to score — a conforming indicator has nothing to interpret.
+    """Só shapes com `penalty` em degraus (hoje: `ratio`) têm ambiguidade
+    linear-vs-degraus a declarar, e só quando há déficit real a pontuar — um
+    indicador conforme não tem nada a interpretar.
 
     Formata as leituras já computadas pela engine
     (`penalty_interpretation`) — o Markdown nunca recalcula a ressalva.
@@ -213,31 +237,7 @@ def _render_ressalva_interpretativa(
         f'| Qualquer fração inicia novo degrau | {formula_ceil} |'
         f' {readings.ceil:.2f} |\n'
         '\n'
-        '> '
-        'A '
-        'leitura '
-        'linear '
-        'contínua '
-        'é '
-        'a '
-        'metodologia '
-        'adotada '
-        'por '
-        'este '
-        'pipeline. '
-        'As\n'
-        '> '
-        'demais '
-        'leituras '
-        'são '
-        'apresentadas '
-        'para '
-        'transparência '
-        'e '
-        'não '
-        'foram '
-        'validadas\n'
-        '> formalmente pela gestão contratual/assessoria jurídica.'
+        f'{_RESSALVA_QUOTE}'
     )
 
 
@@ -259,30 +259,29 @@ def _render_linhas_aprovadas(
         f'- Linhas lidas:'
         f' {len(gate_report.accepted) + len(gate_report.rejected)}\n'
         f'- Linhas aprovadas: {len(gate_report.accepted)}{fora_do_periodo}\n\n'
-        '> '
-        'Aprovação '
-        'pelo '
-        'quality '
-        'gate '
-        'não '
-        'equivale '
-        'à '
-        'população '
-        'contratual '
-        'completa\n'
-        '> '
-        '(registros '
-        'podem '
-        'ser '
-        'rejeitados '
-        'por '
-        'critérios '
-        'estruturais '
-        'que '
-        'não '
-        'decidem\n'
-        '> se pertencem ao universo do indicador).'
+        f'{_QUALITY_GATE_QUOTE}'
     )
+
+
+def _render_anomalias(result: MeasurementResult, h: str = '##') -> str | None:
+    """Anomalias de leitura (fila ragged + célula numérica ilegível) viram
+    seção própria no ROM quando existem — em aferição, registro formal é
+    durabilidade: o número apresentado ao lado delas só é auditável se o
+    leitor souber que houve descarte local."""
+    itens: list[str] = []
+    if result.ragged_rows:
+        itens.append(
+            f'- Filas com campos além do cabeçalho (descartados localmente): '
+            f'{result.ragged_rows}'
+        )
+    if result.unparseable_numerics:
+        itens.append(
+            f'- Células numéricas ilegíveis ignoradas no cálculo: '
+            f'{result.unparseable_numerics}'
+        )
+    if not itens:
+        return None
+    return f'{h} Anomalias de leitura\n' + '\n'.join(itens) + '\n'
 
 
 def _render_resultado_vs_meta(
@@ -305,17 +304,7 @@ def _render_resultado_vs_meta(
     return (
         f'{h} Resultado vs meta\n{resultado_vs_meta}\n'
         f'- Pontuação apurada: {calculation.penalty_points:.2f} pontos\n\n'
-        '> '
-        '"Pontuação '
-        'apurada" '
-        'não '
-        'implica '
-        'sanção '
-        'administrativa '
-        '— '
-        'ver '
-        'processo\n'
-        '> sancionador próprio, se cabível.'
+        f'{_PONTUACION_QUOTE}'
     )
 
 
@@ -327,10 +316,10 @@ def _org_body(
     competencia: str = '',
     periodo: PeriodoAfericao | None = None,
 ) -> list[str]:
-    """The per-orgão body sections of a ROM — shared by the standalone
-    `render_rom` (h=`##`) and the combined `render_combined_rom` (nested
-    under each orgão heading, h=`###`). `capa_fields` alimenta só os
-    Responsáveis (§5); Competência/Período vêm dos argumentos da CLI."""
+    """As seções do corpo de um ROM por órgão — compartilhadas pelo
+    `render_rom` standalone (h=`##`) e pelo combinado `render_combined_rom`
+    (aninhado sob o heading de cada órgão, h=`###`). `capa_fields` alimenta só
+    os Responsáveis (§5); Competência/Período vêm dos argumentos da CLI."""
     config = result.config
     gate_report = result.quality_gate_report
     calculation = result.calculation
@@ -358,9 +347,18 @@ def _org_body(
         _render_linhas_aprovadas(
             gate_report, h, dropped_out_of_period=result.dropped_out_of_period
         ),
-        f'{h} Rejeições\n| ID | Motivo |\n|---|---|\n{rejected_table}',
-        f'{h} Memória de cálculo\n{memoria_renderer(calculation)}',
     ]
+
+    anomalias = _render_anomalias(result, h)
+    if anomalias is not None:
+        sections.append(anomalias)
+
+    sections.extend(
+        [
+            f'{h} Rejeições\n| ID | Motivo |\n|---|---|\n{rejected_table}',
+            f'{h} Memória de cálculo\n{memoria_renderer(calculation)}',
+        ]
+    )
 
     ressalva = _render_ressalva_interpretativa(config, calculation)
     if ressalva is not None:
@@ -368,34 +366,7 @@ def _org_body(
 
     sections.append(_render_resultado_vs_meta(config, calculation, h))
     sections.append(_render_responsaveis(capa_fields, h))
-    sections.append(
-        '---\n'
-        '*Competência '
-        'e '
-        'Período '
-        'da '
-        'aferição '
-        'são '
-        'derivados '
-        'do '
-        'argumento '
-        '--competência '
-        'da '
-        'CLI. '
-        'Responsáveis '
-        'refletem '
-        'o '
-        'estado '
-        'da '
-        'capa '
-        'no '
-        'momento '
-        'em '
-        'que '
-        'este '
-        'ROM '
-        'foi gerado.*'
-    )
+    sections.append(f'---\n{_FOOTER_QUOTE}')
 
     return sections
 
@@ -437,9 +408,9 @@ def render_combined_rom(
     competencia: str = '',
     periodo: PeriodoAfericao | None = None,
 ) -> str:
-    """One markdown per indicator covering both orgãos: the full ROM body of
-    each, stacked under a `## <órgão>` heading. Written when `measure` runs
-    with `--orgao both`, alongside the per-orgão ROMs."""
+    """Um markdown por indicador cobrindo os dois órgãos: o corpo completo do
+    ROM de cada um, empilhado sob um heading `## <órgão>`. Escrito quando
+    `measure` roda com `--orgao both`, ao lado dos ROMs por órgão."""
     capa_by_orgao = capa_by_orgao or {}
     config_a = result_a.config
     config_b = result_b.config

@@ -8,8 +8,13 @@ worked example of the schema.
 """
 
 from pathlib import Path
+from typing import cast
 
 from pyauditor.engine.pipeline import load_config, measure
+from pyauditor.engine.strategies._memoria import (
+    CatalogOccurrence,
+    ExternalCatalogSumMemoria,
+)
 from pyauditor.rom.render import render_rom
 
 FIXTURES_DIR = Path(__file__).parent / 'fixtures' / 'manual_entry_examples'
@@ -29,11 +34,12 @@ def test_schema_round_trips_through_measure() -> None:
 
     # OD-52=100, max(OD-10=500, OD-20=50)=500 (multi-código, maior pontuação
     # vence), OD-30=500, OD-60=200
-    assert result.calculation.memoria['total_points'] == 1300
+    memoria = cast(ExternalCatalogSumMemoria, result.calculation.memoria)
+    assert memoria['total_points'] == 1300
     assert result.calculation.penalty_points == 1300.0
     assert result.calculation.conforms is False
 
-    occurrences = result.calculation.memoria['occurrences']
+    occurrences = memoria['occurrences']
     assert isinstance(occurrences, list)
     assert [o['occurrence_id'] for o in occurrences] == [
         'OC-2026-001',
@@ -41,7 +47,7 @@ def test_schema_round_trips_through_measure() -> None:
         'OC-2026-003',
         'OC-2026-005',
     ]
-    multi_code_occurrence = occurrences[1]
+    multi_code_occurrence: CatalogOccurrence = occurrences[1]
     assert (
         multi_code_occurrence['catalog_id'] == 'OD-10'
     )  # 500 > 50, maior pontuação vence

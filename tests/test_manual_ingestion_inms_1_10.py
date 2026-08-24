@@ -10,6 +10,7 @@ doubles as a worked example of the schema.
 from pathlib import Path
 
 from pyauditor.engine.pipeline import load_config, measure
+from pyauditor.engine.strategies._memoria import CountDifferenceMemoria
 from pyauditor.rom.render import render_rom
 
 FIXTURES_DIR = Path(__file__).parent / 'fixtures' / 'manual_entry_examples'
@@ -27,7 +28,9 @@ def test_schema_round_trips_through_measure() -> None:
     assert len(result.quality_gate_report.accepted) == 5
 
     # QRC = 5 accepted controls; QCSI = 3 implemented (CTRL-01/02/03); CNI = 2
-    assert result.calculation.memoria == {'QRC': 5, 'QCSI': 3, 'CNI': 2}
+    assert result.calculation.memoria == CountDifferenceMemoria(
+        QRC=5, QCSI=3, CNI=2
+    )
     assert result.calculation.penalty_points == 2000.0
     assert result.calculation.result_pct == 60.0
     assert result.calculation.conforms is False

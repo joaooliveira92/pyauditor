@@ -39,10 +39,15 @@ def _write_precomputed_table_sheet(
     target_value: float,
     rows: list[dict[str, str]],
 ) -> None:
-    """INMS 1.4/1.5/1.9/1.13: uma linha por `name_column` (o mesmo dado que a
-    medição oficial lê — `PrecomputedTableStrategy`), em vez do colapso
-    "(indicador inteiro)"/traços. "Meta atingida?" reusa `meets_target`
-    contra `target`, não a coluna crua `atingiu_meta` do CSV."""
+    """Fallback para `precomputed_table` sem `name_column`/`scope.contract`,
+    ou pontual (`result_is_percent: false`, ex. INMS 1.8) — os percentuais
+    com `name_column` (1.4, 1.5, 1.9, 1.13, 1.14) usam o renderer
+    enriquecido (`precomputed_audit.py`) em vez deste. Uma linha por
+    `name_column` (o mesmo dado que a medição oficial lê —
+    `PrecomputedTableStrategy`), em vez do colapso "(indicador
+    inteiro)"/traços. "Meta atingida?" reusa `meets_target` contra `target`,
+    não a coluna crua `atingiu_meta` do CSV — só faz sentido em escala
+    percentual, por isso fica `'—'` no modo pontual."""
     sheet = new_sheet(workbook, sheet_name, _PRECOMPUTED_COLUMNS)
     row_idx = 2
     for categoria_key, _entry in entries:

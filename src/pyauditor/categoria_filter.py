@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import csv
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
@@ -21,12 +22,72 @@ from pyauditor.config.categorias import GrupoExecutorMode
 
 __all__: Final[tuple[str, ...]] = (
     'GRUPO_EXECUTOR_COLUMN',
+    'RawCsv',
+    'Warning',
+    'WarningTarget',
     'base_config_stem',
     'compute_categoria_values',
     'outros_warning',
     'read_raw_csv',
     'unmatched_in_values_warnings',
 )
+
+
+@dataclass(frozen=True)
+class WarningTarget:
+    """Campo exato de configuração que causou um `Warning`.
+
+    ``path`` segue a mesma convenção de array-de-chaves já usada pelo form
+    engine genérico do `app.js` (ex.: ``("config", "categorias",
+    "ATENDIMENTO_N1", "inms", "1.1", "in_values")``), pra que a UI só
+    precise navegar até ele sem reconhecer o `code` do warning.
+    """
+
+    family: str
+    orgao: str
+    path: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Warning:
+    """Aviso estruturado gerado durante a filtragem por categoria.
+
+    ``message`` preserva o texto pronto para registro (mesmo conteúdo que
+    hoje circula como ``str``); os demais campos dão contexto navegável sem
+    exigir que o chamador reanalise a mensagem. ``code`` identifica o tipo de
+    aviso de forma estável (``"unstructured"`` para o texto livre dos demais
+    pontos do pipeline que ainda não foram migrados). ``target`` aponta pro
+    campo exato de configuração que causou o aviso, quando existir um — nem
+    todo `code` tem um alvo editável (ex.: a categoria residual "outros").
+    """
+
+    code: str
+    message: str
+    orgao: str | None
+    competencia: str | None
+    inms_key: str | None
+    categoria: str | None
+    target: WarningTarget | None = None
+
+    def __str__(self) -> str:
+        return self.message
+
+
+@dataclass(frozen=True)
+class RawCsv:
+    """Resultado de uma leitura bruta: campos, filas e anomalias detectadas.
+
+    ``ragged_rows`` conta as filas cujo número de campos excede o da cabecera
+    (campo livre contendo o delimitador desloca as colunas). O ``DictReader``
+    enfia esse excedente na chave ``None``; aqui ele é contado em vez de ser
+    descartado em silêncio, porque num contexto de aferição uma fila truncada
+    é dado que pode mudar o resultado sem deixar rastro.
+    """
+
+    fieldnames: list[str]
+    rows: list[dict[str, str]]
+    ragged_rows: int = 0
+
 
 GRUPO_EXECUTOR_COLUMN: Final[str] = 'Grupo_executor'
 _INMS_KEY_RE: Final[re.Pattern[str]] = re.compile(r'^1\.(\d+)$')
@@ -71,7 +132,7 @@ def read_raw_csv(
     path: Path,
     delimiter: str,
     encoding: str,
-) -> tuple[list[str], list[dict[str, str]]]:
+) -> RawCsv:
     """Lê um CSV bruto e normaliza seus nomes de coluna.
 
     Args:
@@ -80,7 +141,8 @@ def read_raw_csv(
         encoding: Codificação de caracteres do arquivo.
 
     Returns:
-        Uma tupla com os nomes de coluna e as linhas normalizadas.
+        Um :class:`RawCsv` com os nomes de coluna, as linhas normalizadas e o
+        número de linhas com campos sobrantes (``ragged``).
 
     Raises:
         ValueError: Se o CSV estiver vazio ou não tiver cabeçalho.
@@ -95,14 +157,24 @@ def read_raw_csv(
         fieldnames = _normalize_grupo_executor_header(raw_fieldnames)
         rename = dict(zip(raw_fieldnames, fieldnames, strict=True))
         reader.fieldnames = raw_fieldnames
-        rows = [
-            {
-                rename[name]: (row.get(name) or '').strip()
-                for name in raw_fieldnames
-            }
-            for row in reader
-        ]
-    return fieldnames, rows
+        rows: list[dict[str, str]] = []
+        ragged_rows = 0
+        for row in reader:
+            if row.get(None):
+                # DictReader enfia os campos sobrantes (mais colunas que o
+                # cabeçalho) na chave `None` — contados como anomalia.
+                ragged_rows += 1
+            rows.append(
+                {
+                    rename[name]: (row.get(name) or '').strip()
+                    for name in raw_fieldnames
+                }
+            )
+    return RawCsv(
+        fieldnames=fieldnames,
+        rows=rows,
+        ragged_rows=ragged_rows,
+    )
 
 
 def compute_categoria_values(
@@ -184,7 +256,7 @@ def unmatched_in_values_warnings(
     entries: list[tuple[str, GrupoExecutorMode]],
     real_values: set[str],
     raw_csv_path: Path,
-) -> list[str]:
+) -> list[Warning]:
     """Cria avisos para ``in_values`` ausentes do CSV bruto.
 
     Args:
@@ -196,9 +268,9 @@ def unmatched_in_values_warnings(
         raw_csv_path: Caminho do CSV usado na verificação.
 
     Returns:
-        Mensagens prontas para registro e acumulação pelo chamador.
+        Avisos prontos para registro e acumulação pelo chamador.
     """
-    warnings: list[str] = []
+    warnings: list[Warning] = []
     for categoria_key, entry in entries:
         if entry.in_values is None:
             continue
@@ -214,16 +286,38 @@ def unmatched_in_values_warnings(
             f'{categoria_key}: '
         )
         if not (set(entry.in_values) & real_values):
-            warnings.append(
+            message = (
                 f'{prefix}in_values {unmatched!r} sem correspondência em '
                 f'Grupo_executor do CSV ({raw_csv_path}) — possível '
                 'typo/renomeação, categoria ficará sem linhas'
             )
         else:
-            warnings.append(
+            message = (
                 f'{prefix}in_values {unmatched!r} sem correspondência — '
                 'valores não encontrados no CSV'
             )
+        warnings.append(
+            Warning(
+                code='in_values_unmatched',
+                message=message,
+                orgao=orgao,
+                competencia=competencia,
+                inms_key=inms_key,
+                categoria=categoria_key,
+                target=WarningTarget(
+                    family='categorias',
+                    orgao=orgao,
+                    path=(
+                        'config',
+                        'categorias',
+                        categoria_key,
+                        'inms',
+                        inms_key,
+                        'in_values',
+                    ),
+                ),
+            )
+        )
     return warnings
 
 
@@ -233,10 +327,17 @@ def outros_warning(
     orgao: str,
     competencia: str,
     outros_count: int,
-) -> str:
+) -> Warning:
     """Cria o aviso para linhas não classificadas em uma categoria."""
-    return (
-        f'INMS {inms_key} ({orgao}/{competencia}), categoria outros: '
-        f'{outros_count} linha(s) não classificada(s) em nenhuma categoria — '
-        'revisar categorias.yaml'
+    return Warning(
+        code='outros_leftover',
+        message=(
+            f'INMS {inms_key} ({orgao}/{competencia}), categoria outros: '
+            f'{outros_count} linha(s) não classificada(s) em nenhuma '
+            'categoria — revisar categorias.yaml'
+        ),
+        orgao=orgao,
+        competencia=competencia,
+        inms_key=inms_key,
+        categoria='outros',
     )

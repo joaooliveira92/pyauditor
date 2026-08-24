@@ -6,6 +6,7 @@ data can't reach.
 """
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -18,6 +19,13 @@ from pyauditor.config.models import (
     SegmentedRatioAcceptanceExpected,
 )
 from pyauditor.engine.pipeline import discover_configs, measure
+from pyauditor.engine.strategies._memoria import (
+    CountDifferenceMemoria,
+    ExternalCatalogSumMemoria,
+    PrecomputedTableMemoria,
+    RatioMemoria,
+    SegmentedRatioMemoria,
+)
 
 REPO_ROOT = Path(__file__).parent.parent
 CONFIG_DIR = REPO_ROOT / 'tests' / 'fixtures' / 'configs'
@@ -62,21 +70,20 @@ def test_acceptance_test_matches_real_data(config: IndicatorConfig) -> None:
     )
 
     if isinstance(expected, RatioAcceptanceExpected):
-        assert calc.memoria.get('numerator') == pytest.approx(
-            expected.numerator
-        ), (
+        memoria = cast(RatioMemoria, calc.memoria)
+        assert memoria.get('numerator') == pytest.approx(expected.numerator), (
             f'{label}: numerator — expected {expected.numerator}, '
-            f'got {calc.memoria.get("numerator")}'
+            f'got {memoria.get("numerator")}'
         )
-        assert calc.memoria.get('denominator') == pytest.approx(
+        assert memoria.get('denominator') == pytest.approx(
             expected.denominator
         ), (
             f'{label}: denominator — expected {expected.denominator}, '
-            f'got {calc.memoria.get("denominator")}'
+            f'got {memoria.get("denominator")}'
         )
 
     elif isinstance(expected, SegmentedRatioAcceptanceExpected):
-        categories = calc.memoria.get('categories')
+        categories = cast(SegmentedRatioMemoria, calc.memoria).get('categories')
         assert isinstance(categories, list), (
             f'{label}: expected categories in memoria, found none'
         )
@@ -110,30 +117,32 @@ def test_acceptance_test_matches_real_data(config: IndicatorConfig) -> None:
             )
 
     elif isinstance(expected, CountDifferenceAcceptanceExpected):
-        assert calc.memoria.get('QRC') == expected.qrc, (
-            f'{label}: QRC — expected {expected.qrc}, got'
-            f'{calc.memoria.get("QRC")}'
+        memoria = cast(CountDifferenceMemoria, calc.memoria)
+        assert memoria.get('QRC') == expected.qrc, (
+            f'{label}: QRC — expected {expected.qrc}, got{memoria.get("QRC")}'
         )
-        assert calc.memoria.get('QCSI') == expected.qcsi, (
+        assert memoria.get('QCSI') == expected.qcsi, (
             f'{label}: QCSI — expected {expected.qcsi}, got'
-            f'{calc.memoria.get("QCSI")}'
+            f'{memoria.get("QCSI")}'
         )
-        assert calc.memoria.get('CNI') == expected.cni, (
-            f'{label}: CNI — expected {expected.cni}, got'
-            f'{calc.memoria.get("CNI")}'
+        assert memoria.get('CNI') == expected.cni, (
+            f'{label}: CNI — expected {expected.cni}, got{memoria.get("CNI")}'
         )
 
     elif isinstance(expected, ExternalCatalogSumAcceptanceExpected):
-        assert calc.memoria.get('total_points') == expected.total_points, (
+        memoria = cast(ExternalCatalogSumMemoria, calc.memoria)
+        assert memoria.get('total_points') == expected.total_points, (
             f'{label}: total_points — expected {expected.total_points}, '
-            f'got {calc.memoria.get("total_points")}'
+            f'got {memoria.get("total_points")}'
         )
 
     elif isinstance(expected, PrecomputedTableAcceptanceExpected):
         # headline result/conforms/penalty are validated above; the per-ativo
         # breakdown is exercised synthetically in
         # tests/test_precomputed_table.py.
-        assert isinstance(calc.memoria.get('categories'), list)
+        assert isinstance(
+            cast(PrecomputedTableMemoria, calc.memoria).get('categories'), list
+        )
 
 
 def test_all_14_indicators_are_discovered() -> None:

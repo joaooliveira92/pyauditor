@@ -1,7 +1,8 @@
-"""Leitura crua de CSV para reprodução verbatim como aba de Excel — sem
-nenhum processamento, cabeçalho + linhas tal qual estão no arquivo. Usado
-pelas abas "Prazos"/"Capa"/"Equipe"/"Objetos" de `sintetico.xlsx`
-(`excel/sintetico.py`), cada uma com seu próprio delimiter/encoding.
+"""Leitura crua de CSV — sem nenhum processamento, cabeçalho + linhas tal
+qual estão no arquivo. Usado por `excel/prazos.py` (fonte da aba "Prazos" de
+`sintetico.xlsx`, hoje formatada por
+`excel/sintetico/_sheets/institutional.py`), cada consumidor com seu
+próprio delimiter/encoding.
 """
 
 from __future__ import annotations

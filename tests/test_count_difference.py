@@ -5,11 +5,13 @@ without breaking. The penalty math itself is proven by a synthetic fixture.
 """
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from pyauditor.config.models import CountDifferenceAcceptanceExpected
 from pyauditor.engine.pipeline import load_config, measure
+from pyauditor.engine.strategies._memoria import CountDifferenceMemoria
 from pyauditor.rom.render import render_rom
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -29,9 +31,10 @@ def test_inms_1_10_matches_acceptance_test() -> None:
 
     result = measure(config, data_dir=INPUT_DIR)
 
-    assert result.calculation.memoria['QRC'] == expected.qrc
-    assert result.calculation.memoria['QCSI'] == expected.qcsi
-    assert result.calculation.memoria['CNI'] == expected.cni
+    memoria = cast(CountDifferenceMemoria, result.calculation.memoria)
+    assert memoria['QRC'] == expected.qrc
+    assert memoria['QCSI'] == expected.qcsi
+    assert memoria['CNI'] == expected.cni
     assert result.calculation.conforms == expected.conforms
     assert result.calculation.penalty_points == pytest.approx(
         expected.penalty_points
@@ -95,7 +98,9 @@ target:
     config = load_config(tmp_path / 'config.yaml')
     result = measure(config, data_dir=tmp_path)
 
-    assert result.calculation.memoria == {'QRC': 5, 'QCSI': 3, 'CNI': 2}
+    assert result.calculation.memoria == CountDifferenceMemoria(
+        QRC=5, QCSI=3, CNI=2
+    )
     assert result.calculation.conforms is False
     assert result.calculation.penalty_points == pytest.approx(2000.0)
     assert result.calculation.result_pct == pytest.approx(60.0)
@@ -139,6 +144,8 @@ target:
     config = load_config(tmp_path / 'config.yaml')
     result = measure(config, data_dir=tmp_path)
 
-    assert result.calculation.memoria == {'QRC': 2, 'QCSI': 2, 'CNI': 0}
+    assert result.calculation.memoria == CountDifferenceMemoria(
+        QRC=2, QCSI=2, CNI=0
+    )
     assert result.calculation.conforms is True
     assert result.calculation.penalty_points == pytest.approx(0.0)

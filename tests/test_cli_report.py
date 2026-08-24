@@ -598,7 +598,7 @@ def test_run_report_campos_orfaos_da_capa_sao_ignorados(tmp_path: Path) -> None:
     )
 
     assert result.status == 'done'
-    assert not any('2026-05' in w for w in result.warnings)
+    assert not any('2026-05' in str(w) for w in result.warnings)
     # sem equipe.csv, responsáveis ficam vazios → rascunho
     assert result.publicable is False
 

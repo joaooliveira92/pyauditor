@@ -1,13 +1,14 @@
-"""`ratio` shape: numerator/denominator x 100 against a target, linear penalty.
-
-See docs/spec/inms-pipeline.md §2 and §7.1. All 3 `aggregation` variants are
-implemented: `count_distinct` (ticket 02), `sum` and `precomputed` (ticket 07).
+"""Shape `ratio`: numerador/denominador x 100 contra uma meta, penalidade
+linear. Ver docs/spec/inms-pipeline.md §2 e §7.1. As 3 variantes de
+aggregation são implementadas: `count_distinct` (ticket 02), `sum` e
+`precomputed` (ticket 07).
 """
 
 from math import isnan
 
 from pyauditor.config.models import IndicatorConfig, RatioCalculation
 from pyauditor.engine.strategies._filters import filter_rows
+from pyauditor.engine.strategies._memoria import RatioMemoria
 from pyauditor.engine.strategies._numbers import as_float, parse_decimal
 from pyauditor.engine.strategies._target import (
     meets_target,
@@ -71,7 +72,7 @@ class RatioStrategy:
             result_pct=result_pct,
             conforms=conforms,
             penalty_points=penalty_points,
-            memoria={'numerator': numerator, 'denominator': denominator},
+            memoria=RatioMemoria(numerator=numerator, denominator=denominator),
         )
 
     def pool_numerator_denominator(

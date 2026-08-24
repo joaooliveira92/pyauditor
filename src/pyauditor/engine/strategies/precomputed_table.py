@@ -20,6 +20,10 @@ headline `result_pct` is reported per indicator.
 from math import isclose, isnan
 
 from pyauditor.config.models import IndicatorConfig, PrecomputedTableCalculation
+from pyauditor.engine.strategies._memoria import (
+    PrecomputedCategory,
+    PrecomputedTableMemoria,
+)
 from pyauditor.engine.strategies._numbers import parse_decimal
 from pyauditor.engine.strategies._target import safe_pct, shortfall
 from pyauditor.engine.strategies.base import (
@@ -43,7 +47,7 @@ class PrecomputedTableStrategy:
         numerator_sum = 0.0
         denominator_sum = 0.0
         percents: list[float] = []
-        categories: list[dict[str, object]] = []
+        categories: list[PrecomputedCategory] = []
         total_penalty = 0.0
 
         for row in rows:
@@ -87,11 +91,11 @@ class PrecomputedTableStrategy:
                 penalty = max(value - config.target.value, 0.0)
 
             categories.append(
-                {
-                    'name': name,
-                    'result_pct': result_pct,
-                    'penalty_points': penalty,
-                }
+                PrecomputedCategory(
+                    name=name,
+                    result_pct=result_pct,
+                    penalty_points=penalty,
+                )
             )
             percents.append(result_pct)
             total_penalty += penalty
@@ -121,7 +125,7 @@ class PrecomputedTableStrategy:
             result_pct=headline,
             conforms=isclose(total_penalty, 0.0),
             penalty_points=total_penalty,
-            memoria={'categories': categories},
+            memoria=PrecomputedTableMemoria(categories=categories),
         )
 
     def pool_numerator_denominator(

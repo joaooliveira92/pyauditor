@@ -12,11 +12,11 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 
 from pyauditor.categoria_filter import (
     GRUPO_EXECUTOR_COLUMN,
+    Warning,
     compute_categoria_values,
     outros_warning,
     unmatched_in_values_warnings,
@@ -34,14 +34,12 @@ from pyauditor.config.categorias import GrupoExecutorMode
 from pyauditor.config.manifest import DatasetManifest
 from pyauditor.config.models import IndicatorConfig
 from pyauditor.engine.pipeline import (
-    MeasurementProvenance,
     MeasurementResult,
+    calculate_on_rows,
     measure,
     measurement_source,
 )
 from pyauditor.engine.quality_gates import QualityGateRunner
-from pyauditor.engine.strategies import SHAPE_REGISTRY
-from pyauditor.engine.version import pipeline_version
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import PeriodoAfericao
 from pyauditor.rom.render import render_rom
@@ -55,7 +53,7 @@ class MeasureLoopResult:
     """Estado final do loop (sem closures/`nonlocal`)."""
 
     outcomes: list[IndicatorOutcome] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[Warning] = field(default_factory=list)
     any_hard_failure: bool = False
     collected: list[_MeasuredIndicator] = field(default_factory=list)
 
@@ -96,7 +94,7 @@ class MeasureLoop:
         self.already_split = already_split
         self.capa_fields = capa_fields
         self.outcomes: list[IndicatorOutcome] = []
-        self.warnings: list[str] = []
+        self.warnings: list[Warning] = []
         self.hard_failure = False
 
     def run_configs(
@@ -192,7 +190,16 @@ class MeasureLoop:
                     ]
                 )
                 logger.warning(warning)
-                self.warnings.append(warning)
+                self.warnings.append(
+                    Warning(
+                        code='unstructured',
+                        message=warning,
+                        orgao=config.scope.orgao,
+                        competencia=competencia,
+                        inms_key=inms_key,
+                        categoria=cat_key,
+                    )
+                )
                 self.outcomes.append(
                     IndicatorOutcome(
                         contractual_id=contractual_id,
@@ -216,10 +223,12 @@ class MeasureLoop:
         raw_csv_path = bundle.csv_path
         fieldnames = bundle.fieldnames
         rows = bundle.rows
-        delimiter = bundle.delimiter
-        encoding = bundle.encoding
-        dropped_out_of_period = bundle.dropped_out_of_period
-        undated_dropped = bundle.undated_dropped
+        self._warn_anomalias(
+            ragged_rows=bundle.ragged_rows,
+            unparseable_numerics=bundle.unparseable_numerics,
+            csv_path=raw_csv_path,
+            contractual_id=contractual_id,
+        )
 
         if GRUPO_EXECUTOR_COLUMN not in fieldnames:
             message = ''.join(
@@ -279,34 +288,18 @@ class MeasureLoop:
                     id_column=derived_config.source.id_column,
                 )
                 gate_report = gate_runner.run(filtered_rows)
-                strategy = SHAPE_REGISTRY[derived_config.calculation.shape]
-                calculation = strategy.calculate(
-                    derived_config, gate_report.accepted
-                )
-                csv_hash = hashlib.sha256(raw_csv_path.read_bytes()).hexdigest()
                 derived_hash = hashlib.sha256(
                     json.dumps(
                         derived_config.model_dump(mode='json'),
                         sort_keys=True,
                     ).encode()
                 ).hexdigest()
-                provenance = MeasurementProvenance(
+                result = calculate_on_rows(
+                    derived_config,
+                    bundle,
+                    gate_report=gate_report,
                     config_path=config_path,
                     config_hash=derived_hash,
-                    csv_path=raw_csv_path,
-                    csv_hash=csv_hash,
-                    delimiter=delimiter,
-                    encoding=encoding,
-                    processed_at=datetime.now(),
-                    pipeline_version=pipeline_version(),
-                )
-                result = MeasurementResult(
-                    config=derived_config,
-                    quality_gate_report=gate_report,
-                    calculation=calculation,
-                    provenance=provenance,
-                    dropped_out_of_period=dropped_out_of_period,
-                    undated_dropped=undated_dropped,
                 )
             except Exception as exc:
                 message = ''.join(
@@ -350,6 +343,46 @@ class MeasureLoop:
             logger.warning(w)
             self.warnings.append(w)
 
+    def _warn_anomalias(
+        self,
+        *,
+        ragged_rows: int | None,
+        unparseable_numerics: int | None,
+        csv_path: Path,
+        contractual_id: str,
+    ) -> None:
+        """Trilha de auditoria: anomalias de leitura viram WARNING no resumo
+        do run (e contagem no ROM), nunca descarte silencioso."""
+        partes = []
+        if ragged_rows:
+            partes.append(
+                f'{ragged_rows} linha(s) com campos além do '
+                f'cabeçalho (descartados localmente)'
+            )
+        if unparseable_numerics:
+            partes.append(
+                f'{unparseable_numerics} célula(s) numérica(s) '
+                'ilegível(is) ignorada(s) no cálculo'
+            )
+        if not partes:
+            return
+        warning = (
+            f'{contractual_id}: {csv_path.name}: '
+            + '; '.join(partes)
+            + ' — revisar o dataset do fornecedor'
+        )
+        logger.warning(warning)
+        self.warnings.append(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=self.orgao,
+                competencia=self.competencia,
+                inms_key=None,
+                categoria=None,
+            )
+        )
+
     def _measure_single(
         self,
         config_path: Path,
@@ -368,6 +401,12 @@ class MeasureLoop:
                 config_path,
                 config_hash,
             )
+            self._warn_anomalias(
+                ragged_rows=result.ragged_rows,
+                unparseable_numerics=result.unparseable_numerics,
+                csv_path=result.provenance.csv_path,
+                contractual_id=contractual_id,
+            )
         except FileNotFoundError:
             scope_orgao = getattr(
                 getattr(config, 'scope', None), 'orgao', self.orgao
@@ -380,7 +419,16 @@ class MeasureLoop:
                 ]
             )
             logger.warning(warning)
-            self.warnings.append(warning)
+            self.warnings.append(
+                Warning(
+                    code='unstructured',
+                    message=warning,
+                    orgao=scope_orgao,
+                    competencia=self.competencia,
+                    inms_key=None,
+                    categoria=None,
+                )
+            )
             self.outcomes.append(
                 IndicatorOutcome(
                     contractual_id=contractual_id,

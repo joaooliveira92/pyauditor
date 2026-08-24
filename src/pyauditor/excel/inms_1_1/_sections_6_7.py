@@ -1,5 +1,9 @@
 """Seções 6–7 da aba INMS 1.1 (fora do prazo, auditoria) — extraídas de
-`excel/inms_1_1_audit.py` (ticket 04 SRP).
+`excel/inms_1_1_audit.py` (ticket 04 SRP). A Seção 7b (divergência
+fornecedor x ITSM) é genérica e mora em
+`excel/_inms_audit_common/_section_7b.py` (reexportada aqui); o restante da
+Seção 7 (controle contra o prazo contratual bruto de N horas corridas) é
+específico do INMS 1.1 — ver `excel/_inms_audit_common/_raw_block.py`.
 """
 
 from __future__ import annotations
@@ -10,6 +14,7 @@ from openpyxl.styles import Alignment, Font
 from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.excel._datetime import PRAZO_TOLERANCIA_MINUTOS, parse_dt
+from pyauditor.excel._inms_audit_common import _section_7b
 from pyauditor.excel.inms_1_1._cells import (
     _add_situacao_conditional_formatting,
     _add_table,
@@ -25,12 +30,11 @@ from pyauditor.excel.inms_1_1._layout import (
     _AF,
     _AH,
     _AI,
-    _AN,
-    _AO,
-    _DATA_FIM_COLUMN,
+    _AP,
     _DATA_LIMITE_COLUMN,
     _DATA_SOLICITACAO_COLUMN,
     _DATETIME_FMT,
+    _INCLUIDO_SIM,
     _NO_PRAZO_COLUMN,
     _PCT2,
     _PCT4,
@@ -84,6 +88,7 @@ def _write_section_6_fora_prazo(
             'Aceite da justificativa',
             'Documento/evidência',
         ),
+        numeric_cols=frozenset({4, 5, 6, 7}),
     )
     fora_first = s6_bar + 2
     # Tabela dimensionada ao número real de incidentes fora do prazo (não um
@@ -126,7 +131,7 @@ def _write_section_6_fora_prazo(
             column=7,
             value=f'=IFERROR(INDEX({rng(_AF)},{match_expr}),"")',
         )
-        c7.number_format = '0.0'
+        c7.number_format = '0'
         c8 = sheet.cell(
             row=r, column=8, value=f'=IFERROR(INDEX({rng(_Y)},{match_expr}),"")'
         )
@@ -136,7 +141,9 @@ def _write_section_6_fora_prazo(
         for c in (c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11):
             c.font = BODY_FONT
             c.border = BORDER
-        c1.fill = RED_FILL
+            # Linha inteira sinalizada — não só a 1ª coluna — para deixar
+            # claro que o incidente todo está fora do prazo, não só o Nº.
+            c.fill = RED_FILL
         # Justificativa/aceite/evidência são preenchimento manual da
         # auditoria — permanecem editáveis com a planilha protegida
         # (ticket 20 / B-03).
@@ -167,18 +174,26 @@ def _write_section_7_auditoria(
     sheet.cell(
         row=s7_bar + 1, column=1, value='Controles de resultado'
     ).font = LABEL_FONT
-    _header_row(sheet, s7_bar + 2, ('Metodologia', 'Resultado', 'Situação'))
+    _header_row(
+        sheet,
+        s7_bar + 2,
+        ('Metodologia', 'Resultado', 'Situação'),
+        numeric_cols=frozenset({2}),
+    )
+    # `_AP` filtra os mesmos grupos excluídos pelo toggle da Seção 4, para
+    # que estes controles continuem batendo com B13/C13 (já filtrados).
+    ap_sim = f'{rng(_AP)},"{_INCLUIDO_SIM}"'
     ctrl_rows = [
         ("Resultado informado pelo fornecedor (campo 'No prazo')", 'C13/B13'),
         (
             'Resultado reproduzido pela data limite registrada no ITSM '
             '(DataHoraFim ≤ DataHoraLimite)',
-            f'COUNTIF({rng(_AD)},"S")/B13',
+            f'COUNTIFS({rng(_AD)},"S",{ap_sim})/B13',
         ),
         (
             f'Controle contratual bruto (DataHoraFim ≤ DataHoraSolicitacao + '
             f'{_PRAZO_HORAS_CORRIDAS:g}h corridas)',
-            f'COUNTIF({rng(_AE)},"S")/B13',
+            f'COUNTIFS({rng(_AE)},"S",{ap_sim})/B13',
         ),
     ]
     first_ctrl = s7_bar + 3
@@ -283,7 +298,7 @@ def _write_section_7_auditoria(
         )
         sheet[f'A{sample_header_row}'].font = NOTE_FONT
         next_free_row = sample_header_row + 2
-        return _write_section_7b_divergencia_fornecedor(
+        return _section_7b.write_section_7b_divergencia_fornecedor(
             sheet,
             rows=rows,
             rng=rng,
@@ -310,6 +325,7 @@ def _write_section_7_auditoria(
             'Diferença (horas)',
             'No prazo (fornecedor)',
         ),
+        numeric_cols=frozenset({2, 3, 4, 5}),
     )
     sample_first = sample_header_row + 2
     ai_range = rng(_AI)
@@ -361,162 +377,10 @@ def _write_section_7_auditoria(
     )
     sheet[f'A{sample_note_row}'].font = NOTE_FONT
     next_free_row = sample_note_row + 2
-    return _write_section_7b_divergencia_fornecedor(
+    return _section_7b.write_section_7b_divergencia_fornecedor(
         sheet,
         rows=rows,
         rng=rng,
         start_row=next_free_row,
         table_name=table_name_fornecedor_itsm,
     )
-
-
-def _write_section_7b_divergencia_fornecedor(
-    sheet: Worksheet,
-    *,
-    rows: list[dict[str, str]],
-    rng: _ColumnRange,
-    start_row: int,
-    table_name: str,
-) -> int:
-    """Sinaliza divergência entre o campo "No prazo" informado pelo
-    fornecedor e o resultado reproduzido a partir da data limite registrada
-    no próprio ITSM (DataHoraFim ≤ DataHoraLimite) — coluna de apoio AN.
-    Diferente do bloco acima (que compara o limite ITSM contra o prazo
-    contratual bruto de 2h corridas, sensível a pausas/suspensão de SLA não
-    modeladas aqui), esta checagem não depende de recalcular o prazo do
-    zero: audita a consistência interna entre dois campos que o próprio
-    fornecedor já entrega (`No prazo` e `DataHoraLimite`), pegando o caso de
-    o campo `No prazo` estar desalinhado do limite que o ITSM da contratada
-    já registrou para o mesmo chamado."""
-    header_row = start_row
-    sheet.cell(
-        row=header_row,
-        column=1,
-        value=(
-            'Divergência: "No prazo" informado pelo fornecedor x resultado '
-            'reproduzido pela data limite do ITSM (DataHoraFim ≤ '
-            'DataHoraLimite)'
-        ),
-    ).font = LABEL_FONT
-    count_row = header_row + 1
-    sheet.cell(
-        row=count_row, column=1, value='Registros divergentes:'
-    ).font = BODY_FONT
-    div_count = sheet.cell(
-        row=count_row, column=2, value=f'=COUNTIF({rng(_AN)},"Sim")'
-    )
-    div_count.font = Font(bold=True)
-    sheet.cell(row=count_row, column=3, value='% do total:').font = BODY_FONT
-    div_pct = sheet.cell(
-        row=count_row,
-        column=4,
-        value=f'=IF(B13=0,"Sem ocorrências",B{count_row}/B13)',
-    )
-    div_pct.number_format = _PCT2
-    div_pct.font = Font(bold=True)
-    div_pct.fill = ORANGE_FILL
-    div_count.fill = ORANGE_FILL
-
-    note_row = count_row + 1
-    sheet.merge_cells(f'A{note_row}:L{note_row}')
-    sheet[f'A{note_row}'] = (
-        'Divergência aqui não implica que o fornecedor esteja errado — o '
-        'limite ITSM pode ter sido ajustado por pausa/suspensão de SLA não '
-        'capturada nesta planilha. Trate como lista de priorização para '
-        'checagem manual do histórico do chamado, não como resultado '
-        'definitivo.'
-    )
-    sheet[f'A{note_row}'].font = Font(
-        name='Arial', size=10, bold=True, color='9A3412'
-    )
-    sheet[f'A{note_row}'].fill = ORANGE_FILL
-    sheet[f'A{note_row}'].alignment = Alignment(
-        wrap_text=True, vertical='center'
-    )
-    sheet.row_dimensions[note_row].height = 40
-
-    divergentes_count = 0
-    for row in rows:
-        fim = parse_dt(row[_DATA_FIM_COLUMN]).value
-        limite = parse_dt(row[_DATA_LIMITE_COLUMN]).value
-        if fim is None or limite is None:
-            continue
-        no_prazo_itsm = 'S' if fim <= limite else 'N'
-        if row[_NO_PRAZO_COLUMN] != no_prazo_itsm:
-            divergentes_count += 1
-    sample_size = min(divergentes_count, 15)
-
-    sample_header_row = note_row + 2
-    if sample_size == 0:
-        sheet.merge_cells(f'A{sample_header_row}:F{sample_header_row}')
-        sheet[f'A{sample_header_row}'] = (
-            'Nenhuma divergência entre "No prazo" do fornecedor e o '
-            'resultado reproduzido pela data limite do ITSM encontrada no '
-            'período.'
-        )
-        sheet[f'A{sample_header_row}'].font = NOTE_FONT
-        return sample_header_row + 2
-
-    sheet.cell(
-        row=sample_header_row,
-        column=1,
-        value=(
-            f'Amostra de registros divergentes ({sample_size} primeiros, '
-            f'ordenados por ocorrência)'
-        ),
-    ).font = LABEL_FONT
-    _header_row(
-        sheet,
-        sample_header_row + 1,
-        (
-            'Nº solicitação',
-            'No prazo (fornecedor)',
-            'No prazo (data limite ITSM)',
-            'Abertura',
-            'Limite (ITSM)',
-            'Encerramento',
-        ),
-    )
-    sample_first = sample_header_row + 2
-    ao_range = rng(_AO)
-    for n in range(1, sample_size + 1):
-        r = sample_first + n - 1
-        match_expr = f'MATCH({n},{ao_range},0)'
-        c1 = sheet.cell(
-            row=r, column=1, value=f'=IFERROR(INDEX({rng(_R)},{match_expr}),"")'
-        )
-        c2 = sheet.cell(
-            row=r, column=2, value=f'=IFERROR(INDEX({rng(_X)},{match_expr}),"")'
-        )
-        c3 = sheet.cell(
-            row=r,
-            column=3,
-            value=f'=IFERROR(INDEX({rng(_AD)},{match_expr}),"")',
-        )
-        c4 = sheet.cell(
-            row=r, column=4, value=f'=IFERROR(INDEX({rng(_U)},{match_expr}),"")'
-        )
-        c4.number_format = _DATETIME_FMT
-        c5 = sheet.cell(
-            row=r, column=5, value=f'=IFERROR(INDEX({rng(_V)},{match_expr}),"")'
-        )
-        c5.number_format = _DATETIME_FMT
-        c6 = sheet.cell(
-            row=r, column=6, value=f'=IFERROR(INDEX({rng(_W)},{match_expr}),"")'
-        )
-        c6.number_format = _DATETIME_FMT
-        for c in (c1, c2, c3, c4, c5, c6):
-            c.font = BODY_FONT
-            c.border = BORDER
-    sample_last = sample_first + sample_size - 1
-    _add_table(sheet, table_name, f'A{sample_header_row + 1}:F{sample_last}')
-    sample_note_row = sample_last + 1
-    sheet.merge_cells(f'A{sample_note_row}:F{sample_note_row}')
-    sheet[f'A{sample_note_row}'] = (
-        f'=CONCATENATE("Amostra limitada às {sample_size} primeiras '
-        f'ocorrências de ",'
-        f'B{count_row}," registros divergentes — colunas de apoio desta '
-        f'aba (coluna AN) permitem reproduzir a lista completa.")'
-    )
-    sheet[f'A{sample_note_row}'].font = NOTE_FONT
-    return sample_note_row + 2

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
 
-from pyauditor.categoria_filter import base_config_stem
+from pyauditor.categoria_filter import Warning, base_config_stem
 from pyauditor.cli.results import DIR_FAILURE_HINT, validate_competencia
 from pyauditor.config.categorias import GrupoExecutorMode, load_categorias
 from pyauditor.config.manifest import DatasetManifest
@@ -51,7 +51,7 @@ class MeasureInputs:
     configs: list[tuple[Path, str, IndicatorConfig]]
     target_dir: Path
     capa_fields: dict[str, object]
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[Warning] = field(default_factory=list)
     per_inms: dict[str, list[tuple[str, GrupoExecutorMode]]] = field(
         default_factory=dict
     )
@@ -61,7 +61,7 @@ class MeasureInputs:
 
 def _load_responsaveis(
     equipe_path: Path | None,
-    warnings: list[str],
+    warnings: list[Warning],
 ) -> dict[str, object]:
     """Responsáveis do ROM vêm exclusivamente de `equipe.csv` (spec §6) —
     ausente/malformado é warning + '[a preencher]', nunca falha técnica."""
@@ -73,7 +73,16 @@ def _load_responsaveis(
     capa_fields.update(campos_equipe)
     for warning in avisos_equipe:
         logger.warning(warning)
-        warnings.append(warning)
+        warnings.append(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=None,
+                competencia=None,
+                inms_key=None,
+                categoria=None,
+            )
+        )
     empty_fields = [f for f in RESPONSAVEL_LABELS if not capa_fields.get(f)]
     if empty_fields:
         warning = ''.join(
@@ -84,17 +93,30 @@ def _load_responsaveis(
             ]
         )
         logger.warning(warning)
-        warnings.append(warning)
+        warnings.append(
+            Warning(
+                code='unstructured',
+                message=warning,
+                orgao=None,
+                competencia=None,
+                inms_key=None,
+                categoria=None,
+            )
+        )
     return capa_fields
 
 
 def _load_categorias(
     config_dir: Path,
     expected_orgao: str | None,
-    warnings: list[str],
 ) -> tuple[object | None, dict[str, list[tuple[str, GrupoExecutorMode]]]]:
     """Single-source categorias: carrega uma vez por execução (fallback para
-    parent/<orgao>/categorias.yaml quando config_dir é _shared)."""
+    parent/<orgao>/categorias.yaml quando config_dir é _shared).
+
+    Ausência do arquivo = sem categorias (soft, retorno vazio). Arquivo
+    presente mas malformado/inválido = falha de config: raises `ValueError`
+    com mensagem acionável — uma segmentação que some em silêncio faria os
+    números saírem errados parecendo válidos."""
     categorias_file = None
     per_inms: dict[str, list[tuple[str, GrupoExecutorMode]]] = {}
     if expected_orgao is None:
@@ -118,11 +140,14 @@ def _load_categorias(
                     )
         logger.debug('categorias carregadas de %s', categorias_path)
     except (OSError, ValueError) as exc:
-        logger.warning(
-            'falha ao carregar categorias %s: %s',
-            categorias_path,
-            exc,
-        )
+        # Presente mas malformado = falha de config, não dado ausente: se o
+        # run seguisse com warning, a segmentação por categoria sumiria em
+        # silêncio e os números sairiam errados parecendo válidos. Só a
+        # ausência do arquivo é "sem categorias" (soft, acima).
+        raise ValueError(
+            f'categorias.yaml presente mas ilegível/inválido em '
+            f'{categorias_path}: {exc}'
+        ) from exc
     return categorias_file, per_inms
 
 
@@ -187,11 +212,12 @@ def resolve_measure_inputs(
         message = f'falha ao criar diretório {target_dir}: {exc}'
         return None, f'{message} — {DIR_FAILURE_HINT}'
 
-    warnings: list[str] = []
+    warnings: list[Warning] = []
     capa_fields = _load_responsaveis(equipe_path, warnings)
-    categorias_file, per_inms = _load_categorias(
-        config_dir, expected_orgao, warnings
-    )
+    try:
+        categorias_file, per_inms = _load_categorias(config_dir, expected_orgao)
+    except ValueError as exc:
+        return None, str(exc)
     derived_config_stems = _derived_config_stems(per_inms)
 
     inputs = MeasureInputs(
