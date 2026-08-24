@@ -448,7 +448,7 @@ For code quotations longer than a single line, use a fenced code block:
 <pre>
 ```python
 def Foo(self, bar):
-    self.bar = bar
+  self.bar = bar
 ```
 </pre>
 
