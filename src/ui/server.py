@@ -11,6 +11,7 @@ import threading
 import uuid
 import webbrowser
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -40,9 +41,13 @@ FINAL_MONTH_COMMANDS = frozenset({"report", "consolidate"})
 class Job:
     process: subprocess.Popen[str]
     command: list[str]
+    started_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds"))
     output: list[str] = field(default_factory=list)
     status: str = "running"
     returncode: int | None = None
+
+    def summary(self, job_id: str) -> dict[str, Any]:
+        return {"job_id": job_id, "command": shlex.join(self.command), "status": self.status, "started_at": self.started_at}
 
     def warnings(self) -> list[Any]:
         """Warnings from the run's JSON summary, or [] if there isn't one.
@@ -61,12 +66,18 @@ class Job:
             return warnings if isinstance(warnings, list) else []
         return []
 
+MAX_RETAINED_JOBS = 20
+
 class App:
     def __init__(self, workspace: Path, pipeline_template: str) -> None:
         self.workspace = workspace.resolve(strict=True)
         self.pipeline_template = pipeline_template
         self.jobs: dict[str, Job] = {}
         self.lock = threading.Lock()
+
+    def job_history(self) -> list[dict[str, Any]]:
+        with self.lock:
+            return [job.summary(job_id) for job_id, job in reversed(self.jobs.items())]
 
     def resolve_file(self, relative: str) -> Path:
         if not relative or Path(relative).suffix.lower() not in ALLOWED_SUFFIXES:
@@ -109,7 +120,9 @@ class App:
         process = subprocess.Popen(command, cwd=self.workspace, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, start_new_session=True)
         job_id = uuid.uuid4().hex
         job = Job(process=process, command=command)
-        with self.lock: self.jobs[job_id] = job
+        with self.lock:
+            self.jobs[job_id] = job
+            while len(self.jobs) > MAX_RETAINED_JOBS: del self.jobs[next(iter(self.jobs))]
         threading.Thread(target=self._collect, args=(job,), daemon=True).start()
         return job_id, command
 
@@ -175,6 +188,7 @@ class Handler(SimpleHTTPRequestHandler):
                 raw = path.read_bytes()
                 if len(raw) > MAX_FILE_BYTES: raise ValueError("File exceeds 2 MiB limit")
                 return self._json({"content": raw.decode("utf-8")})
+            if parsed.path == "/api/pipeline": return self._json({"jobs": self.app.job_history()})
             if parsed.path.startswith("/api/pipeline/"):
                 job_id = parsed.path.rsplit("/", 1)[-1]
                 with self.app.lock: job = self.app.jobs.get(job_id)

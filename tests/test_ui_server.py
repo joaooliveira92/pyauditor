@@ -287,6 +287,45 @@ def test_pipeline_run_exposes_warnings_from_json_summary(
         next(gen, None)
 
 
+def test_pipeline_list_returns_recent_jobs_newest_first(
+    tmp_path: Path,
+) -> None:
+    fake_pipeline = tmp_path / 'fake_pipeline.py'
+    fake_pipeline.write_text(
+        'print("bootstrap done")\n', encoding='utf-8'
+    )
+    template = f'{sys.executable} {fake_pipeline}'
+    gen = _run_pipeline_server(tmp_path, template)
+    base_url = next(gen)
+    try:
+        first = _post_and_wait(base_url, {'command': 'bootstrap', 'agency': 'MinC'})
+        second = _post_and_wait(base_url, {'command': 'bootstrap', 'agency': 'MTur'})
+        listing = _get(f'{base_url}/api/pipeline')
+        assert [j['status'] for j in listing['jobs']] == ['succeeded', 'succeeded']
+        assert listing['jobs'][0]['command'].endswith('MTur')
+        assert listing['jobs'][1]['command'].endswith('MinC')
+        for job in listing['jobs']:
+            assert 'started_at' in job and 'job_id' in job
+        assert first['status'] == second['status'] == 'succeeded'
+    finally:
+        next(gen, None)
+
+
+def test_pipeline_list_caps_retained_jobs(tmp_path: Path) -> None:
+    fake_pipeline = tmp_path / 'fake_pipeline.py'
+    fake_pipeline.write_text('print("done")\n', encoding='utf-8')
+    template = f'{sys.executable} {fake_pipeline}'
+    gen = _run_pipeline_server(tmp_path, template)
+    base_url = next(gen)
+    try:
+        for _ in range(22):
+            _post_and_wait(base_url, {'command': 'bootstrap', 'agency': 'MinC'})
+        listing = _get(f'{base_url}/api/pipeline')
+        assert len(listing['jobs']) == 20
+    finally:
+        next(gen, None)
+
+
 def test_pipeline_non_run_command_has_no_warnings(
     tmp_path: Path,
 ) -> None:

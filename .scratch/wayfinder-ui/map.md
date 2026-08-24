@@ -1,6 +1,6 @@
 # Wayfinder UI roadmap
 
-- **Status:** charting
+- **Status:** resolved
 - **Type:** wayfinder:map
 
 ## Destination
@@ -94,12 +94,17 @@ multi-usuário/hospedado.
   `tests/test_ui_server.py` na raiz, não `src/ui/tests/` próprio, porque
   `testpaths = ["tests"]` no `pyproject.toml` só pega a raiz por padrão. Ver
   `.scratch/wayfinder-ui/issues/05-server-test-plan.md`.
+- **Ticket 06 (histórico de execuções):** vale expor — dado já existe em
+  `App.jobs`, só falta listagem. Lista curta (~20 execuções), cap com evict
+  do mais antigo, dobrado no painel Pipeline existente (lista colapsável,
+  sem aba separada), novo `GET /api/pipeline` de listagem (id + resumo)
+  ao lado do `GET /api/pipeline/<job_id>` existente (inalterado). Ver
+  `.scratch/wayfinder-ui/issues/06-run-history.md`.
 
 ## Not yet specified
 
-- **Histórico de execuções passadas** — hoje se perde ao fechar a aba; se isso
-  vale a pena persistir (mesmo que só na sessão do processo) ainda não foi
-  discutido.
+(vazio — toda a névoa graduou; ver "Graduado pra outros maps" abaixo e o
+ticket 06 acima.)
 
 **Graduado pra outros maps:**
 

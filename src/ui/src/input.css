@@ -206,6 +206,24 @@ textarea {
    margin-top: 10px
 }
 
+.history {
+   margin-top: 14px;
+   border-top: 1px solid var(--line);
+   padding-top: 10px
+}
+
+.history summary {
+   cursor: pointer;
+   font-weight: 600;
+   font-size: 13px
+}
+
+.history .file {
+   margin-top: 4px;
+   font-size: 12px;
+   width: 100%
+}
+
 pre {
    height: calc(100vh - 345px);
    min-height: 160px;
@@ -359,6 +377,107 @@ pre {
    font-size: 16px;
    line-height: 1;
    padding: 0 6px
+}
+
+@keyframes warnPulse {
+   0% { box-shadow: 0 0 0 0 rgba(255, 207, 92, .6) }
+   100% { box-shadow: 0 0 0 8px rgba(255, 207, 92, 0) }
+}
+
+.warning-highlight {
+   animation: warnPulse 1s ease-out 2;
+   outline: 2px solid #ffcf5c;
+   outline-offset: 2px;
+   border-radius: 8px
+}
+
+.warnings-panel {
+   position: fixed;
+   right: 18px;
+   bottom: 18px;
+   width: 340px;
+   max-height: 50vh;
+   overflow: auto;
+   border: 1px solid var(--line);
+   background: #151f2f;
+   border-radius: 10px;
+   box-shadow: 0 12px 30px #000a;
+   z-index: 40
+}
+
+.warnings-head {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   padding: 8px 10px;
+   font-weight: 700;
+   font-size: 12px;
+   border-bottom: 1px solid var(--line);
+   color: #ffcf5c;
+   position: sticky;
+   top: 0;
+   background: #151f2f
+}
+
+.warnings-close {
+   border: 0;
+   background: transparent;
+   color: inherit;
+   font-size: 16px;
+   padding: 0 4px;
+   cursor: pointer
+}
+
+.warning-row {
+   display: flex;
+   align-items: center;
+   gap: 8px;
+   width: 100%;
+   text-align: left;
+   padding: 8px 10px;
+   border: 0;
+   border-bottom: 1px solid var(--line);
+   background: transparent;
+   color: inherit;
+   font-size: 12px
+}
+
+.warning-row:last-child {
+   border-bottom: 0
+}
+
+.warning-row-link {
+   cursor: pointer
+}
+
+.warning-row-link:hover {
+   background: #21304a
+}
+
+.warning-row-inert {
+   color: #8e9bb0;
+   cursor: default
+}
+
+.warning-code {
+   flex: none;
+   background: #3a2c0f;
+   color: #ffcf5c;
+   border-radius: 999px;
+   padding: 2px 8px;
+   font-size: 10px;
+   font-weight: 700;
+   white-space: nowrap
+}
+
+.warning-msg {
+   flex: 1;
+   line-height: 1.4
+}
+
+.warning-go {
+   flex: none;
+   color: var(--accent)
 }
 
 @media(max-width:900px) {
