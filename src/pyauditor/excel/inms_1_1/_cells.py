@@ -106,8 +106,8 @@ def _apply_section_outline(
         sheet.row_dimensions[bar_row].outlineLevel = 0
         for r in range(bar_row + 1, content_end_row + 1):
             sheet.row_dimensions[r].outlineLevel = 1
-    sheet.sheet_properties.outlinePr.summaryBelow = False
-    sheet.sheet_properties.outlinePr.summaryRight = False
+    sheet.sheet_properties.outlinePr.summaryBelow = False  # ty: ignore[invalid-assignment]
+    sheet.sheet_properties.outlinePr.summaryRight = False  # ty: ignore[invalid-assignment]
     sheet.sheet_view.showOutlineSymbols = True
 
 
@@ -172,7 +172,7 @@ def _protect_support_columns(sheet: Worksheet) -> None:
         dim = sheet.column_dimensions[cl(col)]
         dim.outlineLevel = 1
         dim.hidden = True
-    sheet.sheet_properties.outlinePr.summaryRight = False
+    sheet.sheet_properties.outlinePr.summaryRight = False  # ty: ignore[invalid-assignment]
     sheet.sheet_view.showOutlineSymbols = True
     sheet.protection.sheet = True
     sheet.protection.formatCells = False
