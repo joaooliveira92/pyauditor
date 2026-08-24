@@ -88,10 +88,17 @@ class App:
         return candidate
 
     def files(self) -> list[str]:
-        ignored = {".git", ".venv", "node_modules", "__pycache__"}
+        """List editable files under `configs/` — the single source of
+        pyauditor config (ADR 0003). The rest of the repo (tests, CI,
+        docs, agent skills) also has YAML/CSS files but isn't config a
+        maintainer edits from here, so it stays out of the sidebar.
+        """
+        config_root = self.workspace / "configs"
+        if not config_root.is_dir():
+            return []
         result: list[str] = []
-        for path in self.workspace.rglob("*"):
-            if path.is_file() and path.suffix.lower() in ALLOWED_SUFFIXES and not any(p in ignored for p in path.parts):
+        for path in config_root.rglob("*"):
+            if path.is_file() and path.suffix.lower() in ALLOWED_SUFFIXES:
                 result.append(path.relative_to(self.workspace).as_posix())
         return sorted(result, key=str.casefold)
 
@@ -140,9 +147,16 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, directory=str(self.web_root), **kwargs)
 
+    def end_headers(self) -> None:
+        # This is a local dev tool whose HTML/CSS/JS change every reload —
+        # a browser silently reusing a stale cached copy makes the UI look
+        # broken in ways that are confusing to debug from a screenshot.
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def _json(self, data: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(data, ensure_ascii=False).encode()
-        self.send_response(status); self.send_header("Content-Type", "application/json; charset=utf-8"); self.send_header("Content-Length", str(len(body))); self.send_header("Cache-Control", "no-store"); self.end_headers(); self.wfile.write(body)
+        self.send_response(status); self.send_header("Content-Type", "application/json; charset=utf-8"); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
 
     def _payload(self) -> dict[str, Any]:
         size = int(self.headers.get("Content-Length", "0"))
