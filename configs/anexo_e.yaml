@@ -1,6 +1,6 @@
 # Anexo E (docs/termo_de_referencia/anexo_e_desconformidade_tecnica.html),
 # Tabela 29 "Itens de Desconformidade Técnica" — extraído programaticamente,
-# não digitado a mao. 106 itens, ver docs/research/anexo-e-inms-1.8.md (ticket 11).
+# ver docs/research/anexo-e-inms-1.8.md (ticket 11).
 items:
 - id: OD-01
   categoria: Armazenamento e Backup

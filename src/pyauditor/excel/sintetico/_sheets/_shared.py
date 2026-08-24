@@ -11,10 +11,15 @@ mantêm a coincidência com os nomes originais do módulo monolítico.
 
 from __future__ import annotations
 
-from typing import Final
+import math
+from typing import Final, NamedTuple
+
+from openpyxl.cell.cell import Cell
+from openpyxl.comments import Comment
 
 from pyauditor.config.niveis import NIVEL_BY_CATEGORIA, NIVEL_ORDER
 from pyauditor.engine.strategies import meets_target
+from pyauditor.excel._style import PENDING_FILL
 
 __all__: Final[tuple[str, ...]] = (
     'ATIVO_COLUMNS',
@@ -23,15 +28,15 @@ __all__: Final[tuple[str, ...]] = (
     'COLUMNS',
     'EQUIPE_SHEET_NAME',
     'INMS_1_14_CATEGORIA_ORDER',
+    'LOCALIDADES_SHEET_NAME',
     'NAO_ATIVADO_TEXT',
     'OUTROS_LABEL',
+    'SANCOES_SHEET_NAME',
     'SUBTOTAL_COLUMNS',
     'WHOLE_INDICATOR_LABEL',
     '_ATIVO_COLUMNS',
     '_ATIVO_SUBTOTAL_COLUMNS',
-    '_CAPA_SHEET_NAME',
     '_COLUMNS',
-    '_EQUIPE_SHEET_NAME',
     '_INMS_1_14_CATEGORIA_ORDER',
     '_NAO_ATIVADO_TEXT',
     '_NIVEL_BY_CATEGORIA',
@@ -39,11 +44,16 @@ __all__: Final[tuple[str, ...]] = (
     '_OUTROS_LABEL',
     '_SUBTOTAL_COLUMNS',
     '_WHOLE_INDICATOR_LABEL',
+    'CapaContext',
+    'flag_pendencia',
     'meta_atingida_display',
+    'wrapped_row_height',
 )
 
 CAPA_SHEET_NAME: Final[str] = 'Capa'
 EQUIPE_SHEET_NAME: Final[str] = 'Equipe'
+LOCALIDADES_SHEET_NAME: Final[str] = 'Localidades'
+SANCOES_SHEET_NAME: Final[str] = 'Sansões'
 
 OUTROS_LABEL: Final[str] = 'outros (não contabilizado na meta)'
 WHOLE_INDICATOR_LABEL: Final[str] = '(indicador inteiro)'
@@ -107,6 +117,44 @@ def meta_atingida_display(
     )
 
 
+_AUTHOR: Final[str] = 'pyauditor'
+_CHARS_PER_WIDTH_UNIT: Final = 1.15
+
+
+class CapaContext(NamedTuple):
+    """Número do contrato, usado só no rodapé de Equipe/Prazos/Localidades/
+    Sansões — título e subtítulo dessas abas nunca redigitam o dado,
+    referenciam `Capa!B2` (a fórmula dinâmica) diretamente na própria
+    planilha."""
+
+    numero_contrato: str | None
+
+
+def flag_pendencia(cell: Cell, message: str) -> None:
+    cell.fill = PENDING_FILL
+    cell.comment = Comment(message, _AUTHOR)
+
+
+def wrapped_row_height(
+    text: str, total_width_chars: float, *, line_height: float = 14.0
+) -> float | None:
+    """Altura aproximada de uma linha com `wrap_text` (spec §2.2: "alturas de
+    linha ajustadas após a aplicação de quebra de texto") — openpyxl não
+    recalcula isso sozinho. `total_width_chars` é a soma das larguras de
+    coluna abrangidas pela célula (mescladas ou não). Devolve `None` quando
+    o texto cabe em uma linha — nesse caso a altura padrão da planilha já
+    serve, não há motivo para fixá-la explicitamente. `_CHARS_PER_WIDTH_UNIT`
+    é um fator empírico (caracteres em Arial 10 cabem mais densamente que 1
+    por unidade de largura do Excel), calibrado contra os casos reais desta
+    aba."""
+    if not text or total_width_chars <= 0:
+        return None
+    lines = math.ceil(len(text) / (total_width_chars * _CHARS_PER_WIDTH_UNIT))
+    if lines <= 1:
+        return None
+    return lines * line_height
+
+
 # Aliases de compatibilidade com os nomes internos do módulo monolítico.
 _COLUMNS = COLUMNS
 _SUBTOTAL_COLUMNS = SUBTOTAL_COLUMNS
@@ -116,8 +164,6 @@ _INMS_1_14_CATEGORIA_ORDER = INMS_1_14_CATEGORIA_ORDER
 _OUTROS_LABEL = OUTROS_LABEL
 _WHOLE_INDICATOR_LABEL = WHOLE_INDICATOR_LABEL
 _NAO_ATIVADO_TEXT = NAO_ATIVADO_TEXT
-_CAPA_SHEET_NAME = CAPA_SHEET_NAME
-_EQUIPE_SHEET_NAME = EQUIPE_SHEET_NAME
 # Categoria→Nível é dono único em `config/niveis.py` (ticket 11).
 _NIVEL_ORDER = NIVEL_ORDER
 _NIVEL_BY_CATEGORIA = NIVEL_BY_CATEGORIA

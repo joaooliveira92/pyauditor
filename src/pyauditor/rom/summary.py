@@ -1,7 +1,6 @@
-"""Flattens a `MeasurementResult` into a shape-agnostic, serializable
-summary — the structured counterpart to the ROM's prose Markdown, consumed
-by `report` (ticket 09) to build the consolidated Excel without re-parsing
-Markdown.
+"""Achata um `MeasurementResult` num sumário serializável e independente de
+shape — o homólogo estruturado do Markdown do ROM, consumido por `report`
+(ticket 09) para montar o Excel consolidado sem re-parse do Markdown.
 """
 
 from dataclasses import asdict, dataclass, fields
@@ -24,6 +23,8 @@ _OPTIONAL_NUMERIC_FIELDS: tuple[str, ...] = (
     'denominator',
     'dropped_out_of_period',
     'undated_dropped',
+    'ragged_rows',
+    'unparseable_numerics',
 )
 _BOOL_FIELDS: tuple[str, ...] = (
     'conforms',
@@ -34,11 +35,10 @@ _BOOL_FIELDS: tuple[str, ...] = (
 
 @dataclass(frozen=True)
 class IndicatorSummary:
-    """Round-trips through JSON (`to_dict()` / `IndicatorSummary(**raw)`) as
-    the sidecar `report`/`consolidate` read back — a stale or hand-edited
-    sidecar with a wrong-typed field is rejected here, at load time, rather
-    than crashing deep in `excel/report.py`/`excel/consolidate.py`
-    arithmetic."""
+    """Faz ida-e-volta pelo JSON (`to_dict()` / `IndicatorSummary(**raw)`) como
+    sidecar que `report`/`consolidate` relê — um sidecar obsoleto ou editado à
+    mão com campo de tipo errado é rejeitado aqui, no load, em vez de quebrar
+    lá no fundo da aritmética de `excel/report.py`/`excel/consolidate.py`."""
 
     indicator_id: str
     contractual_id: str
@@ -60,6 +60,10 @@ class IndicatorSummary:
     # consolidado ignora os campos por ora.
     dropped_out_of_period: int | None = None
     undated_dropped: int | None = None
+    # Anomalias de leitura: 0 sem anomalia; None em sidecar legado. Ficam no
+    # JSON para o consolidado poder exibir sem re-parse do Markdown.
+    ragged_rows: int | None = None
+    unparseable_numerics: int | None = None
 
     def __post_init__(self) -> None:
         known_fields = {f.name for f in fields(self)}
@@ -151,16 +155,18 @@ def summarize(result: MeasurementResult) -> IndicatorSummary:
         systematic_failure=result.systematic_failure,
         dropped_out_of_period=result.dropped_out_of_period,
         undated_dropped=result.undated_dropped,
+        ragged_rows=result.ragged_rows,
+        unparseable_numerics=result.unparseable_numerics,
     )
 
 
 def _pooled_numerator_denominator(
     shape: str, memoria: dict[str, object]
 ) -> tuple[float | None, float | None]:
-    """Delegates to the shape's own strategy (`SHAPE_REGISTRY`, the same
-    registry `engine.pipeline.measure` dispatches on) instead of a second,
-    separately-maintained shape-keyed dispatch — one place to update when a
-    shape is added, not two."""
+    """Delega para a própria strategy do shape (`SHAPE_REGISTRY`, o mesmo
+    registry em que `engine.pipeline.measure` despacha) em vez de um segundo
+    dispatch por shape mantido à parte — um único lugar para atualizar quando
+    um shape é adicionado, não dois."""
     strategy = SHAPE_REGISTRY.get(shape)
     if strategy is None:
         return None, None

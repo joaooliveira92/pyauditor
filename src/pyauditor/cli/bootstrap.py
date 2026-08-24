@@ -11,11 +11,11 @@ Spec competencia-cli-equipe §6/§7: também cria o esqueleto de
 "- Substituto". Idempotente como as capas: existente nunca é tocado.
 """
 
-from dataclasses import dataclass
 from pathlib import Path
 
 from pyauditor.atomic_write import atomic_write
-from pyauditor.cli.results import WRITE_FAILURE_HINT, DependencyCheck, Status
+from pyauditor.cli.results import WRITE_FAILURE_HINT, DependencyCheck
+from pyauditor.commands import contracts
 from pyauditor.excel.capa import (
     COMMON_FIELD_LABELS,
     ORGAO_FIELD_LABELS,
@@ -44,14 +44,8 @@ def _equipe_csv_text() -> str:
     return '\n'.join(linhas) + '\n'
 
 
-@dataclass(frozen=True, slots=True)
-class BootstrapResult:
-    status: Status
-    orgao: str
-    capa_path: Path  # CSV do órgão (o destino por-órgão)
-    created: bool  # True se algum arquivo (comum ou do órgão) foi criado
-    warnings: tuple[str, ...]
-    error_message: str | None
+# `BootstrapResult` reexportado de `commands.contracts` (ticket 11 SRP).
+BootstrapResult = contracts.BootstrapResult
 
 
 def check_bootstrap_ready(*_args: object, **_kwargs: object) -> DependencyCheck:

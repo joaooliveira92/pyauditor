@@ -1,0 +1,7 @@
+formula: "Desconto Regulatório Anual = max [ 0; min (Desconto Máximo Anual; Ajuste NMS (%) × RB) ]"
+descricao: >-
+  Pagamento mensal: remuneração mensal à CONTRATADA pela prestação dos
+  serviços contratados. PM por item: parcela mensal de cada item contratado
+  do grupo, conforme Ordem de Serviço pactuada. Ajuste NMS: ajuste (glosa)
+  em função dos resultados aferidos pelos Indicadores de Níveis Mínimos de
+  Serviço (INMS).

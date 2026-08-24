@@ -1,4 +1,3 @@
-import csv
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -266,7 +265,12 @@ def test_sheet_names_cover_every_inms_with_categoria_entry(
 
     assert warnings == []
     wb = load_workbook(output_path)
-    assert set(wb.sheetnames) == {'INMS 1.1', 'INMS 1.9', 'INMS 1.4'}
+    assert set(wb.sheetnames) == {
+        'INMS 1.1',
+        'INMS 1.9',
+        'INMS 1.4',
+        'Sansões',
+    }
 
 
 def test_grupo_executor_sheet_has_one_row_per_categoria_x_grupo_executor(
@@ -823,7 +827,7 @@ _PRAZOS_RAW_CSV = (
 )
 
 
-def test_prazos_sheet_is_first_and_reproduces_csv_verbatim(
+def test_prazos_sheet_is_first_and_formats_the_reference_table(
     tmp_path: Path,
 ) -> None:
     config_dir, data_dir = _write_fixture(tmp_path, include_inms_04_csv=True)
@@ -844,10 +848,18 @@ def test_prazos_sheet_is_first_and_reproduces_csv_verbatim(
     wb = load_workbook(output_path)
     assert wb.sheetnames[0] == 'Prazos'
     sheet = wb['Prazos']
-    rows = [[c.value for c in row] for row in sheet.iter_rows()]
-    assert rows == [
-        line.split(',') for line in _PRAZOS_RAW_CSV.strip('\n').split('\n')
-    ]
+    assert sheet['B1'].value == (
+        'DEMONSTRATIVO DE EXECUÇÃO DOS SERVIÇOS DE INFRAESTRUTURA DE TI'
+    )
+    assert sheet['B2'].value == '=Capa!B2'
+    assert sheet['B4'].value == 'PRAZOS MÁXIMOS PARA ATENDIMENTO'
+    assert sheet['B8'].value == 'Demanda'
+    assert sheet['C8'].value == 'Criticidade'
+    # "2h (horas corridas)" ganha a forma padronizada (spec §5.5).
+    assert sheet['B9'].value == 'Incidentes'
+    assert sheet['D9'].value == '2 horas corridas'
+    # "-" é ambíguo — vira "Não aplicável" para a linha de Projetos.
+    assert sheet['C13'].value == 'Não aplicável'
 
 
 def test_prazos_sheet_missing_file_warns_and_skips(tmp_path: Path) -> None:
@@ -889,6 +901,7 @@ def test_prazos_sheet_omitted_when_prazos_path_not_given(
 _CAPA_RAW_CSV = (
     'Campo;Valor\nNúmero do contrato;40/2022\n'
     'Processo SEI;72031.010172/2020-97\n'
+    'Portaria Equipe;SGI/MINC 193/2026\n'
 )
 _EQUIPE_RAW_CSV = (
     'FUNÇÃO,NOME,SIAPE\n'
@@ -928,15 +941,34 @@ def test_capa_equipe_prazos_sheets_come_first_in_order(tmp_path: Path) -> None:
     assert wb.sheetnames[:3] == ['Capa', 'Equipe', 'Prazos']
     assert 'Objetos' not in wb.sheetnames
 
-    capa_rows = [[c.value for c in row] for row in wb['Capa'].iter_rows()]
-    assert capa_rows == [
-        line.split(';') for line in _CAPA_RAW_CSV.strip('\n').split('\n')
-    ]
+    capa_sheet = wb['Capa']
+    assert capa_sheet['B1'].value == (
+        'DEMONSTRATIVO DE EXECUÇÃO DOS SERVIÇOS DE INFRAESTRUTURA DE TI'
+    )
+    # Sem campo "Contrato" no CSV (fixture não tem), o subtítulo cai para
+    # texto simples em vez da fórmula que referenciaria essa linha.
+    assert capa_sheet['B2'].value == 'Contrato nº 40/2022'
+    assert capa_sheet['B4'].value == 'INFORMAÇÕES INICIAIS'
+    assert capa_sheet['B6'].value == 'Campo'
+    assert capa_sheet['D6'].value == 'Valor'
+    assert capa_sheet['B7'].value == 'Número do contrato'
+    assert capa_sheet['D7'].value == '40/2022'
+    assert capa_sheet['D7'].number_format == '@'
+    assert capa_sheet['B8'].value == 'Processo SEI'
+    assert capa_sheet['D8'].value == '72031.010172/2020-97'
 
-    equipe_rows = [[c.value for c in row] for row in wb['Equipe'].iter_rows()]
-    assert equipe_rows == [
-        line.split(',') for line in _EQUIPE_RAW_CSV.strip('\n').split('\n')
-    ]
+    equipe_sheet = wb['Equipe']
+    assert equipe_sheet['B1'].value == (
+        'DEMONSTRATIVO DE EXECUÇÃO DOS SERVIÇOS DE INFRAESTRUTURA DE TI'
+    )
+    assert equipe_sheet['B2'].value == '=Capa!B2'
+    assert equipe_sheet['B4'].value == (
+        'EQUIPE DE GESTÃO E FISCALIZAÇÃO DO CONTRATO'
+    )
+    assert equipe_sheet['B6'].value == 'FUNÇÃO'
+    assert equipe_sheet['B7'].value == 'Gestor do Contrato'
+    assert equipe_sheet['D7'].value == 'Thiago Augusto Arcanjo Lima'
+    assert equipe_sheet['G7'].value == '1500967'
 
 
 def test_objetos_is_appended_below_capa_not_a_separate_sheet(
@@ -963,17 +995,20 @@ def test_objetos_is_appended_below_capa_not_a_separate_sheet(
     wb = load_workbook(output_path)
     assert 'Objetos' not in wb.sheetnames
     sheet = wb['Capa']
-    rows = [[c.value for c in row] for row in sheet.iter_rows()]
-    # A grade tem 3 colunas (largura de objetos.csv) — linhas da capa (2
-    # colunas) ficam com a 3ª célula vazia (None) por causa disso.
-    capa_lines = [
-        [*line.split(';'), None]
-        for line in _CAPA_RAW_CSV.strip('\n').split('\n')
-    ]
-    objetos_lines = list(csv.reader(_OBJETOS_RAW_CSV.strip('\n').split('\n')))
-    # Última linha da capa ("Processo SEI..." nesse fixture), 1 linha em
-    # branco, depois cabeçalho + linhas de objetos.csv verbatim.
-    assert rows == [*capa_lines, [None, None, None], *objetos_lines]
+    # Identificação (3 campos no fixture: Número do contrato, Processo SEI,
+    # Portaria Equipe) começa na linha 7 e termina na 9; a Seção 3 (Item/
+    # Categoria/Valor) começa depois de uma linha em branco.
+    assert sheet['B11'].value == 'Item'
+    assert sheet['C11'].value == 'Categoria'
+    assert sheet['D11'].value == 'Valor'
+    assert sheet['B12'].value == '1'
+    assert sheet['C12'].value == 'Central de Serviços'
+    assert sheet['D12'].value == 148205.54
+    assert sheet['B13'].value == '2'
+    assert sheet['C13'].value == 'GT dos Projetos e Operações'
+    assert sheet['D13'].value == 77654.90
+    assert sheet['C14'].value == 'Total mensal'
+    assert sheet['D14'].value == '=SUM(D12:D13)'
 
 
 def test_objetos_not_appended_when_capa_path_missing(tmp_path: Path) -> None:

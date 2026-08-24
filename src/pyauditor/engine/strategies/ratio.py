@@ -1,7 +1,7 @@
-"""`ratio` shape: numerator/denominator x 100 against a target, linear penalty.
-
-See docs/spec/inms-pipeline.md §2 and §7.1. All 3 `aggregation` variants are
-implemented: `count_distinct` (ticket 02), `sum` and `precomputed` (ticket 07).
+"""Shape `ratio`: numerador/denominador x 100 contra uma meta, penalidade
+linear. Ver docs/spec/inms-pipeline.md §2 e §7.1. As 3 variantes de
+aggregation são implementadas: `count_distinct` (ticket 02), `sum` e
+`precomputed` (ticket 07).
 """
 
 from math import isnan

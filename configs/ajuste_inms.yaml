@@ -1,0 +1,6 @@
+formula: "Ajuste NMS (%) = ∑ Pontos NMS × 0,001"
+descricao: >-
+  Ajuste NMS: ajuste (glosa) em função dos resultados aferidos pelos
+  Indicadores de Níveis Mínimos de Serviço (INMS). Pontos NMS: pontuação
+  acumulada como penalidade em função do descumprimento dos Níveis Mínimos
+  de Serviço, considerando os indicadores dispostos nos Anexos D e E.

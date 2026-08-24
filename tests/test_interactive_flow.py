@@ -144,6 +144,10 @@ def test_run_guided_flow_end_to_end_happy_path(
 
     os.chdir(tmp_path)
     (tmp_path / 'configs' / 'MinC').mkdir(parents=True)
+    config_dir = tmp_path / 'configs'
+    data_dir = tmp_path / 'input'
+    output_dir = tmp_path / 'roms'
+    report_dir = tmp_path / 'reports'
     (tmp_path / 'input' / 'MinC' / '2026' / '06').mkdir(parents=True)
     (tmp_path / 'configs' / 'MinC' / 'inms-test.yaml').write_text(
         """\
@@ -203,11 +207,11 @@ categorias:
         answers=[
             '2026-06',
             'MinC',
-            'configs',
-            'input',
-            'roms',
-            'reports',
-            'input/capa.csv',
+            str(config_dir),
+            str(data_dir),
+            str(output_dir),
+            str(report_dir),
+            str(data_dir / 'capa.csv'),
             True,
             ['bootstrap', 'split', 'measure', 'report'],
         ]
@@ -215,7 +219,8 @@ categorias:
 
     exit_code = run_guided_flow(provider)
 
-    assert exit_code == 0
+    # relatório sai como rascunho (não publicável) → exit code 3, não 0
+    assert exit_code == 3
     assert len(provider.summaries) == 1
     assert all(e.status == 'done' for e in provider.summaries[0].state.commands)
 

@@ -35,12 +35,15 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from pyauditor.cli.bootstrap import BootstrapResult
-from pyauditor.cli.consolidate import ConsolidateResult
-from pyauditor.cli.measure import MeasureResult
-from pyauditor.cli.report import ReportResult
-from pyauditor.cli.results import exit_code_name, is_production_command
-from pyauditor.cli.split import SplitResult
+from pyauditor.commands.contracts import (
+    BootstrapResult,
+    ConsolidateResult,
+    MeasureResult,
+    ReportResult,
+    SplitResult,
+    exit_code_name,
+    is_production_command,
+)
 from pyauditor.orchestration.run import (
     RunResult,
     dependency_missing,

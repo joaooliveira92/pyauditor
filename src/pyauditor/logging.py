@@ -41,7 +41,7 @@ must call :func:`setup_logging` after parsing command-line options.
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, MutableMapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, TextIO, cast
@@ -72,7 +72,10 @@ _DEFAULT_LOG_LEVEL: Final[str] = 'INFO'
 _DEFAULT_DETAIL_LEVEL: Final[int] = 0
 _MAX_DETAIL_LEVEL: Final[int] = 2
 
-_STREAM_LOG_FORMAT: Final[str] = '{time:HH:mm:ss} | {level: <8} | {message}'
+_STREAM_LOG_FORMAT: Final[str] = (
+    '<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | '
+    '<level>{message}</level>'
+)
 _FILE_LOG_FORMAT: Final[str] = (
     '{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{line} | {message}'
 )
@@ -296,6 +299,9 @@ def setup_logging(
     detail_filter = _build_detail_filter(
         maximum_detail=maximum_detail,
     )
+    stream_filter = _build_stream_filter(
+        maximum_detail=maximum_detail,
+    )
     json_sink = FlatJsonSink(cast(TextIO, sink)) if json_format else None
 
     logger.remove()
@@ -318,7 +324,7 @@ def setup_logging(
             stream_handler_id = logger.add(
                 sink,
                 level=effective_level,
-                filter=detail_filter,
+                filter=stream_filter,
                 format=format_,
                 backtrace=False,
                 diagnose=False,
@@ -386,6 +392,45 @@ def _build_detail_filter(
             return False
 
         return detail <= maximum_detail
+
+    return filter_record
+
+
+def _build_stream_filter(
+    *,
+    maximum_detail: int,
+) -> Callable[[Mapping[str, object]], bool]:
+    """Build the human-readable stream filter.
+
+    Wraps :func:`_build_detail_filter` and marks every record whose level and
+    message exactly match one already seen earlier in the run — not only
+    immediate neighbors, since repeated warnings (for example, the same
+    validation notice logged once per organization or per pipeline phase)
+    are typically separated by unrelated lines. Nothing is suppressed — this
+    only annotates the message that Loguru renders for the stream handler,
+    never the readable log file or the JSON sink, which both keep the
+    untouched record.
+    """
+    detail_filter = _build_detail_filter(maximum_detail=maximum_detail)
+    seen_counts: dict[tuple[str, str], int] = {}
+
+    def filter_record(record: Mapping[str, object]) -> bool:
+        if not detail_filter(record):
+            return False
+
+        level = record['level']
+        level_name = getattr(level, 'name', str(level))
+        message = str(record['message'])
+        key = (level_name, message)
+
+        occurrence = seen_counts.get(key, 0) + 1
+        seen_counts[key] = occurrence
+
+        if occurrence > 1:
+            mutable_record = cast(MutableMapping[str, object], record)
+            mutable_record['message'] = f'{message} (repetição {occurrence})'
+
+        return True
 
     return filter_record
 

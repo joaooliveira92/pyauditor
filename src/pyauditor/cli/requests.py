@@ -83,6 +83,8 @@ class ConsolidateRequest:
     """Validated, immutable request for `consolidate` — CLI agnostic of
     `--orgao`: it's the MinC+MTur fusion step by definition (ticket 04 Q2).
     `data_dir` feeds `objetos.csv`, the monetary source (ticket 07).
+    `config_dir` feeds the `INMS_BASE_AGRUPADO` sheet's grupo executor/ativo
+    detail recomputation (`excel/inms_grouped.py`).
     """
 
     competencia: str
@@ -90,6 +92,7 @@ class ConsolidateRequest:
     roms_dir: Path
     output_path: Path
     data_dir: Path
+    config_dir: Path
     is_final_month: bool = False
 
 
@@ -207,5 +210,6 @@ def extract_consolidate_request(ns: argparse.Namespace) -> ConsolidateRequest:
         roms_dir=require(ns, 'roms_dir', Path),
         output_path=report_dir / f'relatorio_{competencia}_consolidado.xlsx',
         data_dir=require(ns, 'data_dir', Path),
+        config_dir=require(ns, 'config_dir', Path),
         is_final_month=bool(cast(object, getattr(ns, 'final_month', False))),
     )

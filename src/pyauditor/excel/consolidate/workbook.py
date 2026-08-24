@@ -19,9 +19,13 @@ from dataclasses import dataclass
 from typing import Final
 
 from openpyxl import Workbook
-from openpyxl.styles import Border, Font, Side
+from openpyxl.styles import Border, Side
 
-from pyauditor.codes import contractual_sort_key, format_inms_code
+from pyauditor.codes import (
+    contractual_sort_key,
+    format_inms_code,
+    format_inms_code_numeric,
+)
 from pyauditor.excel._style import (
     BODY_FONT,
     BOTTOM_BORDER,
@@ -35,6 +39,7 @@ from pyauditor.excel._style import (
 from pyauditor.excel._style import UNIT_BY_SHAPE as _UNIT_BY_SHAPE
 from pyauditor.excel._style import new_sheet as _new_sheet
 from pyauditor.excel._style import write_row as _write
+from pyauditor.excel.consolidate._calculo_calcs import compute_calculo_row
 from pyauditor.excel.consolidate._decisions_io import (
     RowKey,
     read_existing_decisions,
@@ -42,14 +47,15 @@ from pyauditor.excel.consolidate._decisions_io import (
 from pyauditor.excel.consolidate._glosa_calcs import (
     accumulate_pontos_por_orgao,
     compute_aggregation,
+    faixa_descumprimento,
     is_amnestied,
+    ocorrencia_glosa,
 )
 from pyauditor.excel.equipe import RESPONSAVEL_LABELS
 from pyauditor.excel.glosas import (
     CAP_PCT,
     POINTS_TO_PERCENT,
     Historico,
-    compute_glosa,
 )
 from pyauditor.excel.inms_base import inms_base_fields
 from pyauditor.excel.orgao_consolidation import with_orgao_consolidation
@@ -74,16 +80,19 @@ CALCULO_SHEET: Final = 'CALCULO_PAGAMENTO'
 
 RATEIO_PADRAO: Final = 0.5  # provisório, até fonte oficial (ticket 01/02)
 
-# docs/styleguide.md number formats — currency and percent, zero as "-".
+# docs/styleguide.md number formats — currency and percent, zero as "-",
+# negatives in parentheses (never a leading minus sign — a bare custom
+# format's negative section needs its own sign literal, or Excel silently
+# drops it and a negative value prints identically to its positive twin).
 # `_style.py` doesn't carry these yet (production report.py/capa.py don't
 # apply them either); local to this module until that becomes a shared need.
-_CURRENCY_FMT: Final = 'R$#,##0.00;R$#,##0.00;-'
+_CURRENCY_FMT: Final = 'R$#,##0.00;(R$#,##0.00);-'
 # `result_pct`/`%Ajuste` are already stored in percent-space (95.5 meaning
 # "95.5%"); the literal "%" symbol auto-multiplies by 100 on display, so it
 # must be escaped for these. Only true 0-1 fractions (rateio) want the real,
 # auto-scaling "%" format.
-_PERCENT_FMT_SCALED: Final = '0.00"%";0.00"%";-'
-_PERCENT_FMT_FRACTION: Final = '0.00%;0.00%;-'
+_PERCENT_FMT_SCALED: Final = '0.00"%";(0.00"%");-'
+_PERCENT_FMT_FRACTION: Final = '0.00%;(0.00%);-'
 _TOP_BORDER: Final = Border(top=Side(style='thin', color='1F2937'))
 
 # Decisão Fiscal — o fiscal aceita a justificativa do fornecedor (anistia: a
@@ -131,7 +140,10 @@ _CALCULO_LINHAS: Final[tuple[str, ...]] = (
     'Percentual de rateio',
     'Valor bruto (= mensal x rateio)',
     'Pontos de glosa',
-    f'Valordaglosa(=MIN(pontosx{_FATOR_PCT_TEXTO},{CAP_PCT:g}%)/100xbruto)',
+    (
+        f'Valor da glosa (= MIN(pontos x {_FATOR_PCT_TEXTO}, '
+        f'{CAP_PCT:g}%)/100 x bruto)'
+    ),
     'Outros ajustes',
     'Valor recomendado (= max(0, bruto - glosa - outros))',
 )
@@ -152,6 +164,11 @@ _SERVICOS: Final[tuple[tuple[str, str, str, str], ...]] = (
 )
 
 _CAPA_VALOR_LABELS: Final = ('Valor mensal vigente', 'Valor global anual')
+
+# INMS_BASE row order within an indicator/asset group: per-órgão rows first
+# (MinC, then MTur), the pooled "Consolidado" row last — alphabetical order
+# on `orgao` would put "Consolidado" first, which reads as the odd one out.
+_ORGAO_ORDER: Final[dict[str, int]] = {'MinC': 0, 'MTur': 1, 'Consolidado': 2}
 
 
 @dataclass(frozen=True)
@@ -259,6 +276,7 @@ def build_servicos(
             'Critério de Rateio',
         ),
     )
+    ws.column_dimensions['B'].width = 50
     for i, (nome, minc, mtur, seg) in enumerate(_SERVICOS, start=2):
         valor = (
             itens[i - 2] if itens is not None and i - 2 < len(itens) else None
@@ -332,12 +350,19 @@ def build_inms_base(
     já era testada dentro de `report.py`, agora vivendo só aqui.
     """
     ws = _new_sheet(wb, INMS_BASE_SHEET, _INMS_BASE_COLUMNS, width=20)
+    ws.column_dimensions['F'].width = 45
     rows = with_orgao_consolidation(minc + mtur)
     rows.sort(
         key=lambda s: (
             contractual_sort_key(s.contractual_id),
+            # Synthetic "Consolidado" rows carry
+            # `f'{indicator_id}-CONSOLIDADO'` (see `orgao_consolidation.py`);
+            # stripping that suffix groups all 3 órgão variants of the same
+            # measured indicator (N1/N2/N3 split categories) together instead
+            # of scattering them by asset, which is `None` for all of them.
+            s.indicator_id.removesuffix('-CONSOLIDADO'),
             s.asset or '',
-            s.orgao,
+            _ORGAO_ORDER.get(s.orgao, len(_ORGAO_ORDER)),
         )
     )
     for row_idx, summary in enumerate(rows, start=2):
@@ -361,21 +386,6 @@ def _decision_value(decision: dict[str, object], key: str) -> CellValue:
     return str(value)
 
 
-def _faixa(summary: IndicatorSummary) -> str:
-    if summary.target_operator is None or summary.target_value is None:
-        return (
-            'Ocorrência sob detalhamento por-ativo'
-            if summary.penalty_points > 0
-            else ''
-        )
-    dif = (
-        summary.target_value - summary.result_pct
-        if summary.target_operator == '>='
-        else summary.result_pct - summary.target_value
-    )
-    return f'Déficit de {dif:.2f}pp' if dif > 0 else 'Não conforme'
-
-
 def build_glosas(
     wb: Workbook,
     competencia: str,
@@ -387,6 +397,7 @@ def build_glosas(
     *,
     historico: Historico | None = None,
     is_final_month: bool = False,
+    glosa_item_detail: dict[tuple[str, str], tuple[str, ...]] | None = None,
 ) -> tuple[float, float]:
     """GLOSAS — uma linha por (indicador x órgão) com ocorrência de glosa,
     mais o resumo agregado. Decisão do fiscal ('Aceita' = anistia) tira a
@@ -396,7 +407,14 @@ def build_glosas(
     Reusa ``glosas.compute_glosa`` por-órgão (mesma fórmula de ``report.py``) —
     com ``saldo_anterior_pct`` e ``is_final_month`` — e soma contra teto
     por-órgão em vez de teto único sobre o agregado.
+
+    ``glosa_item_detail`` (de ``excel/inms_grouped.py::
+    compute_glosa_item_detail``) alimenta ``Item Contratual`` com os itens
+    (grupo executor/ativo) que não bateram a meta dentro do indicador —
+    vazio quando ausente ou quando o indicador não tem essa granularidade
+    (mesmo comportamento de antes desse parâmetro existir).
     """
+    glosa_item_detail = glosa_item_detail or {}
     ws = _new_sheet(wb, GLOSAS_SHEET, _GLOSAS_COLUMNS, width=26)
     row = 2
 
@@ -419,12 +437,12 @@ def build_glosas(
         amnestied = is_amnestied(decision)
 
         pontos = summary.penalty_points
-        pct = pontos * POINTS_TO_PERCENT
-        valor_glosa = (
-            round((valor_base or 0.0) * pct / 100, 2)
-            if valor_base is not None
-            else None
-        )
+        ocorrencia = ocorrencia_glosa(pontos, valor_base)
+        pct = ocorrencia.pct_ajuste
+        valor_glosa = ocorrencia.valor_glosa
+
+        code_numeric = format_inms_code_numeric(summary.contractual_id)
+        item_names = glosa_item_detail.get((code_numeric, summary.orgao), ())
 
         _write(
             ws,
@@ -432,12 +450,12 @@ def build_glosas(
             (
                 competencia,
                 summary.orgao,
-                '',
-                '',
-                format_inms_code(summary.contractual_id),
+                '; '.join(item_names),
+                summary.name,
+                code_numeric,
                 round(summary.result_pct, 2),
                 summary.target_value,
-                _faixa(summary),
+                faixa_descumprimento(summary),
                 round(pct, 4),
                 valor_base,
                 0.0 if amnestied else valor_glosa,
@@ -492,9 +510,9 @@ def build_glosas(
         label_cell = ws.cell(row=r, column=1, value=label)
         value_cell = ws.cell(row=r, column=2, value=value)
         bold = label in ('Total de Pontos', 'Valor Glosa')
-        label_cell.font = Font(bold=True) if bold else BODY_FONT
-        value_cell.font = Font(bold=True) if bold else BODY_FONT
-        if label == 'Total de Pontos':
+        label_cell.font = LABEL_FONT if bold else BODY_FONT
+        value_cell.font = LABEL_FONT if bold else BODY_FONT
+        if bold:
             label_cell.border = _TOP_BORDER
             value_cell.border = _TOP_BORDER
         if label == 'Valor Glosa' and valor_base is not None:
@@ -502,15 +520,6 @@ def build_glosas(
         r += 1
 
     return total_pontos, glosa_final
-
-
-def _glosa_bruto(pontos: float, bruto: float) -> float:
-    """Valor da glosa sobre um bruto — a mesma aritmética de
-    ``glosas.compute_glosa`` (fonte única, ticket 09), sem rollover
-    (``is_final_month=True``) porque as células de ``CALCULO_PAGAMENTO``
-    computam o ajuste do mês corrente, não o saldo rolado."""
-    glosa = compute_glosa(pontos, bruto, is_final_month=True)
-    return glosa.valor_da_glosa or 0.0
 
 
 def build_calculo(
@@ -526,6 +535,7 @@ def build_calculo(
     ws.sheet_view.showGridLines = False
 
     ws['A1'] = 'Parâmetros de Entrada — rateio PROVISÓRIO até fonte oficial'
+    ws['A1'].font = TITLE_FONT
     base = valor_base or 0.0
     params: tuple[tuple[str, float, str], ...] = (
         ('Valor mensal vigente', base, _CURRENCY_FMT),
@@ -536,7 +546,7 @@ def build_calculo(
     for row, (param_label, param_value, param_fmt) in enumerate(
         params, start=3
     ):
-        ws.cell(row=row, column=1, value=param_label).font = Font(bold=True)
+        ws.cell(row=row, column=1, value=param_label).font = LABEL_FONT
         value_cell = ws.cell(row=row, column=2, value=param_value)
         value_cell.font = BODY_FONT
         value_cell.number_format = param_fmt
@@ -559,7 +569,7 @@ def build_calculo(
         row = header_row + 1 + idx
         bold = idx == total_row_idx
         label_cell = ws.cell(row=row, column=1, value=label)
-        label_cell.font = Font(bold=True) if bold else BODY_FONT
+        label_cell.font = LABEL_FONT if bold else BODY_FONT
         if bold:
             label_cell.border = _TOP_BORDER
         fmt: str | None = None
@@ -577,22 +587,21 @@ def build_calculo(
         for col, (_nome, rateio, pontos) in zip(
             range(2, len(_CALCULO_COLUMNS) + 1), colunas, strict=True
         ):
-            if label.startswith('Percentual de rateio'):
-                value: object = rateio
-            elif label.startswith('Valor bruto'):
-                value = round(base * rateio, 2)
-            elif label.startswith('Pontos de glosa'):
-                value = round(pontos, 2)
-            elif label.startswith('Valor da glosa'):
-                value = round(_glosa_bruto(pontos, base * rateio), 2)
-            elif label.startswith('Outros ajustes'):
-                value = 0
-            else:
-                bruto = base * rateio
-                glosa = _glosa_bruto(pontos, bruto)
-                value = round(max(0.0, bruto - glosa), 2)
+            row_values = compute_calculo_row(
+                rateio=rateio,
+                base=base,
+                pontos=pontos,
+            )
+            value: object = (
+                row_values.percentual_rateio,
+                row_values.valor_bruto,
+                row_values.pontos_glosa,
+                row_values.valor_glosa,
+                row_values.outros_ajustes,
+                row_values.valor_recomendado,
+            )[idx]
             value_cell = ws.cell(row=row, column=col, value=value)
-            value_cell.font = Font(bold=True) if bold else BODY_FONT
+            value_cell.font = LABEL_FONT if bold else BODY_FONT
             if fmt:
                 value_cell.number_format = fmt
             if bold:
@@ -612,6 +621,7 @@ def build_consolidated_workbook(
     is_final_month: bool = False,
     periodo: PeriodoAfericao | None = None,
     responsaveis: dict[str, str] | None = None,
+    glosa_item_detail: dict[tuple[str, str], tuple[str, ...]] | None = None,
 ) -> ConsolidationResult:
     """Pure, in-memory build of the 5-sheet consolidated workbook.
 
@@ -620,6 +630,8 @@ def build_consolidated_workbook(
     ``.xlsx`` de ``report.py``. ``valor_base`` e ``itens`` vêm de
     ``objetos.csv``. ``glosa_calculada`` é ``valor_base is not None``.
     ``periodo``/``responsaveis`` alimentam a capa (CLI + equipe.csv, §4/§6).
+    ``glosa_item_detail`` alimenta ``Item Contratual`` da GLOSAS — ver
+    ``build_glosas``.
     """
     warnings: list[str] = []
     wb = Workbook()
@@ -649,6 +661,7 @@ def build_consolidated_workbook(
         warnings,
         historico=historico,
         is_final_month=is_final_month,
+        glosa_item_detail=glosa_item_detail,
     )
     build_calculo(wb, valor_base, total_pontos)
 
