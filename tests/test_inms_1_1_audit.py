@@ -992,8 +992,9 @@ def test_source_note_does_not_expose_full_path(tmp_path: Path) -> None:
 def test_support_columns_are_hidden_and_sheet_is_protected(
     tmp_path: Path,
 ) -> None:
-    """B-03: colunas de apoio (R:AM) ocultas e planilha protegida — só os
-    campos de justificativa/evidência de preenchimento manual continuam
+    """B-03: colunas de apoio (R:AM) recolhidas num grupo de colunas
+    (collapsable, não `hidden` fixo) e planilha protegida — só os campos
+    de justificativa/evidência de preenchimento manual continuam
     editáveis."""
     config_dir, data_dir = _write_fixture(tmp_path)
     categorias_file = load_categorias(config_dir / 'categorias.yaml')
@@ -1007,11 +1008,15 @@ def test_support_columns_are_hidden_and_sheet_is_protected(
     wb = load_workbook(output_path)
     sheet = wb['INMS 1.1']
     assert sheet.column_dimensions['R'].hidden is True
+    assert sheet.column_dimensions['R'].outlineLevel == 1
     assert sheet.column_dimensions['AM'].hidden is True
+    assert sheet.column_dimensions['AM'].outlineLevel == 1
     # C-02 x B-03: a coluna de qualidade dos dados (AJ) fica visível de
-    # propósito — não é fonte de fórmula, é o indicador visual de linhas
-    # com data ausente/inválida que o ticket C-02 exige na planilha.
+    # propósito e fora do grupo — não é fonte de fórmula, é o indicador
+    # visual de linhas com data ausente/inválida que o ticket C-02 exige
+    # na planilha.
     assert sheet.column_dimensions['AJ'].hidden is not True
+    assert sheet.column_dimensions['AJ'].outlineLevel == 0
     assert sheet.protection.sheet is True
     # Coluna 10 (Justificativa de exclusão) da Seção 4 continua editável.
     grupo_executor_bar_row = next(

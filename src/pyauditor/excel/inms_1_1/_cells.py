@@ -145,24 +145,35 @@ def _add_situacao_conditional_formatting(
 
 
 def _protect_support_columns(sheet: Worksheet) -> None:
-    """Oculta as colunas de apoio (R:AQ) e protege a aba contra edição
-    acidental das fórmulas — os únicos campos que continuam editáveis são
-    os marcados com `_UNLOCKED` (justificativa/documento/evidência de
-    preenchimento manual da auditoria, Seções 4 e 6). Sem senha: o
-    objetivo é reduzir edição acidental das fórmulas, não impedir edição
-    deliberada por quem tem o arquivo (ticket 20 / B-03). Não afeta a
-    leitura das fórmulas pelo pipeline — proteção de planilha do Excel só
-    bloqueia edição interativa, nunca o cálculo/leitura de valores por
-    openpyxl ou por qualquer motor de recálculo.
+    """Agrupa (outline) as colunas de apoio (R:AQ), recolhidas por padrão,
+    e protege a aba contra edição acidental das fórmulas — os únicos campos
+    que continuam editáveis são os marcados com `_UNLOCKED` (justificativa/
+    documento/evidência de preenchimento manual da auditoria, Seções 4 e 6).
+    Sem senha: o objetivo é reduzir edição acidental das fórmulas, não
+    impedir edição deliberada por quem tem o arquivo (ticket 20 / B-03). Não
+    afeta a leitura das fórmulas pelo pipeline — proteção de planilha do
+    Excel só bloqueia edição interativa, nunca o cálculo/leitura de valores
+    por openpyxl ou por qualquer motor de recálculo.
 
-    A coluna `AJ` (Situação dos dados) fica de fora do ocultamento: é
-    preenchida em Python, não alimenta fórmula alguma, e é o indicador
-    visual de linhas com data ausente/inválida exigido pelo ticket 02
-    (C-02) — ocultá-la anularia a sinalização (consenso C-02 x B-03)."""
+    Grupo de colunas em vez de `hidden` fixo: recolhido por padrão (mesmo
+    efeito visual de antes), mas com o toggle "+/-" do Excel para quem
+    precisa auditar a fórmula por trás de um valor — mesmo padrão de
+    `_apply_section_outline` para linhas.
+
+    A coluna `AJ` (Situação dos dados) fica fora do grupo: é preenchida em
+    Python, não alimenta fórmula alguma, e é o indicador visual de linhas
+    com data ausente/inválida exigido pelo ticket 02 (C-02) — escondê-la
+    (mesmo que recolhível) anularia a sinalização (consenso C-02 x B-03).
+    Isso quebra R:AQ em dois grupos contíguos — R:AI e AK:AQ —, cada um com
+    seu próprio toggle."""
     for col in range(_R, _AQ + 1):
         if col == _AJ:
             continue
-        sheet.column_dimensions[cl(col)].hidden = True
+        dim = sheet.column_dimensions[cl(col)]
+        dim.outlineLevel = 1
+        dim.hidden = True
+    sheet.sheet_properties.outlinePr.summaryRight = False
+    sheet.sheet_view.showOutlineSymbols = True
     sheet.protection.sheet = True
     sheet.protection.formatCells = False
     sheet.protection.formatColumns = False
