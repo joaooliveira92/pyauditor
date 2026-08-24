@@ -240,8 +240,8 @@ def test_ressalva_interpretativa_omitted_when_conforms(tmp_path: Path) -> None:
 def test_ressalva_interpretativa_omitted_when_shape_has_no_penalty(
     tmp_path: Path,
 ) -> None:
-    """`count_difference` never sets `config.penalty` — no linear-vs-degraus
-    ambiguity to disclose even though it does have a `penalty_points` > 0."""
+    """`count_difference` nunca define `config.penalty` — sem ambiguidade
+    linear-vs-degraus a declarar mesmo tendo `penalty_points` > 0."""
     config_yaml = """
 indicator:
   id: INMS-TEST-CD
@@ -372,9 +372,35 @@ def test_render_unknown_shape_raises_actionable_value_error(
         raise AssertionError('esperava ValueError')
 
 
+def test_render_anomalias_section_shown_only_when_present(
+    tmp_path: Path,
+) -> None:
+    """Trilha de auditoria no ROM: seção 'Anomalias de leitura' só existe
+    quando há fila ragged ou célula numérica ilegível — ausente no caso
+    limpo."""
+    config_path = _write_ratio_fixture(tmp_path, resultado=100.0)
+    config = load_config(config_path)
+    result = measure(config, data_dir=tmp_path, config_path=config_path)
+
+    rom_limpo = render_rom(result)
+    assert '## Anomalias de leitura' not in rom_limpo
+
+    from dataclasses import replace
+
+    com_anomalia = replace(result, ragged_rows=2, unparseable_numerics=1)
+    rom_anomalia = render_rom(com_anomalia)
+
+    assert '## Anomalias de leitura' in rom_anomalia
+    assert (
+        'Filas com campos além do cabeçalho (descartados localmente): 2'
+        in rom_anomalia
+    )
+    assert 'Células numéricas ilegíveis ignoradas no cálculo: 1' in rom_anomalia
+
+
 def test_render_combined_rom_stacks_both_orgaos(tmp_path: Path) -> None:
-    """The `both` markdown nests each orgão's full ROM body under its own
-    `## <órgão>` heading (sections drop one level to `###`)."""
+    """O markdown `both` aninha o corpo completo do ROM de cada órgão sob seu
+    próprio heading `## <órgão>` (seções caem um nível, para `###`)."""
     minc_path = _write_orgao_fixture(tmp_path, 'MinC', resultado=91.0)
     mtur_path = _write_orgao_fixture(tmp_path, 'MTur', resultado=100.0)
     result_minc = measure(

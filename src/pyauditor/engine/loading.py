@@ -10,7 +10,6 @@ e `engine.loading` já depende dela para o backbone.
 
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 
 from pyauditor.categoria_filter import read_raw_csv
@@ -25,71 +24,103 @@ __all__ = (
 )
 
 _DELIMITER_CANDIDATES: tuple[str, ...] = (',', ';')
+# Amostra de linhas de dados (além da cabecera) para conferir o delimiter —
+# a cabecera sozinha engana quando um nome de campo contém o outro candidato.
+_DELIMITER_SAMPLE_ROWS: int = 20
 
 
 def load_rows(
     source_path: Path, delimiter: str, encoding: str
 ) -> list[dict[str, str]]:
-    with source_path.open(encoding=encoding, newline='') as handle:
-        reader = csv.DictReader(handle, delimiter=delimiter)
-        if reader.fieldnames is None:
-            raise ValueError(
-                f'{source_path}: CSV vazio ou sem linha de cabeçalho'
-            )
-        fieldnames = [name.strip() for name in reader.fieldnames]
-        reader.fieldnames = fieldnames
-        # Real-world rows are occasionally ragged (free-text fields containing
-        # the delimiter shift columns) — DictReader stuffs overflow into a
-        # `None` key holding a list; only the declared columns are kept.
-        return [
-            {name: (row.get(name) or '').strip() for name in fieldnames}
-            for row in reader
-        ]
+    """Delega no leitor canônico único (`read_raw_csv`): remove espaços dos
+    nomes de coluna, normaliza o alias `Grupo_executor` e conta linhas
+    ragged. Wrapper fino mantido para os chamadores que só precisam das
+    filas (sem anomalias)."""
+    return read_raw_csv(source_path, delimiter, encoding).rows
 
 
-def _detect_delimiter(csv_path: Path, encoding: str, configured: str) -> str:
+def _detect_delimiter(
+    csv_path: Path,
+    encoding: str,
+    configured: str,
+    *,
+    strict: bool = False,
+) -> str:
     """O manifest/config declara um delimiter fixo por dataset, mas exports
     mensais às vezes divergem por arquivo (confirmado em produção, 2026-06:
     `datasets.yaml` da MTur declara `;` para todos os 14 datasets, mas 3
-    arquivos daquele mês vieram com `,`). Lê só a linha de cabeçalho e troca
-    para o delimiter mais provável quando o configurado não aparece nela —
-    nunca lança: se o arquivo não existe ou não pode ser lido, o erro real
-    aparece no ponto de leitura de verdade (`load_rows`/`read_raw_csv`)."""
+    arquivos daquele mês vieram com `,`).
+
+    Decide pelo candidato com mais ocorrências na cabecera **e numa amostra
+    de linhas de dados** (não só na cabecera — um nome de campo contendo o
+    outro candidato enganaria a leitura só de cabecera). Troca para o
+    vencedor quando diverge do configurado (warning); em empate/ausência
+    total, `strict` falha com `ValueError` e o modo normal mantém o
+    configurado com warning forte. Nunca lança por arquivo ilegível: o erro
+    real aparece no ponto de leitura de verdade (`read_raw_csv`)."""
     if configured not in _DELIMITER_CANDIDATES:
         # delimiter incomum e explícito — respeita, não tenta adivinhar
         return configured
     try:
         with csv_path.open(encoding=encoding, newline='') as handle:
-            header = handle.readline()
+            linhas = [handle.readline()]
+            for _ in range(_DELIMITER_SAMPLE_ROWS):
+                linha = handle.readline()
+                if not linha:
+                    break
+                linhas.append(linha)
     except OSError:
         return configured
-    if configured in header:
+
+    contagens = {
+        cand: sum(linha.count(cand) for linha in linhas)
+        for cand in _DELIMITER_CANDIDATES
+    }
+    vencedor = max(contagens, key=contagens.__getitem__)
+    empatados = [
+        cand
+        for cand, total in contagens.items()
+        if total == contagens[vencedor]
+    ]
+    if len(empatados) == 1 and vencedor != configured:
+        logger.warning(
+            f'{csv_path}: delimiter configurado {configured!r} não aparece no '
+            f'conteúdo real, usando {vencedor!r} (detectado) — corrija o '
+            f'manifest/config se isso persistir'
+        )
+        return vencedor
+    if len(empatados) == 1:
         return configured
-    detected = next(
-        (c for c in _DELIMITER_CANDIDATES if c != configured and c in header),
-        None,
-    )
-    if detected is None:
-        return configured
+    # Ambíguo: ambos os candidatos aparecem ou nenhum aparece na amostra.
+    if strict:
+        raise ValueError(
+            f'{csv_path}: delimiter ambíguo entre {", ".join(contagens)} na '
+            f'cabecera/amostra de dados — configure o delimiter correto no '
+            f'manifest/config'
+        )
     logger.warning(
-        f'{csv_path}: delimiter configurado {configured!r} não aparece no '
-        f'cabeçalho, '
-        f'usando {detected!r} (detectado) — corrija o manifest/config se isso '
-        f'persistir'
+        f'{csv_path}: delimiter ambíguo entre {", ".join(contagens)} na '
+        f'cabecera/amostra de dados — mantendo o configurado {configured!r}; '
+        f'confira o resultado'
     )
-    return detected
+    return configured
 
 
 def resolve_source(
     config: IndicatorConfig,
     data_dir: Path,
     manifest: DatasetManifest | None,
+    *,
+    strict: bool = False,
 ) -> tuple[Path, str, str]:
-    """Resolve the CSV path + parsing options from the indicator's source
-    config.
+    """Resolve o caminho do CSV + opções de parsing a partir do source da
+    config do indicador.
 
-    Public (not `measure()`-only) — `cli/split.py` also resolves a base
-    indicator's raw source before filtering it per Categoria.
+    Pública (não só de `measure()`) — `cli/split.py` também resolve o source
+    bruto de um indicador base antes de filtrá-lo por Categoria.
+
+    *strict* propaga para a detecção de delimiter: um delimiter ambíguo vira
+    `ValueError` duro em vez de chute best-effort.
 
     Returns:
         (csv_path, delimiter, encoding)
@@ -103,11 +134,15 @@ def resolve_source(
             )
         entry = manifest.resolve(source.dataset)
         csv_path = data_dir / entry.file
-        delimiter = _detect_delimiter(csv_path, entry.encoding, entry.delimiter)
+        delimiter = _detect_delimiter(
+            csv_path, entry.encoding, entry.delimiter, strict=strict
+        )
         return csv_path, delimiter, entry.encoding
     # Legacy: direct csv filename
     if source.csv is None:  # guaranteed by Source model validator
         raise ValueError('source.csv não pode ser None no ramo legado')
     csv_path = data_dir / source.csv
-    delimiter = _detect_delimiter(csv_path, source.encoding, source.delimiter)
+    delimiter = _detect_delimiter(
+        csv_path, source.encoding, source.delimiter, strict=strict
+    )
     return csv_path, delimiter, source.encoding

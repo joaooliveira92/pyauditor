@@ -11,7 +11,7 @@ from typing import Final
 
 from openpyxl import load_workbook
 
-from pyauditor.codes import format_inms_code
+from pyauditor.codes import parse_inms_code
 
 __all__: Final[tuple[str, ...]] = ('RowKey', 'read_existing_decisions')
 
@@ -138,7 +138,7 @@ def read_existing_decisions(path: Path) -> dict[RowKey, dict[str, object]]:
                 if name in _DECISION_COLUMNS
             }
             if any(v not in (None, '') for v in values.values()):
-                decisions[format_inms_code(indicador), orgao] = values
+                decisions[parse_inms_code(indicador), orgao] = values
         return decisions
     finally:
         workbook.close()

@@ -15,7 +15,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from pyauditor.excel.inms_1_1._layout import (
     _AJ,
-    _AO,
+    _AQ,
     _R,
     BODY_FONT,
     BORDER,
@@ -72,15 +72,43 @@ def _label_value(
         vc.fill = fill
 
 
-def _header_row(sheet: Worksheet, row: int, headers: tuple[str, ...]) -> None:
+def _header_row(
+    sheet: Worksheet,
+    row: int,
+    headers: tuple[str, ...],
+    *,
+    numeric_cols: frozenset[int] = frozenset(),
+) -> None:
+    """`numeric_cols` — índices 1-based (dentro de `headers`) das colunas
+    cujo conteúdo é numérico/data; o styleguide pede cabeçalho alinhado à
+    direita sobre dado numérico, para casar com o valor abaixo."""
     for idx, text in enumerate(headers, start=1):
         cell = sheet.cell(row=row, column=idx, value=text)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
+        horizontal = 'right' if idx in numeric_cols else 'left'
         cell.alignment = Alignment(
-            horizontal='left', wrap_text=True, vertical='center'
+            horizontal=horizontal, wrap_text=True, vertical='center'
         )
     sheet.row_dimensions[row].height = 30
+
+
+def _apply_section_outline(
+    sheet: Worksheet, bounds: list[tuple[int, int]]
+) -> None:
+    """Agrupamento nativo de linhas (Dados > Agrupar) — uma Seção por grupo.
+    A barra da Seção (nível 0) fica sempre visível; o conteúdo (nível 1)
+    começa expandido, mas pode ser recolhido pelo toggle "+/-" que o Excel
+    desenha ao lado da barra — mesmo padrão de `inms_grouped.py`
+    (`summaryBelow=False` mantém o resumo acima do detalhe, casando com a
+    barra ficar por cima do conteúdo da Seção, não embaixo)."""
+    for bar_row, content_end_row in bounds:
+        sheet.row_dimensions[bar_row].outlineLevel = 0
+        for r in range(bar_row + 1, content_end_row + 1):
+            sheet.row_dimensions[r].outlineLevel = 1
+    sheet.sheet_properties.outlinePr.summaryBelow = False  # ty: ignore[invalid-assignment]
+    sheet.sheet_properties.outlinePr.summaryRight = False  # ty: ignore[invalid-assignment]
+    sheet.sheet_view.showOutlineSymbols = True
 
 
 def _add_table(sheet: Worksheet, name: str, ref: str) -> None:
@@ -117,24 +145,35 @@ def _add_situacao_conditional_formatting(
 
 
 def _protect_support_columns(sheet: Worksheet) -> None:
-    """Oculta as colunas de apoio (R:AO) e protege a aba contra edição
-    acidental das fórmulas — os únicos campos que continuam editáveis são
-    os marcados com `_UNLOCKED` (justificativa/documento/evidência de
-    preenchimento manual da auditoria, Seções 4 e 6). Sem senha: o
-    objetivo é reduzir edição acidental das fórmulas, não impedir edição
-    deliberada por quem tem o arquivo (ticket 20 / B-03). Não afeta a
-    leitura das fórmulas pelo pipeline — proteção de planilha do Excel só
-    bloqueia edição interativa, nunca o cálculo/leitura de valores por
-    openpyxl ou por qualquer motor de recálculo.
+    """Agrupa (outline) as colunas de apoio (R:AQ), recolhidas por padrão,
+    e protege a aba contra edição acidental das fórmulas — os únicos campos
+    que continuam editáveis são os marcados com `_UNLOCKED` (justificativa/
+    documento/evidência de preenchimento manual da auditoria, Seções 4 e 6).
+    Sem senha: o objetivo é reduzir edição acidental das fórmulas, não
+    impedir edição deliberada por quem tem o arquivo (ticket 20 / B-03). Não
+    afeta a leitura das fórmulas pelo pipeline — proteção de planilha do
+    Excel só bloqueia edição interativa, nunca o cálculo/leitura de valores
+    por openpyxl ou por qualquer motor de recálculo.
 
-    A coluna `AJ` (Situação dos dados) fica de fora do ocultamento: é
-    preenchida em Python, não alimenta fórmula alguma, e é o indicador
-    visual de linhas com data ausente/inválida exigido pelo ticket 02
-    (C-02) — ocultá-la anularia a sinalização (consenso C-02 x B-03)."""
-    for col in range(_R, _AO + 1):
+    Grupo de colunas em vez de `hidden` fixo: recolhido por padrão (mesmo
+    efeito visual de antes), mas com o toggle "+/-" do Excel para quem
+    precisa auditar a fórmula por trás de um valor — mesmo padrão de
+    `_apply_section_outline` para linhas.
+
+    A coluna `AJ` (Situação dos dados) fica fora do grupo: é preenchida em
+    Python, não alimenta fórmula alguma, e é o indicador visual de linhas
+    com data ausente/inválida exigido pelo ticket 02 (C-02) — escondê-la
+    (mesmo que recolhível) anularia a sinalização (consenso C-02 x B-03).
+    Isso quebra R:AQ em dois grupos contíguos — R:AI e AK:AQ —, cada um com
+    seu próprio toggle."""
+    for col in range(_R, _AQ + 1):
         if col == _AJ:
             continue
-        sheet.column_dimensions[cl(col)].hidden = True
+        dim = sheet.column_dimensions[cl(col)]
+        dim.outlineLevel = 1
+        dim.hidden = True
+    sheet.sheet_properties.outlinePr.summaryRight = False  # ty: ignore[invalid-assignment]
+    sheet.sheet_view.showOutlineSymbols = True
     sheet.protection.sheet = True
     sheet.protection.formatCells = False
     sheet.protection.formatColumns = False

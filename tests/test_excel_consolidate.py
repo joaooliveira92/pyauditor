@@ -152,7 +152,7 @@ def test_glosas_has_one_row_per_indicator_times_orgao_with_breaches() -> None:
         (sheet.cell(row=r, column=5).value, sheet.cell(row=r, column=2).value)
         for r in range(2, 4)
     ]
-    assert set(rows) == {('INMS 1.06', 'MinC'), ('INMS 1.06', 'MTur')}
+    assert set(rows) == {('1.06', 'MinC'), ('1.06', 'MTur')}
     assert result.total_pontos == 150.0
     assert result.glosa_final == 100000.0 * 0.15 / 100
 

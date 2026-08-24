@@ -1,7 +1,8 @@
 """`prazos.csv` (`input/prazos.csv`) — tabela de referência de SLA por
-tipo/criticidade de demanda, compartilhada entre órgãos. Reproduzida
-verbatim como a primeira aba de `sintetico.xlsx`, a pedido do usuário: não
-há processamento, só leitura crua e regravação linha a linha.
+tipo/criticidade de demanda, compartilhada entre órgãos. Lida crua aqui;
+`excel/sintetico/_sheets/institutional.py` aplica a formatação institucional
+(título, cores de criticidade, padronização de texto) da aba "Prazos" de
+`sintetico.xlsx`.
 """
 
 from __future__ import annotations

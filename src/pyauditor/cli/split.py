@@ -43,7 +43,11 @@ from pyauditor.cli.split_derive import (
 from pyauditor.commands import contracts
 from pyauditor.config.categorias import GrupoExecutorMode, load_categorias
 from pyauditor.config.manifest import DatasetManifest
-from pyauditor.engine.pipeline import load_config, measurement_source
+from pyauditor.engine.pipeline import (
+    inject_orgao,
+    load_config,
+    measurement_source,
+)
 from pyauditor.excel.sintetico import write_sintetico_workbook
 from pyauditor.logging import log_event, logger
 from pyauditor.periodo import (
@@ -89,8 +93,11 @@ def run_split(
     strict: bool = False,
     prazos_path: Path | None = None,
     capa_path: Path | None = None,
+    dados_contratuais_path: Path | None = None,
     equipe_path: Path | None = None,
+    perfis_profissionais_path: Path | None = None,
     objetos_path: Path | None = None,
+    localidades_path: Path | None = None,
 ) -> SplitResult:
     orgao = expected_orgao
 
@@ -149,7 +156,12 @@ def run_split(
 
         base_config_path = config_dir / f'{base_stem}.yaml'
         try:
-            base_config = load_config(base_config_path)
+            # `config_dir` costuma ser `_shared` (single-source, sem `scope:`
+            # próprio) — sem `inject_orgao`, tanto os artefatos derivados
+            # gravados em disco (`derive_config` abaixo copia `base.scope`
+            # verbatim) quanto o `sintetico.xlsx` acabam sempre com o órgão/
+            # contrato default do modelo (MinC), mesmo processando MTur.
+            base_config = inject_orgao(load_config(base_config_path), orgao)
         except (OSError, ValueError) as exc:
             logger.error(
                 f'INMS {inms_key} ({orgao}/{competencia}): falha ao carregar '
@@ -347,13 +359,17 @@ def run_split(
                 config_dir,
                 competencia_data_dir,
                 sintetico_path,
+                orgao=orgao,
                 manifest=manifest,
                 periodo=periodo,
                 strict=strict,
                 prazos_path=prazos_path,
                 capa_path=capa_path,
+                dados_contratuais_path=dados_contratuais_path,
                 equipe_path=equipe_path,
+                perfis_profissionais_path=perfis_profissionais_path,
                 objetos_path=objetos_path,
+                localidades_path=localidades_path,
             )
             warnings.extend(sintetico_warnings)
             if sintetico_path.exists():

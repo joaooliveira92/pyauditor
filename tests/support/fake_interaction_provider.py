@@ -9,9 +9,14 @@ from __future__ import annotations
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from pathlib import Path
 
-from pyauditor.interactive.provider import InteractionCancelledError
+from pyauditor.interactive._contract import (
+    InteractionCancelledError,
+    TextValidator,
+)
 from pyauditor.orchestration.run import RunResult
+from pyauditor.orchestration.summary import exit_code_for_run
 
 CANCEL = object()
 """Script this sentinel as an answer to simulate Ctrl+C/EOF at that prompt —
@@ -34,7 +39,11 @@ class FakeInteractionProvider:
         return answer
 
     def ask_text(
-        self, message: str, *, default: str = '', validate: object = None
+        self,
+        message: str,
+        *,
+        default: str = '',
+        validate: TextValidator | None = None,
     ) -> str:
         return str(self._next())
 
@@ -65,11 +74,7 @@ class FakeInteractionProvider:
         yield
 
     def show_summary(
-        self, run_result: RunResult, *, log_path: object | None = None
+        self, run_result: RunResult, *, log_path: Path | str | None = None
     ) -> int:
         self.summaries.append(run_result)
-        return (
-            1
-            if any(e.status == 'error' for e in run_result.state.commands)
-            else 0
-        )
+        return exit_code_for_run(run_result.state.commands, run_result.results)

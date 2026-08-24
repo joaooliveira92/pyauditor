@@ -220,6 +220,12 @@ class MeasureLoop:
         encoding = bundle.encoding
         dropped_out_of_period = bundle.dropped_out_of_period
         undated_dropped = bundle.undated_dropped
+        self._warn_anomalias(
+            ragged_rows=bundle.ragged_rows,
+            unparseable_numerics=bundle.unparseable_numerics,
+            csv_path=raw_csv_path,
+            contractual_id=contractual_id,
+        )
 
         if GRUPO_EXECUTOR_COLUMN not in fieldnames:
             message = ''.join(
@@ -307,6 +313,8 @@ class MeasureLoop:
                     provenance=provenance,
                     dropped_out_of_period=dropped_out_of_period,
                     undated_dropped=undated_dropped,
+                    ragged_rows=bundle.ragged_rows,
+                    unparseable_numerics=bundle.unparseable_numerics,
                 )
             except Exception as exc:
                 message = ''.join(
@@ -350,6 +358,37 @@ class MeasureLoop:
             logger.warning(w)
             self.warnings.append(w)
 
+    def _warn_anomalias(
+        self,
+        *,
+        ragged_rows: int | None,
+        unparseable_numerics: int | None,
+        csv_path: Path,
+        contractual_id: str,
+    ) -> None:
+        """Trilha de auditoria: anomalias de leitura viram WARNING no resumo
+        do run (e contagem no ROM), nunca descarte silencioso."""
+        partes = []
+        if ragged_rows:
+            partes.append(
+                f'{ragged_rows} linha(s) com campos além do '
+                f'cabeçalho (descartados localmente)'
+            )
+        if unparseable_numerics:
+            partes.append(
+                f'{unparseable_numerics} célula(s) numérica(s) '
+                'ilegível(is) ignorada(s) no cálculo'
+            )
+        if not partes:
+            return
+        warning = (
+            f'{contractual_id}: {csv_path.name}: '
+            + '; '.join(partes)
+            + ' — revisar o dataset do fornecedor'
+        )
+        logger.warning(warning)
+        self.warnings.append(warning)
+
     def _measure_single(
         self,
         config_path: Path,
@@ -367,6 +406,12 @@ class MeasureLoop:
                 config,
                 config_path,
                 config_hash,
+            )
+            self._warn_anomalias(
+                ragged_rows=result.ragged_rows,
+                unparseable_numerics=result.unparseable_numerics,
+                csv_path=result.provenance.csv_path,
+                contractual_id=contractual_id,
             )
         except FileNotFoundError:
             scope_orgao = getattr(

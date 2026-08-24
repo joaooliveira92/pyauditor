@@ -91,10 +91,14 @@ def _load_responsaveis(
 def _load_categorias(
     config_dir: Path,
     expected_orgao: str | None,
-    warnings: list[str],
 ) -> tuple[object | None, dict[str, list[tuple[str, GrupoExecutorMode]]]]:
     """Single-source categorias: carrega uma vez por execução (fallback para
-    parent/<orgao>/categorias.yaml quando config_dir é _shared)."""
+    parent/<orgao>/categorias.yaml quando config_dir é _shared).
+
+    Ausência do arquivo = sem categorias (soft, retorno vazio). Arquivo
+    presente mas malformado/inválido = falha de config: raises `ValueError`
+    com mensagem acionável — uma segmentação que some em silêncio faria os
+    números saírem errados parecendo válidos."""
     categorias_file = None
     per_inms: dict[str, list[tuple[str, GrupoExecutorMode]]] = {}
     if expected_orgao is None:
@@ -118,11 +122,14 @@ def _load_categorias(
                     )
         logger.debug('categorias carregadas de %s', categorias_path)
     except (OSError, ValueError) as exc:
-        logger.warning(
-            'falha ao carregar categorias %s: %s',
-            categorias_path,
-            exc,
-        )
+        # Presente mas malformado = falha de config, não dado ausente: se o
+        # run seguisse com warning, a segmentação por categoria sumiria em
+        # silêncio e os números sairiam errados parecendo válidos. Só a
+        # ausência do arquivo é "sem categorias" (soft, acima).
+        raise ValueError(
+            f'categorias.yaml presente mas ilegível/inválido em '
+            f'{categorias_path}: {exc}'
+        ) from exc
     return categorias_file, per_inms
 
 
@@ -189,9 +196,10 @@ def resolve_measure_inputs(
 
     warnings: list[str] = []
     capa_fields = _load_responsaveis(equipe_path, warnings)
-    categorias_file, per_inms = _load_categorias(
-        config_dir, expected_orgao, warnings
-    )
+    try:
+        categorias_file, per_inms = _load_categorias(config_dir, expected_orgao)
+    except ValueError as exc:
+        return None, str(exc)
     derived_config_stems = _derived_config_stems(per_inms)
 
     inputs = MeasureInputs(

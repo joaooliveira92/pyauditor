@@ -262,7 +262,7 @@ def test_run_split_writes_sintetico_xlsx_when_report_dir_given(
     sintetico_path = report_dir / '2026-06' / 'sintetico.xlsx'
     assert sintetico_path.exists()
     wb = load_workbook(sintetico_path)
-    assert set(wb.sheetnames) == {'INMS 1.1'}
+    assert set(wb.sheetnames) == {'INMS 1.1', 'Sansões'}
 
 
 def test_run_split_skips_sintetico_xlsx_when_report_dir_omitted(

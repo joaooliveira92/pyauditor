@@ -10,6 +10,7 @@ tradução argparse→request em `cli/requests.py` — este módulo fica com o
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -52,7 +53,10 @@ from pyauditor.cli.run import run_run
 from pyauditor.cli.split import run_split
 from pyauditor.commands.contracts import exit_code_for_results
 from pyauditor.config.resolution import per_orgao_paths
+from pyauditor.excel.dados_contratuais import DADOS_CONTRATUAIS_FILENAME
 from pyauditor.excel.equipe import EQUIPE_FILENAME
+from pyauditor.excel.localidades import LOCALIDADES_FILENAME
+from pyauditor.excel.perfis_profissionais import PERFIS_PROFISSIONAIS_FILENAME
 from pyauditor.excel.prazos import PRAZOS_FILENAME
 from pyauditor.logging import setup_logging
 from pyauditor.periodo import PeriodoAfericao, month_bounds
@@ -173,6 +177,9 @@ def _dispatch_split(args: argparse.Namespace) -> int:
     capa_path = request.data_dir / _CAPA_COMUM
     equipe_path = request.data_dir / EQUIPE_FILENAME
     objetos_path = request.data_dir / _OBJETOS_FILENAME
+    dados_contratuais_path = request.config_dir / DADOS_CONTRATUAIS_FILENAME
+    perfis_profissionais_path = request.data_dir / PERFIS_PROFISSIONAIS_FILENAME
+    localidades_path = request.data_dir / LOCALIDADES_FILENAME
     split_results = []
     for orgao in _each_single_orgao(request.orgao):
         # setup por órgão dentro do loop para evitar pasta both/ órfã
@@ -206,6 +213,9 @@ def _dispatch_split(args: argparse.Namespace) -> int:
                 capa_path=capa_path,
                 equipe_path=equipe_path,
                 objetos_path=objetos_path,
+                dados_contratuais_path=dados_contratuais_path,
+                perfis_profissionais_path=perfis_profissionais_path,
+                localidades_path=localidades_path,
             )
         )
     return exit_code_for_results(split_results)
@@ -296,6 +306,7 @@ def _dispatch_consolidate(args: argparse.Namespace) -> int:
         roms_dir=consolidate_request.roms_dir,
         output_path=consolidate_request.output_path,
         data_dir=consolidate_request.data_dir,
+        config_dir=consolidate_request.config_dir,
         is_final_month=consolidate_request.is_final_month,
     )
     return exit_code_for_results((consolidate_result,))
@@ -311,11 +322,15 @@ def _dispatch_run(args: argparse.Namespace) -> int:
     orgao = require(args, 'orgao', str)
     output_dir = require(args, 'output_dir', Path)
     report_dir = require(args, 'report_dir', Path)
+    if bool(cast(object, getattr(args, 'clean', False))):
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(report_dir, ignore_errors=True)
     setup_logging(
         log_path=_run_log_path(report_dir, _CMD_RUN, competencia),
         **logging_kwargs(args),
     )
     output_raw = require(args, 'output', str)
+    on_warning_raw = require(args, 'on_warning', str)
     return run_run(
         competencia=competencia,
         orgao=orgao,
@@ -330,6 +345,7 @@ def _dispatch_run(args: argparse.Namespace) -> int:
         output='json' if output_raw == 'json' else 'text',
         force=bool(cast(object, getattr(args, 'force', False))),
         strict=bool(cast(object, getattr(args, 'strict', False))),
+        on_warning='pause' if on_warning_raw == 'pause' else 'continue',
     )
 
 

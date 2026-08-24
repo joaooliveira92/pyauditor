@@ -84,5 +84,15 @@ _UNLOCKED: Final = Protection(locked=False)
 _AJ = 36
 _AK, _AL, _AM = 37, 38, 39
 _AN, _AO = 40, 41
+# Flag por linha: grupo do incidente está habilitado para o cálculo do
+# INMS 1.1 — lookup ao vivo contra a coluna "Incluído no INMS?" da Seção 4,
+# então reage ao toggle Sim/Não sem precisar reexecutar o pipeline.
+_AP = 42
+# Mapa auxiliar (uma linha por grupo, paralelo a `_AK`): referência direta à
+# célula "Incluído no INMS?" do grupo na Seção 4 — é o que `_AP` consulta
+# via INDEX/MATCH por `_AK` (grupo).
+_AQ = 43
 
 _DATA_QUALIDADE_OK: Final[str] = 'OK'
+_INCLUIDO_SIM: Final[str] = 'Sim'
+_INCLUIDO_NAO: Final[str] = 'Não'

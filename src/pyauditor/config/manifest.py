@@ -1,9 +1,8 @@
-"""Loads and validates the dataset manifest (`datasets.yaml`).
+"""Carrega e valida o manifest de datasets (`datasets.yaml`).
 
-The manifest maps human-readable dataset aliases (e.g. ``telefonemas``)
-to concrete CSV filenames + parsing options.  Indicator YAMLs reference
-datasets by alias via ``source.dataset``; the pipeline resolves the
-alias to a real file at load time.
+O manifest mapeia aliases legíveis (ex.: ``telefonemas``) para nomes de arquivo
+CSV + opções de parsing. Os YAMLs de indicador referenciam datasets por alias
+via ``source.dataset``; o pipeline resolve o alias para o arquivo real no load.
 """
 
 from __future__ import annotations
@@ -36,7 +35,7 @@ type _SafeRelativePath = Annotated[
 
 
 class DatasetEntry(BaseModel):
-    """A single dataset definition — immutable, strict."""
+    """Uma única definição de dataset — imutável, estrita."""
 
     model_config = ConfigDict(
         frozen=True,
@@ -51,20 +50,20 @@ class DatasetEntry(BaseModel):
 
 
 class DatasetManifest:
-    """Immutable registry of dataset entries, keyed by alias.
+    """Registro imutável de entradas de dataset, indexado por alias.
 
-    Constructed once via :func:`load_manifest` and shared across the
-    pipeline.  Lookup raises ``KeyError`` on unknown aliases.
+    Construído uma vez via :func:`load_manifest` e compartilhado pelo
+    pipeline. A consulta levanta ``KeyError`` em aliases desconhecidos.
     """
 
     def __init__(self, entries: Mapping[str, DatasetEntry]) -> None:
         self._entries: Final[Mapping[str, DatasetEntry]] = entries
 
     def resolve(self, alias: str) -> DatasetEntry:
-        """Return the :class:`DatasetEntry` for *alias*.
+        """Retorna o :class:`DatasetEntry` de *alias*.
 
         Raises:
-            KeyError: if *alias* is not present in the manifest.
+            KeyError: se *alias* não estiver presente no manifest.
         """
         try:
             return self._entries[alias]
@@ -109,11 +108,11 @@ def _load_raw(path: Path) -> Mapping[str, DatasetEntry]:
 
 @lru_cache(maxsize=1)
 def load_manifest(path: Path) -> DatasetManifest:
-    """Load and cache the dataset manifest from *path*.
+    """Carrega e cacheia o manifest de datasets de *path*.
 
     Raises:
-        ValueError: if the YAML structure is invalid.
-        FileNotFoundError: if *path* does not exist.
+        ValueError: se a estrutura do YAML for inválida.
+        FileNotFoundError: se *path* não existir.
     """
     entries = _load_raw(path)
     return DatasetManifest(entries)
