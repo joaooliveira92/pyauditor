@@ -38,7 +38,7 @@ test = [
 ]
 
 quality = [
-    "ruff>=0.12",
+    "ruff>=0.16.4",
     "types-openpyxl>=3.1.5.20260807",
     "types-pyyaml>=6.0.12.20260815",
 ]
