@@ -48,7 +48,7 @@ security = [
     "pip-audit>=2.10",
 ]
 docs = [
-    "zensical>=0.0.56",
+    "zensical>=0.0.57",
 ]
 
 [tool.ty]
