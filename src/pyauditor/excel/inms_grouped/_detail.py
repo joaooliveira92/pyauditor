@@ -8,6 +8,7 @@ isso não é fabricação de números.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from math import isnan
 from pathlib import Path
 from typing import cast
@@ -55,12 +56,6 @@ def _compute_for_grupo(
         cast(dict[str, object], result.memoria)
     )
     return numerator or 0.0, denominator or 0.0
-
-
-def _rows_for_grupo(
-    rows: list[dict[str, str]], grupo: str
-) -> list[dict[str, str]]:
-    return [r for r in rows if r[GRUPO_EXECUTOR_COLUMN] == grupo]
 
 
 def _grupo_detail_by_inms(
@@ -140,6 +135,15 @@ def _grupo_detail_by_inms(
                 grupo_executor_entries, real_values
             )
 
+            # ⚡ Bolt: otimização de performance.
+            # Pré-agrupa as linhas do bundle por Grupo_executor em O(N) para
+            # evitar reler bundle.rows para cada grupo.
+            rows_by_grupo: dict[str, list[dict[str, str]]] = defaultdict(list)
+            for r in bundle.rows:
+                grupo_val = r.get(GRUPO_EXECUTOR_COLUMN)
+                if grupo_val is not None:
+                    rows_by_grupo[grupo_val].append(r)
+
             org_rows: list[GrupoRow] = []
             for categoria_key, effective_values in per_categoria_values.items():
                 categoria = categorias_file.categorias[categoria_key]
@@ -148,7 +152,7 @@ def _grupo_detail_by_inms(
                     num, den = _compute_for_grupo(
                         config,
                         config.source.id_column,
-                        _rows_for_grupo(bundle.rows, grupo),
+                        rows_by_grupo.get(grupo, []),
                     )
                     org_rows.append((categoria.label, nivel, grupo, num, den))
 
@@ -156,7 +160,7 @@ def _grupo_detail_by_inms(
                 num, den = _compute_for_grupo(
                     config,
                     config.source.id_column,
-                    _rows_for_grupo(bundle.rows, grupo),
+                    rows_by_grupo.get(grupo, []),
                 )
                 org_rows.append(
                     (_AUDIT_REVIEW_LABEL, _SEM_NIVEL, grupo, num, den)

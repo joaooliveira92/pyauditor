@@ -17,6 +17,7 @@ usa `accepted_ids`.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Final
@@ -208,13 +209,20 @@ def _write_detalhe(
             ).font = BODY_FONT
         row_idx += 1
 
+    # ⚡ Bolt: otimização de performance.
+    # Pré-agrupa as linhas por Grupo_executor em O(N) para evitar
+    # filtragens O(N) repetidas em loops para cada grupo.
+    rows_by_grupo: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in rows:
+        grupo_val = row.get(GRUPO_EXECUTOR_COLUMN)
+        if grupo_val is not None:
+            rows_by_grupo[grupo_val].append(row)
+
     for categoria_key, effective_values in per_categoria_values.items():
         categoria = categorias_file.categorias[categoria_key]
         nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
         for grupo in sorted(effective_values):
-            group_rows = [
-                row for row in rows if row[GRUPO_EXECUTOR_COLUMN] == grupo
-            ]
+            group_rows = rows_by_grupo.get(grupo, [])
             emit(categoria.label, nivel, grupo, group_rows)
 
     for categoria_key, _entry in whole_indicator_entries:
@@ -223,9 +231,7 @@ def _write_detalhe(
         emit(categoria.label, nivel, _WHOLE_INDICATOR_LABEL, rows)
 
     for grupo in sorted(outros_values):
-        group_rows = [
-            row for row in rows if row[GRUPO_EXECUTOR_COLUMN] == grupo
-        ]
+        group_rows = rows_by_grupo.get(grupo, [])
         emit(_OUTROS_LABEL, None, grupo, group_rows)
 
     return row_idx
