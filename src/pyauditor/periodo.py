@@ -216,12 +216,10 @@ def _cell_interval(
 
     length = len(text)
     # ⚡ Bolt: otimização de performance.
-    # Evita chamadas custosas ao datetime.strptime (e o lançamento/captura de
-    # exceções ValueError em caminhos de falha) verificando primeiro a estrutura
-    # dos formatos suportados:
-    # 1. "DD/MM/YYYY HH:MM" possui exatamente 16 caracteres com separadores
-    #    em posições fixas.
-    # 2. "YYYY-MM" possui exatamente 7 caracteres com hífen na posição 4.
+    # Evita chamadas custosas ao datetime.strptime (e a criação de objetos
+    # datetime desnecessários) efetuando parsing direto com date(y, m, d)
+    # quando a string segue o padrão estruturado "DD/MM/YYYY HH:MM".
+    # Mantém fallback para datetime.strptime para compatibilidade total.
     if (
         length == 16
         and text[2] == '/'
@@ -229,16 +227,36 @@ def _cell_interval(
         and text[10] == ' '
         and text[13] == ':'
     ):
-        try:
-            timestamp = datetime.strptime(
-                text,
-                _DATETIME_CELL_FORMAT,
-            )
-        except ValueError:
-            return None
+        if (
+            text[:2].isdigit()
+            and text[3:5].isdigit()
+            and text[6:10].isdigit()
+            and text[11:13].isdigit()
+            and text[14:16].isdigit()
+        ):
+            try:
+                hour = int(text[11:13])
+                minute = int(text[14:16])
+                if 0 <= hour <= 23 and 0 <= minute <= 59:
+                    day = date(
+                        int(text[6:10]),
+                        int(text[3:5]),
+                        int(text[0:2]),
+                    )
+                    return day, day
+            except ValueError:
+                return None
         else:
-            day = timestamp.date()
-            return day, day
+            try:
+                timestamp = datetime.strptime(
+                    text,
+                    _DATETIME_CELL_FORMAT,
+                )
+            except ValueError:
+                return None
+            else:
+                day = timestamp.date()
+                return day, day
     elif length == 7 and text[4] == '-':
         if _MONTH_CELL_RE.fullmatch(text) is None:
             return None
