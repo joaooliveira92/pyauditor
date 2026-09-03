@@ -36,11 +36,29 @@ DATAHORA_FORMAT: Final[str] = '%d/%m/%Y %H:%M'
 
 def parse_datahora(raw: str) -> datetime | None:
     stripped = raw.strip()
+    length = len(stripped)
     # ⚡ Bolt: otimização de performance.
-    # Evita chamadas custosas ao datetime.strptime (e exceções ValueError em
-    # caminhos de falha) verificando primeiro comprimento e presença dos
-    # separadores do formato "DD/MM/YYYY HH:MM".
-    if 13 <= len(stripped) <= 16 and '/' in stripped and ':' in stripped:
+    # Evita o overhead do datetime.strptime construindo diretamente
+    # datetime(...) a partir dos componentes inteiros quando a string possui
+    # a estrutura exata de 16 caracteres "DD/MM/YYYY HH:MM".
+    if (
+        length == 16
+        and stripped[2] == '/'
+        and stripped[5] == '/'
+        and stripped[10] == ' '
+        and stripped[13] == ':'
+    ):
+        try:
+            return datetime(
+                int(stripped[6:10]),
+                int(stripped[3:5]),
+                int(stripped[0:2]),
+                int(stripped[11:13]),
+                int(stripped[14:16]),
+            )
+        except ValueError:
+            return None
+    elif 13 <= length <= 16 and '/' in stripped and ':' in stripped:
         try:
             return datetime.strptime(stripped, DATAHORA_FORMAT)
         except ValueError:
@@ -60,29 +78,37 @@ class Stats:
 def compute_stats(
     rows: list[dict[str, str]], fieldnames: list[str], accepted_ids: set[int]
 ) -> Stats:
-    dentro: int | None = None
-    fora: int | None = None
-    if NO_PRAZO_COLUMN in fieldnames:
-        dentro = sum(1 for row in rows if row.get(NO_PRAZO_COLUMN) == 'S')
-        fora = sum(1 for row in rows if row.get(NO_PRAZO_COLUMN) == 'N')
+    # ⚡ Bolt: otimização de performance.
+    # Combina as contagens de 'No prazo' e o cálculo de durações em uma única
+    # iteração sobre as linhas (single-pass), reduzindo de 3 passagens para 1.
+    has_no_prazo = NO_PRAZO_COLUMN in fieldnames
+    has_dates = DATA_SOLICITACAO in fieldnames and DATA_FIM in fieldnames
 
+    dentro_count = 0
+    fora_count = 0
     duracao_total = 0.0
     duracao_contagem = 0
-    if DATA_SOLICITACAO in fieldnames and DATA_FIM in fieldnames:
+
+    if has_no_prazo or has_dates:
         for row in rows:
-            if id(row) not in accepted_ids:
-                continue
-            inicio = parse_datahora(row.get(DATA_SOLICITACAO, ''))
-            fim = parse_datahora(row.get(DATA_FIM, ''))
-            if inicio is None or fim is None:
-                continue
-            duracao_total += (fim - inicio).total_seconds()
-            duracao_contagem += 1
+            if has_no_prazo:
+                val = row.get(NO_PRAZO_COLUMN)
+                if val == 'S':
+                    dentro_count += 1
+                elif val == 'N':
+                    fora_count += 1
+
+            if has_dates and id(row) in accepted_ids:
+                inicio = parse_datahora(row.get(DATA_SOLICITACAO, ''))
+                fim = parse_datahora(row.get(DATA_FIM, ''))
+                if inicio is not None and fim is not None:
+                    duracao_total += (fim - inicio).total_seconds()
+                    duracao_contagem += 1
 
     return Stats(
         linhas=len(rows),
-        dentro=dentro,
-        fora=fora,
+        dentro=dentro_count if has_no_prazo else None,
+        fora=fora_count if has_no_prazo else None,
         duracao_total_segundos=duracao_total,
         duracao_contagem=duracao_contagem,
     )
