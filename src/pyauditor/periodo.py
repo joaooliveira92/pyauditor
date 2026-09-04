@@ -25,7 +25,7 @@ import calendar
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from typing import Final
 
@@ -216,9 +216,9 @@ def _cell_interval(
 
     length = len(text)
     # ⚡ Bolt: otimização de performance.
-    # Evita chamadas custosas ao datetime.strptime (e o lançamento/captura de
-    # exceções ValueError em caminhos de falha) verificando primeiro a estrutura
-    # dos formatos suportados:
+    # Evita o overhead do `datetime.strptime` e a criação de objetos
+    # `datetime` intermediários extraindo inteiros e construindo `date`
+    # diretamente após validar os limites de hora/minuto.
     # 1. "DD/MM/YYYY HH:MM" possui exatamente 16 caracteres com separadores
     #    em posições fixas.
     # 2. "YYYY-MM" possui exatamente 7 caracteres com hífen na posição 4.
@@ -230,15 +230,14 @@ def _cell_interval(
         and text[13] == ':'
     ):
         try:
-            timestamp = datetime.strptime(
-                text,
-                _DATETIME_CELL_FORMAT,
-            )
+            hour = int(text[11:13])
+            minute = int(text[14:16])
+            if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                return None
+            day = date(int(text[6:10]), int(text[3:5]), int(text[:2]))
+            return day, day
         except ValueError:
             return None
-        else:
-            day = timestamp.date()
-            return day, day
     elif length == 7 and text[4] == '-':
         if _MONTH_CELL_RE.fullmatch(text) is None:
             return None
