@@ -16,10 +16,22 @@ def filter_rows(
 ) -> list[dict[str, str]]:
     if column_filter is None:
         return rows
-    return [row for row in rows if _matches(row, column_filter)]
+    # ⚡ Bolt: otimização de performance.
+    # Converte `in_values` para `set` previamente quando o filtro for
+    # `ColumnIn`, evitando busca linear O(k) a cada linha da iteração.
+    in_set = (
+        set(column_filter.in_values)
+        if isinstance(column_filter, ColumnIn)
+        else None
+    )
+    return [row for row in rows if _matches(row, column_filter, in_set)]
 
 
-def _matches(row: dict[str, str], column_filter: Filter) -> bool:
+def _matches(
+    row: dict[str, str],
+    column_filter: Filter,
+    in_set: set[str] | None = None,
+) -> bool:
     value = row.get(column_filter.column, '')
     if isinstance(column_filter, ColumnEquals):
         return value.strip() == column_filter.equals
@@ -28,6 +40,8 @@ def _matches(row: dict[str, str], column_filter: Filter) -> bool:
     if isinstance(column_filter, ColumnContains):
         return column_filter.contains in value
     if isinstance(column_filter, ColumnIn):
+        if in_set is not None:
+            return value.strip() in in_set
         return value.strip() in column_filter.in_values
     seconds = _parse_duration_seconds(value)
     return seconds is not None and seconds <= column_filter.max_seconds
