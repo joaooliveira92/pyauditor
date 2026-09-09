@@ -25,7 +25,7 @@ import calendar
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from typing import Final
 
@@ -216,9 +216,8 @@ def _cell_interval(
 
     length = len(text)
     # ⚡ Bolt: otimização de performance.
-    # Evita chamadas custosas ao datetime.strptime (e o lançamento/captura de
-    # exceções ValueError em caminhos de falha) verificando primeiro a estrutura
-    # dos formatos suportados:
+    # Evita chamadas custosas ao datetime.strptime (e alocações intermediárias
+    # de objeto datetime) no formato "DD/MM/YYYY HH:MM".
     # 1. "DD/MM/YYYY HH:MM" possui exatamente 16 caracteres com separadores
     #    em posições fixas.
     # 2. "YYYY-MM" possui exatamente 7 caracteres com hífen na posição 4.
@@ -230,14 +229,14 @@ def _cell_interval(
         and text[13] == ':'
     ):
         try:
-            timestamp = datetime.strptime(
-                text,
-                _DATETIME_CELL_FORMAT,
-            )
+            hour = int(text[11:13])
+            minute = int(text[14:16])
+            if not (0 <= hour < 24 and 0 <= minute < 60):
+                return None
+            day = date(int(text[6:10]), int(text[3:5]), int(text[:2]))
         except ValueError:
             return None
         else:
-            day = timestamp.date()
             return day, day
     elif length == 7 and text[4] == '-':
         if _MONTH_CELL_RE.fullmatch(text) is None:
@@ -325,7 +324,10 @@ def filter_periodo(
     undated_dropped = 0
 
     for row_index, row in enumerate(linhas, start=1):
-        if not isinstance(row, Mapping):
+        # ⚡ Bolt: otimização de performance.
+        # Evita a checagem lenta de ABC (isinstance(..., Mapping)) em loops
+        # com milhares de linhas testando `type(row) is dict` primeiro.
+        if not (type(row) is dict or isinstance(row, Mapping)):
             raise TypeError(
                 f'linhas[{row_index - 1}] must be a mapping, received'
                 f'{type(row).__name__}.'
