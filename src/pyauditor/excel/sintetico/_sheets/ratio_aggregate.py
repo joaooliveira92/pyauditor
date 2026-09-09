@@ -9,6 +9,7 @@ Serviço") como detalhe informativo, não como um cálculo independente.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Final
@@ -302,13 +303,20 @@ def _write_ratio_aggregate_sheet(
         )
     )
 
+    # ⚡ Bolt: otimização de performance.
+    # Pré-agrupa as linhas elegíveis por coluna do grupo em O(N) em vez de
+    # filtrar O(N) a cada iteração.
+    rows_by_grupo: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in eligible_rows:
+        val = row.get(group_column)
+        if val is not None:
+            rows_by_grupo[val].append(row)
+
     for categoria_key, _entry in entries:
         categoria = categorias_file.categorias[categoria_key]
         nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
         for grupo in grupos:
-            grupo_rows = [
-                row for row in eligible_rows if row[group_column] == grupo
-            ]
+            grupo_rows = rows_by_grupo.get(grupo, [])
             grupo_total = sum(
                 parse_decimal(row.get(numerator_column, '') or '0')
                 for row in grupo_rows
