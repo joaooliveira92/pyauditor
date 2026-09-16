@@ -19,6 +19,8 @@ from pydantic import (
     model_validator,
 )
 
+from pyauditor.config._yaml import safe_load_yaml
+
 __all__: Final[tuple[str, ...]] = (
     'CategoriaConfig',
     'CategoriaGrupoExecutor',
@@ -89,7 +91,8 @@ class CategoriasFile(BaseModel):
 def _load_raw(path: Path) -> CategoriasFile:
     text = path.read_text(encoding='utf-8')
     try:
-        raw = yaml.safe_load(text)
+        # Fast C-accelerated YAML load
+        raw = safe_load_yaml(text)
     except yaml.YAMLError as exc:
         raise ValueError(f'malformed YAML in {path}: {exc}') from exc
     try:

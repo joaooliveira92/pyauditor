@@ -12,8 +12,7 @@ import hashlib
 from pathlib import Path
 from typing import Literal, cast
 
-import yaml
-
+from pyauditor.config._yaml import safe_load_yaml
 from pyauditor.config.models import IndicatorConfig
 
 __all__ = (
@@ -30,7 +29,7 @@ _ORGAO_CONTRACT: dict[str, str] = {
 
 
 def load_config(config_path: Path) -> IndicatorConfig:
-    raw = yaml.safe_load(config_path.read_text(encoding='utf-8'))
+    raw = safe_load_yaml(config_path.read_text(encoding='utf-8'))
     if isinstance(raw, dict) and 'indicator' not in raw:
         # Detect typo like `indicador:` — instead of silently skipping later
         for key in raw:
@@ -103,7 +102,7 @@ def discover_config_files(
     )
     for path in sorted(config_dir.glob('*.yaml')):
         raw_text = path.read_text(encoding='utf-8')
-        raw = yaml.safe_load(raw_text)
+        raw = safe_load_yaml(raw_text)
         if not isinstance(raw, dict) or 'indicator' not in raw:
             # Detect typo in indicator key before silently skipping
             if isinstance(raw, dict):

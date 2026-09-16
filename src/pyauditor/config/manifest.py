@@ -22,6 +22,7 @@ from pydantic import (
 )
 
 from pyauditor.config._paths import reject_unsafe_relative_path
+from pyauditor.config._yaml import safe_load_yaml
 
 __all__: Final[tuple[str, ...]] = (
     'DatasetEntry',
@@ -82,7 +83,8 @@ class DatasetManifest:
 def _load_raw(path: Path) -> Mapping[str, DatasetEntry]:
     text = path.read_text(encoding='utf-8')
     try:
-        raw = yaml.safe_load(text)
+        # Fast C-accelerated YAML load
+        raw = safe_load_yaml(text)
     except yaml.YAMLError as exc:
         raise ValueError(f'malformed YAML in {path}: {exc}') from exc
     if not isinstance(raw, dict) or 'datasets' not in raw:
