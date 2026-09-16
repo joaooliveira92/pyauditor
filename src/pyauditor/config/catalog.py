@@ -16,10 +16,12 @@ from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
-from typing import Final, TypedDict, TypeGuard, cast
+from typing import Final, TypedDict, TypeGuard
 
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
+
+from pyauditor.config._yaml import safe_load_yaml
 
 __all__: Final[tuple[str, ...]] = ('CatalogItem', 'load_anexo_e_catalog')
 
@@ -77,8 +79,8 @@ def _read_catalog_text() -> str:
 def _load_raw() -> _RawCatalog:
     text: str = _read_catalog_text()
     try:
-        # yaml.safe_load has no stubs → Any. Isolate Any to one line.
-        raw_any: object = cast(object, yaml.safe_load(text))
+        # Fast C-accelerated YAML load
+        raw_any: object = safe_load_yaml(text)
     except yaml.YAMLError as exc:
         raise ValueError(
             f'malformed YAML in catalog {_CATALOG_PATH}: {exc}'

@@ -17,6 +17,8 @@ from typing import Final
 
 import yaml
 
+from pyauditor.config._yaml import safe_load_yaml
+
 DADOS_CONTRATUAIS_FILENAME: Final[str] = 'dados_contratuais.yaml'
 
 
@@ -33,7 +35,7 @@ def read_dados_contratuais_fields(path: Path) -> dict[str, str]:
     """
     with path.open(encoding='utf-8') as handle:
         try:
-            raw = yaml.safe_load(handle)
+            raw = safe_load_yaml(handle)
         except yaml.YAMLError as exc:
             raise ValueError(f'{path}: YAML malformado: {exc}') from exc
     if raw is None:
