@@ -14,23 +14,44 @@ from pyauditor.config.models import (
 def filter_rows(
     rows: list[dict[str, str]], column_filter: Filter | None
 ) -> list[dict[str, str]]:
-    if column_filter is None:
+    """Filtra linhas com base em um `column_filter`.
+
+    Otimizado para avaliar a variante do filtro uma única vez fora do loop,
+    evitando checagens `isinstance` repetidas por linha e convertendo
+    `in_values` para `set` (busca O(1) em vez de O(N)).
+    """
+    if column_filter is None or not rows:
         return rows
-    return [row for row in rows if _matches(row, column_filter)]
+
+    col = column_filter.column
+
+    if isinstance(column_filter, ColumnEquals):
+        eq = column_filter.equals
+        return [row for row in rows if row.get(col, '').strip() == eq]
+
+    if isinstance(column_filter, ColumnNotEquals):
+        neq = column_filter.not_equals
+        return [row for row in rows if row.get(col, '').strip() != neq]
+
+    if isinstance(column_filter, ColumnContains):
+        contains = column_filter.contains
+        return [row for row in rows if contains in row.get(col, '')]
+
+    if isinstance(column_filter, ColumnIn):
+        in_set = set(column_filter.in_values)
+        return [row for row in rows if row.get(col, '').strip() in in_set]
+
+    max_secs = column_filter.max_seconds
+    return [
+        row
+        for row in rows
+        if (s := _parse_duration_seconds(row.get(col, ''))) is not None
+        and s <= max_secs
+    ]
 
 
 def _matches(row: dict[str, str], column_filter: Filter) -> bool:
-    value = row.get(column_filter.column, '')
-    if isinstance(column_filter, ColumnEquals):
-        return value.strip() == column_filter.equals
-    if isinstance(column_filter, ColumnNotEquals):
-        return value.strip() != column_filter.not_equals
-    if isinstance(column_filter, ColumnContains):
-        return column_filter.contains in value
-    if isinstance(column_filter, ColumnIn):
-        return value.strip() in column_filter.in_values
-    seconds = _parse_duration_seconds(value)
-    return seconds is not None and seconds <= column_filter.max_seconds
+    return bool(filter_rows([row], column_filter))
 
 
 def _parse_duration_seconds(value: str) -> int | None:
