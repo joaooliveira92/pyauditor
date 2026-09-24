@@ -193,6 +193,11 @@ def new_sheet(
         sheet.column_dimensions[cell.column_letter].width = width
 
     sheet.freeze_panes = 'A2'
+    # Armazena o número de colunas esperado para evitar o custo O(N*C) de
+    # acessar `sheet.max_column` em cada chamada de `write_row`.
+    setattr(  # ruff: ignore[set-attr-with-constant]
+        sheet, '_pyauditor_expected_columns', len(columns)
+    )
     return sheet
 
 
@@ -229,8 +234,22 @@ def write_row(
             'Índice de linha do corpo deve ser um inteiro maior que 1.'
         )
 
+    # `sheet.max_column` em openpyxl itera sobre todas as chaves de
+    # `sheet._cells`. Em planilhas com muitas linhas, chamar `sheet.max_column`
+    # a cada linha gera complexidade O(N^2 * C). O cache local
+    # `_pyauditor_expected_columns` reduz essa verificação para O(1).
     if expected_columns is None:
-        expected_columns = sheet.max_column
+        expected_columns = getattr(sheet, '_pyauditor_expected_columns', None)
+        if expected_columns is None:
+            expected_columns = sheet.max_column
+            setattr(  # ruff: ignore[set-attr-with-constant]
+                sheet, '_pyauditor_expected_columns', expected_columns
+            )
+    else:
+        setattr(  # ruff: ignore[set-attr-with-constant]
+            sheet, '_pyauditor_expected_columns', expected_columns
+        )
+
     if len(values) != expected_columns:
         raise ValueError(
             'Quantidade de valores não confere com o esquema da planilha: '
