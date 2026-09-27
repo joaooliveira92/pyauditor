@@ -7,3 +7,7 @@
 ## 2026-08-23 - Fast date construction and ABC isinstance avoidance in row loops
 **Learning:** Even after length checks, `datetime.strptime` spends significant time parsing format tokens and creating intermediate `datetime` objects when only a `date` is needed (~4.3x slower than direct slicing + `date(...)`). Additionally, checking `isinstance(row, Mapping)` inside dataset loops evaluates Python ABC subclass checks (~2.5x slower than checking `type(row) is dict` first).
 **Action:** Construct `date(year, month, day)` directly via string slicing after bounds validation when full datetime objects aren't required, and fast-path exact type checks (`type(x) is dict or isinstance(x, Mapping)`) inside high-volume dataset loops.
+
+## 2026-08-24 - Fast-path DD/MM/YYYY parsing without strptime
+**Learning:** Calling `datetime.strptime(value, '%d/%m/%Y')` on unvalidated strings is slow (~5.6x slower on valid dates and ~33x slower on empty/malformed inputs due to `ValueError` exception overhead).
+**Action:** Validate string length and slash delimiter positions first (`len(stripped) == 10 and stripped[2] == '/' and stripped[5] == '/'`), then construct `datetime(int(year), int(month), int(day))` directly via integer slicing with fallback split for single-digit dates.

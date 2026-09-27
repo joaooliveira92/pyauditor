@@ -1568,3 +1568,21 @@ def test_equipe_sheet_omitted_when_equipe_path_not_given(
     assert warnings == []
     wb = load_workbook(output_path)
     assert 'Equipe' not in wb.sheetnames
+
+
+def test_parse_data_br_fast_path() -> None:
+    from datetime import datetime
+
+    from pyauditor.excel.sintetico._sheets.capa import _parse_data_br
+
+    assert _parse_data_br('15/06/2026') == datetime(2026, 6, 15)
+    assert _parse_data_br(' 15/06/2026 ') == datetime(2026, 6, 15)
+    assert _parse_data_br('1/6/2026') == datetime(2026, 6, 1)
+    assert _parse_data_br('01/6/2026') == datetime(2026, 6, 1)
+    assert _parse_data_br('1/06/2026') == datetime(2026, 6, 1)
+
+    assert _parse_data_br('') is None
+    assert _parse_data_br('    ') is None
+    assert _parse_data_br('texto') is None
+    assert _parse_data_br('2026-06-15') is None
+    assert _parse_data_br('31/02/2026') is None
