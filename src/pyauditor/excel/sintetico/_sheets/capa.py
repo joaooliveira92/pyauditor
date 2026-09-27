@@ -126,10 +126,26 @@ def _strip_fields(raw: dict[str, str]) -> dict[str, str]:
 
 
 def _parse_data_br(value: str) -> datetime | None:
-    try:
-        return datetime.strptime(value, '%d/%m/%Y')
-    except ValueError:
-        return None
+    # ⚡ Bolt: otimização de performance.
+    # Evita chamadas custosas ao datetime.strptime (e exceções ValueError em
+    # caminhos de falha/campos vazios) verificando primeiro comprimento e
+    # estrutura da string ("DD/MM/YYYY").
+    stripped = value.strip()
+    if len(stripped) == 10 and stripped[2] == '/' and stripped[5] == '/':
+        try:
+            return datetime(
+                int(stripped[6:10]), int(stripped[3:5]), int(stripped[:2])
+            )
+        except ValueError:
+            return None
+    elif 8 <= len(stripped) <= 9 and '/' in stripped:
+        try:
+            parts = stripped.split('/')
+            if len(parts) == 3 and len(parts[2]) == 4:
+                return datetime(int(parts[2]), int(parts[1]), int(parts[0]))
+        except ValueError:
+            return None
+    return None
 
 
 def _only_digits(value: str) -> str:
