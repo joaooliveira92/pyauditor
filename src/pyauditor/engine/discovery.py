@@ -8,7 +8,9 @@ nenhum consumidor muda de import.
 
 from __future__ import annotations
 
+import copy
 import hashlib
+from functools import lru_cache
 from pathlib import Path
 from typing import Literal, cast
 
@@ -29,8 +31,34 @@ _ORGAO_CONTRACT: dict[str, str] = {
 }
 
 
+@lru_cache(maxsize=256)
+def _read_and_parse_yaml_cached(
+    resolved_path: Path, mtime_ns: int
+) -> tuple[str, str, object]:
+    """Lê e parseia YAML de config com cache LRU baseado no caminho e mtime_ns.
+
+    Otimização de desempenho (Bolt): evita I/O de disco repetido e overhead de
+    parsing PyYAML e hash SHA-256 durante múltiplas chamadas de descoberta na
+    mesma execução. Retorna `deepcopy(raw)` para evitar corrupção de estado se
+    os consumidores modificarem a estrutura parsed.
+    """
+    raw_text = resolved_path.read_text(encoding='utf-8')
+    content_hash = hashlib.sha256(raw_text.encode('utf-8')).hexdigest()
+    raw = yaml.safe_load(raw_text)
+    return raw_text, content_hash, raw
+
+
+def _get_parsed_yaml(path: Path) -> tuple[str, str, object]:
+    resolved = path.resolve()
+    mtime_ns = path.stat().st_mtime_ns
+    raw_text, content_hash, raw = _read_and_parse_yaml_cached(
+        resolved, mtime_ns
+    )
+    return raw_text, content_hash, copy.deepcopy(raw)
+
+
 def load_config(config_path: Path) -> IndicatorConfig:
-    raw = yaml.safe_load(config_path.read_text(encoding='utf-8'))
+    _, _, raw = _get_parsed_yaml(config_path)
     if isinstance(raw, dict) and 'indicator' not in raw:
         # Detect typo like `indicador:` — instead of silently skipping later
         for key in raw:
@@ -102,8 +130,7 @@ def discover_config_files(
         config_dir.name == '_shared' or (config_dir / '_shared').exists()
     )
     for path in sorted(config_dir.glob('*.yaml')):
-        raw_text = path.read_text(encoding='utf-8')
-        raw = yaml.safe_load(raw_text)
+        _, content_hash, raw = _get_parsed_yaml(path)
         if not isinstance(raw, dict) or 'indicator' not in raw:
             # Detect typo in indicator key before silently skipping
             if isinstance(raw, dict):
@@ -139,7 +166,6 @@ def discover_config_files(
                     f'órgão solicitado {expected_orgao!r} — config no diretório'
                     f' errado'
                 )
-        content_hash = hashlib.sha256(raw_text.encode('utf-8')).hexdigest()
         triples.append((path, content_hash, config))
     return triples
 
