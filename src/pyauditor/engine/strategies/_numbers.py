@@ -7,6 +7,8 @@ roteiam toda coluna numérica por :func:`parse_decimal`.
 
 from __future__ import annotations
 
+import math
+
 
 def parse_decimal(raw: str) -> float:
     """Parseia um decimal em formato PT-BR (vírgula como separador) para
@@ -16,11 +18,17 @@ def parse_decimal(raw: str) -> float:
     funcionam. Devolve ``nan`` para entrada ilegível (chamadores pulam em
     ``nan``).
     """
-    value = raw.strip().replace(',', '.')
+    if not raw:
+        return math.nan
+    s = raw.strip()
+    if not s:
+        return math.nan
+    if ',' in s:
+        s = s.replace(',', '.')
     try:
-        return float(value)
+        return float(s)
     except ValueError:
-        return float('nan')
+        return math.nan
 
 
 def as_float(value: object) -> float | None:
