@@ -2,11 +2,14 @@
 `ColumnIn` | `DurationAtMost`) from a calculation config to CSV rows.
 """
 
+from collections.abc import Callable
+
 from pyauditor.config.models import (
     ColumnContains,
     ColumnEquals,
     ColumnIn,
     ColumnNotEquals,
+    DurationAtMost,
     Filter,
 )
 
@@ -14,9 +17,35 @@ from pyauditor.config.models import (
 def filter_rows(
     rows: list[dict[str, str]], column_filter: Filter | None
 ) -> list[dict[str, str]]:
-    if column_filter is None:
+    if column_filter is None or not rows:
         return rows
-    return [row for row in rows if _matches(row, column_filter)]
+    pred = _build_predicate(column_filter)
+    return [row for row in rows if pred(row)]
+
+
+def _build_predicate(column_filter: Filter) -> Callable[[dict[str, str]], bool]:
+    # Compila um predicado pre-configurado para evitar checagens `isinstance`
+    # e acessos a atributos repetidos a cada linha do loop de filtragem.
+    col = column_filter.column
+    if isinstance(column_filter, ColumnEquals):
+        equals = column_filter.equals
+        return lambda row: row.get(col, '').strip() == equals
+    if isinstance(column_filter, ColumnNotEquals):
+        not_equals = column_filter.not_equals
+        return lambda row: row.get(col, '').strip() != not_equals
+    if isinstance(column_filter, ColumnContains):
+        contains = column_filter.contains
+        return lambda row: contains in row.get(col, '')
+    if isinstance(column_filter, ColumnIn):
+        in_set = set(column_filter.in_values)
+        return lambda row: row.get(col, '').strip() in in_set
+    if isinstance(column_filter, DurationAtMost):
+        max_seconds = column_filter.max_seconds
+        return lambda row: (
+            (s := _parse_duration_seconds(row.get(col, ''))) is not None
+            and s <= max_seconds
+        )
+    return lambda row: _matches(row, column_filter)
 
 
 def _matches(row: dict[str, str], column_filter: Filter) -> bool:
