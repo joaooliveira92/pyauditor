@@ -17,6 +17,7 @@ usa `accepted_ids`.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Final
@@ -166,11 +167,15 @@ def _write_detalhe(
     )
     row_idx = start_row + 2
 
-    real_values = {
-        row[GRUPO_EXECUTOR_COLUMN]
-        for row in rows
-        if GRUPO_EXECUTOR_COLUMN in row
-    }
+    # ⚡ Bolt: otimização de performance O(N) para reagrupar linhas por
+    # `Grupo_executor`. Evita iterações lineares repetidas O(N * G) dentro do
+    # loop de categorias/grupos.
+    rows_by_grupo: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in rows:
+        if GRUPO_EXECUTOR_COLUMN in row:
+            rows_by_grupo[row[GRUPO_EXECUTOR_COLUMN]].append(row)
+
+    real_values = set(rows_by_grupo.keys())
     per_categoria_values, outros_values = (
         compute_categoria_values(grupo_executor_entries, real_values)
         if grupo_executor_entries
@@ -212,9 +217,7 @@ def _write_detalhe(
         categoria = categorias_file.categorias[categoria_key]
         nivel = _NIVEL_BY_CATEGORIA.get(categoria_key)
         for grupo in sorted(effective_values):
-            group_rows = [
-                row for row in rows if row[GRUPO_EXECUTOR_COLUMN] == grupo
-            ]
+            group_rows = rows_by_grupo.get(grupo, [])
             emit(categoria.label, nivel, grupo, group_rows)
 
     for categoria_key, _entry in whole_indicator_entries:
@@ -223,9 +226,7 @@ def _write_detalhe(
         emit(categoria.label, nivel, _WHOLE_INDICATOR_LABEL, rows)
 
     for grupo in sorted(outros_values):
-        group_rows = [
-            row for row in rows if row[GRUPO_EXECUTOR_COLUMN] == grupo
-        ]
+        group_rows = rows_by_grupo.get(grupo, [])
         emit(_OUTROS_LABEL, None, grupo, group_rows)
 
     return row_idx
