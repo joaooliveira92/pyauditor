@@ -126,6 +126,18 @@ def _strip_fields(raw: dict[str, str]) -> dict[str, str]:
 
 
 def _parse_data_br(value: str) -> datetime | None:
+    # ⚡ Bolt: otimização de performance.
+    # Evita chamadas custosas ao datetime.strptime construindo datetime
+    # diretamente a partir do fatiamento no formato padrão "DD/MM/YYYY".
+    if len(value) == 10 and value[2] == '/' and value[5] == '/':
+        try:
+            return datetime(
+                int(value[6:10]),
+                int(value[3:5]),
+                int(value[0:2]),
+            )
+        except ValueError:
+            return None
     try:
         return datetime.strptime(value, '%d/%m/%Y')
     except ValueError:
