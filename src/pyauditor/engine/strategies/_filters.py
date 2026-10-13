@@ -7,6 +7,7 @@ from pyauditor.config.models import (
     ColumnEquals,
     ColumnIn,
     ColumnNotEquals,
+    DurationAtMost,
     Filter,
 )
 
@@ -14,8 +15,40 @@ from pyauditor.config.models import (
 def filter_rows(
     rows: list[dict[str, str]], column_filter: Filter | None
 ) -> list[dict[str, str]]:
-    if column_filter is None:
+    if column_filter is None or not rows:
         return rows
+
+    # ⚡ Bolt: otimização de performance.
+    # Evita chamadas repetidas a isinstance() e lookups de atributos a cada
+    # linha do dataset despachando o tipo de filtro uma única vez fora do loop.
+    # Para `ColumnIn`, converte a lista de valores em `set` para que a busca
+    # seja O(1) em vez de busca linear O(K) por linha.
+    if isinstance(column_filter, ColumnEquals):
+        col, target = column_filter.column, column_filter.equals
+        return [row for row in rows if row.get(col, '').strip() == target]
+
+    if isinstance(column_filter, ColumnNotEquals):
+        col, target = column_filter.column, column_filter.not_equals
+        return [row for row in rows if row.get(col, '').strip() != target]
+
+    if isinstance(column_filter, ColumnContains):
+        col, target = column_filter.column, column_filter.contains
+        return [row for row in rows if target in row.get(col, '')]
+
+    if isinstance(column_filter, ColumnIn):
+        col = column_filter.column
+        in_set = set(column_filter.in_values)
+        return [row for row in rows if row.get(col, '').strip() in in_set]
+
+    if isinstance(column_filter, DurationAtMost):
+        col, max_sec = column_filter.column, column_filter.max_seconds
+        return [
+            row
+            for row in rows
+            if (sec := _parse_duration_seconds(row.get(col, ''))) is not None
+            and sec <= max_sec
+        ]
+
     return [row for row in rows if _matches(row, column_filter)]
 
 
