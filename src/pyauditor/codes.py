@@ -44,6 +44,9 @@ def format_inms_code(code: str) -> str:
     return f'{whole}.{minor.zfill(2)}'
 
 
+# ⚡ Bolt: otimização de performance.
+# Memoiza a formatação numérica sem o prefixo INMS usando lru_cache.
+@lru_cache(maxsize=128)
 def format_inms_code_numeric(code: str) -> str:
     """Return the bare, zero-padded ``n.m`` form without the ``INMS``
     prefix (``"INMS 1.9"`` -> ``"1.09"``) — the compact form GLOSAS's
@@ -60,6 +63,9 @@ def format_inms_code_numeric(code: str) -> str:
     return f'{major}.{minor.zfill(2)}'
 
 
+# ⚡ Bolt: otimização de performance.
+# Memoiza a conversão/normalização de código exibido para chave interna.
+@lru_cache(maxsize=128)
 def parse_inms_code(code: str) -> str:
     """Canonicalize a *displayed* contractual code back to the internal
     ``INMS <n>.<m>`` key, accepting either `format_inms_code`'s full form
@@ -76,6 +82,9 @@ def parse_inms_code(code: str) -> str:
     return format_inms_code(code)
 
 
+# ⚡ Bolt: otimização de performance.
+# Memoiza a chave de ordenação de código contratual usando lru_cache.
+@lru_cache(maxsize=128)
 def contractual_sort_key(code: str) -> tuple[int, str, int, str]:
     """Sort key that orders ``INMS <n>.<m>`` codes numerically by ``m``
     (``INMS 1.2`` before ``INMS 1.10``) instead of lexicographically.
