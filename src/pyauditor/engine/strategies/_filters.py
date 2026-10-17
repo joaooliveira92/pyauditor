@@ -7,6 +7,7 @@ from pyauditor.config.models import (
     ColumnEquals,
     ColumnIn,
     ColumnNotEquals,
+    DurationAtMost,
     Filter,
 )
 
@@ -16,6 +17,40 @@ def filter_rows(
 ) -> list[dict[str, str]]:
     if column_filter is None:
         return rows
+
+    # ⚡ Bolt: otimização de performance.
+    # Despacha o filtro uma única vez fora do loop, extrai a coluna e converte
+    # sequências de in_values em conjunto (set) para buscas O(1), evitando
+    # checagens isinstance e lookups repetidos a cada linha do dataset.
+    col = column_filter.column
+
+    if isinstance(column_filter, ColumnEquals):
+        target = column_filter.equals
+        return [row for row in rows if (row.get(col) or '').strip() == target]
+
+    if isinstance(column_filter, ColumnNotEquals):
+        target = column_filter.not_equals
+        return [row for row in rows if (row.get(col) or '').strip() != target]
+
+    if isinstance(column_filter, ColumnContains):
+        target = column_filter.contains
+        return [row for row in rows if target in (row.get(col) or '')]
+
+    if isinstance(column_filter, ColumnIn):
+        target_set = set(column_filter.in_values)
+        return [
+            row for row in rows if (row.get(col) or '').strip() in target_set
+        ]
+
+    if isinstance(column_filter, DurationAtMost):
+        max_sec = column_filter.max_seconds
+        return [
+            row
+            for row in rows
+            if (sec := _parse_duration_seconds(row.get(col) or '')) is not None
+            and sec <= max_sec
+        ]
+
     return [row for row in rows if _matches(row, column_filter)]
 
 
