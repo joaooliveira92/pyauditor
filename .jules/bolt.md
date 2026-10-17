@@ -7,3 +7,7 @@
 ## 2026-08-23 - Fast date construction and ABC isinstance avoidance in row loops
 **Learning:** Even after length checks, `datetime.strptime` spends significant time parsing format tokens and creating intermediate `datetime` objects when only a `date` is needed (~4.3x slower than direct slicing + `date(...)`). Additionally, checking `isinstance(row, Mapping)` inside dataset loops evaluates Python ABC subclass checks (~2.5x slower than checking `type(row) is dict` first).
 **Action:** Construct `date(year, month, day)` directly via string slicing after bounds validation when full datetime objects aren't required, and fast-path exact type checks (`type(x) is dict or isinstance(x, Mapping)`) inside high-volume dataset loops.
+
+## 2026-08-24 - Filter hoisting and set conversion in dataset row filtering
+**Learning:** `filter_rows` was evaluating `isinstance(column_filter, ...)` and doing attribute lookups (`column_filter.column`, `column_filter.in_values`) inside the inner loop for every dataset row. Furthermore, `ColumnIn` performed linear sequence searches (`in column_filter.in_values`) on list/tuple criteria, resulting in $O(N)$ lookup cost per row.
+**Action:** Always hoist filter attributes and dispatch logic outside dataset row iteration loops, and convert sequence criteria (`in_values`) to `set`s for $O(1)$ hash table lookups before iterating over rows.
