@@ -2,6 +2,8 @@
 `ColumnIn` | `DurationAtMost`) from a calculation config to CSV rows.
 """
 
+from collections.abc import Callable
+
 from pyauditor.config.models import (
     ColumnContains,
     ColumnEquals,
@@ -11,26 +13,46 @@ from pyauditor.config.models import (
 )
 
 
+def _compile_matcher(
+    column_filter: Filter,
+) -> Callable[[dict[str, str]], bool]:
+    # ⚡ Bolt: otimização de performance.
+    # Pre-compila o predicado do filtro para extrair o nome da coluna
+    # uma única vez, evitar checagens repetidas de `isinstance` a cada
+    # linha do dataset e converter `in_values` de `list` para `set`
+    # (busca em tabela hash O(1) em vez de busca linear O(N)).
+    col = column_filter.column
+    if isinstance(column_filter, ColumnEquals):
+        target = column_filter.equals
+        return lambda row: (row.get(col) or '').strip() == target
+    if isinstance(column_filter, ColumnNotEquals):
+        target = column_filter.not_equals
+        return lambda row: (row.get(col) or '').strip() != target
+    if isinstance(column_filter, ColumnContains):
+        target = column_filter.contains
+        return lambda row: target in (row.get(col) or '')
+    if isinstance(column_filter, ColumnIn):
+        in_set = set(column_filter.in_values)
+        return lambda row: (row.get(col) or '').strip() in in_set
+    max_seconds = column_filter.max_seconds
+    return lambda row: (
+        (secs := _parse_duration_seconds(row.get(col, ''))) is not None
+        and secs <= max_seconds
+    )
+
+
 def filter_rows(
     rows: list[dict[str, str]], column_filter: Filter | None
 ) -> list[dict[str, str]]:
     if column_filter is None:
         return rows
-    return [row for row in rows if _matches(row, column_filter)]
+    matcher = _compile_matcher(column_filter)
+    return [row for row in rows if matcher(row)]
 
 
 def _matches(row: dict[str, str], column_filter: Filter) -> bool:
-    value = row.get(column_filter.column, '')
-    if isinstance(column_filter, ColumnEquals):
-        return value.strip() == column_filter.equals
-    if isinstance(column_filter, ColumnNotEquals):
-        return value.strip() != column_filter.not_equals
-    if isinstance(column_filter, ColumnContains):
-        return column_filter.contains in value
-    if isinstance(column_filter, ColumnIn):
-        return value.strip() in column_filter.in_values
-    seconds = _parse_duration_seconds(value)
-    return seconds is not None and seconds <= column_filter.max_seconds
+    """Função utilitária interna para verificação de linha única."""
+    return _compile_matcher(column_filter)(row)
 
 
 def _parse_duration_seconds(value: str) -> int | None:
