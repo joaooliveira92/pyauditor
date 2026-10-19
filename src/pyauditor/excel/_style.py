@@ -230,7 +230,12 @@ def write_row(
         )
 
     if expected_columns is None:
-        expected_columns = sheet.max_column
+        # ⚡ Bolt: otimização de performance.
+        # Usa `len(sheet[1])` em vez de `sheet.max_column` para obter a
+        # contagem de colunas do cabeçalho. `sheet.max_column` reavalia
+        # iterativamente todas as células da planilha a cada chamada, o que
+        # torna a gravação de N linhas O(N^2 * C) em vez de O(N * C).
+        expected_columns = len(sheet[1])
     if len(values) != expected_columns:
         raise ValueError(
             'Quantidade de valores não confere com o esquema da planilha: '
