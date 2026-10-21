@@ -7,6 +7,7 @@ from pyauditor.config.models import (
     ColumnEquals,
     ColumnIn,
     ColumnNotEquals,
+    DurationAtMost,
     Filter,
 )
 
@@ -14,8 +15,46 @@ from pyauditor.config.models import (
 def filter_rows(
     rows: list[dict[str, str]], column_filter: Filter | None
 ) -> list[dict[str, str]]:
-    if column_filter is None:
+    """Filtra linhas de um dataset aplicando um `Filter` configurado.
+
+    Aplica um filtro no dataset preservando a ordem das linhas.
+    """
+    if column_filter is None or not rows:
         return rows
+
+    column = column_filter.column
+
+    # ⚡ Bolt: otimização de performance.
+    # Despacha a filtragem inspecionando o tipo do filtro uma única vez fora do
+    # loop de linhas, evitando a invocação repetida de `_matches` e checagens
+    # de `isinstance` a cada elemento do dataset. Para `ColumnIn`, pré-converte
+    # `in_values` para `set` fora do loop, transformando a busca linear O(M) em
+    # busca constante O(1).
+    if isinstance(column_filter, ColumnEquals):
+        target_eq = column_filter.equals
+        return [r for r in rows if (r.get(column) or '').strip() == target_eq]
+
+    if isinstance(column_filter, ColumnIn):
+        target_set = set(column_filter.in_values)
+        return [r for r in rows if (r.get(column) or '').strip() in target_set]
+
+    if isinstance(column_filter, ColumnContains):
+        target_contains = column_filter.contains
+        return [r for r in rows if target_contains in (r.get(column) or '')]
+
+    if isinstance(column_filter, ColumnNotEquals):
+        target_neq = column_filter.not_equals
+        return [r for r in rows if (r.get(column) or '').strip() != target_neq]
+
+    if isinstance(column_filter, DurationAtMost):
+        max_seconds = column_filter.max_seconds
+        retained: list[dict[str, str]] = []
+        for r in rows:
+            secs = _parse_duration_seconds(r.get(column) or '')
+            if secs is not None and secs <= max_seconds:
+                retained.append(r)
+        return retained
+
     return [row for row in rows if _matches(row, column_filter)]
 
 
