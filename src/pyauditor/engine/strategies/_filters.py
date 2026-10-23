@@ -2,11 +2,14 @@
 `ColumnIn` | `DurationAtMost`) from a calculation config to CSV rows.
 """
 
+from collections.abc import Callable
+
 from pyauditor.config.models import (
     ColumnContains,
     ColumnEquals,
     ColumnIn,
     ColumnNotEquals,
+    DurationAtMost,
     Filter,
 )
 
@@ -16,21 +19,37 @@ def filter_rows(
 ) -> list[dict[str, str]]:
     if column_filter is None:
         return rows
-    return [row for row in rows if _matches(row, column_filter)]
+    # ⚡ Bolt: otimização de performance.
+    # Constrói o predicado do filtro uma única vez fora do loop, evitando
+    # checagens repetidas de `isinstance` e convertendo a lista de `ColumnIn`
+    # em `set` para busca O(1) em datasets com milhares de linhas.
+    matcher = _build_matcher(column_filter)
+    return [row for row in rows if matcher(row)]
 
 
-def _matches(row: dict[str, str], column_filter: Filter) -> bool:
-    value = row.get(column_filter.column, '')
+def _build_matcher(column_filter: Filter) -> Callable[[dict[str, str]], bool]:
+    col = column_filter.column
     if isinstance(column_filter, ColumnEquals):
-        return value.strip() == column_filter.equals
+        equals = column_filter.equals
+        return lambda row: row.get(col, '').strip() == equals
     if isinstance(column_filter, ColumnNotEquals):
-        return value.strip() != column_filter.not_equals
+        not_equals = column_filter.not_equals
+        return lambda row: row.get(col, '').strip() != not_equals
     if isinstance(column_filter, ColumnContains):
-        return column_filter.contains in value
+        contains = column_filter.contains
+        return lambda row: contains in row.get(col, '')
     if isinstance(column_filter, ColumnIn):
-        return value.strip() in column_filter.in_values
+        in_set = set(column_filter.in_values)
+        return lambda row: row.get(col, '').strip() in in_set
+    if isinstance(column_filter, DurationAtMost):
+        max_seconds = column_filter.max_seconds
+        return lambda row: _matches_duration(row.get(col, ''), max_seconds)
+    raise TypeError(f'Filtro não suportado: {type(column_filter).__name__}')
+
+
+def _matches_duration(value: str, max_seconds: int) -> bool:
     seconds = _parse_duration_seconds(value)
-    return seconds is not None and seconds <= column_filter.max_seconds
+    return seconds is not None and seconds <= max_seconds
 
 
 def _parse_duration_seconds(value: str) -> int | None:
